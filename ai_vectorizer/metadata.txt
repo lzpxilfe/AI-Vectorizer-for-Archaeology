@@ -6,7 +6,7 @@ name=ArchaeoTrace
 qgisMinimumVersion=3.22
 description=AI-assisted contour digitizing for historical maps. Features smart path tracing, edge snapping, and multiple AI engine options.
 version=0.1.0
-author=nuri9
+author=lzpxilfe(balguljang2)
 email=your-email@example.com
 
 about=AI Vectorizer helps archaeologists digitize contour lines from scanned historical maps. 
