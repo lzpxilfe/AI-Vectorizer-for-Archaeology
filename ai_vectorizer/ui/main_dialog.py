@@ -16,7 +16,7 @@ class AIVectorizerDialog(QDialog):
     def __init__(self, iface, parent=None):
         super().__init__(parent)
         self.iface = iface
-        self.setWindowTitle("AI Vectorizer")
+        self.setWindowTitle("ArchaeoTrace")
         self.resize(400, 350)
         
         self.sam_engine = None

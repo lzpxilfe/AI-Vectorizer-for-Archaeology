@@ -2,7 +2,7 @@
 # Mandatory items:
 
 [general]
-name=AI Vectorizer for Archaeology
+name=ArchaeoTrace
 qgisMinimumVersion=3.22
 description=AI-assisted contour digitizing for historical maps. Features smart path tracing, edge snapping, and multiple AI engine options.
 version=0.1.0

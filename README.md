@@ -1,4 +1,4 @@
-# AI Vectorizer for Archaeology
+# ArchaeoTrace (QGIS AI Plugin)
 
 QGIS Plugin for AI-assisted contour digitizing from historical maps.
 

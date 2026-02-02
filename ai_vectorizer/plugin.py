@@ -28,13 +28,13 @@ class AIVectorizer:
         self.iface = iface
         self.plugin_dir = os.path.dirname(__file__)
         self.actions = []
-        self.menu = '&AI Vectorizer'
+        self.menu = '&ArchaeoTrace'
         self.toolbar = None
         self.dialog = None
 
     def tr(self, message):
         """Get the translation for a string."""
-        return QCoreApplication.translate('AIVectorizer', message)
+        return QCoreApplication.translate('ArchaeoTrace', message)
 
     def add_action(
         self,
@@ -62,8 +62,8 @@ class AIVectorizer:
 
         if add_to_toolbar:
             if self.toolbar is None:
-                self.toolbar = self.iface.addToolBar('AI Vectorizer')
-                self.toolbar.setObjectName('AIVectorizerToolbar')
+                self.toolbar = self.iface.addToolBar('ArchaeoTrace')
+                self.toolbar.setObjectName('ArchaeoTraceToolbar')
             self.toolbar.addAction(action)
 
         if add_to_menu:
@@ -79,10 +79,10 @@ class AIVectorizer:
         # Main dialog action
         self.add_action(
             icon_path,
-            text=self.tr('AI Vectorizer'),
+            text=self.tr('ArchaeoTrace'),
             callback=self.run,
             parent=self.iface.mainWindow(),
-            status_tip=self.tr('Open AI Vectorizer dialog')
+            status_tip=self.tr('Open ArchaeoTrace dialog')
         )
 
     def unload(self):
