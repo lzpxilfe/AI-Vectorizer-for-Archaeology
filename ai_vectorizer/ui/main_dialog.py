@@ -73,6 +73,21 @@ class AIVectorizerDialog(QDialog):
         step3 = QGroupBox("3️⃣ 등고선 트레이싱")
         step3_layout = QVBoxLayout()
         
+        # Freedom slider
+        from qgis.PyQt.QtWidgets import QSlider
+        freedom_layout = QHBoxLayout()
+        freedom_layout.addWidget(QLabel("자유도:"))
+        self.freedom_slider = QSlider(Qt.Horizontal)
+        self.freedom_slider.setMinimum(0)
+        self.freedom_slider.setMaximum(100)
+        self.freedom_slider.setValue(50)  # Default: balanced
+        self.freedom_slider.setToolTip("낮음=엣지 따라감 | 높음=자유롭게 그리기")
+        freedom_layout.addWidget(self.freedom_slider)
+        self.freedom_label = QLabel("50%")
+        self.freedom_slider.valueChanged.connect(lambda v: self.freedom_label.setText(f"{v}%"))
+        freedom_layout.addWidget(self.freedom_label)
+        step3_layout.addLayout(freedom_layout)
+        
         self.trace_btn = QPushButton("🖊️ 선 그리기 시작")
         self.trace_btn.setCheckable(True)
         self.trace_btn.clicked.connect(self.toggle_trace_tool)
@@ -184,10 +199,16 @@ class AIVectorizerDialog(QDialog):
                 
             from ..tools.smart_trace_tool import SmartTraceTool
             
+            # Convert slider (0-100) to edge_weight (1.0 to 0.0)
+            # 0% freedom = 1.0 edge weight (strict follow)
+            # 100% freedom = 0.0 edge weight (free draw)
+            freedom = 1.0 - (self.freedom_slider.value() / 100.0)
+            
             self.active_tool = SmartTraceTool(
                 self.iface.mapCanvas(),
                 raster,
-                self.output_layer
+                self.output_layer,
+                edge_weight=freedom
             )
             self.iface.mapCanvas().setMapTool(self.active_tool)
             self.active_tool.deactivated.connect(self.on_tool_deactivated)

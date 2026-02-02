@@ -57,17 +57,22 @@ class EdgeDetector:
         
         return dark_mask
 
-    def get_edge_cost_map(self, edges: np.ndarray) -> np.ndarray:
+    def get_edge_cost_map(self, edges: np.ndarray, edge_weight: float = 1.0) -> np.ndarray:
         """
         Create a cost map for pathfinding. 
         Edges (white pixels) have LOW cost, background HIGH cost.
+        
+        Args:
+            edges: Binary edge map
+            edge_weight: 0.0 = free draw, 1.0 = strict edge follow
         """
         # Distance to nearest edge pixel
         inverted = cv2.bitwise_not(edges)
         dist = cv2.distanceTransform(inverted, cv2.DIST_L2, 5)
         
-        # Cost: on edge = 1, far from edge = high
-        # Reduced multiplier for smoother paths
-        cost_map = 1.0 + dist * 3.0
+        # Lower edge_weight = more freedom to go off-edge
+        # Higher edge_weight = strict edge following
+        multiplier = 0.5 + edge_weight * 3.0  # Range: 0.5 ~ 3.5
+        cost_map = 1.0 + dist * multiplier
         
         return cost_map.astype(np.float32)

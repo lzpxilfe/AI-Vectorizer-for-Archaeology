@@ -17,7 +17,7 @@ from ..core.edge_detector import EdgeDetector
 from ..core.path_finder import PathFinder
 
 class SmartTraceTool(QgsMapToolEmitPoint):
-    def __init__(self, canvas, raster_layer, vector_layer, model_type=0, sam_engine=None):
+    def __init__(self, canvas, raster_layer, vector_layer, model_type=0, sam_engine=None, edge_weight=0.5):
         self.canvas = canvas
         super().__init__(self.canvas)
         
@@ -25,6 +25,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.vector_layer = vector_layer
         self.model_type = model_type  
         self.sam_engine = sam_engine
+        self.edge_weight = edge_weight  # 0.0 = free, 1.0 = strict edge follow
         
         # Path tracking
         self.path_points = []  # Confirmed points (map coords)
@@ -148,7 +149,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return
             
         self.cached_edges = self.edge_detector.detect_edges(image)
-        self.cached_cost = self.edge_detector.get_edge_cost_map(self.cached_edges)
+        self.cached_cost = self.edge_detector.get_edge_cost_map(self.cached_edges, self.edge_weight)
         self.cache_extent = extent
         self.pixel_width = extent.width() / image.shape[1]
         self.pixel_height = extent.height() / image.shape[0]
