@@ -266,13 +266,20 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if len(self.path_points) < 2:
             return
         
+        # Smooth the line using Douglas-Peucker algorithm
+        smoothed_points = self.smooth_line(self.path_points)
+        
         # Create geometry    
-        if closed and len(self.path_points) >= 3:
+        if closed and len(smoothed_points) >= 3:
             # Closed polygon as LineString (ring)
-            points = self.path_points + [self.path_points[0]]  # Close the ring
+            points = smoothed_points + [smoothed_points[0]]
             geom = QgsGeometry.fromPolylineXY(points)
         else:
-            geom = QgsGeometry.fromPolylineXY(self.path_points)
+            geom = QgsGeometry.fromPolylineXY(smoothed_points)
+        
+        # Additional smoothing via QGIS geometry simplify
+        tolerance = self.canvas.mapUnitsPerPixel() * 2  # 2 pixel tolerance
+        geom = geom.simplify(tolerance)
         
         feat = QgsFeature()
         feat.setGeometry(geom)
@@ -282,6 +289,35 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.vector_layer.addFeature(feat)
         self.vector_layer.commitChanges()
         self.vector_layer.triggerRepaint()
+
+    def smooth_line(self, points):
+        """
+        Smooth a line using Douglas-Peucker algorithm.
+        Returns simplified list of QgsPointXY.
+        """
+        if len(points) < 3:
+            return points
+        
+        # Convert to geometry for simplification
+        geom = QgsGeometry.fromPolylineXY(points)
+        
+        # Use adaptive tolerance based on map scale
+        tolerance = self.canvas.mapUnitsPerPixel() * 3  # 3 pixel tolerance
+        simplified = geom.simplify(tolerance)
+        
+        if simplified.isNull():
+            return points
+        
+        # Extract simplified points
+        result = []
+        for pt in simplified.asPolyline():
+            result.append(QgsPointXY(pt))
+        
+        # Ensure we have at least start and end
+        if len(result) < 2:
+            return points
+        
+        return result
 
     def reset_tracing(self):
         self.is_tracing = False
