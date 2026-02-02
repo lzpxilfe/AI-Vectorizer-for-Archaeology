@@ -173,10 +173,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """Check if point is within snap distance of start."""
         if not self.start_point:
             return False
+        if len(self.path_points) < 2:  # Need at least 2 points to form a closed shape
+            return False
         dx = point.x() - self.start_point.x()
         dy = point.y() - self.start_point.y()
         dist = (dx*dx + dy*dy) ** 0.5
-        return dist < self.snap_distance and len(self.path_points) > 2
+        return dist < self.snap_distance
 
     def update_edge_cache(self):
         extent = self.canvas.extent()
