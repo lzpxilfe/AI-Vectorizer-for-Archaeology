@@ -271,9 +271,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         
         # Create geometry    
         if closed and len(smoothed_points) >= 3:
-            # Closed polygon as LineString (ring)
-            points = smoothed_points + [smoothed_points[0]]
-            geom = QgsGeometry.fromPolylineXY(points)
+            # Save as actual Polygon
+            ring = smoothed_points + [smoothed_points[0]]  # Close the ring
+            geom = QgsGeometry.fromPolygonXY([ring])
         else:
             geom = QgsGeometry.fromPolylineXY(smoothed_points)
         
