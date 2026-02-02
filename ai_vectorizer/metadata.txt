@@ -1,0 +1,40 @@
+# This file contains metadata for your plugin.
+# Mandatory items:
+
+[general]
+name=AI Vectorizer for Archaeology
+qgisMinimumVersion=3.22
+description=AI-assisted contour digitizing for historical maps. Features smart path tracing, edge snapping, and multiple AI engine options.
+version=0.1.0
+author=nuri9
+email=your-email@example.com
+
+about=AI Vectorizer helps archaeologists digitize contour lines from scanned historical maps. 
+    
+    Features:
+    - Smart Trace: Click two points to get AI-suggested path along contour lines
+    - Edge Snap: Mouse automatically snaps to detected contour edges
+    - Multiple AI Modes: Lite (OpenCV), Standard (MobileSAM), Pro (Full SAM)
+    
+    Designed for Japanese colonial-era topographic maps and similar historical documents.
+
+tracker=https://github.com/nuri9/AI-Vectorizer-for-Archaeology/issues
+repository=https://github.com/nuri9/AI-Vectorizer-for-Archaeology
+# End of mandatory metadata
+
+# Recommended items:
+hasProcessingProvider=no
+# Tags are comma separated with spaces allowed
+tags=AI, vectorization, contour, historical maps, archaeology, digitizing
+homepage=https://github.com/nuri9/AI-Vectorizer-for-Archaeology
+category=Vector
+icon=icon.png
+# experimental flag
+experimental=True
+# deprecated flag (applies to the whole plugin, not just a single version)
+deprecated=False
+# Since QGIS 3.8, a hierarchical category can be specified
+# category=Vector/Digitizing
+
+# If the plugin can run on QGIS Server.
+server=False

@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# QGIS
+.qgis2/
+.qgis3/
+
+# Project specific
+174 청양.jpg
+*.png
+!icon.png
+ai_vectorizer/models/
+.idea/
+.vscode/
