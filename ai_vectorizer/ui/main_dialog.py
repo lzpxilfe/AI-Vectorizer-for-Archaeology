@@ -93,30 +93,58 @@ class AIVectorizerDock(QDockWidget):
         self.layout.addWidget(step2)
         
         # === Step 3: Tracing Options ===
-        step3 = QGroupBox("3️⃣ 트레이싱")
+        step3 = QGroupBox("3️⃣ 트레이싱 설정")
         step3_layout = QVBoxLayout()
         
-        # Mode explanation
-        mode_desc = QLabel("💡 프리핸드=자유, AI=등고선 따라감")
-        mode_desc.setStyleSheet("color: gray; font-size: 10px;")
-        step3_layout.addWidget(mode_desc)
+        # AI Model selector
+        model_layout = QHBoxLayout()
+        model_layout.addWidget(QLabel("AI 모델:"))
+        self.model_combo = QComboBox()
+        self.model_combo.addItems([
+            "🔧 OpenCV (기본, 빠름)",
+            "🧠 MobileSAM (고품질, 느림)"
+        ])
+        self.model_combo.setToolTip("OpenCV: 설치 불필요\nMobileSAM: 딥러닝 기반, 더 정확")
+        self.model_combo.currentIndexChanged.connect(self.on_model_changed)
+        model_layout.addWidget(self.model_combo)
+        step3_layout.addLayout(model_layout)
+        
+        # SAM status & download
+        self.sam_status = QLabel("")
+        self.sam_status.setStyleSheet("font-size: 10px;")
+        step3_layout.addWidget(self.sam_status)
+        
+        self.sam_download_btn = QPushButton("⬇️ MobileSAM 다운로드 (~40MB)")
+        self.sam_download_btn.clicked.connect(self.download_sam)
+        self.sam_download_btn.setVisible(False)
+        self.sam_download_btn.setToolTip("인터넷 연결 필요. 최초 1회만 다운로드")
+        step3_layout.addWidget(self.sam_download_btn)
+        
+        # Install guide (for SAM dependencies)
+        self.install_guide = QLabel(
+            "📦 SAM 사용을 위해 설치 필요:\n"
+            "pip install torch torchvision mobile-sam"
+        )
+        self.install_guide.setStyleSheet("color: #e67e22; font-size: 9px; background: #fff3e0; padding: 5px; border-radius: 3px;")
+        self.install_guide.setVisible(False)
+        self.install_guide.setWordWrap(True)
+        step3_layout.addWidget(self.install_guide)
         
         # Freehand checkbox
         self.freehand_check = QCheckBox("✏️ 프리핸드 (AI 비활성)")
-        self.freehand_check.setToolTip("체크: AI 없이 순수 마우스 추적\n해제: AI가 등고선 따라 안내")
+        self.freehand_check.setToolTip("체크: AI 없이 순수 마우스 추적")
         step3_layout.addWidget(self.freehand_check)
         
         # Edge strength slider
         edge_layout = QHBoxLayout()
         edge_label = QLabel("AI 강도:")
-        edge_label.setToolTip("낮음=자유로움, 높음=엣지 따라감")
         edge_layout.addWidget(edge_label)
         
         self.freedom_slider = QSlider(Qt.Horizontal)
         self.freedom_slider.setMinimum(0)
         self.freedom_slider.setMaximum(100)
         self.freedom_slider.setValue(30)
-        self.freedom_slider.setToolTip("0%: 완전 자유\n100%: 엣지 엄격히 따름")
+        self.freedom_slider.setToolTip("0%: 자유롭게\n100%: 엣지 따라감")
         edge_layout.addWidget(self.freedom_slider)
         
         self.freedom_label = QLabel("30%")
@@ -224,18 +252,21 @@ class AIVectorizerDock(QDockWidget):
             
             edge_weight = self.freedom_slider.value() / 100.0
             freehand = self.freehand_check.isChecked()
+            use_sam = self.model_combo.currentIndex() == 1 and hasattr(self, 'sam_engine') and self.sam_engine and self.sam_engine.is_ready
             
             self.active_tool = SmartTraceTool(
                 self.iface.mapCanvas(),
                 raster,
                 self.output_layer,
                 edge_weight=edge_weight,
-                freehand=freehand
+                freehand=freehand,
+                sam_engine=self.sam_engine if use_sam else None
             )
             self.iface.mapCanvas().setMapTool(self.active_tool)
             self.active_tool.deactivated.connect(self.on_tool_deactivated)
             
-            self.status_label.setText("🖊️ 트레이싱 중 - 등고선을 클릭하세요")
+            mode_name = "SAM" if use_sam else "OpenCV"
+            self.status_label.setText(f"🖊️ [{mode_name}] 등고선을 클릭하세요")
             self.trace_btn.setText("⏹️ 중지")
             self.trace_btn.setStyleSheet("font-weight: bold; padding: 8px; background: #e74c3c; color: white;")
         else:
@@ -251,6 +282,61 @@ class AIVectorizerDock(QDockWidget):
         self.trace_btn.setStyleSheet("font-weight: bold; padding: 8px; background: #27ae60; color: white;")
         self.status_label.setText("✅ 준비 완료")
         self.active_tool = None
+
+    def on_model_changed(self, index):
+        """Handle AI model selection change."""
+        if index == 1:  # MobileSAM
+            self.init_sam_engine()
+        else:
+            self.sam_status.setText("")
+            self.sam_download_btn.setVisible(False)
+            self.install_guide.setVisible(False)
+
+    def init_sam_engine(self):
+        """Initialize SAM engine."""
+        try:
+            from .core.sam_engine import SAMEngine, MOBILE_SAM_AVAILABLE
+        except ImportError:
+            from ..core.sam_engine import SAMEngine, MOBILE_SAM_AVAILABLE
+        
+        if not MOBILE_SAM_AVAILABLE:
+            self.sam_status.setText("❌ PyTorch/MobileSAM 미설치")
+            self.sam_status.setStyleSheet("color: red; font-size: 10px;")
+            self.install_guide.setVisible(True)
+            self.sam_download_btn.setVisible(False)
+            return
+        
+        if not hasattr(self, 'sam_engine') or self.sam_engine is None:
+            self.sam_engine = SAMEngine(model_type="vit_t")
+        
+        success, msg = self.sam_engine.load_model()
+        if success:
+            self.sam_status.setText("✅ MobileSAM 로드됨")
+            self.sam_status.setStyleSheet("color: green; font-size: 10px;")
+            self.sam_download_btn.setVisible(False)
+            self.install_guide.setVisible(False)
+        else:
+            self.sam_status.setText("⚠️ 모델 파일 필요")
+            self.sam_status.setStyleSheet("color: orange; font-size: 10px;")
+            self.sam_download_btn.setVisible(True)
+            self.install_guide.setVisible(False)
+
+    def download_sam(self):
+        """Download MobileSAM weights."""
+        self.sam_download_btn.setEnabled(False)
+        self.sam_status.setText("⏬ 다운로드 중...")
+        self.iface.mainWindow().repaint()
+        
+        if hasattr(self, 'sam_engine') and self.sam_engine:
+            success = self.sam_engine.download_weights()
+            if success:
+                QMessageBox.information(self, "완료", "MobileSAM 다운로드 완료!")
+                self.init_sam_engine()
+            else:
+                QMessageBox.critical(self, "오류", "다운로드 실패. 인터넷 연결을 확인하세요.")
+                self.sam_status.setText("❌ 다운로드 실패")
+        
+        self.sam_download_btn.setEnabled(True)
 
 
 # Keep old name for compatibility
