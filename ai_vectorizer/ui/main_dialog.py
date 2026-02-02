@@ -73,17 +73,22 @@ class AIVectorizerDialog(QDialog):
         step3 = QGroupBox("3️⃣ 등고선 트레이싱")
         step3_layout = QVBoxLayout()
         
-        # Freedom slider
+        # Freehand mode checkbox
+        self.freehand_check = QCheckBox("✏️ 프리핸드 모드 (엣지 무시)")
+        self.freehand_check.setToolTip("체크하면 AI 엣지 감지 없이 순수하게 마우스를 따라 그립니다")
+        step3_layout.addWidget(self.freehand_check)
+        
+        # Freedom slider (only used when not freehand)
         from qgis.PyQt.QtWidgets import QSlider
         freedom_layout = QHBoxLayout()
-        freedom_layout.addWidget(QLabel("자유도:"))
+        freedom_layout.addWidget(QLabel("AI 엣지 강도:"))
         self.freedom_slider = QSlider(Qt.Horizontal)
         self.freedom_slider.setMinimum(0)
         self.freedom_slider.setMaximum(100)
-        self.freedom_slider.setValue(50)  # Default: balanced
-        self.freedom_slider.setToolTip("낮음=엣지 따라감 | 높음=자유롭게 그리기")
+        self.freedom_slider.setValue(30)  # Lower default = more freedom
+        self.freedom_slider.setToolTip("낮음=자유롭게 | 높음=엣지따라감")
         freedom_layout.addWidget(self.freedom_slider)
-        self.freedom_label = QLabel("50%")
+        self.freedom_label = QLabel("30%")
         self.freedom_slider.valueChanged.connect(lambda v: self.freedom_label.setText(f"{v}%"))
         freedom_layout.addWidget(self.freedom_label)
         step3_layout.addLayout(freedom_layout)
@@ -199,16 +204,16 @@ class AIVectorizerDialog(QDialog):
                 
             from ..tools.smart_trace_tool import SmartTraceTool
             
-            # Convert slider (0-100) to edge_weight (1.0 to 0.0)
-            # 0% freedom = 1.0 edge weight (strict follow)
-            # 100% freedom = 0.0 edge weight (free draw)
-            freedom = 1.0 - (self.freedom_slider.value() / 100.0)
+            # edge_weight: higher = more edge following
+            edge_weight = self.freedom_slider.value() / 100.0
+            freehand = self.freehand_check.isChecked()
             
             self.active_tool = SmartTraceTool(
                 self.iface.mapCanvas(),
                 raster,
                 self.output_layer,
-                edge_weight=freedom
+                edge_weight=edge_weight,
+                freehand=freehand
             )
             self.iface.mapCanvas().setMapTool(self.active_tool)
             self.active_tool.deactivated.connect(self.on_tool_deactivated)

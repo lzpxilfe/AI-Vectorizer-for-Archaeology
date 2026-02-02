@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Magnetic Trace Tool - Edge-following contour tracing with undo support
+Smart Trace Tool - Edge-following + Freehand modes with polygon close
 """
 import numpy as np
 import cv2
@@ -17,7 +17,7 @@ from ..core.edge_detector import EdgeDetector
 from ..core.path_finder import PathFinder
 
 class SmartTraceTool(QgsMapToolEmitPoint):
-    def __init__(self, canvas, raster_layer, vector_layer, model_type=0, sam_engine=None, edge_weight=0.5):
+    def __init__(self, canvas, raster_layer, vector_layer, model_type=0, sam_engine=None, edge_weight=0.5, freehand=False):
         self.canvas = canvas
         super().__init__(self.canvas)
         
@@ -25,11 +25,16 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.vector_layer = vector_layer
         self.model_type = model_type  
         self.sam_engine = sam_engine
-        self.edge_weight = edge_weight  # 0.0 = free, 1.0 = strict edge follow
+        self.edge_weight = edge_weight
+        self.freehand = freehand  # True = no edge following, just smooth drawing
         
         # Path tracking
-        self.path_points = []  # Confirmed points (map coords)
+        self.path_points = []
         self.is_tracing = False
+        self.start_point = None
+        
+        # Snap distance (in map units) - will be set based on canvas scale
+        self.snap_distance = 0
         
         # RubberBands
         self.preview_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
@@ -40,10 +45,17 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.confirm_band.setColor(QColor(255, 50, 50, 255))
         self.confirm_band.setWidth(3)
         
-        # Start point marker
+        # Start point marker (larger, more visible)
         self.start_marker = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
         self.start_marker.setColor(QColor(255, 255, 0, 255))
-        self.start_marker.setWidth(8)
+        self.start_marker.setWidth(12)
+        self.start_marker.setIcon(QgsRubberBand.ICON_CIRCLE)
+        
+        # Close indicator (shows when near start)
+        self.close_indicator = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
+        self.close_indicator.setColor(QColor(0, 255, 255, 200))
+        self.close_indicator.setWidth(16)
+        self.close_indicator.setIcon(QgsRubberBand.ICON_CIRCLE)
         
         # AI engines
         self.edge_detector = EdgeDetector()
@@ -68,7 +80,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.vector_layer = self.create_output_layer()
 
     def create_output_layer(self):
-        """Create output vector layer."""
         crs = self.canvas.mapSettings().destinationCrs().authid()
         layer = QgsVectorLayer(f"LineString?crs={crs}", "Contours", "memory")
         pr = layer.dataProvider()
@@ -78,60 +89,79 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         return layer
 
     def keyPressEvent(self, event):
-        """Handle keyboard input for undo and cancel."""
         if event.key() == Qt.Key_Escape:
-            # Undo last point
             if self.path_points:
                 self.path_points.pop()
                 self.redraw_confirmed_path()
             else:
                 self.reset_tracing()
         elif event.key() == Qt.Key_Delete or event.key() == Qt.Key_Backspace:
-            # Cancel entire trace
             self.reset_tracing()
         elif event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
-            # Finish and save
             if len(self.path_points) >= 2:
                 self.save_to_layer()
             self.reset_tracing()
 
     def canvasPressEvent(self, event):
-        """Handle mouse clicks."""
         if event.button() == Qt.LeftButton:
             point = self.toMapCoordinates(event.pos())
             
             if not self.is_tracing:
                 # Start new trace
                 self.is_tracing = True
+                self.start_point = point
                 self.path_points = [point]
                 self.start_marker.reset(QgsWkbTypes.PointGeometry)
                 self.start_marker.addPoint(point)
-                self.update_edge_cache()
+                
+                # Set snap distance based on canvas scale (10 pixels)
+                self.snap_distance = self.canvas.mapUnitsPerPixel() * 15
+                
+                if not self.freehand:
+                    self.update_edge_cache()
             else:
-                # Get the snapped path from preview and add all points
+                # Check if closing polygon (near start point)
+                if self.is_near_start(point):
+                    # Close to start - close the polygon
+                    self.path_points.append(self.start_point)  # Close exactly
+                    self.save_to_layer(closed=True)
+                    self.reset_tracing()
+                    return
+                
+                # Add path segment
                 if hasattr(self, 'preview_path') and self.preview_path:
-                    self.path_points.extend(self.preview_path[1:])  # Skip first (duplicate)
+                    self.path_points.extend(self.preview_path[1:])
                 else:
                     self.path_points.append(point)
                     
             self.redraw_confirmed_path()
                 
         elif event.button() == Qt.RightButton:
-            # Finish tracing
             if len(self.path_points) >= 2:
                 self.save_to_layer()
             self.reset_tracing()
 
     def canvasMoveEvent(self, event):
-        """Live preview on mouse move."""
         if not self.is_tracing or not self.path_points:
             return
             
         current = self.toMapCoordinates(event.pos())
         last = self.path_points[-1]
         
-        # Find magnetic path
-        path = self.find_path_along_edges(last, current)
+        # Check if near start point for closing
+        if self.start_point and self.is_near_start(current):
+            self.close_indicator.reset(QgsWkbTypes.PointGeometry)
+            self.close_indicator.addPoint(self.start_point)
+        else:
+            self.close_indicator.reset(QgsWkbTypes.PointGeometry)
+        
+        # Find path
+        if self.freehand:
+            # Freehand: just direct line, user controls everything
+            path = [last, current]
+        else:
+            path = self.find_path_along_edges(last, current)
+        
         self.preview_path = path
         
         # Draw preview
@@ -139,8 +169,16 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         for pt in path:
             self.preview_band.addPoint(pt)
 
+    def is_near_start(self, point):
+        """Check if point is within snap distance of start."""
+        if not self.start_point:
+            return False
+        dx = point.x() - self.start_point.x()
+        dy = point.y() - self.start_point.y()
+        dist = (dx*dx + dy*dy) ** 0.5
+        return dist < self.snap_distance and len(self.path_points) > 2
+
     def update_edge_cache(self):
-        """Cache edge detection for current view."""
         extent = self.canvas.extent()
         image = self.read_raster(extent)
         
@@ -155,7 +193,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.pixel_height = extent.height() / image.shape[0]
 
     def read_raster(self, extent):
-        """Read raster as grayscale image."""
         provider = self.raster_layer.dataProvider()
         raster_ext = self.raster_layer.extent()
         read_ext = extent.intersect(raster_ext)
@@ -163,7 +200,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if read_ext.isEmpty():
             return None
         
-        # Limit size for performance
         raster_res = raster_ext.width() / self.raster_layer.width()
         out_w = min(800, int(read_ext.width() / raster_res))
         out_h = min(800, int(read_ext.height() / raster_res))
@@ -171,7 +207,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if out_w <= 0 or out_h <= 0:
             return None
         
-        # Read bands
         bands = []
         for b in range(1, min(4, provider.bandCount() + 1)):
             block = provider.block(b, read_ext, out_w, out_h)
@@ -189,7 +224,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         return bands[0]
 
     def find_path_along_edges(self, start, end):
-        """Find path following detected edges."""
         if self.cached_cost is None:
             return [start, end]
         
@@ -214,7 +248,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if not path:
             return [start, end]
         
-        # Simplify for display
         step = max(1, len(path) // 30)
         simplified = path[::step]
         if path[-1] not in simplified:
@@ -223,17 +256,22 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         return [to_map(px, py) for px, py in simplified]
 
     def redraw_confirmed_path(self):
-        """Redraw the confirmed path."""
         self.confirm_band.reset(QgsWkbTypes.LineGeometry)
         for pt in self.path_points:
             self.confirm_band.addPoint(pt)
 
-    def save_to_layer(self):
-        """Save path to vector layer."""
+    def save_to_layer(self, closed=False):
         if len(self.path_points) < 2:
             return
-            
-        geom = QgsGeometry.fromPolylineXY(self.path_points)
+        
+        # Create geometry    
+        if closed and len(self.path_points) >= 3:
+            # Closed polygon as LineString (ring)
+            points = self.path_points + [self.path_points[0]]  # Close the ring
+            geom = QgsGeometry.fromPolylineXY(points)
+        else:
+            geom = QgsGeometry.fromPolylineXY(self.path_points)
+        
         feat = QgsFeature()
         feat.setGeometry(geom)
         feat.setAttributes([self.vector_layer.featureCount() + 1])
@@ -244,13 +282,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.vector_layer.triggerRepaint()
 
     def reset_tracing(self):
-        """Reset all tracing state."""
         self.is_tracing = False
         self.path_points = []
         self.preview_path = []
+        self.start_point = None
         self.preview_band.reset(QgsWkbTypes.LineGeometry)
         self.confirm_band.reset(QgsWkbTypes.LineGeometry)
         self.start_marker.reset(QgsWkbTypes.PointGeometry)
+        self.close_indicator.reset(QgsWkbTypes.PointGeometry)
 
     def deactivate(self):
         self.reset_tracing()
