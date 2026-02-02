@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Magnetic Trace Tool - Photoshop-like edge following for contour tracing
+Magnetic Trace Tool - Edge-following contour tracing with undo support
 """
 import numpy as np
 import cv2
@@ -11,7 +11,7 @@ from qgis.core import (
     QgsVectorLayer, QgsField
 )
 from qgis.PyQt.QtCore import Qt, QVariant
-from qgis.PyQt.QtGui import QColor, QCursor
+from qgis.PyQt.QtGui import QColor
 
 from ..core.edge_detector import EdgeDetector
 from ..core.path_finder import PathFinder
@@ -26,197 +26,213 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.model_type = model_type  
         self.sam_engine = sam_engine
         
-        # Collected path points (in map coordinates)
-        self.path_points = []
+        # Path tracking
+        self.path_points = []  # Confirmed points (map coords)
         self.is_tracing = False
         
-        # RubberBand for live preview (Green = preview)
+        # RubberBands
         self.preview_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
-        self.preview_band.setColor(QColor(0, 255, 0, 200))
-        self.preview_band.setWidth(2)
+        self.preview_band.setColor(QColor(0, 200, 0, 200))
+        self.preview_band.setWidth(3)
         
-        # RubberBand for confirmed path (Red = confirmed)
         self.confirm_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
-        self.confirm_band.setColor(QColor(255, 0, 0, 255))
-        self.confirm_band.setWidth(2)
+        self.confirm_band.setColor(QColor(255, 50, 50, 255))
+        self.confirm_band.setWidth(3)
         
-        # Core engines
+        # Start point marker
+        self.start_marker = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
+        self.start_marker.setColor(QColor(255, 255, 0, 255))
+        self.start_marker.setWidth(8)
+        
+        # AI engines
         self.edge_detector = EdgeDetector()
         self.path_finder = PathFinder()
         
-        # Cached edge map for current view
+        # Edge cache
         self.cached_edges = None
-        self.cached_extent = None
-        self.cached_transform = None
+        self.cached_cost = None
+        self.cache_extent = None
+        self.pixel_width = 1
+        self.pixel_height = 1
         
-        # CRS Transformer
-        self.transform_to_raster = QgsCoordinateTransform(
+        # CRS transform
+        self.transform = QgsCoordinateTransform(
             self.canvas.mapSettings().destinationCrs(),
             self.raster_layer.crs(),
             QgsProject.instance()
         )
         
-        # Create output layer if not provided
+        # Auto-create output layer
         if not self.vector_layer:
-            self.vector_layer = self.create_temp_layer()
+            self.vector_layer = self.create_output_layer()
 
-    def create_temp_layer(self):
-        """Create a temporary memory layer for output."""
+    def create_output_layer(self):
+        """Create output vector layer."""
         crs = self.canvas.mapSettings().destinationCrs().authid()
-        layer = QgsVectorLayer(f"LineString?crs={crs}", "ArchaeoTrace Output", "memory")
+        layer = QgsVectorLayer(f"LineString?crs={crs}", "Contours", "memory")
         pr = layer.dataProvider()
         pr.addAttributes([QgsField("id", QVariant.Int)])
         layer.updateFields()
         QgsProject.instance().addMapLayer(layer)
         return layer
 
+    def keyPressEvent(self, event):
+        """Handle keyboard input for undo and cancel."""
+        if event.key() == Qt.Key_Escape:
+            # Undo last point
+            if self.path_points:
+                self.path_points.pop()
+                self.redraw_confirmed_path()
+            else:
+                self.reset_tracing()
+        elif event.key() == Qt.Key_Delete or event.key() == Qt.Key_Backspace:
+            # Cancel entire trace
+            self.reset_tracing()
+        elif event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+            # Finish and save
+            if len(self.path_points) >= 2:
+                self.save_to_layer()
+            self.reset_tracing()
+
     def canvasPressEvent(self, event):
-        """Start or continue tracing on click."""
+        """Handle mouse clicks."""
         if event.button() == Qt.LeftButton:
-            point_canvas = self.toMapCoordinates(event.pos())
+            point = self.toMapCoordinates(event.pos())
             
             if not self.is_tracing:
                 # Start new trace
                 self.is_tracing = True
-                self.path_points = [point_canvas]
-                self.confirm_band.reset(QgsWkbTypes.LineGeometry)
-                self.confirm_band.addPoint(point_canvas)
-                self.update_cache_for_view()
+                self.path_points = [point]
+                self.start_marker.reset(QgsWkbTypes.PointGeometry)
+                self.start_marker.addPoint(point)
+                self.update_edge_cache()
             else:
-                # Add point to path
-                self.path_points.append(point_canvas)
-                self.confirm_band.addPoint(point_canvas)
+                # Get the snapped path from preview and add all points
+                if hasattr(self, 'preview_path') and self.preview_path:
+                    self.path_points.extend(self.preview_path[1:])  # Skip first (duplicate)
+                else:
+                    self.path_points.append(point)
+                    
+            self.redraw_confirmed_path()
                 
         elif event.button() == Qt.RightButton:
             # Finish tracing
-            if self.is_tracing and len(self.path_points) >= 2:
+            if len(self.path_points) >= 2:
                 self.save_to_layer()
             self.reset_tracing()
 
     def canvasMoveEvent(self, event):
-        """Show live preview path as mouse moves."""
+        """Live preview on mouse move."""
         if not self.is_tracing or not self.path_points:
             return
             
-        current_pos = self.toMapCoordinates(event.pos())
-        last_point = self.path_points[-1]
+        current = self.toMapCoordinates(event.pos())
+        last = self.path_points[-1]
         
-        # Find path from last_point to current_pos
-        path = self.find_magnetic_path(last_point, current_pos)
+        # Find magnetic path
+        path = self.find_path_along_edges(last, current)
+        self.preview_path = path
         
-        # Update preview band
+        # Draw preview
         self.preview_band.reset(QgsWkbTypes.LineGeometry)
         for pt in path:
             self.preview_band.addPoint(pt)
 
-    def update_cache_for_view(self):
-        """Cache edge detection for current canvas extent."""
+    def update_edge_cache(self):
+        """Cache edge detection for current view."""
         extent = self.canvas.extent()
+        image = self.read_raster(extent)
         
-        # Read visible portion of raster
-        image = self.read_raster_as_image(extent)
         if image is None:
+            self.cached_edges = None
             return
             
-        # Detect edges
         self.cached_edges = self.edge_detector.detect_edges(image)
-        self.cached_extent = extent
-        
-        # Store pixel resolution
+        self.cached_cost = self.edge_detector.get_edge_cost_map(self.cached_edges)
+        self.cache_extent = extent
         self.pixel_width = extent.width() / image.shape[1]
         self.pixel_height = extent.height() / image.shape[0]
 
-    def read_raster_as_image(self, extent):
-        """Read raster data as grayscale numpy array."""
+    def read_raster(self, extent):
+        """Read raster as grayscale image."""
         provider = self.raster_layer.dataProvider()
-        
-        # Get intersection with raster extent
         raster_ext = self.raster_layer.extent()
         read_ext = extent.intersect(raster_ext)
+        
         if read_ext.isEmpty():
             return None
         
-        # Calculate output size (limit for performance)
-        raster_res_x = raster_ext.width() / self.raster_layer.width()
-        raster_res_y = raster_ext.height() / self.raster_layer.height()
+        # Limit size for performance
+        raster_res = raster_ext.width() / self.raster_layer.width()
+        out_w = min(800, int(read_ext.width() / raster_res))
+        out_h = min(800, int(read_ext.height() / raster_res))
         
-        out_width = min(1000, int(read_ext.width() / raster_res_x))
-        out_height = min(1000, int(read_ext.height() / raster_res_y))
-        
-        if out_width <= 0 or out_height <= 0:
+        if out_w <= 0 or out_h <= 0:
             return None
         
-        # Read all bands and convert to grayscale
+        # Read bands
         bands = []
-        for band_num in range(1, min(4, provider.bandCount() + 1)):  # Max 3 bands (RGB)
-            block = provider.block(band_num, read_ext, out_width, out_height)
-            if block.isValid():
-                data = block.data()
-                if data:
-                    try:
-                        band_data = np.frombuffer(data, dtype=np.uint8).reshape((out_height, out_width))
-                        bands.append(band_data)
-                    except:
-                        pass
+        for b in range(1, min(4, provider.bandCount() + 1)):
+            block = provider.block(b, read_ext, out_w, out_h)
+            if block.isValid() and block.data():
+                try:
+                    arr = np.frombuffer(block.data(), dtype=np.uint8).reshape((out_h, out_w))
+                    bands.append(arr)
+                except:
+                    pass
         
         if not bands:
             return None
-        
-        if len(bands) == 1:
-            return bands[0]
-        elif len(bands) >= 3:
-            # Convert RGB to grayscale
-            rgb = np.stack(bands[:3], axis=-1)
-            gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-            return gray
-        else:
-            return bands[0]
+        if len(bands) >= 3:
+            return cv2.cvtColor(np.stack(bands[:3], axis=-1), cv2.COLOR_RGB2GRAY)
+        return bands[0]
 
-    def find_magnetic_path(self, start_map, end_map):
-        """Find path along edges from start to end (in map coords)."""
-        if self.cached_edges is None:
-            return [start_map, end_map]
+    def find_path_along_edges(self, start, end):
+        """Find path following detected edges."""
+        if self.cached_cost is None:
+            return [start, end]
         
-        ext = self.cached_extent
-        h, w = self.cached_edges.shape
+        ext = self.cache_extent
+        h, w = self.cached_cost.shape
         
-        # Convert map coords to pixel coords in cached image
-        def map_to_pixel(pt):
+        def to_pixel(pt):
             px = int((pt.x() - ext.xMinimum()) / self.pixel_width)
             py = int((ext.yMaximum() - pt.y()) / self.pixel_height)
             return (max(0, min(w-1, px)), max(0, min(h-1, py)))
         
-        def pixel_to_map(px, py):
+        def to_map(px, py):
             x = ext.xMinimum() + px * self.pixel_width
             y = ext.yMaximum() - py * self.pixel_height
             return QgsPointXY(x, y)
         
-        p1 = map_to_pixel(start_map)
-        p2 = map_to_pixel(end_map)
+        p1 = to_pixel(start)
+        p2 = to_pixel(end)
         
-        # Get cost map and find path
-        cost_map = self.edge_detector.get_edge_cost_map(self.cached_edges)
-        path_pixels = self.path_finder.find_path(p1, p2, cost_map)
+        path = self.path_finder.find_path(p1, p2, self.cached_cost)
         
-        if not path_pixels:
-            return [start_map, end_map]
+        if not path:
+            return [start, end]
         
-        # Simplify path (take every Nth point)
-        step = max(1, len(path_pixels) // 50)
-        simplified = path_pixels[::step]
-        if path_pixels[-1] not in simplified:
-            simplified.append(path_pixels[-1])
+        # Simplify for display
+        step = max(1, len(path) // 30)
+        simplified = path[::step]
+        if path[-1] not in simplified:
+            simplified.append(path[-1])
         
-        # Convert back to map coords
-        return [pixel_to_map(px, py) for px, py in simplified]
+        return [to_map(px, py) for px, py in simplified]
+
+    def redraw_confirmed_path(self):
+        """Redraw the confirmed path."""
+        self.confirm_band.reset(QgsWkbTypes.LineGeometry)
+        for pt in self.path_points:
+            self.confirm_band.addPoint(pt)
 
     def save_to_layer(self):
-        """Save current path to vector layer."""
+        """Save path to vector layer."""
         if len(self.path_points) < 2:
             return
             
         geom = QgsGeometry.fromPolylineXY(self.path_points)
-        
         feat = QgsFeature()
         feat.setGeometry(geom)
         feat.setAttributes([self.vector_layer.featureCount() + 1])
@@ -227,11 +243,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.vector_layer.triggerRepaint()
 
     def reset_tracing(self):
-        """Reset tracing state."""
+        """Reset all tracing state."""
         self.is_tracing = False
         self.path_points = []
+        self.preview_path = []
         self.preview_band.reset(QgsWkbTypes.LineGeometry)
         self.confirm_band.reset(QgsWkbTypes.LineGeometry)
+        self.start_marker.reset(QgsWkbTypes.PointGeometry)
 
     def deactivate(self):
         self.reset_tracing()

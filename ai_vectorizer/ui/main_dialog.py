@@ -73,14 +73,24 @@ class AIVectorizerDialog(QDialog):
         self.layout.addLayout(settings_layout)
         
         # 5. Tools Actions
-        self.tool_btn = QPushButton("Activate Smart Trace Tool")
+        self.tool_btn = QPushButton("▶ Start Tracing")
         self.tool_btn.setCheckable(True)
         self.tool_btn.clicked.connect(self.toggle_tool)
+        self.tool_btn.setStyleSheet("font-weight: bold; padding: 8px;")
         self.layout.addWidget(self.tool_btn)
         
-        # Status
+        # 6. Export Button
+        self.export_btn = QPushButton("💾 Export to SHP")
+        self.export_btn.clicked.connect(self.export_to_shp)
+        self.layout.addWidget(self.export_btn)
+        
+        # Status & Controls Guide
         self.status_label = QLabel("Ready")
         self.layout.addWidget(self.status_label)
+        
+        controls = QLabel("Controls: Left Click=Add Point | Right Click=Finish | Esc=Undo | Del=Cancel")
+        controls.setStyleSheet("color: gray; font-size: 10px;")
+        self.layout.addWidget(controls)
 
     def on_model_changed(self, index):
         if index == 1: # Standard (MobileSAM)
@@ -165,3 +175,30 @@ class AIVectorizerDialog(QDialog):
         self.tool_btn.setChecked(False)
         self.status_label.setText("Ready")
         self.active_tool = None
+
+    def export_to_shp(self):
+        """Export contour layer to shapefile."""
+        from qgis.PyQt.QtWidgets import QFileDialog
+        from qgis.core import QgsVectorFileWriter
+        
+        layer = self.vector_combo.currentLayer()
+        if not layer:
+            QMessageBox.warning(self, "Warning", "No vector layer selected to export.")
+            return
+        
+        if layer.featureCount() == 0:
+            QMessageBox.warning(self, "Warning", "Layer has no features to export.")
+            return
+            
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Save Shapefile", "", "Shapefile (*.shp)"
+        )
+        
+        if file_path:
+            error = QgsVectorFileWriter.writeAsVectorFormat(
+                layer, file_path, "UTF-8", layer.crs(), "ESRI Shapefile"
+            )
+            if error[0] == QgsVectorFileWriter.NoError:
+                QMessageBox.information(self, "Success", f"Exported to {file_path}")
+            else:
+                QMessageBox.critical(self, "Error", f"Export failed: {error[1]}")
