@@ -95,10 +95,13 @@ class AIVectorizer:
             del self.toolbar
 
     def run(self):
-        """Open the main plugin dialog."""
+        """Open the main plugin as a docked panel on the left."""
+        from qgis.PyQt.QtCore import Qt
+        
         if self.dialog is None:
             self.dialog = AIVectorizerDialog(self.iface, parent=self.iface.mainWindow())
+            # Add as dock widget to left side
+            self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dialog)
         
         self.dialog.show()
         self.dialog.raise_()
-        self.dialog.activateWindow()
