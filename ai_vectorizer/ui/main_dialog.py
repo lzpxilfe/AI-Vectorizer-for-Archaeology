@@ -101,10 +101,11 @@ class AIVectorizerDock(QDockWidget):
         model_layout.addWidget(QLabel("AI 모델:"))
         self.model_combo = QComboBox()
         self.model_combo.addItems([
-            "🔧 OpenCV (기본, 빠름)",
+            "🔧 OpenCV Canny (기본)",
+            "📐 LSD 선분검출 (빠름, 매끄러움)",
             "🧠 MobileSAM (고품질, 느림)"
         ])
-        self.model_combo.setToolTip("OpenCV: 설치 불필요\nMobileSAM: 딥러닝 기반, 더 정확")
+        self.model_combo.setToolTip("Canny: 기본 엣지\nLSD: 선분 기반, 더 매끄러움\nSAM: 딥러닝")
         self.model_combo.currentIndexChanged.connect(self.on_model_changed)
         model_layout.addWidget(self.model_combo)
         step3_layout.addLayout(model_layout)
@@ -257,7 +258,11 @@ class AIVectorizerDock(QDockWidget):
             
             edge_weight = self.freedom_slider.value() / 100.0
             freehand = self.freehand_check.isChecked()
-            use_sam = self.model_combo.currentIndex() == 1 and hasattr(self, 'sam_engine') and self.sam_engine and self.sam_engine.is_ready
+            
+            # Model selection: 0=Canny, 1=LSD, 2=SAM
+            model_idx = self.model_combo.currentIndex()
+            use_sam = model_idx == 2 and hasattr(self, 'sam_engine') and self.sam_engine and self.sam_engine.is_ready
+            edge_method = 'lsd' if model_idx == 1 else 'canny'
             
             self.active_tool = SmartTraceTool(
                 self.iface.mapCanvas(),
@@ -265,12 +270,14 @@ class AIVectorizerDock(QDockWidget):
                 self.output_layer,
                 edge_weight=edge_weight,
                 freehand=freehand,
-                sam_engine=self.sam_engine if use_sam else None
+                sam_engine=self.sam_engine if use_sam else None,
+                edge_method=edge_method
             )
             self.iface.mapCanvas().setMapTool(self.active_tool)
             self.active_tool.deactivated.connect(self.on_tool_deactivated)
             
-            mode_name = "SAM" if use_sam else "OpenCV"
+            mode_names = {0: "Canny", 1: "LSD", 2: "SAM"}
+            mode_name = "SAM" if use_sam else mode_names.get(model_idx, "OpenCV")
             self.status_label.setText(f"🖊️ [{mode_name}] 등고선을 클릭하세요")
             self.trace_btn.setText("⏹️ 중지")
             self.trace_btn.setStyleSheet("font-weight: bold; padding: 8px; background: #e74c3c; color: white;")

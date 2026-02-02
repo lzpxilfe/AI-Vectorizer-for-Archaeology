@@ -17,7 +17,7 @@ from ..core.edge_detector import EdgeDetector
 from ..core.path_finder import PathFinder
 
 class SmartTraceTool(QgsMapToolEmitPoint):
-    def __init__(self, canvas, raster_layer, vector_layer, model_type=0, sam_engine=None, edge_weight=0.5, freehand=False):
+    def __init__(self, canvas, raster_layer, vector_layer, model_type=0, sam_engine=None, edge_weight=0.5, freehand=False, edge_method='canny'):
         self.canvas = canvas
         super().__init__(self.canvas)
         
@@ -26,7 +26,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.model_type = model_type  
         self.sam_engine = sam_engine
         self.edge_weight = edge_weight
-        self.freehand = freehand  # True = no edge following, just smooth drawing
+        self.freehand = freehand
+        self.edge_method = edge_method  # 'canny' or 'lsd'
         
         # Path tracking
         self.path_points = []
@@ -58,7 +59,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.close_indicator.setIcon(QgsRubberBand.ICON_CIRCLE)
         
         # AI engines
-        self.edge_detector = EdgeDetector()
+        self.edge_detector = EdgeDetector(method=self.edge_method)
         self.path_finder = PathFinder()
         
         # Edge cache
