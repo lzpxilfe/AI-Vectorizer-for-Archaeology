@@ -18,8 +18,8 @@ about=AI Vectorizer helps archaeologists digitize contour lines from scanned his
     
     Designed for Japanese colonial-era topographic maps and similar historical documents.
 
-tracker=https://github.com/nuri9/AI-Vectorizer-for-Archaeology/issues
-repository=https://github.com/nuri9/AI-Vectorizer-for-Archaeology
+tracker=https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/issues
+repository=https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology
 # End of mandatory metadata
 
 # Recommended items:

@@ -84,6 +84,7 @@ class PathFinder:
                     
                     if next_node not in cost_so_far or new_cost < cost_so_far[next_node]:
                         cost_so_far[next_node] = new_cost
+                        came_from[next_node] = current  # Critical for path reconstruction
                         priority = new_cost + self.heuristic(end, next_node)
                         heapq.heappush(frontier, (priority, next_node))
         
