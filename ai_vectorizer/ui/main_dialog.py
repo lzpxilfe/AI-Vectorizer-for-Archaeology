@@ -253,7 +253,7 @@ class AIVectorizerDock(QDockWidget):
                 self.trace_btn.setChecked(False)
                 return
                 
-            from .tools.smart_trace_tool import SmartTraceTool
+            from ..tools.smart_trace_tool import SmartTraceTool
             
             edge_weight = self.freedom_slider.value() / 100.0
             freehand = self.freehand_check.isChecked()
