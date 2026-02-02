@@ -120,15 +120,20 @@ class AIVectorizerDock(QDockWidget):
         self.sam_download_btn.setToolTip("인터넷 연결 필요. 최초 1회만 다운로드")
         step3_layout.addWidget(self.sam_download_btn)
         
-        # Install guide (for SAM dependencies)
-        self.install_guide = QLabel(
-            "📦 SAM 사용을 위해 설치 필요:\n"
-            "pip install torch torchvision mobile-sam"
-        )
-        self.install_guide.setStyleSheet("color: #e67e22; font-size: 9px; background: #fff3e0; padding: 5px; border-radius: 3px;")
-        self.install_guide.setVisible(False)
-        self.install_guide.setWordWrap(True)
-        step3_layout.addWidget(self.install_guide)
+        # Install guide (for SAM dependencies) - COPYABLE
+        install_label = QLabel("📦 SAM 설치 (복사 가능):")
+        install_label.setStyleSheet("color: #e67e22; font-size: 9px;")
+        install_label.setVisible(False)
+        step3_layout.addWidget(install_label)
+        
+        self.install_cmd = QLineEdit()
+        self.install_cmd.setText("pip install torch torchvision git+https://github.com/ChaoningZhang/MobileSAM.git")
+        self.install_cmd.setReadOnly(True)
+        self.install_cmd.setStyleSheet("background: #fff3e0; font-size: 9px; padding: 3px;")
+        self.install_cmd.setVisible(False)
+        step3_layout.addWidget(self.install_cmd)
+        
+        self.install_guide = install_label  # Reference for visibility toggle
         
         # Freehand checkbox
         self.freehand_check = QCheckBox("✏️ 프리핸드 (AI 비활성)")
@@ -291,6 +296,7 @@ class AIVectorizerDock(QDockWidget):
             self.sam_status.setText("")
             self.sam_download_btn.setVisible(False)
             self.install_guide.setVisible(False)
+            self.install_cmd.setVisible(False)
 
     def init_sam_engine(self):
         """Initialize SAM engine."""
@@ -303,6 +309,7 @@ class AIVectorizerDock(QDockWidget):
             self.sam_status.setText("❌ PyTorch/MobileSAM 미설치")
             self.sam_status.setStyleSheet("color: red; font-size: 10px;")
             self.install_guide.setVisible(True)
+            self.install_cmd.setVisible(True)
             self.sam_download_btn.setVisible(False)
             return
         
