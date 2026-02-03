@@ -165,12 +165,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if dist < self.sample_interval:
             return
         
-        # SIMPLIFIED: Just follow mouse, apply heavy smoothing later
-        # Minimal edge snapping - only if VERY close
-        if self.freehand or self.cached_edges is None:
-            final_point = current_point
-        else:
-            final_point = self.gentle_snap(current_point)
+        # PURE MOUSE FOLLOWING - No edge snapping at all
+        # All smoothing is done in post-processing (Chaikin + simplify)
+        # This eliminates ALL jumping/jittering from edge detection
+        final_point = current_point
         
         # Add to path
         self.path_points.append(final_point)
