@@ -133,7 +133,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
             
             # Set sample interval based on scale (larger = smoother, less jitter)
-            self.sample_interval = self.canvas.mapUnitsPerPixel() * 12
+            self.sample_interval = self.canvas.mapUnitsPerPixel() * 18
             
             # Update edge cache
             if not self.freehand:
@@ -446,7 +446,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             geom = QgsGeometry.fromPolylineXY(smoothed)
         
         # Heavy QGIS simplification for ultra-smooth result
-        tolerance = self.canvas.mapUnitsPerPixel() * 4
+        tolerance = self.canvas.mapUnitsPerPixel() * 6
         geom = geom.simplify(tolerance)
         
         feat = QgsFeature()
@@ -508,8 +508,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # Convert to numpy for easier math
         pts = np.array([[p.x(), p.y()] for p in points])
         
-        # Apply Chaikin's algorithm 5 times for maximum smoothness
-        for _ in range(5):
+        # Apply Chaikin's algorithm 6 times for maximum smoothness
+        for _ in range(6):
             if len(pts) < 3:
                 break
             new_pts = [pts[0]]  # Keep first point
