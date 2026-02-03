@@ -224,20 +224,29 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return
 
     def undo_to_checkpoint(self):
-        """Undo back to the last checkpoint."""
+        """Undo back to the last checkpoint, but KEEP the checkpoint to continue from."""
         if len(self.checkpoints) <= 1:
-            # Only start checkpoint, reset everything
-            self.reset_tracing()
+            # Only start checkpoint - can't undo further, just notify
             return
         
-        # Remove last checkpoint
-        self.checkpoints.pop()
+        # Get last checkpoint index (the one we want to KEEP)
         last_cp_idx = self.checkpoints[-1]
         
-        # Trim path to checkpoint
+        # Check if we're already AT the checkpoint (no new points after it)
+        if len(self.path_points) <= last_cp_idx + 1:
+            # Already at checkpoint, go back to PREVIOUS checkpoint
+            if len(self.checkpoints) > 1:
+                self.checkpoints.pop()  # Remove current checkpoint
+                if self.checkpoints:
+                    last_cp_idx = self.checkpoints[-1]
+                else:
+                    self.reset_tracing()
+                    return
+        
+        # Trim path to checkpoint (keep points UP TO AND INCLUDING checkpoint)
         self.path_points = self.path_points[:last_cp_idx + 1]
         
-        # Update last_map_point
+        # Update last_map_point so user can continue from checkpoint
         if self.path_points:
             self.last_map_point = self.path_points[-1]
         
