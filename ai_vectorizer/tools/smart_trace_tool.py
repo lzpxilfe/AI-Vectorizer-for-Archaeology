@@ -119,8 +119,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.start_marker.reset(QgsWkbTypes.PointGeometry)
             self.start_marker.addPoint(point)
             
-            # Set sample interval based on scale (larger = smoother)
-            self.sample_interval = self.canvas.mapUnitsPerPixel() * 8
+            # Set sample interval based on scale (larger = smoother, less jitter)
+            self.sample_interval = self.canvas.mapUnitsPerPixel() * 12
             
             # Update edge cache
             if not self.freehand:
@@ -156,20 +156,21 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.last_map_point = current_point
             return
         
-        # Calculate distance moved
+        # Calculate distance moved - use LARGER interval for smoother result
         dx = current_point.x() - self.last_map_point.x()
         dy = current_point.y() - self.last_map_point.y()
         dist = np.sqrt(dx*dx + dy*dy)
         
-        # Only add points at intervals
+        # Much larger sample interval = smoother lines
         if dist < self.sample_interval:
             return
         
-        # Get snapped point (magnetic edge snapping)
+        # Get AI-assisted point
         if self.freehand or self.cached_edges is None:
             snapped = current_point
         else:
-            snapped = self.snap_to_edge(current_point)
+            # TRUE EDGE FOLLOWING: trace along the edge, not just snap
+            snapped = self.follow_edge(current_point)
         
         # Add to path
         self.path_points.append(snapped)
@@ -178,12 +179,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # Update preview
         self.redraw_confirmed_path()
 
-    def snap_to_edge(self, map_point):
+    def follow_edge(self, map_point):
         """
-        Continuity-focused edge snapping:
-        - Don't jump to distant edges (prevents broken glass effect)
-        - Only snap if edge is very close to mouse path
-        - Prioritize staying on the same line
+        TRUE EDGE FOLLOWING: 
+        Instead of just snapping to nearest edge, this walks along the edge
+        in the direction the user is moving. This provides real AI assistance.
         """
         if self.cached_edges is None or self.cache_transform is None:
             return map_point
@@ -195,16 +195,88 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if px < 0 or py < 0 or px >= w or py >= h:
                 return map_point
             
-            # Very small snap radius - only snap if very close to edge
-            snap_radius = 8
+            # Get user's movement direction
+            direction = (0, 0)
+            if len(self.path_points) >= 1:
+                last_point = self.path_points[-1]
+                last_px, last_py = self.map_to_pixel(last_point)
+                dx = px - last_px
+                dy = py - last_py
+                mag = np.sqrt(dx*dx + dy*dy)
+                if mag > 0:
+                    direction = (dx/mag, dy/mag)
             
-            # Check if cursor is directly on or very near an edge
+            # STEP ALONG EDGE: Start from last point, walk toward current mouse
+            # following the edge line
+            if len(self.path_points) >= 1 and direction != (0, 0):
+                last_point = self.path_points[-1]
+                start_px, start_py = self.map_to_pixel(last_point)
+                
+                # Walk in small steps toward mouse, sticking to edge
+                step_count = 15  # Number of sub-steps
+                best_x, best_y = start_px, start_py
+                
+                for step in range(1, step_count + 1):
+                    t = step / step_count
+                    # Interpolate position toward mouse
+                    target_x = start_px + (px - start_px) * t
+                    target_y = start_py + (py - start_py) * t
+                    
+                    # Find nearest edge within small radius of this target
+                    search_radius = 12
+                    found_edge = False
+                    edge_x, edge_y = int(target_x), int(target_y)
+                    min_dist = search_radius + 1
+                    
+                    for ddy in range(-search_radius, search_radius + 1, 2):
+                        for ddx in range(-search_radius, search_radius + 1, 2):
+                            nx = int(target_x + ddx)
+                            ny = int(target_y + ddy)
+                            if 0 <= nx < w and 0 <= ny < h:
+                                if self.cached_edges[ny, nx] > 128:
+                                    d = np.sqrt(ddx*ddx + ddy*ddy)
+                                    if d < min_dist:
+                                        min_dist = d
+                                        edge_x, edge_y = nx, ny
+                                        found_edge = True
+                    
+                    if found_edge:
+                        best_x, best_y = edge_x, edge_y
+                
+                # Blend result: 80% edge following, 20% mouse for responsiveness
+                edge_result = self.pixel_to_map(best_x, best_y)
+                blend = 0.8
+                final_x = edge_result.x() * blend + map_point.x() * (1 - blend)
+                final_y = edge_result.y() * blend + map_point.y() * (1 - blend)
+                return QgsPointXY(final_x, final_y)
+            
+            # Fallback: simple snap
+            return self.snap_to_edge(map_point)
+            
+        except Exception:
+            return map_point
+
+    def snap_to_edge(self, map_point):
+        """
+        Simple edge snapping (fallback when no path history).
+        """
+        if self.cached_edges is None or self.cache_transform is None:
+            return map_point
+        
+        try:
+            px, py = self.map_to_pixel(map_point)
+            h, w = self.cached_edges.shape
+            
+            if px < 0 or py < 0 or px >= w or py >= h:
+                return map_point
+            
+            snap_radius = 10
             best_dist = snap_radius + 1
             best_px, best_py = px, py
             found_edge = False
             
-            for dy in range(-snap_radius, snap_radius + 1):
-                for dx in range(-snap_radius, snap_radius + 1):
+            for dy in range(-snap_radius, snap_radius + 1, 2):
+                for dx in range(-snap_radius, snap_radius + 1, 2):
                     nx, ny = int(px + dx), int(py + dy)
                     if 0 <= nx < w and 0 <= ny < h:
                         if self.cached_edges[ny, nx] > 128:
@@ -216,13 +288,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             
             if found_edge:
                 edge_point = self.pixel_to_map(best_px, best_py)
-                # Gentle blend - 60% edge, 40% mouse (smoother than before)
-                blend = 0.6
+                blend = 0.7
                 blended_x = edge_point.x() * blend + map_point.x() * (1 - blend)
                 blended_y = edge_point.y() * blend + map_point.y() * (1 - blend)
                 return QgsPointXY(blended_x, blended_y)
             else:
-                # No edge nearby - just follow mouse (NO WALL, NO JUMP)
                 return map_point
                 
         except Exception:
@@ -394,8 +464,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # Convert to numpy for easier math
         pts = np.array([[p.x(), p.y()] for p in points])
         
-        # Apply Chaikin's algorithm 3 times for very smooth curves
-        for _ in range(3):
+        # Apply Chaikin's algorithm 4 times for ultra-smooth curves
+        for _ in range(4):
             if len(pts) < 3:
                 break
             new_pts = [pts[0]]  # Keep first point
@@ -410,9 +480,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             new_pts.append(pts[-1])  # Keep last point
             pts = np.array(new_pts)
         
-        # Subsample to reduce point count (keep more points for smoothness)
-        if len(pts) > 80:
-            indices = np.linspace(0, len(pts) - 1, 80, dtype=int)
+        # Subsample to reduce point count
+        if len(pts) > 100:
+            indices = np.linspace(0, len(pts) - 1, 100, dtype=int)
             pts = pts[indices]
         
         return [QgsPointXY(p[0], p[1]) for p in pts]
