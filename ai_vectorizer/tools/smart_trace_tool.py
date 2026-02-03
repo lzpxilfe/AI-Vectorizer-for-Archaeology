@@ -349,11 +349,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             
             h, w = self.cached_cost.shape
             
-            # Sanity check
-            if not (0 <= start_px < w and 0 <= start_py < h and 
-                    0 <= end_px < w and 0 <= end_py < h):
-                return [target_point]
-                
+            # Fix "Glass Wall": Clamp coordinates to image bounds
+            # This allows tracing even if start point is off-screen (panned)
+            # or cursor is slightly outside the canvas
+            start_px = max(0, min(w-1, start_px))
+            start_py = max(0, min(h-1, start_py))
+            end_px = max(0, min(w-1, end_px))
+            end_py = max(0, min(h-1, end_py))
+            
             # Dijkstra / A*
             # Priority Queue: (cost, x, y)
             pq = [(0, start_px, start_py)]
@@ -447,8 +450,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 # Convert pixels to map points (subsample for performance)
                 path_map = []
                 for i, pt in enumerate(smoothed_path):
-                    # Take every 4th point (smoother than 3)
-                    if i % 4 == 0 or i == len(smoothed_path)-1: 
+                    # Take every 2nd point (High Quality, resolved "Straight Line" issue)
+                    if i % 2 == 0 or i == len(smoothed_path)-1: 
                         # Pass float coordinates for sub-pixel precision
                         path_map.append(self.pixel_to_map(pt[0], pt[1]))
                         
