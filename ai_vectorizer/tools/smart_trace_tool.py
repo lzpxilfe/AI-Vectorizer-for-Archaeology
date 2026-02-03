@@ -129,7 +129,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # Check if closing polygon (near start)
             if self.is_near_start(point):
                 self.path_points.append(self.start_point)
-                self.save_to_layer(closed=True)
+                # Ask for elevation value
+                elevation = self.ask_elevation()
+                if elevation is not None:
+                    self.save_to_layer(closed=True, elevation=elevation)
                 self.reset_tracing()
                 return
             
@@ -177,8 +180,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def snap_to_edge(self, map_point):
         """
-        Magnetic snap: find nearest edge pixel within snap_radius.
-        If no edge nearby, return original point (NO WALL!).
+        Improved edge snapping:
+        1. Consider movement direction (prefer edges in direction of travel)
+        2. Strongly follow edges to reduce hand trembling
+        3. Weighted average between mouse and edge for smoother result
         """
         if self.cached_edges is None or self.cache_transform is None:
             return map_point
@@ -191,25 +196,54 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if px < 0 or py < 0 or px >= w or py >= h:
                 return map_point
             
-            # Search for nearest edge within radius
-            best_dist = self.snap_radius + 1
-            best_px, best_py = px, py
+            # Get movement direction from recent path
+            direction = None
+            if len(self.path_points) >= 2:
+                last = self.path_points[-1]
+                dx = map_point.x() - last.x()
+                dy = map_point.y() - last.y()
+                mag = np.sqrt(dx*dx + dy*dy)
+                if mag > 0:
+                    direction = (dx/mag, dy/mag)
             
-            for dy in range(-self.snap_radius, self.snap_radius + 1):
-                for dx in range(-self.snap_radius, self.snap_radius + 1):
-                    nx, ny = int(px + dx), int(py + dy)
+            # Search for best edge pixel
+            best_score = -1
+            best_px, best_py = px, py
+            snap_radius = 20  # Larger search radius
+            
+            for ddy in range(-snap_radius, snap_radius + 1):
+                for ddx in range(-snap_radius, snap_radius + 1):
+                    nx, ny = int(px + ddx), int(py + ddy)
                     if 0 <= nx < w and 0 <= ny < h:
-                        if self.cached_edges[ny, nx] > 128:  # Edge pixel
-                            dist = np.sqrt(dx*dx + dy*dy)
-                            if dist < best_dist:
-                                best_dist = dist
+                        if self.cached_edges[ny, nx] > 128:
+                            dist = np.sqrt(ddx*ddx + ddy*ddy)
+                            if dist > snap_radius:
+                                continue
+                            
+                            # Score based on distance (closer = better)
+                            dist_score = 1.0 - (dist / snap_radius)
+                            
+                            # Bonus for edges in movement direction
+                            dir_score = 0.5
+                            if direction and dist > 0:
+                                edge_dir = (ddx/dist, ddy/dist)
+                                dot = direction[0]*edge_dir[0] + direction[1]*edge_dir[1]
+                                dir_score = 0.5 + 0.5 * max(0, dot)  # 0.5 ~ 1.0
+                            
+                            score = dist_score * dir_score
+                            
+                            if score > best_score:
+                                best_score = score
                                 best_px, best_py = nx, ny
             
-            # If found edge within radius, snap to it
-            if best_dist <= self.snap_radius:
-                return self.pixel_to_map(best_px, best_py)
+            # If found edge, blend between mouse and edge (80% edge, 20% mouse)
+            if best_score > 0:
+                edge_point = self.pixel_to_map(best_px, best_py)
+                # Strong edge following to reduce trembling
+                blended_x = edge_point.x() * 0.85 + map_point.x() * 0.15
+                blended_y = edge_point.y() * 0.85 + map_point.y() * 0.15
+                return QgsPointXY(blended_x, blended_y)
             else:
-                # NO WALL - just return original point
                 return map_point
                 
         except Exception:
@@ -303,7 +337,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         for pt in self.path_points:
             self.confirm_band.addPoint(pt)
 
-    def save_to_layer(self, closed=False):
+    def save_to_layer(self, closed=False, elevation=None):
         """Save path to vector layer with Bézier smoothing."""
         if len(self.path_points) < 2:
             return
@@ -324,12 +358,51 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         
         feat = QgsFeature()
         feat.setGeometry(geom)
-        feat.setAttributes([self.vector_layer.featureCount() + 1])
+        
+        # Set attributes - include elevation if provided
+        attrs = [self.vector_layer.featureCount() + 1]
+        
+        # Find or create elevation field
+        fields = self.vector_layer.fields()
+        elev_idx = fields.indexOf('elevation')
+        if elev_idx == -1 and elevation is not None:
+            # Add elevation field if not exists
+            self.vector_layer.startEditing()
+            self.vector_layer.dataProvider().addAttributes([QgsField('elevation', QVariant.Double)])
+            self.vector_layer.updateFields()
+            fields = self.vector_layer.fields()
+            elev_idx = fields.indexOf('elevation')
+        
+        # Prepare attributes
+        if elev_idx >= 0 and elevation is not None:
+            while len(attrs) <= elev_idx:
+                attrs.append(None)
+            attrs[elev_idx] = float(elevation)
+        
+        feat.setAttributes(attrs)
         
         self.vector_layer.startEditing()
         self.vector_layer.addFeature(feat)
         self.vector_layer.commitChanges()
         self.vector_layer.triggerRepaint()
+
+    def ask_elevation(self):
+        """Show dialog to input elevation value."""
+        from qgis.PyQt.QtWidgets import QInputDialog
+        
+        value, ok = QInputDialog.getDouble(
+            None,
+            "등고선 해발값",
+            "해발고도 (m):",
+            0.0,  # default
+            -1000.0,  # min
+            10000.0,  # max
+            1  # decimals
+        )
+        
+        if ok:
+            return value
+        return None
 
     def smooth_bezier(self, points):
         """
