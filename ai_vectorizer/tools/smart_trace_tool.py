@@ -682,11 +682,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         smoothed = self.smooth_bezier(self.path_points, closed=closed)
         
         # Create geometry
+        # ALWAYS use LineString. For closed loops, just make start==end.
         if closed and len(smoothed) >= 3:
-            ring = smoothed + [smoothed[0]]
-            geom = QgsGeometry.fromPolygonXY([ring])
-        else:
-            geom = QgsGeometry.fromPolylineXY(smoothed)
+            # Add first point to end to close the loop
+            smoothed.append(smoothed[0])
+            
+        geom = QgsGeometry.fromPolylineXY(smoothed)
         
         # Heavy QGIS simplification for ultra-smooth result
         tolerance = self.canvas.mapUnitsPerPixel() * 6
