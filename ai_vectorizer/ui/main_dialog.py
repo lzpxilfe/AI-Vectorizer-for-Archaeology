@@ -94,11 +94,18 @@ class AIVectorizerDock(QDockWidget):
         
         # === Step 3: Tracing Options ===
         step3 = QGroupBox("3️⃣ 트레이싱 설정")
+        step3.setToolTip("등고선을 따라 그리기 위한 AI 설정")
         step3_layout = QVBoxLayout()
         
-        # AI Model selector
+        # AI Model selector with description
+        model_desc = QLabel("💡 AI 모델: 등고선 인식 방식 선택")
+        model_desc.setStyleSheet("color: gray; font-size: 10px;")
+        step3_layout.addWidget(model_desc)
+        
         model_layout = QHBoxLayout()
-        model_layout.addWidget(QLabel("AI 모델:"))
+        model_label = QLabel("AI 모델:")
+        model_label.setToolTip("각 모델의 장단점:\n• Canny: 가장 빠름, 기본\n• LSD: 선분 기반, 빠름\n• HED: 딥러닝, 매끄러움\n• SAM: 최고 품질 (56MB)")
+        model_layout.addWidget(model_label)
         self.model_combo = QComboBox()
         self.model_combo.addItems([
             "🔧 OpenCV Canny (기본)",
@@ -177,30 +184,43 @@ class AIVectorizerDock(QDockWidget):
         
         self.status_label = QLabel("SHP 파일을 먼저 생성하세요")
         self.status_label.setWordWrap(True)
+        self.status_label.setToolTip("현재 트레이싱 상태를 표시합니다")
         status_layout.addWidget(self.status_label)
         
-        # Controls guide
+        # Controls guide with better formatting
+        controls_title = QLabel("📖 사용법:")
+        controls_title.setStyleSheet("font-weight: bold; color: #333; margin-top: 5px;")
+        status_layout.addWidget(controls_title)
+        
         controls = QLabel(
-            "🖱️ 좌클릭: 점 추가\n"
-            "🖱️ 우클릭: 완료 저장\n"
-            "⌨️ Esc: 마지막 취소\n"
-            "⌨️ Del: 전체 취소\n"
-            "🔵 청록원 근처 클릭: 폴리곤 닫기"
+            "• 좌클릭 + 드래그: 등고선 따라 그리기\n"
+            "• 시작점 근처 클릭: 폴리곤 닫기 → 해발값 입력\n"
+            "• 우클릭: 열린 선으로 저장\n"
+            "• Esc: 마지막 점 취소 / Del: 전체 취소\n"
+            "• Enter: 현재 선 저장"
         )
-        controls.setStyleSheet("color: #666; font-size: 9px; background: #f5f5f5; padding: 5px; border-radius: 3px;")
+        controls.setStyleSheet("color: #555; font-size: 9px; background: #f8f9fa; padding: 8px; border-radius: 4px; line-height: 1.4;")
+        controls.setToolTip("마우스와 키보드로 등고선을 따라 그립니다.\n폴리곤을 닫으면 해발값을 입력할 수 있습니다.")
         status_layout.addWidget(controls)
         
         status_box.setLayout(status_layout)
         self.layout.addWidget(status_box)
         
         # === Debug Tools ===
-        debug_box = QGroupBox("🔧 디버그")
+        debug_box = QGroupBox("🔧 디버그 및 도움말")
+        debug_box.setToolTip("문제 해결을 위한 도구들")
         debug_layout = QVBoxLayout()
         
         self.preview_edge_btn = QPushButton("👁️ AI가 보는 엣지 미리보기")
         self.preview_edge_btn.clicked.connect(self.preview_edges)
-        self.preview_edge_btn.setToolTip("AI가 감지하는 엣지를 임시 레이어로 표시")
+        self.preview_edge_btn.setToolTip("현재 선택된 AI 모델이 감지하는 엣지를\n임시 래스터 레이어로 표시합니다.\n\n흰색 = AI가 인식하는 등고선")
         debug_layout.addWidget(self.preview_edge_btn)
+        
+        # Help button
+        help_btn = QPushButton("❓ 도움말")
+        help_btn.clicked.connect(self.show_help)
+        help_btn.setToolTip("사용법과 문제해결 안내")
+        debug_layout.addWidget(help_btn)
         
         debug_box.setLayout(debug_layout)
         self.layout.addWidget(debug_box)
@@ -513,6 +533,60 @@ class AIVectorizerDock(QDockWidget):
                 
         except Exception as e:
             QMessageBox.critical(self, "오류", f"엣지 감지 실패:\n{str(e)}")
+
+    def show_help(self):
+        """Show comprehensive help dialog."""
+        help_text = """
+<h2>🏛️ ArchaeoTrace 사용 가이드</h2>
+
+<h3>📋 기본 워크플로우</h3>
+<ol>
+<li><b>래스터 지도 선택</b> - 등고선이 있는 스캔 지도</li>
+<li><b>SHP 파일 생성</b> - 결과를 저장할 파일</li>
+<li><b>AI 모델 선택</b> - 아래 설명 참고</li>
+<li><b>트레이싱 시작</b> - 등고선 따라 그리기</li>
+</ol>
+
+<h3>🤖 AI 모델 비교</h3>
+<table border='1' cellpadding='5'>
+<tr><th>모델</th><th>속도</th><th>품질</th><th>크기</th></tr>
+<tr><td>🔧 Canny</td><td>⚡최고</td><td>기본</td><td>내장</td></tr>
+<tr><td>📐 LSD</td><td>⚡빠름</td><td>좋음</td><td>내장</td></tr>
+<tr><td>🧠 HED</td><td>보통</td><td>우수</td><td>56MB</td></tr>
+<tr><td>🎯 SAM</td><td>느림</td><td>최고</td><td>설치필요</td></tr>
+</table>
+
+<h3>🖱️ 조작법</h3>
+<ul>
+<li><b>좌클릭 + 드래그</b>: 등고선 따라 그리기</li>
+<li><b>시작점 근처 클릭</b>: 폴리곤 닫기 → 해발값 입력</li>
+<li><b>우클릭</b>: 열린 선으로 저장</li>
+<li><b>Esc</b>: 마지막 점 취소</li>
+<li><b>Del</b>: 전체 취소</li>
+<li><b>Enter</b>: 현재 선 저장</li>
+</ul>
+
+<h3>💡 팁</h3>
+<ul>
+<li>줌 레벨을 적절히 조절하세요 (등고선이 3~5픽셀 두께가 최적)</li>
+<li>AI 강도를 높이면 엣지를 더 강하게 따라갑니다</li>
+<li>프리핸드 모드는 AI 없이 순수 마우스 추적입니다</li>
+<li>엣지 미리보기로 AI가 인식하는 선을 확인하세요</li>
+</ul>
+
+<h3>⚠️ 문제 해결</h3>
+<ul>
+<li><b>선이 자글자글</b>: AI 강도를 낮추거나, 천천히 그리세요</li>
+<li><b>AI가 선을 못 인식</b>: 엣지 미리보기로 확인, 다른 모델 시도</li>
+<li><b>폴리곤 안 닫힘</b>: 노란 시작점 근처에서 클릭하세요</li>
+</ul>
+"""
+        msg = QMessageBox(self)
+        msg.setWindowTitle("ArchaeoTrace 도움말")
+        msg.setTextFormat(Qt.RichText)
+        msg.setText(help_text)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
 
 
 # Keep old name for compatibility

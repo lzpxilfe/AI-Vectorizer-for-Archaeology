@@ -120,7 +120,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.start_marker.addPoint(point)
             
             # Set sample interval based on scale (larger = smoother)
-            self.sample_interval = self.canvas.mapUnitsPerPixel() * 5
+            self.sample_interval = self.canvas.mapUnitsPerPixel() * 8
             
             # Update edge cache
             if not self.freehand:
@@ -331,8 +331,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         else:
             geom = QgsGeometry.fromPolylineXY(smoothed)
         
-        # Additional QGIS simplification
-        tolerance = self.canvas.mapUnitsPerPixel() * 1.5
+        # Additional QGIS simplification (stronger for smoother result)
+        tolerance = self.canvas.mapUnitsPerPixel() * 2.5
         geom = geom.simplify(tolerance)
         
         feat = QgsFeature()
