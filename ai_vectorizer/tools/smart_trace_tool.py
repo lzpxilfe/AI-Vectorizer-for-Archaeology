@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Smart Trace Tool - Edge-following + Freehand modes with polygon close
+Smart Trace Tool v2 - Magnetic Edge Snapping (No more glass walls!)
+
+Key concept:
+- User controls direction (mouse movement)
+- AI just snaps to nearest edge within snap radius
+- If no edge nearby, follows mouse exactly
+- Result is smoothed with Bézier curves
 """
 import numpy as np
 import cv2
@@ -10,64 +16,64 @@ from qgis.core import (
     QgsFeature, QgsCoordinateTransform, QgsRectangle,
     QgsVectorLayer, QgsField
 )
-from qgis.PyQt.QtCore import Qt, QVariant
+from qgis.PyQt.QtCore import Qt, QVariant, pyqtSignal
 from qgis.PyQt.QtGui import QColor
 
 from ..core.edge_detector import EdgeDetector
-from ..core.path_finder import PathFinder
+
 
 class SmartTraceTool(QgsMapToolEmitPoint):
-    def __init__(self, canvas, raster_layer, vector_layer, model_type=0, sam_engine=None, edge_weight=0.5, freehand=False, edge_method='canny'):
+    deactivated = pyqtSignal()
+    
+    def __init__(self, canvas, raster_layer, vector_layer, model_type=0, 
+                 sam_engine=None, edge_weight=0.5, freehand=False, edge_method='canny'):
         self.canvas = canvas
         super().__init__(self.canvas)
         
         self.raster_layer = raster_layer
         self.vector_layer = vector_layer
-        self.model_type = model_type  
         self.sam_engine = sam_engine
-        self.edge_weight = edge_weight
         self.freehand = freehand
-        self.edge_method = edge_method  # 'canny' or 'lsd'
+        self.edge_method = edge_method
+        
+        # Snap radius (pixels) - higher = more magnetic
+        self.snap_radius = int(15 * (1.0 - edge_weight * 0.7))  # 5~15 pixels
         
         # Path tracking
         self.path_points = []
         self.is_tracing = False
         self.start_point = None
+        self.last_map_point = None
         
-        # Snap distance (in map units) - will be set based on canvas scale
-        self.snap_distance = 0
+        # Sampling interval (map units per sample point)
+        self.sample_interval = 0
         
-        # RubberBands
+        # RubberBands for visualization
         self.preview_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
-        self.preview_band.setColor(QColor(0, 200, 0, 200))
+        self.preview_band.setColor(QColor(0, 200, 0, 180))
         self.preview_band.setWidth(3)
         
         self.confirm_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
         self.confirm_band.setColor(QColor(255, 50, 50, 255))
         self.confirm_band.setWidth(3)
         
-        # Start point marker (larger, more visible)
         self.start_marker = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
         self.start_marker.setColor(QColor(255, 255, 0, 255))
         self.start_marker.setWidth(12)
         self.start_marker.setIcon(QgsRubberBand.ICON_CIRCLE)
         
-        # Close indicator (shows when near start)
         self.close_indicator = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
         self.close_indicator.setColor(QColor(0, 255, 255, 200))
         self.close_indicator.setWidth(16)
         self.close_indicator.setIcon(QgsRubberBand.ICON_CIRCLE)
         
-        # AI engines
+        # Edge detector
         self.edge_detector = EdgeDetector(method=self.edge_method)
-        self.path_finder = PathFinder()
         
         # Edge cache
         self.cached_edges = None
-        self.cached_cost = None
         self.cache_extent = None
-        self.pixel_width = 1
-        self.pixel_height = 1
+        self.cache_transform = None  # Pixel <-> Map transform
         
         # CRS transform
         self.transform = QgsCoordinateTransform(
@@ -76,7 +82,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             QgsProject.instance()
         )
         
-        # Auto-create output layer
+        # Auto-create output layer if needed
         if not self.vector_layer:
             self.vector_layer = self.create_output_layer()
 
@@ -89,197 +95,231 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         QgsProject.instance().addMapLayer(layer)
         return layer
 
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
-            if self.path_points:
-                self.path_points.pop()
-                self.redraw_confirmed_path()
-            else:
-                self.reset_tracing()
-        elif event.key() == Qt.Key_Delete or event.key() == Qt.Key_Backspace:
-            self.reset_tracing()
-        elif event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
-            if len(self.path_points) >= 2:
-                self.save_to_layer()
-            self.reset_tracing()
-
     def canvasPressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            point = self.toMapCoordinates(event.pos())
-            
-            if not self.is_tracing:
-                # Start new trace
-                self.is_tracing = True
-                self.start_point = point
-                self.path_points = [point]
-                self.start_marker.reset(QgsWkbTypes.PointGeometry)
-                self.start_marker.addPoint(point)
-                
-                # Set snap distance based on canvas scale (10 pixels)
-                self.snap_distance = self.canvas.mapUnitsPerPixel() * 15
-                
-                if not self.freehand:
-                    self.update_edge_cache()
-            else:
-                # Check if closing polygon (near start point)
-                if self.is_near_start(point):
-                    # Close to start - close the polygon
-                    self.path_points.append(self.start_point)  # Close exactly
-                    self.save_to_layer(closed=True)
-                    self.reset_tracing()
-                    return
-                
-                # Add path segment
-                if hasattr(self, 'preview_path') and self.preview_path:
-                    self.path_points.extend(self.preview_path[1:])
-                else:
-                    self.path_points.append(point)
-                    
-            self.redraw_confirmed_path()
-                
-        elif event.button() == Qt.RightButton:
+        if event.button() == Qt.RightButton:
+            # Right click = save and finish
             if len(self.path_points) >= 2:
-                self.save_to_layer()
+                self.save_to_layer(closed=False)
             self.reset_tracing()
+            return
+        
+        if event.button() != Qt.LeftButton:
+            return
+        
+        point = self.toMapCoordinates(event.pos())
+        
+        if not self.is_tracing:
+            # Start tracing
+            self.is_tracing = True
+            self.start_point = point
+            self.last_map_point = point
+            self.path_points = [point]
+            
+            # Show start marker
+            self.start_marker.reset(QgsWkbTypes.PointGeometry)
+            self.start_marker.addPoint(point)
+            
+            # Set sample interval based on scale
+            self.sample_interval = self.canvas.mapUnitsPerPixel() * 3
+            
+            # Update edge cache
+            if not self.freehand:
+                self.update_edge_cache()
+        else:
+            # Check if closing polygon (near start)
+            if self.is_near_start(point):
+                self.path_points.append(self.start_point)
+                self.save_to_layer(closed=True)
+                self.reset_tracing()
+                return
+            
+            # Confirm current preview path
+            self.redraw_confirmed_path()
 
     def canvasMoveEvent(self, event):
-        if not self.is_tracing or not self.path_points:
+        if not self.is_tracing:
             return
-            
-        current = self.toMapCoordinates(event.pos())
-        last = self.path_points[-1]
         
-        # Check if near start point for closing
-        if self.start_point and self.is_near_start(current):
+        current_point = self.toMapCoordinates(event.pos())
+        
+        # Check close indicator
+        if self.is_near_start(current_point):
             self.close_indicator.reset(QgsWkbTypes.PointGeometry)
             self.close_indicator.addPoint(self.start_point)
         else:
             self.close_indicator.reset(QgsWkbTypes.PointGeometry)
         
-        # Find path
-        if self.freehand:
-            # Freehand: just direct line, user controls everything
-            path = [last, current]
+        if self.last_map_point is None:
+            self.last_map_point = current_point
+            return
+        
+        # Calculate distance moved
+        dx = current_point.x() - self.last_map_point.x()
+        dy = current_point.y() - self.last_map_point.y()
+        dist = np.sqrt(dx*dx + dy*dy)
+        
+        # Only add points at intervals
+        if dist < self.sample_interval:
+            return
+        
+        # Get snapped point (magnetic edge snapping)
+        if self.freehand or self.cached_edges is None:
+            snapped = current_point
         else:
-            path = self.find_path_along_edges(last, current)
+            snapped = self.snap_to_edge(current_point)
         
-        self.preview_path = path
+        # Add to path
+        self.path_points.append(snapped)
+        self.last_map_point = current_point
         
-        # Draw preview
-        self.preview_band.reset(QgsWkbTypes.LineGeometry)
-        for pt in path:
-            self.preview_band.addPoint(pt)
+        # Update preview
+        self.redraw_confirmed_path()
 
-    def is_near_start(self, point):
-        """Check if point is within snap distance of start."""
-        if not self.start_point:
-            return False
-        if len(self.path_points) < 2:  # Need at least 2 points to form a closed shape
-            return False
-        dx = point.x() - self.start_point.x()
-        dy = point.y() - self.start_point.y()
-        dist = (dx*dx + dy*dy) ** 0.5
-        return dist < self.snap_distance
+    def snap_to_edge(self, map_point):
+        """
+        Magnetic snap: find nearest edge pixel within snap_radius.
+        If no edge nearby, return original point (NO WALL!).
+        """
+        if self.cached_edges is None or self.cache_transform is None:
+            return map_point
+        
+        try:
+            # Convert map point to pixel coordinates
+            px, py = self.map_to_pixel(map_point)
+            
+            h, w = self.cached_edges.shape
+            if px < 0 or py < 0 or px >= w or py >= h:
+                return map_point
+            
+            # Search for nearest edge within radius
+            best_dist = self.snap_radius + 1
+            best_px, best_py = px, py
+            
+            for dy in range(-self.snap_radius, self.snap_radius + 1):
+                for dx in range(-self.snap_radius, self.snap_radius + 1):
+                    nx, ny = int(px + dx), int(py + dy)
+                    if 0 <= nx < w and 0 <= ny < h:
+                        if self.cached_edges[ny, nx] > 128:  # Edge pixel
+                            dist = np.sqrt(dx*dx + dy*dy)
+                            if dist < best_dist:
+                                best_dist = dist
+                                best_px, best_py = nx, ny
+            
+            # If found edge within radius, snap to it
+            if best_dist <= self.snap_radius:
+                return self.pixel_to_map(best_px, best_py)
+            else:
+                # NO WALL - just return original point
+                return map_point
+                
+        except Exception:
+            return map_point
 
     def update_edge_cache(self):
-        extent = self.canvas.extent()
-        image = self.read_raster(extent)
-        
-        if image is None:
-            self.cached_edges = None
-            return
+        """Cache edge detection for current view."""
+        try:
+            extent = self.canvas.extent()
+            provider = self.raster_layer.dataProvider()
+            raster_ext = self.raster_layer.extent()
+            read_ext = extent.intersect(raster_ext)
             
-        self.cached_edges = self.edge_detector.detect_edges(image)
-        self.cached_cost = self.edge_detector.get_edge_cost_map(self.cached_edges, self.edge_weight)
-        self.cache_extent = extent
-        self.pixel_width = extent.width() / image.shape[1]
-        self.pixel_height = extent.height() / image.shape[0]
+            if read_ext.isEmpty():
+                return
+            
+            # Determine output size (limit for performance)
+            raster_res = raster_ext.width() / self.raster_layer.width()
+            out_w = min(1000, int(read_ext.width() / raster_res))
+            out_h = min(1000, int(read_ext.height() / raster_res))
+            
+            if out_w < 10 or out_h < 10:
+                return
+            
+            # Read bands
+            bands = []
+            for b in range(1, min(4, provider.bandCount() + 1)):
+                block = provider.block(b, read_ext, out_w, out_h)
+                if block.isValid() and block.data():
+                    try:
+                        arr = np.frombuffer(block.data(), dtype=np.uint8).reshape((out_h, out_w))
+                        bands.append(arr.copy())
+                    except:
+                        pass
+            
+            if not bands:
+                return
+            
+            # Convert to grayscale
+            if len(bands) >= 3:
+                image = cv2.cvtColor(np.stack(bands[:3], axis=-1), cv2.COLOR_RGB2GRAY)
+            else:
+                image = bands[0]
+            
+            # Detect edges
+            self.cached_edges = self.edge_detector.detect_edges(image)
+            self.cache_extent = read_ext
+            
+            # Store transform info
+            self.cache_transform = {
+                'x_min': read_ext.xMinimum(),
+                'y_max': read_ext.yMaximum(),
+                'px_w': read_ext.width() / out_w,
+                'px_h': read_ext.height() / out_h,
+                'width': out_w,
+                'height': out_h
+            }
+            
+        except Exception as e:
+            print(f"Edge cache error: {e}")
 
-    def read_raster(self, extent):
-        provider = self.raster_layer.dataProvider()
-        raster_ext = self.raster_layer.extent()
-        read_ext = extent.intersect(raster_ext)
-        
-        if read_ext.isEmpty():
-            return None
-        
-        raster_res = raster_ext.width() / self.raster_layer.width()
-        out_w = min(800, int(read_ext.width() / raster_res))
-        out_h = min(800, int(read_ext.height() / raster_res))
-        
-        if out_w <= 0 or out_h <= 0:
-            return None
-        
-        bands = []
-        for b in range(1, min(4, provider.bandCount() + 1)):
-            block = provider.block(b, read_ext, out_w, out_h)
-            if block.isValid() and block.data():
-                try:
-                    arr = np.frombuffer(block.data(), dtype=np.uint8).reshape((out_h, out_w))
-                    bands.append(arr)
-                except:
-                    pass
-        
-        if not bands:
-            return None
-        if len(bands) >= 3:
-            return cv2.cvtColor(np.stack(bands[:3], axis=-1), cv2.COLOR_RGB2GRAY)
-        return bands[0]
+    def map_to_pixel(self, map_point):
+        """Convert map coordinates to pixel coordinates."""
+        t = self.cache_transform
+        px = (map_point.x() - t['x_min']) / t['px_w']
+        py = (t['y_max'] - map_point.y()) / t['px_h']
+        return int(px), int(py)
 
-    def find_path_along_edges(self, start, end):
-        if self.cached_cost is None:
-            return [start, end]
+    def pixel_to_map(self, px, py):
+        """Convert pixel coordinates to map coordinates."""
+        t = self.cache_transform
+        x = t['x_min'] + px * t['px_w']
+        y = t['y_max'] - py * t['px_h']
+        return QgsPointXY(x, y)
+
+    def is_near_start(self, point):
+        """Check if point is near start point for polygon close."""
+        if not self.start_point or len(self.path_points) < 3:
+            return False
         
-        ext = self.cache_extent
-        h, w = self.cached_cost.shape
+        dx = point.x() - self.start_point.x()
+        dy = point.y() - self.start_point.y()
+        dist = np.sqrt(dx*dx + dy*dy)
         
-        def to_pixel(pt):
-            px = int((pt.x() - ext.xMinimum()) / self.pixel_width)
-            py = int((ext.yMaximum() - pt.y()) / self.pixel_height)
-            return (max(0, min(w-1, px)), max(0, min(h-1, py)))
-        
-        def to_map(px, py):
-            x = ext.xMinimum() + px * self.pixel_width
-            y = ext.yMaximum() - py * self.pixel_height
-            return QgsPointXY(x, y)
-        
-        p1 = to_pixel(start)
-        p2 = to_pixel(end)
-        
-        path = self.path_finder.find_path(p1, p2, self.cached_cost)
-        
-        if not path:
-            return [start, end]
-        
-        step = max(1, len(path) // 30)
-        simplified = path[::step]
-        if path[-1] not in simplified:
-            simplified.append(path[-1])
-        
-        return [to_map(px, py) for px, py in simplified]
+        close_threshold = self.canvas.mapUnitsPerPixel() * 20
+        return dist < close_threshold
 
     def redraw_confirmed_path(self):
+        """Redraw the confirmed path."""
         self.confirm_band.reset(QgsWkbTypes.LineGeometry)
         for pt in self.path_points:
             self.confirm_band.addPoint(pt)
 
     def save_to_layer(self, closed=False):
+        """Save path to vector layer with Bézier smoothing."""
         if len(self.path_points) < 2:
             return
         
-        # Smooth the line using Douglas-Peucker algorithm
-        smoothed_points = self.smooth_line(self.path_points)
+        # Apply Bézier smoothing
+        smoothed = self.smooth_bezier(self.path_points)
         
-        # Create geometry    
-        if closed and len(smoothed_points) >= 3:
-            # Save as actual Polygon
-            ring = smoothed_points + [smoothed_points[0]]  # Close the ring
+        # Create geometry
+        if closed and len(smoothed) >= 3:
+            ring = smoothed + [smoothed[0]]
             geom = QgsGeometry.fromPolygonXY([ring])
         else:
-            geom = QgsGeometry.fromPolylineXY(smoothed_points)
+            geom = QgsGeometry.fromPolylineXY(smoothed)
         
-        # Additional smoothing via QGIS geometry simplify
-        tolerance = self.canvas.mapUnitsPerPixel() * 2  # 2 pixel tolerance
+        # Additional QGIS simplification
+        tolerance = self.canvas.mapUnitsPerPixel() * 1.5
         geom = geom.simplify(tolerance)
         
         feat = QgsFeature()
@@ -291,44 +331,64 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.vector_layer.commitChanges()
         self.vector_layer.triggerRepaint()
 
-    def smooth_line(self, points):
+    def smooth_bezier(self, points):
         """
-        Smooth a line using Douglas-Peucker algorithm.
-        Returns simplified list of QgsPointXY.
+        Smooth points using Bézier-like curve fitting.
+        Uses Chaikin's corner cutting algorithm for smooth curves.
         """
         if len(points) < 3:
             return points
         
-        # Convert to geometry for simplification
-        geom = QgsGeometry.fromPolylineXY(points)
+        # Convert to numpy for easier math
+        pts = np.array([[p.x(), p.y()] for p in points])
         
-        # Use adaptive tolerance based on map scale
-        tolerance = self.canvas.mapUnitsPerPixel() * 3  # 3 pixel tolerance
-        simplified = geom.simplify(tolerance)
+        # Apply Chaikin's algorithm 2 times for smoothness
+        for _ in range(2):
+            if len(pts) < 3:
+                break
+            new_pts = [pts[0]]  # Keep first point
+            
+            for i in range(len(pts) - 1):
+                p0, p1 = pts[i], pts[i + 1]
+                # 1/4 and 3/4 points
+                q = p0 * 0.75 + p1 * 0.25
+                r = p0 * 0.25 + p1 * 0.75
+                new_pts.extend([q, r])
+            
+            new_pts.append(pts[-1])  # Keep last point
+            pts = np.array(new_pts)
         
-        if simplified.isNull():
-            return points
+        # Subsample to reduce point count
+        if len(pts) > 50:
+            indices = np.linspace(0, len(pts) - 1, 50, dtype=int)
+            pts = pts[indices]
         
-        # Extract simplified points
-        result = []
-        for pt in simplified.asPolyline():
-            result.append(QgsPointXY(pt))
-        
-        # Ensure we have at least start and end
-        if len(result) < 2:
-            return points
-        
-        return result
+        return [QgsPointXY(p[0], p[1]) for p in pts]
 
     def reset_tracing(self):
+        """Reset all tracing state."""
         self.is_tracing = False
         self.path_points = []
-        self.preview_path = []
         self.start_point = None
+        self.last_map_point = None
         self.preview_band.reset(QgsWkbTypes.LineGeometry)
         self.confirm_band.reset(QgsWkbTypes.LineGeometry)
         self.start_marker.reset(QgsWkbTypes.PointGeometry)
         self.close_indicator.reset(QgsWkbTypes.PointGeometry)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape:
+            if self.path_points:
+                self.path_points.pop()
+                self.redraw_confirmed_path()
+            else:
+                self.reset_tracing()
+        elif event.key() == Qt.Key_Delete or event.key() == Qt.Key_Backspace:
+            self.reset_tracing()
+        elif event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+            if len(self.path_points) >= 2:
+                self.save_to_layer(closed=False)
+            self.reset_tracing()
 
     def deactivate(self):
         self.reset_tracing()
