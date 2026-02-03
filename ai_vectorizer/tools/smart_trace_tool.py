@@ -361,9 +361,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             cost_so_far = {(start_px, start_py): 0}
             
             # Optimization: Limit iterations (don't search forever)
-            # Distance based limit
-            dist_limit = max(abs(end_px - start_px), abs(end_py - start_py)) * 2
-            max_iter = min(3000, int(dist_limit * 20))
+            # Distance based limit - Increased significantly to prevent "giving up"
+            manhattan_dist = abs(end_px - start_px) + abs(end_py - start_py)
+            max_iter = max(30000, manhattan_dist * 100) # Allow extensive search
             iter_count = 0
             
             found = False
