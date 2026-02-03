@@ -366,6 +366,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             max_iter = max(100000, manhattan_dist * 500) # Covers almost entire screen search
             iter_count = 0
             
+            # Track closest approach in case of timeout
+            best_node = None
+            min_dist_to_target = float('inf')
+            
             found = False
             
             while pq:
@@ -374,6 +378,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     break # Too far / complex
                     
                 current_cost, cx, cy = heapq.heappop(pq)
+                
+                # Track best progress
+                dist_to_target = abs(end_px - cx) + abs(end_py - cy)
+                if dist_to_target < min_dist_to_target:
+                    min_dist_to_target = dist_to_target
+                    best_node = (cx, cy)
                 
                 if (cx, cy) == (end_px, end_py):
                     found = True
@@ -399,6 +409,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                             priority = new_cost + heuristic
                             heapq.heappush(pq, (priority, nx, ny))
                             came_from[(nx, ny)] = (cx, cy)
+            
+            if not found and best_node is not None:
+                # Timeout: Use partial path to closest point
+                # This prevents "AI giving up" feeling
+                end_px, end_py = best_node
+                found = True
             
             if found:
                 # Reconstruct path
@@ -663,7 +679,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return
         
         # Apply Bézier smoothing
-        smoothed = self.smooth_bezier(self.path_points)
+        smoothed = self.smooth_bezier(self.path_points, closed=closed)
         
         # Create geometry
         if closed and len(smoothed) >= 3:
@@ -724,10 +740,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return value
         return None
 
-    def smooth_bezier(self, points):
+    def smooth_bezier(self, points, closed=False):
         """
-        Smooth points using Bézier-like curve fitting.
-        Uses Chaikin's corner cutting algorithm for smooth curves.
+        Smooth points using Bézier-like curve fitting (Chaikin).
+        Handles closed polygons correctly to prevent flattened ends.
         """
         if len(points) < 3:
             return points
@@ -739,16 +755,29 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         for _ in range(6):
             if len(pts) < 3:
                 break
-            new_pts = [pts[0]]  # Keep first point
             
-            for i in range(len(pts) - 1):
-                p0, p1 = pts[i], pts[i + 1]
+            new_pts = []
+            
+            # If NOT closed, keep first point
+            if not closed:
+                new_pts.append(pts[0])
+            
+            # Loop segments
+            count = len(pts) if closed else len(pts) - 1
+            
+            for i in range(count):
+                p0 = pts[i]
+                p1 = pts[(i + 1) % len(pts)]
+                
                 # 1/4 and 3/4 points
                 q = p0 * 0.75 + p1 * 0.25
                 r = p0 * 0.25 + p1 * 0.75
                 new_pts.extend([q, r])
             
-            new_pts.append(pts[-1])  # Keep last point
+            # If NOT closed, keep last point
+            if not closed:
+                new_pts.append(pts[-1])
+                
             pts = np.array(new_pts)
         
         # Subsample to reduce point count
