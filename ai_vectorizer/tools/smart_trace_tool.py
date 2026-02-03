@@ -19,7 +19,8 @@ from qgis.core import (
     QgsVectorLayer, QgsField
 )
 from qgis.PyQt.QtCore import Qt, QVariant, pyqtSignal
-from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtGui import QColor, QCursor
+from qgis.PyQt.QtWidgets import QMenu
 
 from ..core.edge_detector import EdgeDetector
 
@@ -109,10 +110,26 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def canvasPressEvent(self, event):
         if event.button() == Qt.RightButton:
-            # Right click = save and finish
-            if len(self.path_points) >= 2:
-                self.save_to_layer(closed=False)
-            self.reset_tracing()
+            # Right click = Context Menu (Safety mechanism)
+            if not self.is_tracing:
+                return
+
+            menu = QMenu()
+            save_action = menu.addAction("Finish Line (Enter)")
+            undo_action = menu.addAction("Undo Last Segment (Ctrl+Z)")
+            cancel_menu_action = menu.addAction("Cancel Menu")
+            
+            # Execute menu at mouse position
+            action = menu.exec_(QCursor.pos())
+            
+            if action == save_action:
+                if len(self.path_points) >= 2:
+                    self.save_to_layer(closed=False)
+                self.reset_tracing()
+            elif action == undo_action:
+                self.undo_to_checkpoint()
+            
+            # If Cancel or clicked outside, do nothing (prevent reset)
             return
         
         if event.button() != Qt.LeftButton:
@@ -296,7 +313,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return
         
         # Ctrl+Z: Undo to last checkpoint
-        if event.key() == Qt.Key_Z and event.modifiers() & Qt.ControlModifier:
+        if (event.key() == Qt.Key_Z and event.modifiers() & Qt.ControlModifier) or event.key() == Qt.Key_Backspace:
             self.undo_to_checkpoint()
             return
         
@@ -394,11 +411,31 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 
                 path.reverse()
                 
+                # Apply 5-point Moving Average Smoothing (Anti-Aliasing)
+                # This converts integer grid steps into smooth float coordinates
+                smoothed_path = []
+                window_size = 5
+                
+                if len(path) > window_size:
+                    path_arr = np.array(path)
+                    for i in range(len(path)):
+                        # Simple moving average window
+                        start_idx = max(0, i - window_size // 2)
+                        end_idx = min(len(path), i + window_size // 2 + 1)
+                        # Mean of x and y coordinates
+                        avg_pt = np.mean(path_arr[start_idx:end_idx], axis=0)
+                        smoothed_path.append(avg_pt)
+                else:
+                    smoothed_path = path
+
                 # Convert pixels to map points (subsample for performance)
                 path_map = []
-                for i, (px, py) in enumerate(path):
-                    if i % 3 == 0 or i == len(path)-1: # Take every 3rd point
-                        path_map.append(self.pixel_to_map(px, py))
+                for i, pt in enumerate(smoothed_path):
+                    # Take every 4th point (smoother than 3)
+                    if i % 4 == 0 or i == len(smoothed_path)-1: 
+                        # Pass float coordinates for sub-pixel precision
+                        path_map.append(self.pixel_to_map(pt[0], pt[1]))
+                        
                 return path_map
             else:
                 # If path not found (timeout), return straight line
