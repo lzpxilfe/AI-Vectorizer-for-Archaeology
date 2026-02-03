@@ -7,6 +7,7 @@ Supports: Canny+Adaptive, LSD Line Detector, HED (Holistically-Nested Edge Detec
 import cv2
 import numpy as np
 import os
+from skimage.morphology import skeletonize
 
 # HED model paths
 HED_PROTOTXT = os.path.join(os.path.dirname(__file__), 'models', 'hed_deploy.prototxt')
@@ -55,11 +56,27 @@ class EdgeDetector:
             color = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
         if self.method == 'lsd':
-            return self._detect_lsd(gray)
+            edges = self._detect_lsd(gray)
         elif self.method == 'hed':
-            return self._detect_hed(color, gray)
+            edges = self._detect_hed(color, gray)
         else:
-            return self._detect_canny(gray, low_threshold, high_threshold)
+            edges = self._detect_canny(gray, low_threshold, high_threshold)
+            
+        # SKELETONIZATION: Ensure edges are 1px wide
+        # This prevents "walking inside the edge" and reduces jitter
+        try:
+            # Normalize to binary (0 or 1)
+            binary = edges > 50
+            
+            # Skeletonize
+            skeleton = skeletonize(binary)
+            
+            # Convert back to uint8 (0 or 255)
+            edges = (skeleton * 255).astype(np.uint8)
+        except Exception as e:
+            print(f"Skeletonize error: {e}")
+            
+        return edges
 
     def _detect_canny(self, gray: np.ndarray, low_threshold=30, high_threshold=100) -> np.ndarray:
         """Canny + Adaptive threshold method."""

@@ -576,7 +576,7 @@ class AIVectorizerDock(QDockWidget):
 
 <h3>⚠️ 문제 해결</h3>
 <ul>
-<li><b>선이 자글자글</b>: AI 강도를 낮추거나, 천천히 그리세요</li>
+<li><b>선이 자글자글</b>: scikit-image가 설치되었는지 확인하세요 (골격화 필수)</li>
 <li><b>AI가 선을 못 인식</b>: 엣지 미리보기로 확인, 다른 모델 시도</li>
 <li><b>폴리곤 안 닫힘</b>: 노란 시작점 근처에서 클릭하세요</li>
 </ul>
