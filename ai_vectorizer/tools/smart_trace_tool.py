@@ -802,7 +802,21 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.close_indicator.reset(QgsWkbTypes.PointGeometry)
         self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
 
+    def activate(self):
+        """Called when tool is activated."""
+        self.update_edge_cache()
+        try:
+            self.canvas.extentsChanged.connect(self.update_edge_cache)
+        except:
+            pass
+        super().activate()
+
     def deactivate(self):
+        """Called when tool is deactivated."""
+        try:
+            self.canvas.extentsChanged.disconnect(self.update_edge_cache)
+        except:
+            pass
         self.reset_tracing()
         super().deactivate()
         self.deactivated.emit()
