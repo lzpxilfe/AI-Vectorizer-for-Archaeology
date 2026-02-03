@@ -193,14 +193,14 @@ class AIVectorizerDock(QDockWidget):
         status_layout.addWidget(controls_title)
         
         controls = QLabel(
-            "• 좌클릭 + 드래그: 등고선 따라 그리기\n"
-            "• 시작점 근처 클릭: 폴리곤 닫기 → 해발값 입력\n"
-            "• 우클릭: 열린 선으로 저장\n"
-            "• Esc: 마지막 점 취소 / Del: 전체 취소\n"
-            "• Enter: 현재 선 저장"
+            "• 드래그: 선 그리기 / 클릭: 체크포인트\n"
+            "• Ctrl+Z: 마지막 체크포인트로 되돌리기\n"
+            "• Esc: 조금 되돌리기 / Del: 전체 취소\n"
+            "• 시작점 클릭: 폴리곤 닫기 → 해발값\n"
+            "• 우클릭/Enter: 저장"
         )
         controls.setStyleSheet("color: #555; font-size: 9px; background: #f8f9fa; padding: 8px; border-radius: 4px; line-height: 1.4;")
-        controls.setToolTip("마우스와 키보드로 등고선을 따라 그립니다.\n폴리곤을 닫으면 해발값을 입력할 수 있습니다.")
+        controls.setToolTip("클릭으로 체크포인트 저장\n실수하면 Ctrl+Z로 되돌림")
         status_layout.addWidget(controls)
         
         status_box.setLayout(status_layout)

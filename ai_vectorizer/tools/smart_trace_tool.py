@@ -67,6 +67,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.close_indicator.setWidth(16)
         self.close_indicator.setIcon(QgsRubberBand.ICON_CIRCLE)
         
+        # Checkpoint markers (blue diamonds)
+        self.checkpoint_markers = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
+        self.checkpoint_markers.setColor(QColor(50, 150, 255, 255))
+        self.checkpoint_markers.setWidth(10)
+        self.checkpoint_markers.setIcon(QgsRubberBand.ICON_BOX)
+        
+        # Checkpoints: list of point indices where user clicked
+        self.checkpoints = []
+        
         # Edge detector
         self.edge_detector = EdgeDetector(method=self.edge_method)
         
@@ -114,10 +123,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.start_point = point
             self.last_map_point = point
             self.path_points = [point]
+            self.checkpoints = [0]  # Start point is first checkpoint
             
             # Show start marker
             self.start_marker.reset(QgsWkbTypes.PointGeometry)
             self.start_marker.addPoint(point)
+            
+            # Reset checkpoint markers
+            self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
             
             # Set sample interval based on scale (larger = smoother, less jitter)
             self.sample_interval = self.canvas.mapUnitsPerPixel() * 12
@@ -135,6 +148,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     self.save_to_layer(closed=True, elevation=elevation)
                 self.reset_tracing()
                 return
+            
+            # ADD CHECKPOINT: Save current position as checkpoint
+            if len(self.path_points) > 0:
+                self.checkpoints.append(len(self.path_points) - 1)
+                # Show checkpoint marker
+                self.checkpoint_markers.addPoint(self.path_points[-1])
             
             # Confirm current preview path
             self.redraw_confirmed_path()
@@ -175,6 +194,86 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.last_map_point = current_point
         
         # Update preview
+        self.redraw_confirmed_path()
+
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts for undo and save."""
+        if not self.is_tracing:
+            return
+        
+        # Ctrl+Z: Undo to last checkpoint
+        if event.key() == Qt.Key_Z and event.modifiers() & Qt.ControlModifier:
+            self.undo_to_checkpoint()
+            return
+        
+        # Esc: Remove last 10 points (quick undo)
+        if event.key() == Qt.Key_Escape:
+            self.undo_points(10)
+            return
+        
+        # Delete: Cancel entire line
+        if event.key() == Qt.Key_Delete:
+            self.reset_tracing()
+            return
+        
+        # Enter: Save current line
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if len(self.path_points) >= 2:
+                self.save_to_layer(closed=False)
+            self.reset_tracing()
+            return
+
+    def undo_to_checkpoint(self):
+        """Undo back to the last checkpoint."""
+        if len(self.checkpoints) <= 1:
+            # Only start checkpoint, reset everything
+            self.reset_tracing()
+            return
+        
+        # Remove last checkpoint
+        self.checkpoints.pop()
+        last_cp_idx = self.checkpoints[-1]
+        
+        # Trim path to checkpoint
+        self.path_points = self.path_points[:last_cp_idx + 1]
+        
+        # Update last_map_point
+        if self.path_points:
+            self.last_map_point = self.path_points[-1]
+        
+        # Rebuild checkpoint markers
+        self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
+        for cp_idx in self.checkpoints[1:]:  # Skip start point
+            if cp_idx < len(self.path_points):
+                self.checkpoint_markers.addPoint(self.path_points[cp_idx])
+        
+        # Redraw
+        self.redraw_confirmed_path()
+
+    def undo_points(self, count):
+        """Remove last N points."""
+        if len(self.path_points) <= 1:
+            return
+        
+        # Remove points but keep at least the start
+        remove_count = min(count, len(self.path_points) - 1)
+        self.path_points = self.path_points[:-remove_count]
+        
+        # Update last_map_point
+        if self.path_points:
+            self.last_map_point = self.path_points[-1]
+        
+        # Remove checkpoints that are now beyond the path
+        while self.checkpoints and self.checkpoints[-1] >= len(self.path_points):
+            self.checkpoints.pop()
+        
+        # Rebuild checkpoint markers
+        self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
+        for cp_idx in self.checkpoints[1:]:
+            if cp_idx < len(self.path_points):
+                self.checkpoint_markers.addPoint(self.path_points[cp_idx])
+        
+        # Redraw
         self.redraw_confirmed_path()
 
     def gentle_snap(self, map_point):
@@ -427,26 +526,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """Reset all tracing state."""
         self.is_tracing = False
         self.path_points = []
+        self.checkpoints = []
         self.start_point = None
         self.last_map_point = None
         self.preview_band.reset(QgsWkbTypes.LineGeometry)
         self.confirm_band.reset(QgsWkbTypes.LineGeometry)
         self.start_marker.reset(QgsWkbTypes.PointGeometry)
         self.close_indicator.reset(QgsWkbTypes.PointGeometry)
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
-            if self.path_points:
-                self.path_points.pop()
-                self.redraw_confirmed_path()
-            else:
-                self.reset_tracing()
-        elif event.key() == Qt.Key_Delete or event.key() == Qt.Key_Backspace:
-            self.reset_tracing()
-        elif event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
-            if len(self.path_points) >= 2:
-                self.save_to_layer(closed=False)
-            self.reset_tracing()
+        self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
 
     def deactivate(self):
         self.reset_tracing()
