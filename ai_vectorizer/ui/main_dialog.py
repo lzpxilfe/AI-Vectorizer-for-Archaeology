@@ -192,6 +192,18 @@ class AIVectorizerDock(QDockWidget):
         status_box.setLayout(status_layout)
         self.layout.addWidget(status_box)
         
+        # === Debug Tools ===
+        debug_box = QGroupBox("🔧 디버그")
+        debug_layout = QVBoxLayout()
+        
+        self.preview_edge_btn = QPushButton("👁️ AI가 보는 엣지 미리보기")
+        self.preview_edge_btn.clicked.connect(self.preview_edges)
+        self.preview_edge_btn.setToolTip("AI가 감지하는 엣지를 임시 레이어로 표시")
+        debug_layout.addWidget(self.preview_edge_btn)
+        
+        debug_box.setLayout(debug_layout)
+        self.layout.addWidget(debug_box)
+        
         # Add stretch to push everything up
         self.layout.addStretch()
 
@@ -351,6 +363,90 @@ class AIVectorizerDock(QDockWidget):
                 self.sam_status.setText("❌ 다운로드 실패")
         
         self.sam_download_btn.setEnabled(True)
+
+    def preview_edges(self):
+        """Show what the AI edge detector sees as a preview layer."""
+        import os
+        import tempfile
+        import numpy as np
+        from osgeo import gdal
+        
+        raster = self.layer_combo.currentLayer()
+        if not raster:
+            QMessageBox.warning(self, "경고", "래스터 지도를 먼저 선택하세요.")
+            return
+        
+        # Get model method
+        model_idx = self.model_combo.currentIndex()
+        edge_method = 'lsd' if model_idx == 1 else 'canny'
+        
+        try:
+            from ..core.edge_detector import EdgeDetector
+            
+            # Read current view extent
+            extent = self.iface.mapCanvas().extent()
+            provider = raster.dataProvider()
+            raster_ext = raster.extent()
+            read_ext = extent.intersect(raster_ext)
+            
+            if read_ext.isEmpty():
+                QMessageBox.warning(self, "경고", "래스터 범위 밖입니다.")
+                return
+            
+            # Read raster
+            raster_res = raster_ext.width() / raster.width()
+            out_w = min(800, int(read_ext.width() / raster_res))
+            out_h = min(800, int(read_ext.height() / raster_res))
+            
+            bands = []
+            for b in range(1, min(4, provider.bandCount() + 1)):
+                block = provider.block(b, read_ext, out_w, out_h)
+                if block.isValid() and block.data():
+                    arr = np.frombuffer(block.data(), dtype=np.uint8).reshape((out_h, out_w))
+                    bands.append(arr)
+            
+            if not bands:
+                QMessageBox.warning(self, "경고", "래스터 데이터를 읽을 수 없습니다.")
+                return
+            
+            # Convert to grayscale
+            import cv2
+            if len(bands) >= 3:
+                image = cv2.cvtColor(np.stack(bands[:3], axis=-1), cv2.COLOR_RGB2GRAY)
+            else:
+                image = bands[0]
+            
+            # Detect edges
+            detector = EdgeDetector(method=edge_method)
+            edges = detector.detect_edges(image)
+            
+            # Save as temporary GeoTiff
+            temp_path = os.path.join(tempfile.gettempdir(), f"edge_preview_{edge_method}.tif")
+            
+            driver = gdal.GetDriverByName('GTiff')
+            ds = driver.Create(temp_path, out_w, out_h, 1, gdal.GDT_Byte)
+            ds.SetGeoTransform([
+                read_ext.xMinimum(), 
+                read_ext.width() / out_w, 0,
+                read_ext.yMaximum(), 
+                0, -read_ext.height() / out_h
+            ])
+            ds.SetProjection(raster.crs().toWkt())
+            ds.GetRasterBand(1).WriteArray(edges)
+            ds = None  # Close
+            
+            # Load as layer
+            from qgis.core import QgsRasterLayer
+            layer_name = f"Edge Preview ({edge_method.upper()})"
+            edge_layer = QgsRasterLayer(temp_path, layer_name)
+            if edge_layer.isValid():
+                QgsProject.instance().addMapLayer(edge_layer)
+                QMessageBox.information(self, "완료", f"'{layer_name}' 레이어가 추가되었습니다.\n흰색=감지된 엣지")
+            else:
+                QMessageBox.critical(self, "오류", "미리보기 레이어 생성 실패")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "오류", f"엣지 감지 실패:\n{str(e)}")
 
 
 # Keep old name for compatibility
