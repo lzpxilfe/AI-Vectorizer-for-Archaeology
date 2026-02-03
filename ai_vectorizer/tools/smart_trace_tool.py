@@ -175,26 +175,121 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.last_map_point = current_point
             return
         
-        # Calculate distance moved - use LARGER interval for smoother result
+        # Calculate distance moved
         dx = current_point.x() - self.last_map_point.x()
         dy = current_point.y() - self.last_map_point.y()
         dist = np.sqrt(dx*dx + dy*dy)
         
-        # Large sample interval for smoother lines
-        if dist < self.sample_interval:
+        # Minimum movement check
+        if dist < self.sample_interval * 0.3:
             return
         
-        # PURE MOUSE FOLLOWING - No edge snapping at all
-        # All smoothing is done in post-processing (Chaikin + simplify)
-        # This eliminates ALL jumping/jittering from edge detection
-        final_point = current_point
+        # AI-LED AUTO-TRACE: AI walks along edge, user guides direction
+        if self.freehand or self.cached_edges is None:
+            # Freehand mode: just follow mouse
+            final_point = current_point
+            self.path_points.append(final_point)
+        else:
+            # AI mode: auto-trace along edge toward mouse direction
+            direction = (dx / dist, dy / dist) if dist > 0 else (0, 0)
+            traced_points = self.auto_trace_edge(current_point, direction)
+            if traced_points:
+                self.path_points.extend(traced_points)
+            else:
+                # No edge found, follow mouse
+                self.path_points.append(current_point)
         
-        # Add to path
-        self.path_points.append(final_point)
         self.last_map_point = current_point
         
         # Update preview
         self.redraw_confirmed_path()
+
+    def auto_trace_edge(self, target_point, direction):
+        """
+        AI-LED AUTO-TRACE: Starting from last point, walk along the edge
+        toward the target point. AI leads, user guides direction.
+        Returns list of points traced along the edge.
+        """
+        if self.cached_edges is None or not self.path_points:
+            return []
+        
+        try:
+            # Get start position (last point in path)
+            start_point = self.path_points[-1]
+            start_px, start_py = self.map_to_pixel(start_point)
+            target_px, target_py = self.map_to_pixel(target_point)
+            
+            h, w = self.cached_edges.shape
+            
+            # Calculate how many steps to take (distance to target)
+            total_dist = np.sqrt((target_px - start_px)**2 + (target_py - start_py)**2)
+            step_count = min(int(total_dist), 50)  # Max 50 steps per frame
+            
+            if step_count < 2:
+                return []
+            
+            traced_points = []
+            curr_x, curr_y = float(start_px), float(start_py)
+            
+            for step in range(step_count):
+                # Direction toward target
+                remaining_x = target_px - curr_x
+                remaining_y = target_py - curr_y
+                remaining_dist = np.sqrt(remaining_x**2 + remaining_y**2)
+                
+                if remaining_dist < 1:
+                    break
+                
+                dir_x = remaining_x / remaining_dist
+                dir_y = remaining_y / remaining_dist
+                
+                # Search for edge in the forward direction (fan search)
+                best_x, best_y = None, None
+                best_score = -1
+                
+                for angle_offset in range(-45, 46, 15):  # -45 to +45 degrees
+                    rad = np.radians(angle_offset)
+                    cos_a, sin_a = np.cos(rad), np.sin(rad)
+                    rotated_x = dir_x * cos_a - dir_y * sin_a
+                    rotated_y = dir_x * sin_a + dir_y * cos_a
+                    
+                    # Look ahead in this direction
+                    for look_dist in [2, 4, 6, 8]:
+                        nx = int(curr_x + rotated_x * look_dist)
+                        ny = int(curr_y + rotated_y * look_dist)
+                        
+                        if 0 <= nx < w and 0 <= ny < h:
+                            if self.cached_edges[ny, nx] > 128:
+                                # Found edge! Score by forward-ness
+                                forward_score = 1.0 - abs(angle_offset) / 90.0
+                                if forward_score > best_score:
+                                    best_score = forward_score
+                                    best_x, best_y = nx, ny
+                                break  # Found edge in this direction
+                
+                if best_x is not None:
+                    # Move to best edge point
+                    curr_x, curr_y = float(best_x), float(best_y)
+                    
+                    # Add point every few pixels
+                    if step % 3 == 0:
+                        mapped_point = self.pixel_to_map(int(curr_x), int(curr_y))
+                        traced_points.append(mapped_point)
+                else:
+                    # No edge found, move toward target
+                    curr_x += dir_x * 3
+                    curr_y += dir_y * 3
+                    
+                    if step % 4 == 0:
+                        ix, iy = int(curr_x), int(curr_y)
+                        if 0 <= ix < w and 0 <= iy < h:
+                            mapped_point = self.pixel_to_map(ix, iy)
+                            traced_points.append(mapped_point)
+            
+            return traced_points
+            
+        except Exception as e:
+            return []
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts for undo and save."""
