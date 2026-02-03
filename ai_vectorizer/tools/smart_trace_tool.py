@@ -10,6 +10,8 @@ Key concept:
 """
 import numpy as np
 import cv2
+import heapq
+import math
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
 from qgis.core import (
     QgsWkbTypes, QgsProject, QgsPointXY, QgsGeometry, 
@@ -41,6 +43,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         
         # Path tracking
         self.path_points = []
+        self.preview_path = []  # For hovering preview
         self.is_tracing = False
         self.start_point = None
         self.last_map_point = None
@@ -150,10 +153,19 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 return
             
             # ADD CHECKPOINT: Save current position as checkpoint
-            if len(self.path_points) > 0:
-                self.checkpoints.append(len(self.path_points) - 1)
-                # Show checkpoint marker
-                self.checkpoint_markers.addPoint(self.path_points[-1])
+            if self.preview_path:
+                # Commit AI path (Click to confirm preview)
+                self.path_points.extend(self.preview_path)
+                self.preview_path = []
+            else:
+                # Manual click point
+                if len(self.path_points) > 0:
+                    # If points exist, add straight line to click
+                    self.path_points.append(point)
+            
+            # Add checkpoint
+            self.checkpoints.append(len(self.path_points) - 1)
+            self.checkpoint_markers.addPoint(self.path_points[-1])
             
             # Confirm current preview path
             self.redraw_confirmed_path()
@@ -175,28 +187,41 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.last_map_point = current_point
             return
         
-        # Calculate distance moved
         dx = current_point.x() - self.last_map_point.x()
         dy = current_point.y() - self.last_map_point.y()
         dist = np.sqrt(dx*dx + dy*dy)
         
-        # Minimum movement check
+        # Minimum movement check (optimization)
         if dist < self.sample_interval:
             return
-        
-        # ANGLE-CONSTRAINED GENTLE SNAP
-        # Reverted aggressive auto-trace (broken glass).
-        # Now using "Mouse Following + Subtle Magnetic Guidance"
-        if self.freehand or self.cached_edges is None:
-            final_point = current_point
+
+        # MODE CHECK: Dragging vs Hovering
+        if event.buttons() & Qt.LeftButton:
+            # DRAGGING: Manual Draw (Mouse Following + Gentle Snap)
+            self.preview_path = []
+            
+            if self.freehand or self.cached_edges is None:
+                final_point = current_point
+            else:
+                final_point = self.angle_constrained_snap(current_point)
+            
+            self.path_points.append(final_point)
+            self.last_map_point = current_point
+            self.redraw_confirmed_path()
         else:
-            final_point = self.angle_constrained_snap(current_point)
-        
-        self.path_points.append(final_point)
-        self.last_map_point = current_point
-        
-        # Update preview
-        self.redraw_confirmed_path()
+            # HOVERING: AI Auto-Path Preview (Bunting Style)
+            if not self.path_points: return
+            
+            # Calculate A* path from last point to mouse
+            ai_path = self.find_optimal_path(current_point)
+            self.preview_path = ai_path
+            
+            # Draw preview (Green line)
+            self.preview_band.reset(QgsWkbTypes.LineGeometry)
+            if self.path_points:
+                self.preview_band.addPoint(self.path_points[-1])
+            for pt in ai_path:
+                self.preview_band.addPoint(pt)
 
     def angle_constrained_snap(self, map_point):
         """
@@ -291,6 +316,97 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 self.save_to_layer(closed=False)
             self.reset_tracing()
             return
+
+    def find_optimal_path(self, target_point):
+        """
+        A* Path Finding from last point to target point.
+        Uses cached_cost map to prefer edges.
+        """
+        if self.cached_cost is None or not self.path_points:
+            return [target_point]
+            
+        try:
+            start_point = self.path_points[-1]
+            start_px, start_py = self.map_to_pixel(start_point)
+            end_px, end_py = self.map_to_pixel(target_point)
+            
+            h, w = self.cached_cost.shape
+            
+            # Sanity check
+            if not (0 <= start_px < w and 0 <= start_py < h and 
+                    0 <= end_px < w and 0 <= end_py < h):
+                return [target_point]
+                
+            # Dijkstra / A*
+            # Priority Queue: (cost, x, y)
+            pq = [(0, start_px, start_py)]
+            came_from = {}
+            cost_so_far = {(start_px, start_py): 0}
+            
+            # Optimization: Limit iterations (don't search forever)
+            # Distance based limit
+            dist_limit = max(abs(end_px - start_px), abs(end_py - start_py)) * 2
+            max_iter = min(3000, int(dist_limit * 20))
+            iter_count = 0
+            
+            found = False
+            
+            while pq:
+                iter_count += 1
+                if iter_count > max_iter:
+                    break # Too far / complex
+                    
+                current_cost, cx, cy = heapq.heappop(pq)
+                
+                if (cx, cy) == (end_px, end_py):
+                    found = True
+                    break
+                
+                # Check 8 neighbors
+                for dx, dy in [(-1,0), (1,0), (0,-1), (0,1), (-1,-1), (-1,1), (1,-1), (1,1)]:
+                    nx, ny = cx + dx, cy + dy
+                    
+                    if 0 <= nx < w and 0 <= ny < h:
+                        # Cost calculation:
+                        # Edge cost (from map) + Movement cost (1 for straight, 1.4 for diag)
+                        move_cost = 1.414 if dx!=0 and dy!=0 else 1.0
+                        edge_cost = self.cached_cost[ny, nx] # Lower is better (1.0 = on edge)
+                        
+                        # Weight edge cost heavily
+                        new_cost = cost_so_far[(cx, cy)] + (edge_cost * move_cost)
+                        
+                        if (nx, ny) not in cost_so_far or new_cost < cost_so_far[(nx, ny)]:
+                            cost_so_far[(nx, ny)] = new_cost
+                            # Heuristic: Euclidean distance to end
+                            heuristic = math.sqrt((end_px-nx)**2 + (end_py-ny)**2)
+                            priority = new_cost + heuristic
+                            heapq.heappush(pq, (priority, nx, ny))
+                            came_from[(nx, ny)] = (cx, cy)
+            
+            if found:
+                # Reconstruct path
+                path = []
+                curr = (end_px, end_py)
+                while curr != (start_px, start_py):
+                    path.append(curr)
+                    curr = came_from.get(curr)
+                    if curr is None: break
+                
+                path.reverse()
+                
+                # Convert pixels to map points (subsample for performance)
+                path_map = []
+                for i, (px, py) in enumerate(path):
+                    if i % 3 == 0 or i == len(path)-1: # Take every 3rd point
+                        path_map.append(self.pixel_to_map(px, py))
+                return path_map
+            else:
+                # If path not found (timeout), return straight line
+                return [target_point]
+                
+        except Exception as e:
+            # print(f"A* Error: {e}")
+            return [target_point]
 
     def undo_to_checkpoint(self):
         """Undo back to the last checkpoint, but KEEP the checkpoint to continue from."""
@@ -464,8 +580,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 'height': out_h
             }
             
+            # Generate Cost Map for Path Finding
+            self.cached_cost = self.edge_detector.get_edge_cost_map(self.cached_edges)
+            
         except Exception as e:
             print(f"Edge cache error: {e}")
+            self.cached_edges = None
+            self.cached_cost = None
 
     def map_to_pixel(self, map_point):
         """Convert map coordinates to pixel coordinates."""
@@ -604,6 +725,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """Reset all tracing state."""
         self.is_tracing = False
         self.path_points = []
+        self.preview_path = []
         self.checkpoints = []
         self.start_point = None
         self.last_map_point = None
