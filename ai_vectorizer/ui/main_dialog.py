@@ -102,10 +102,11 @@ class AIVectorizerDock(QDockWidget):
         self.model_combo = QComboBox()
         self.model_combo.addItems([
             "🔧 OpenCV Canny (기본)",
-            "📐 LSD 선분검출 (빠름, 매끄러움)",
-            "🧠 MobileSAM (고품질, 느림)"
+            "📐 LSD 선분검출 (빠름)",
+            "🧠 HED 딥러닝 (매끄러움)",
+            "🎯 MobileSAM (고품질)"
         ])
-        self.model_combo.setToolTip("Canny: 기본 엣지\nLSD: 선분 기반, 더 매끄러움\nSAM: 딥러닝")
+        self.model_combo.setToolTip("Canny: 기본\nLSD: 선분 기반\nHED: 딥러닝 엣지\nSAM: 세그멘테이션")
         self.model_combo.currentIndexChanged.connect(self.on_model_changed)
         model_layout.addWidget(self.model_combo)
         step3_layout.addLayout(model_layout)
@@ -271,10 +272,13 @@ class AIVectorizerDock(QDockWidget):
             edge_weight = self.freedom_slider.value() / 100.0
             freehand = self.freehand_check.isChecked()
             
-            # Model selection: 0=Canny, 1=LSD, 2=SAM
+            # Model selection: 0=Canny, 1=LSD, 2=HED, 3=SAM
             model_idx = self.model_combo.currentIndex()
-            use_sam = model_idx == 2 and hasattr(self, 'sam_engine') and self.sam_engine and self.sam_engine.is_ready
-            edge_method = 'lsd' if model_idx == 1 else 'canny'
+            use_sam = model_idx == 3 and hasattr(self, 'sam_engine') and self.sam_engine and self.sam_engine.is_ready
+            
+            # Determine edge method
+            edge_methods = {0: 'canny', 1: 'lsd', 2: 'hed', 3: 'canny'}
+            edge_method = edge_methods.get(model_idx, 'canny')
             
             self.active_tool = SmartTraceTool(
                 self.iface.mapCanvas(),
@@ -288,7 +292,7 @@ class AIVectorizerDock(QDockWidget):
             self.iface.mapCanvas().setMapTool(self.active_tool)
             self.active_tool.deactivated.connect(self.on_tool_deactivated)
             
-            mode_names = {0: "Canny", 1: "LSD", 2: "SAM"}
+            mode_names = {0: "Canny", 1: "LSD", 2: "HED", 3: "SAM"}
             mode_name = "SAM" if use_sam else mode_names.get(model_idx, "OpenCV")
             self.status_label.setText(f"🖊️ [{mode_name}] 등고선을 클릭하세요")
             self.trace_btn.setText("⏹️ 중지")
@@ -309,13 +313,34 @@ class AIVectorizerDock(QDockWidget):
 
     def on_model_changed(self, index):
         """Handle AI model selection change."""
-        if index == 1:  # MobileSAM
+        # Hide all extra controls first
+        self.sam_download_btn.setVisible(False)
+        self.install_guide.setVisible(False)
+        self.install_cmd.setVisible(False)
+        
+        if index == 0:  # Canny
+            self.sam_status.setText("OpenCV 내장")
+            self.sam_status.setStyleSheet("color: green; font-size: 10px;")
+        elif index == 1:  # LSD
+            self.sam_status.setText("OpenCV 내장")
+            self.sam_status.setStyleSheet("color: green; font-size: 10px;")
+        elif index == 2:  # HED
+            self.check_hed_status()
+        elif index == 3:  # MobileSAM
             self.init_sam_engine()
+
+    def check_hed_status(self):
+        """Check if HED model is available."""
+        from ..core.edge_detector import EdgeDetector
+        
+        if EdgeDetector.is_hed_available():
+            self.sam_status.setText("✅ HED 모델 로드됨")
+            self.sam_status.setStyleSheet("color: green; font-size: 10px;")
         else:
-            self.sam_status.setText("")
-            self.sam_download_btn.setVisible(False)
-            self.install_guide.setVisible(False)
-            self.install_cmd.setVisible(False)
+            self.sam_status.setText("⚠️ HED 모델 필요 (56MB)")
+            self.sam_status.setStyleSheet("color: orange; font-size: 10px;")
+            self.sam_download_btn.setVisible(True)
+            self.sam_download_btn.setText("📥 HED 다운로드")
 
     def init_sam_engine(self):
         """Initialize SAM engine."""
@@ -348,7 +373,14 @@ class AIVectorizerDock(QDockWidget):
             self.install_guide.setVisible(False)
 
     def download_sam(self):
-        """Download MobileSAM weights."""
+        """Download model weights (SAM or HED based on selection)."""
+        model_idx = self.model_combo.currentIndex()
+        
+        if model_idx == 2:  # HED
+            self.download_hed()
+            return
+        
+        # SAM download
         self.sam_download_btn.setEnabled(False)
         self.sam_status.setText("⏬ 다운로드 중...")
         self.iface.mainWindow().repaint()
@@ -361,6 +393,39 @@ class AIVectorizerDock(QDockWidget):
             else:
                 QMessageBox.critical(self, "오류", "다운로드 실패. 인터넷 연결을 확인하세요.")
                 self.sam_status.setText("❌ 다운로드 실패")
+        
+        self.sam_download_btn.setEnabled(True)
+
+    def download_hed(self):
+        """Download HED model weights."""
+        import os
+        import urllib.request
+        
+        self.sam_download_btn.setEnabled(False)
+        self.sam_status.setText("⏬ HED 다운로드 중 (56MB)...")
+        self.iface.mainWindow().repaint()
+        
+        try:
+            from ..core.edge_detector import EdgeDetector
+            info = EdgeDetector.get_hed_download_info()
+            
+            # Create models directory
+            models_dir = os.path.dirname(info['caffemodel_path'])
+            os.makedirs(models_dir, exist_ok=True)
+            
+            # Download caffemodel
+            self.sam_status.setText("⏬ HED 다운로드 중...")
+            urllib.request.urlretrieve(
+                info['caffemodel_url'],
+                info['caffemodel_path']
+            )
+            
+            QMessageBox.information(self, "완료", "HED 모델 다운로드 완료!")
+            self.check_hed_status()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "오류", f"HED 다운로드 실패:\n{str(e)}")
+            self.sam_status.setText("❌ 다운로드 실패")
         
         self.sam_download_btn.setEnabled(True)
 
@@ -378,7 +443,8 @@ class AIVectorizerDock(QDockWidget):
         
         # Get model method
         model_idx = self.model_combo.currentIndex()
-        edge_method = 'lsd' if model_idx == 1 else 'canny'
+        edge_methods = {0: 'canny', 1: 'lsd', 2: 'hed', 3: 'canny'}
+        edge_method = edge_methods.get(model_idx, 'canny')
         
         try:
             from ..core.edge_detector import EdgeDetector
