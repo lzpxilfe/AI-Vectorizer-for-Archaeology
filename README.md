@@ -1,4 +1,4 @@
-# 🏛️ ArchaeoTrace - AI 등고선 벡터화 QGIS 플러그인
+# 🏛️ ArchaeoTrace (v0.1.0 "Pallet Town") - AI 등고선 벡터화 QGIS 플러그인
 
 고지도에서 등고선을 AI로 추적하여 벡터 데이터로 변환하는 QGIS 플러그인입니다.
 
@@ -17,7 +17,7 @@ If you find this repository useful, please consider giving it a star ⭐ and cit
   title = {ArchDistribution: Automated QGIS plugin for archaeological distribution maps},
   year = {2026},
   url = {https://github.com/lzpxilfe/ArchDistribution},
-  version = {1.0.0}
+  version = {0.1.0}
 }
 ```
 
