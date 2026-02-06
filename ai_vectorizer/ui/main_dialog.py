@@ -277,14 +277,21 @@ class AIVectorizerDock(QDockWidget):
             
             QgsProject.instance().addMapLayer(self.output_layer)
             self.vector_combo.setLayer(self.output_layer)
+            
+            # Start editing immediately so user can delete/undo
+            if not self.output_layer.isEditable():
+                self.output_layer.startEditing()
+                
             self.enable_tracing()
-            QMessageBox.information(self, "성공", f"SHP 생성 완료:\n{path}")
+            QMessageBox.information(self, "성공", f"SHP 생성 완료 (편집 모드):\n{path}")
         else:
             QMessageBox.critical(self, "오류", f"생성 실패: {error[1]}")
 
     def on_layer_selected(self, layer):
         if layer:
             self.output_layer = layer
+            if not self.output_layer.isEditable():
+                self.output_layer.startEditing()
             self.enable_tracing()
 
     def enable_tracing(self):

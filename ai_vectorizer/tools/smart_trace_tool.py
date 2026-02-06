@@ -55,7 +55,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         
         # RubberBands for visualization
         self.preview_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
-        self.preview_band.setColor(QColor(0, 255, 0, 180))  # Brighter Green, slightly transparent
+        self.preview_band.setColor(QColor(0, 180, 0, 180))  # Darker Green for better visibility
         self.preview_band.setWidth(6)  # Even thicker
         self.preview_band.setLineStyle(Qt.DashLine)  # Dash Line (longer dashes)
         
@@ -163,7 +163,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         else:
             # Check if closing polygon (near start)
             if self.is_near_start(point):
-                self.path_points.append(self.start_point)
+                # Use AI Pathfinding to close the loop smoothly
+                # Instead of straight line: self.path_points.append(self.start_point)
+                closing_path = self.find_optimal_path(self.start_point)
+                self.path_points.extend(closing_path)
+                
                 # Ask for elevation value
                 elevation = self.ask_elevation()
                 if elevation is not None:
@@ -463,11 +467,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
                 # Convert pixels to map points (subsample for performance)
                 path_map = []
-                for i, pt in enumerate(smoothed_path):
-                    # Take every 2nd point (High Quality, resolved "Straight Line" issue)
-                    if i % 2 == 0 or i == len(smoothed_path)-1: 
-                        # Pass float coordinates for sub-pixel precision
-                        path_map.append(self.pixel_to_map(pt[0], pt[1]))
+                for pt in smoothed_path:
+                    # Pass float coordinates for sub-pixel precision
+                    # No skipping (i%2) to keep "straight but smooth" high-fidelity result
+                    path_map.append(self.pixel_to_map(pt[0], pt[1]))
                         
                 return path_map
             else:
@@ -735,9 +738,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         
         feat.setAttributes(attrs)
         
-        self.vector_layer.startEditing()
+        # Ensure layer is editable
+        if not self.vector_layer.isEditable():
+            self.vector_layer.startEditing()
+            
         self.vector_layer.addFeature(feat)
-        self.vector_layer.commitChanges()
+        # Do NOT commit changes here. Keep in edit mode so user can delete/undo.
+        # self.vector_layer.commitChanges() 
         self.vector_layer.triggerRepaint()
 
     def ask_elevation(self):
