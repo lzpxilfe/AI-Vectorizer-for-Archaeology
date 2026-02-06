@@ -23,9 +23,6 @@ class AIVectorizerDock(QDockWidget):
         self.iface = iface
         self.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
         
-    def tr(self, message):
-        return QCoreApplication.translate('ArchaeoTrace', message)
-        
         self.active_tool = None
         self.output_layer = None
         
@@ -36,6 +33,9 @@ class AIVectorizerDock(QDockWidget):
         self.setWidget(main_widget)
         
         self.setup_ui()
+        
+    def tr(self, message):
+        return QCoreApplication.translate('ArchaeoTrace', message)
         
     def setup_ui(self):
         # === Header ===

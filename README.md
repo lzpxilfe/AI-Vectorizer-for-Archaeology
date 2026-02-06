@@ -6,6 +6,21 @@
 ![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)
 ![License](https://img.shields.io/badge/License-GPLv2-red.svg)
 
+## 🌟 Citation & Star
+
+이 플러그인이 유용했다면 **GitHub Star ⭐**를 눌러주세요! 개발자에게 큰 힘이 됩니다.  
+If you find this repository useful, please consider giving it a star ⭐ and citing it in your work:
+
+```bibtex
+@software{ArchDistribution2026,
+  author = {lzpxilfe},
+  title = {ArchDistribution: Automated QGIS plugin for archaeological distribution maps},
+  year = {2026},
+  url = {https://github.com/lzpxilfe/ArchDistribution},
+  version = {1.0.0}
+}
+```
+
 ---
 
 ## ✨ 주요 기능
