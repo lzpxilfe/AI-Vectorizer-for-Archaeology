@@ -709,8 +709,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             
         geom = QgsGeometry.fromPolylineXY(smoothed)
         
-        # Heavy QGIS simplification for ultra-smooth result
-        tolerance = self.canvas.mapUnitsPerPixel() * 6
+        # Heavy QGIS simplification was causing "straight line" issues (deviating from AI)
+        # Reduced tolerance to 0.5px for higher fidelity to the green preview
+        tolerance = self.canvas.mapUnitsPerPixel() * 0.5
         geom = geom.simplify(tolerance)
         
         feat = QgsFeature()
