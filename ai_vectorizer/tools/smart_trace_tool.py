@@ -164,8 +164,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # Check if closing polygon (near start)
             if self.is_near_start(point):
                 # Use AI Pathfinding to close the loop smoothly
-                # Instead of straight line: self.path_points.append(self.start_point)
                 closing_path = self.find_optimal_path(self.start_point)
+                
+                # Apply smoothing to closing path too (Consistency)
+                if len(closing_path) > 2:
+                    closing_path = self.smooth_bezier(closing_path, closed=False)
+                    
                 self.path_points.extend(closing_path)
                 
                 # Ask for elevation value
@@ -177,7 +181,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             
             # ADD CHECKPOINT: Save current position as checkpoint
             if self.preview_path:
-                # Commit AI path (Click to confirm preview)
+                # Commit SMOOTHED AI path (WYSIWYG)
+                # preview_path is already smoothed in canvasMoveEvent
                 self.path_points.extend(self.preview_path)
                 self.preview_path = []
             else:
@@ -237,13 +242,21 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             
             # Calculate A* path from last point to mouse
             ai_path = self.find_optimal_path(current_point)
-            self.preview_path = ai_path
+            
+            # Apply Smoothing to Preview (WYSIWYG)
+            # This ensures what user sees (Green) is what they get (Red)
+            if len(ai_path) > 2:
+                smoothed_preview = self.smooth_bezier(ai_path, closed=False)
+            else:
+                smoothed_preview = ai_path
+                
+            self.preview_path = smoothed_preview
             
             # Draw preview (Green line)
             self.preview_band.reset(QgsWkbTypes.LineGeometry)
             if self.path_points:
                 self.preview_band.addPoint(self.path_points[-1])
-            for pt in ai_path:
+            for pt in smoothed_preview:
                 self.preview_band.addPoint(pt)
 
     def angle_constrained_snap(self, map_point):
@@ -698,8 +711,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if len(self.path_points) < 2:
             return
         
-        # Apply Bézier smoothing
-        smoothed = self.smooth_bezier(self.path_points, closed=closed)
+        # Disable extra smoothing to match Green Preview exactly
+        # The points are already smoothed by 5-point Moving Average in find_optimal_path
+        smoothed = self.path_points
         
         # Create geometry
         # ALWAYS use LineString. For closed loops, just make start==end.
@@ -805,6 +819,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 new_pts.append(pts[-1])
                 
             pts = np.array(new_pts)
+            
+        # Convert back to QgsPointXY
+        return [QgsPointXY(p[0], p[1]) for p in pts]
         
         # Subsample to reduce point count
         if len(pts) > 100:

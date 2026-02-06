@@ -271,7 +271,7 @@ class AIVectorizerDock(QDockWidget):
             # Set default color to RED for better visibility on black maps
             symbol = QgsSymbol.defaultSymbol(self.output_layer.geometryType())
             symbol.setColor(QColor(255, 0, 0))  # Red
-            symbol.setWidth(0.5)
+            symbol.setWidth(1.2)  # Thicker line (Visible)
             renderer = QgsSingleSymbolRenderer(symbol)
             self.output_layer.setRenderer(renderer)
             
