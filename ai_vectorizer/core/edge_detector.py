@@ -9,6 +9,7 @@ import numpy as np
 import os
 from skimage.morphology import skeletonize
 
+class EdgeDetector:
     HED_PROTOTXT = os.path.join(os.path.dirname(__file__), 'models', 'hed_deploy.prototxt')
     HED_CAFFEMODEL = os.path.join(os.path.dirname(__file__), 'models', 'hed_pretrained_bsds.caffemodel')
 
