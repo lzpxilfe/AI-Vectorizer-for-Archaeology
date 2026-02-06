@@ -115,48 +115,33 @@ python -m pip install opencv-python-headless scikit-image
 
 ---
 
-## 🧠 MobileSAM 설치 (선택사항)
+## 🧠 고급 AI 모델 설치 가이드 (선택사항)
+> ⚠️ **OpenCV, LSD 모드는 설치 없이 바로 사용 가능합니다!**
 
-> ⚠️ **OpenCV 모드만 사용할 경우 이 단계는 건너뛰세요!**
+### 1. HED 모델 (딥러닝 엣지)
+*   **특징**: 딥러닝 기반으로 매우 부드러운 엣지를 검출합니다.
+*   **설치법**:
+    1. 플러그인에서 **🧠 HED** 선택
+    2. **⬇️ 다운로드** 버튼 클릭 (자동 설치)
 
-MobileSAM은 딥러닝 기반으로 더 정확하지만, 추가 설치가 필요합니다.
+### 2. MobileSAM (최고 품질)
+*   **특징**: 페이스북의 SAM 모델을 경량화하여 최고의 정확도를 제공합니다. (PyTorch 필요)
+*   **설치법**:
 
-### Step 1: PyTorch 설치
-
-**OSGeo4W Shell**에서:
+#### Step 1: PyTorch 설치
+**OSGeo4W Shell**에서 실행:
 ```bash
 python -m pip install torch torchvision timm
 ```
 
-### Step 2: MobileSAM 다운로드
+#### Step 2: MobileSAM 라이브러리 설치
+1. [MobileSAM 라이브러리 ZIP 다운로드](https://github.com/ChaoningZhang/MobileSAM/archive/refs/heads/master.zip)
+2. 압축 해제 후 `mobile_sam` 폴더를 다음 경로에 복사:
+   `C:\Users\[사용자명]\AppData\Roaming\Python\Python312\site-packages\`
 
-1. [MobileSAM ZIP 다운로드](https://github.com/ChaoningZhang/MobileSAM/archive/refs/heads/master.zip)
-2. 압축 풀기
-
-### Step 3: mobile_sam 폴더 복사
-
-압축 푼 폴더에서 `mobile_sam` 폴더를:
-```
-MobileSAM-master\mobile_sam
-```
-
-아래 경로에 복사:
-```
-C:\Users\[사용자명]\AppData\Roaming\Python\Python312\site-packages\
-```
-
-### Step 4: 설치 확인
-
-**OSGeo4W Shell**:
-```bash
-python -c "from mobile_sam import sam_model_registry; print('OK')"
-```
-
-`OK`가 출력되면 성공! 🎉
-
-### Step 5: 모델 가중치 다운로드
-
-플러그인에서 **🎯 MobileSAM** 선택 → **⬇️ 다운로드** 버튼 클릭
+#### Step 3: 모델 가중치 (Weights)
+1. 플러그인에서 **🎯 MobileSAM** 선택
+2. **⬇️ 다운로드** 버튼 클릭 (자동 설치)
 
 ---
 
