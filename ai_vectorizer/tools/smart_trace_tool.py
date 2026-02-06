@@ -55,9 +55,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         
         # RubberBands for visualization
         self.preview_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
-        self.preview_band.setColor(QColor(0, 200, 0, 180))
-        self.preview_band.setWidth(5)  # Thicker
-        self.preview_band.setLineStyle(Qt.DotLine)  # Dotted line
+        self.preview_band.setColor(QColor(0, 255, 0, 180))  # Brighter Green, slightly transparent
+        self.preview_band.setWidth(6)  # Even thicker
+        self.preview_band.setLineStyle(Qt.DashLine)  # Dash Line (longer dashes)
         
         self.confirm_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
         self.confirm_band.setColor(QColor(255, 50, 50, 255))

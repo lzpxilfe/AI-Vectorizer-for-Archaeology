@@ -10,10 +10,12 @@ from qgis.PyQt.QtWidgets import (
 )
 from qgis.core import (
     QgsProject, QgsMapLayerProxyModel, QgsVectorLayer,
-    QgsField, QgsVectorFileWriter, QgsCoordinateReferenceSystem
+    QgsField, QgsVectorFileWriter, QgsCoordinateReferenceSystem,
+    QgsSymbol, QgsSingleSymbolRenderer
 )
 from qgis.gui import QgsMapLayerComboBox
 from qgis.PyQt.QtCore import Qt, QVariant, QCoreApplication
+from qgis.PyQt.QtGui import QColor
 
 class AIVectorizerDock(QDockWidget):
     """Dockable panel for ArchaeoTrace plugin."""
@@ -265,6 +267,14 @@ class AIVectorizerDock(QDockWidget):
         if error[0] == QgsVectorFileWriter.NoError:
             name = os.path.basename(path).replace('.shp', '')
             self.output_layer = QgsVectorLayer(path, name, "ogr")
+            
+            # Set default color to RED for better visibility on black maps
+            symbol = QgsSymbol.defaultSymbol(self.output_layer.geometryType())
+            symbol.setColor(QColor(255, 0, 0))  # Red
+            symbol.setWidth(0.5)
+            renderer = QgsSingleSymbolRenderer(symbol)
+            self.output_layer.setRenderer(renderer)
+            
             QgsProject.instance().addMapLayer(self.output_layer)
             self.vector_combo.setLayer(self.output_layer)
             self.enable_tracing()
