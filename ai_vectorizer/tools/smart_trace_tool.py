@@ -16,7 +16,7 @@ from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
 from qgis.core import (
     QgsWkbTypes, QgsProject, QgsPointXY, QgsGeometry, 
     QgsFeature, QgsCoordinateTransform, QgsRectangle,
-    QgsVectorLayer, QgsField
+    QgsVectorLayer, QgsField, Qgis
 )
 from qgis.PyQt.QtCore import Qt, QVariant, pyqtSignal
 from qgis.PyQt.QtGui import QColor, QCursor
@@ -29,9 +29,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     deactivated = pyqtSignal()
     
     def __init__(self, canvas, raster_layer, vector_layer, model_type=0, 
-                 sam_engine=None, edge_weight=0.5, freehand=False, edge_method='canny'):
+                 sam_engine=None, edge_weight=0.5, freehand=False, edge_method='canny', iface=None):
         self.canvas = canvas
         super().__init__(self.canvas)
+        self.iface = iface
         
         self.raster_layer = raster_layer
         self.vector_layer = vector_layer
@@ -55,7 +56,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # RubberBands for visualization
         self.preview_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
         self.preview_band.setColor(QColor(0, 200, 0, 180))
-        self.preview_band.setWidth(3)
+        self.preview_band.setWidth(5)  # Thicker
+        self.preview_band.setLineStyle(Qt.DotLine)  # Dotted line
         
         self.confirm_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
         self.confirm_band.setColor(QColor(255, 50, 50, 255))
@@ -418,6 +420,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 # This prevents "AI giving up" feeling
                 end_px, end_py = best_node
                 found = True
+                
+                # Feedback to user
+                if self.iface:
+                    self.iface.messageBar().pushMessage(
+                        "ArchaeoTrace",
+                        "Pathfinding timeout - simplified path used (Try zooming in)",
+                        Qgis.Warning,
+                        3
+                    )
+                else:
+                    # Fallback if no iface
+                    print("Pathfinding timeout")
             
             if found:
                 # Reconstruct path
@@ -755,8 +769,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # Convert to numpy for easier math
         pts = np.array([[p.x(), p.y()] for p in points])
         
-        # Apply Chaikin's algorithm 6 times for maximum smoothness
-        for _ in range(6):
+        # Apply Chaikin's algorithm 2 times for "smooth but straight" look (Polygonal style)
+        for _ in range(2):
             if len(pts) < 3:
                 break
             
@@ -773,7 +787,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 p0 = pts[i]
                 p1 = pts[(i + 1) % len(pts)]
                 
-                # 1/4 and 3/4 points
+                # 1/4 and 3/4 points (Standard Chaikin)
                 q = p0 * 0.75 + p1 * 0.25
                 r = p0 * 0.25 + p1 * 0.75
                 new_pts.extend([q, r])

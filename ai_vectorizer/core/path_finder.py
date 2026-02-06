@@ -12,8 +12,8 @@ class PathFinder:
         pass
 
     def heuristic(self, a, b):
-        """Manhattan distance heuristic."""
-        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+        """Euclidean distance heuristic."""
+        return np.sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
 
     def find_path(self, start_pt, end_pt, cost_map: np.ndarray):
         """

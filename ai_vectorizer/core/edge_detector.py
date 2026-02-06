@@ -9,11 +9,9 @@ import numpy as np
 import os
 from skimage.morphology import skeletonize
 
-# HED model paths
-HED_PROTOTXT = os.path.join(os.path.dirname(__file__), 'models', 'hed_deploy.prototxt')
-HED_CAFFEMODEL = os.path.join(os.path.dirname(__file__), 'models', 'hed_pretrained_bsds.caffemodel')
+    HED_PROTOTXT = os.path.join(os.path.dirname(__file__), 'models', 'hed_deploy.prototxt')
+    HED_CAFFEMODEL = os.path.join(os.path.dirname(__file__), 'models', 'hed_pretrained_bsds.caffemodel')
 
-class EdgeDetector:
     def __init__(self, method='canny'):
         """
         Args:
@@ -33,13 +31,13 @@ class EdgeDetector:
     def _init_hed(self):
         """Initialize HED network if available."""
         try:
-            if os.path.exists(HED_PROTOTXT) and os.path.exists(HED_CAFFEMODEL):
-                self.hed_net = cv2.dnn.readNetFromCaffe(HED_PROTOTXT, HED_CAFFEMODEL)
+            if os.path.exists(self.HED_PROTOTXT) and os.path.exists(self.HED_CAFFEMODEL):
+                self.hed_net = cv2.dnn.readNetFromCaffe(self.HED_PROTOTXT, self.HED_CAFFEMODEL)
                 print("HED model loaded successfully")
             else:
                 print(f"HED model files not found. Will fallback to Canny.")
-                print(f"Expected: {HED_PROTOTXT}")
-                print(f"Expected: {HED_CAFFEMODEL}")
+                print(f"Expected: {self.HED_PROTOTXT}")
+                print(f"Expected: {self.HED_CAFFEMODEL}")
         except Exception as e:
             print(f"HED init error: {e}")
             self.hed_net = None
@@ -191,18 +189,18 @@ class EdgeDetector:
         
         return cost_map.astype(np.float32)
 
-    @staticmethod
-    def is_hed_available():
+    @classmethod
+    def is_hed_available(cls):
         """Check if HED model files are available."""
-        return os.path.exists(HED_PROTOTXT) and os.path.exists(HED_CAFFEMODEL)
+        return os.path.exists(cls.HED_PROTOTXT) and os.path.exists(cls.HED_CAFFEMODEL)
 
-    @staticmethod
-    def get_hed_download_info():
+    @classmethod
+    def get_hed_download_info(cls):
         """Get info about downloading HED model."""
         return {
             'prototxt_url': 'https://raw.githubusercontent.com/s9xie/hed/master/examples/hed/deploy.prototxt',
             'caffemodel_url': 'https://vcl.ucsd.edu/hed/hed_pretrained_bsds.caffemodel',
-            'prototxt_path': HED_PROTOTXT,
-            'caffemodel_path': HED_CAFFEMODEL,
+            'prototxt_path': cls.HED_PROTOTXT,
+            'caffemodel_path': cls.HED_CAFFEMODEL,
             'size_mb': 56
         }

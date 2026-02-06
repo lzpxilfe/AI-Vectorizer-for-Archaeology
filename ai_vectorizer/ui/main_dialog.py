@@ -13,7 +13,7 @@ from qgis.core import (
     QgsField, QgsVectorFileWriter, QgsCoordinateReferenceSystem
 )
 from qgis.gui import QgsMapLayerComboBox
-from qgis.PyQt.QtCore import Qt, QVariant
+from qgis.PyQt.QtCore import Qt, QVariant, QCoreApplication
 
 class AIVectorizerDock(QDockWidget):
     """Dockable panel for ArchaeoTrace plugin."""
@@ -22,6 +22,9 @@ class AIVectorizerDock(QDockWidget):
         super().__init__("ArchaeoTrace", parent)
         self.iface = iface
         self.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
+        
+    def tr(self, message):
+        return QCoreApplication.translate('ArchaeoTrace', message)
         
         self.active_tool = None
         self.output_layer = None
@@ -36,16 +39,16 @@ class AIVectorizerDock(QDockWidget):
         
     def setup_ui(self):
         # === Header ===
-        header = QLabel("🏛️ ArchaeoTrace - 고지도 등고선 벡터화")
+        header = QLabel(self.tr("🏛️ ArchaeoTrace - 고지도 등고선 벡터화"))
         header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px; background: #2c3e50; color: white; border-radius: 3px;")
         self.layout.addWidget(header)
         
         # === Step 1: Input Map ===
-        step1 = QGroupBox("1️⃣ 입력 지도")
-        step1.setToolTip("벡터화할 래스터 지도를 선택하세요")
+        step1 = QGroupBox(self.tr("1️⃣ 입력 지도"))
+        step1.setToolTip(self.tr("벡터화할 래스터 지도를 선택하세요"))
         step1_layout = QVBoxLayout()
         
-        step1_desc = QLabel("💡 등고선이 있는 스캔 지도 선택")
+        step1_desc = QLabel(self.tr("💡 등고선이 있는 스캔 지도 선택"))
         step1_desc.setStyleSheet("color: gray; font-size: 10px;")
         step1_layout.addWidget(step1_desc)
         
@@ -57,11 +60,11 @@ class AIVectorizerDock(QDockWidget):
         self.layout.addWidget(step1)
         
         # === Step 2: Output SHP ===
-        step2 = QGroupBox("2️⃣ 출력 파일")
-        step2.setToolTip("등고선을 저장할 Shapefile 생성 또는 선택")
+        step2 = QGroupBox(self.tr("2️⃣ 출력 파일"))
+        step2.setToolTip(self.tr("등고선을 저장할 Shapefile 생성 또는 선택"))
         step2_layout = QVBoxLayout()
         
-        step2_desc = QLabel("💡 새 SHP 생성 또는 기존 레이어 선택")
+        step2_desc = QLabel(self.tr("💡 새 SHP 생성 또는 기존 레이어 선택"))
         step2_desc.setStyleSheet("color: gray; font-size: 10px;")
         step2_layout.addWidget(step2_desc)
         
@@ -77,7 +80,7 @@ class AIVectorizerDock(QDockWidget):
         path_layout.addWidget(browse_btn)
         step2_layout.addLayout(path_layout)
         
-        self.create_shp_btn = QPushButton("📁 새 SHP 생성")
+        self.create_shp_btn = QPushButton(self.tr("📁 새 SHP 생성"))
         self.create_shp_btn.clicked.connect(self.create_shp_layer)
         self.create_shp_btn.setToolTip("지정한 경로에 새 Shapefile을 생성합니다")
         step2_layout.addWidget(self.create_shp_btn)
@@ -93,8 +96,8 @@ class AIVectorizerDock(QDockWidget):
         self.layout.addWidget(step2)
         
         # === Step 3: Tracing Options ===
-        step3 = QGroupBox("3️⃣ 트레이싱 설정")
-        step3.setToolTip("등고선을 따라 그리기 위한 AI 설정")
+        step3 = QGroupBox(self.tr("3️⃣ 트레이싱 설정"))
+        step3.setToolTip(self.tr("등고선을 따라 그리기 위한 AI 설정"))
         step3_layout = QVBoxLayout()
         
         # AI Model selector with description
@@ -167,7 +170,7 @@ class AIVectorizerDock(QDockWidget):
         step3_layout.addLayout(edge_layout)
         
         # Start button
-        self.trace_btn = QPushButton("🖊️ 트레이싱 시작")
+        self.trace_btn = QPushButton(self.tr("🖊️ 트레이싱 시작"))
         self.trace_btn.setCheckable(True)
         self.trace_btn.clicked.connect(self.toggle_trace_tool)
         self.trace_btn.setStyleSheet("font-weight: bold; padding: 8px; background: #27ae60; color: white;")
@@ -211,13 +214,13 @@ class AIVectorizerDock(QDockWidget):
         debug_box.setToolTip("문제 해결을 위한 도구들")
         debug_layout = QVBoxLayout()
         
-        self.preview_edge_btn = QPushButton("👁️ AI가 보는 엣지 미리보기")
+        self.preview_edge_btn = QPushButton(self.tr("👁️ AI가 보는 엣지 미리보기"))
         self.preview_edge_btn.clicked.connect(self.preview_edges)
         self.preview_edge_btn.setToolTip("현재 선택된 AI 모델이 감지하는 엣지를\n임시 래스터 레이어로 표시합니다.\n\n흰색 = AI가 인식하는 등고선")
         debug_layout.addWidget(self.preview_edge_btn)
         
         # Help button
-        help_btn = QPushButton("❓ 도움말")
+        help_btn = QPushButton(self.tr("❓ 도움말"))
         help_btn.clicked.connect(self.show_help)
         help_btn.setToolTip("사용법과 문제해결 안내")
         debug_layout.addWidget(help_btn)
@@ -307,7 +310,8 @@ class AIVectorizerDock(QDockWidget):
                 edge_weight=edge_weight,
                 freehand=freehand,
                 sam_engine=self.sam_engine if use_sam else None,
-                edge_method=edge_method
+                edge_method=edge_method,
+                iface=self.iface
             )
             self.iface.mapCanvas().setMapTool(self.active_tool)
             self.active_tool.deactivated.connect(self.on_tool_deactivated)
