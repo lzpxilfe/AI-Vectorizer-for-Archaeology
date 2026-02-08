@@ -82,6 +82,16 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # Checkpoints: list of point indices where user clicked
         self.checkpoints = []
         
+        # Snap marker (for resuming drawing)
+        self.snap_marker = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
+        self.snap_marker.setColor(QColor(255, 0, 255, 200))  # Magenta
+        self.snap_marker.setWidth(15)
+        self.snap_marker.setIcon(QgsRubberBand.ICON_X)
+        
+        # Spot Height Layer (Point)
+        self.spot_height_layer = None
+
+        
         # Edge detector
         self.edge_detector = EdgeDetector(method=self.edge_method)
         
@@ -97,6 +107,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             QgsProject.instance()
         )
         
+        # Resume/Merge State
+        self.resume_feature_id = None
+        self.resume_at_start = False  # True if appending to Start of existing line
+        
+        # Stability (Anti-Pulse)
+        self.last_hover_pos = None
+        
         # Auto-create output layer if needed
         if not self.vector_layer:
             self.vector_layer = self.create_output_layer()
@@ -110,28 +127,51 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         QgsProject.instance().addMapLayer(layer)
         return layer
 
+    def get_or_create_spot_layer(self):
+        """Get or create the Spot Heights (Point) layer."""
+        if self.spot_height_layer and not self.spot_height_layer.isValid():
+             self.spot_height_layer = None
+             
+        if self.spot_height_layer is None:
+            # Check if exists in project
+            for layer in QgsProject.instance().mapLayers().values():
+                if layer.name() == "Spot Heights" and layer.geometryType() == QgsWkbTypes.PointGeometry:
+                    self.spot_height_layer = layer
+                    break
+        
+        if self.spot_height_layer is None:
+            crs = self.canvas.mapSettings().destinationCrs().authid()
+            self.spot_height_layer = QgsVectorLayer(f"Point?crs={crs}", "Spot Heights", "memory")
+            pr = self.spot_height_layer.dataProvider()
+            pr.addAttributes([QgsField("elevation", QVariant.Double)])
+            self.spot_height_layer.updateFields()
+            QgsProject.instance().addMapLayer(self.spot_height_layer)
+            
+        return self.spot_height_layer
+
+
     def canvasPressEvent(self, event):
         if event.button() == Qt.RightButton:
-            # Right click = Context Menu (Safety mechanism)
+            # Right click = Finish Line (Enter)
             if not self.is_tracing:
                 return
 
-            menu = QMenu()
-            save_action = menu.addAction("Finish Line (Enter)")
-            undo_action = menu.addAction("Undo Last Segment (Ctrl+Z)")
-            cancel_menu_action = menu.addAction("Cancel Menu")
+            # If there's a preview path (green line), DO NOT include it
+            # User request: "삐져나온 초록선이 거슬린다" -> Only save clicked points
+            # if self.preview_path:
+            #    self.path_points.extend(self.preview_path)
             
-            # Execute menu at mouse position
-            action = menu.exec_(QCursor.pos())
+            if len(self.path_points) >= 2:
+                # Ask for elevation for Open Line too
+                elevation = self.ask_elevation()
+                if elevation is not None:
+                     self.save_to_layer(closed=False, elevation=elevation)
+                else:
+                     # User cancelled elevation dialog -> Cancel save?
+                     # Or save without elevation? Let's assume cancel means "Cancel Save".
+                     pass
             
-            if action == save_action:
-                if len(self.path_points) >= 2:
-                    self.save_to_layer(closed=False)
-                self.reset_tracing()
-            elif action == undo_action:
-                self.undo_to_checkpoint()
-            
-            # If Cancel or clicked outside, do nothing (prevent reset)
+            self.reset_tracing()
             return
         
         if event.button() != Qt.LeftButton:
@@ -141,15 +181,28 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         
         if not self.is_tracing:
             # Start tracing
+            
+            # Check if snapping to existing endpoint (Resume)
+            snapped_start, feat_id, is_start = self.snap_to_existing_endpoint(point)
+            
+            self.resume_feature_id = feat_id
+            self.resume_at_start = is_start
+            
+            if snapped_start:
+                place_point = snapped_start
+            else:
+                place_point = point
+            
             self.is_tracing = True
-            self.start_point = point
-            self.last_map_point = point
-            self.path_points = [point]
+            self.start_point = place_point
+            self.last_map_point = place_point
+            self.path_points = [place_point]
             self.checkpoints = [0]  # Start point is first checkpoint
             
             # Show start marker
             self.start_marker.reset(QgsWkbTypes.PointGeometry)
-            self.start_marker.addPoint(point)
+            self.start_marker.addPoint(place_point)
+            self.snap_marker.reset(QgsWkbTypes.PointGeometry) # Hide snap marker
             
             # Reset checkpoint markers
             self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
@@ -163,15 +216,28 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         else:
             # Check if closing polygon (near start)
             if self.is_near_start(point):
+                # SPECIAL CASE: Double Click on Start Point = Spot Height
+                if len(self.path_points) == 1:
+                    elevation = self.ask_elevation()
+                    if elevation is not None:
+                        self.create_spot_height(self.start_point, elevation)
+                    self.reset_tracing()
+                    return
+
+                # Normal Polygon Close
                 # Use AI Pathfinding to close the loop smoothly
                 closing_path = self.find_optimal_path(self.start_point)
                 
-                # Apply smoothing to closing path too (Consistency)
+                # Apply smoothing to closing path
                 if len(closing_path) > 2:
                     closing_path = self.smooth_bezier(closing_path, closed=False)
                     
                 self.path_points.extend(closing_path)
                 
+                # Check for duplicate end point and remove to prevent artifact
+                if len(self.path_points) > 1 and self.path_points[-1] == self.path_points[0]:
+                    self.path_points.pop()
+
                 # Ask for elevation value
                 elevation = self.ask_elevation()
                 if elevation is not None:
@@ -187,6 +253,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 self.preview_path = []
             else:
                 # Manual click point
+                # If manual mode is active, we might have just clicked.
+                # If path empty, user clicked start. If path not empty, user is adding points.
                 if len(self.path_points) > 0:
                     # If points exist, add straight line to click
                     self.path_points.append(point)
@@ -198,11 +266,35 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # Confirm current preview path
             self.redraw_confirmed_path()
 
+
     def canvasMoveEvent(self, event):
+        current_point = self.toMapCoordinates(event.pos())
+        
+        # STABILIZER (Anti-Pulse): Smooth mouse input to prevent AI jitters
+        if self.last_hover_pos:
+            # Exponential Moving Average: 30% New, 70% Old -> Heavy smoothing
+            # effectively delays the cursor slightly but removes high-frequency jitter
+            sx = self.last_hover_pos.x() * 0.7 + current_point.x() * 0.3
+            sy = self.last_hover_pos.y() * 0.7 + current_point.y() * 0.3
+            smoothed_point = QgsPointXY(sx, sy)
+        else:
+            smoothed_point = current_point
+            
+        self.last_hover_pos = smoothed_point
+        
+        # Use smoothed point for heavy AI calculations, but keep snappy feel for feedback?
+        # Actually, for "Pulse" fix, we must use smoothed point for the AI target.
+        ai_target_point = smoothed_point
+        
+        # 1. NOT TRACING: Check for Snap-to-Resume
         if not self.is_tracing:
+            snapped, _, _ = self.snap_to_existing_endpoint(current_point) # Use raw point for snapping (snappier)
+            self.snap_marker.reset(QgsWkbTypes.PointGeometry)
+            if snapped:
+                self.snap_marker.addPoint(snapped)
             return
         
-        current_point = self.toMapCoordinates(event.pos())
+        # 2. TRACING ACTIVE
         
         # Check close indicator
         if self.is_near_start(current_point):
@@ -224,11 +316,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return
 
         # MODE CHECK: Dragging vs Hovering
+        is_manual_mode = (event.modifiers() & (Qt.ShiftModifier | Qt.ControlModifier))
+        
         if event.buttons() & Qt.LeftButton:
             # DRAGGING: Manual Draw (Mouse Following + Gentle Snap)
             self.preview_path = []
             
-            if self.freehand or self.cached_edges is None:
+            # If Manual Mode (Shift/Ctrl): No snapping, just exact mouse pos
+            if is_manual_mode or self.freehand or self.cached_edges is None:
                 final_point = current_point
             else:
                 final_point = self.angle_constrained_snap(current_point)
@@ -237,18 +332,37 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.last_map_point = current_point
             self.redraw_confirmed_path()
         else:
-            # HOVERING: AI Auto-Path Preview (Bunting Style)
-            if not self.path_points: return
+            # HOVERING (Not Dragging)
             
-            # Calculate A* path from last point to mouse
-            ai_path = self.find_optimal_path(current_point)
-            
-            # Apply Smoothing to Preview (WYSIWYG)
-            # This ensures what user sees (Green) is what they get (Red)
-            if len(ai_path) > 2:
-                smoothed_preview = self.smooth_bezier(ai_path, closed=False)
+            # 1. Not Tracing yet? Check for Resume Snap
+            if not self.path_points:
+                 snap_pt, snap_fid, is_start = self.snap_to_existing_endpoint(current_point)
+                 if snap_pt:
+                     self.snap_marker.reset(QgsWkbTypes.PointGeometry)
+                     self.snap_marker.addPoint(snap_pt)
+                     if self.iface:
+                         self.iface.mapCanvas().setCursor(Qt.PointingHandCursor)
+                 else:
+                     self.snap_marker.reset(QgsWkbTypes.PointGeometry)
+                     if self.iface:
+                         self.iface.mapCanvas().setCursor(Qt.CrossCursor)
+                 return
+                 
+            # 2. Tracing: Prediction Logic
+            if is_manual_mode:
+                 # MANUAL MODE PREVIEW: Literal straight line
+                 smoothed_preview = [current_point]
             else:
-                smoothed_preview = ai_path
+                # AI Auto-Path Preview (Bunting Style)
+                # Calculate A* path from last point to mouse
+                # Use SMOOTHED target to prevent pulse
+                ai_path = self.find_optimal_path(ai_target_point)
+                
+                # Apply Smoothing to Preview
+                if len(ai_path) > 2:
+                    smoothed_preview = self.smooth_bezier(ai_path, closed=False)
+                else:
+                    smoothed_preview = ai_path
                 
             self.preview_path = smoothed_preview
             
@@ -258,6 +372,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 self.preview_band.addPoint(self.path_points[-1])
             for pt in smoothed_preview:
                 self.preview_band.addPoint(pt)
+
 
     def angle_constrained_snap(self, map_point):
         """
@@ -328,17 +443,30 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts for undo and save."""
+        
+        # GLOBAL UNDO BLOCKER:
+        # Prevent QGIS from consuming Ctrl+Z and deleting committed features
+        # CRITICAL: This must be handled BEFORE the is_tracing check to protect idle state
+        if (event.key() == Qt.Key_Z and event.modifiers() & Qt.ControlModifier) or event.key() == Qt.Key_Backspace:
+            if self.is_tracing:
+                self.undo_to_checkpoint()
+            else:
+                 # Inform user that global undo is blocked here for safety
+                 if self.iface:
+                     self.iface.messageBar().pushMessage("ArchaeoTrace", "Undo is disabled to protect finished lines. Use Delete key to remove features.", Qgis.Info, 2)
+            
+            # CRITICAL: Always accept event to stop propagation
+            event.accept()
+            return
+
         if not self.is_tracing:
             return
         
-        # Ctrl+Z: Undo to last checkpoint
-        if (event.key() == Qt.Key_Z and event.modifiers() & Qt.ControlModifier) or event.key() == Qt.Key_Backspace:
-            self.undo_to_checkpoint()
-            return
-        
         # Esc: Remove last 10 points (quick undo)
+        
+        # Esc: Cancel entire line (Reset Tracing)
         if event.key() == Qt.Key_Escape:
-            self.undo_points(10)
+            self.reset_tracing()
             return
         
         # Delete: Cancel entire line
@@ -346,11 +474,21 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.reset_tracing()
             return
         
-        # Enter: Save current line
+        # Enter: Save current line (Capture PREVIEW if exists)
         if event.key() in (Qt.Key_Return, Qt.Key_Enter):
-            if len(self.path_points) >= 2:
-                self.save_to_layer(closed=False)
-            self.reset_tracing()
+            if self.is_tracing:
+                # If there's a green preview line, DO NOT include it
+                # User request: "삐져나온 초록선이 거슬린다" -> Only save clicked points
+                # if self.preview_path:
+                #    self.path_points.extend(self.preview_path)
+                    
+                if len(self.path_points) >= 2:
+                    # Ask for elevation
+                    elevation = self.ask_elevation()
+                    if elevation is not None:
+                         self.save_to_layer(closed=False, elevation=elevation)
+                
+                self.reset_tracing()
             return
 
     def find_optimal_path(self, target_point):
@@ -613,6 +751,75 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         except Exception:
             return map_point
 
+    def snap_to_existing_endpoint(self, point):
+        """
+        Find simplest endpoint of existing lines to snap to.
+        Returns: (Point, FeatureID, IsStartOfLine)
+        """
+        if not self.vector_layer or self.vector_layer.featureCount() == 0:
+            return None, None, False
+            
+        tolerance = self.canvas.mapUnitsPerPixel() * 10
+        min_dist = tolerance
+        best_point = None
+        best_fid = None
+        best_is_start = False
+        
+        for feat in self.vector_layer.getFeatures():
+            geom = feat.geometry()
+            if not geom or geom.isEmpty(): continue
+            
+            # Skip non-line geometries (e.g. Polygons) to prevent crash
+            if geom.type() != QgsWkbTypes.LineGeometry:
+                continue
+
+            if geom.isMultipart():
+                lines = geom.asMultiPolyline()
+            else:
+                lines = [geom.asPolyline()]
+            
+            # Only support single line merging for simplicity
+            line = lines[0]
+            if not line: continue
+            
+            # Start point
+            p1 = line[0]
+            d1 = np.sqrt((p1.x()-point.x())**2 + (p1.y()-point.y())**2)
+            if d1 < min_dist:
+                min_dist = d1
+                best_point = p1
+                best_fid = feat.id()
+                best_is_start = True # Snapped to Start
+                
+            # End point
+            p2 = line[-1]
+            d2 = np.sqrt((p2.x()-point.x())**2 + (p2.y()-point.y())**2)
+            if d2 < min_dist:
+                min_dist = d2
+                best_point = p2
+                best_fid = feat.id()
+                best_is_start = False # Snapped to End
+        
+        return best_point, best_fid, best_is_start
+
+    def create_spot_height(self, point, elevation):
+        """Create a point feature on the Spot Height layer."""
+        layer = self.get_or_create_spot_layer()
+        if not layer: return
+        
+        feat = QgsFeature()
+        feat.setGeometry(QgsGeometry.fromPointXY(point))
+        
+        fields = layer.fields()
+        elev_idx = fields.indexOf('elevation')
+        
+        feat.setAttributes([float(elevation)])
+        
+        layer.startEditing()
+        layer.addFeature(feat)
+        layer.triggerRepaint()
+
+
     def update_edge_cache(self):
         """Cache edge detection for current view."""
         try:
@@ -690,14 +897,21 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def is_near_start(self, point):
         """Check if point is near start point for polygon close."""
-        if not self.start_point or len(self.path_points) < 3:
+        if not self.start_point:
             return False
+            
+        # If we only have the start point (Spot Height candidate), use larger tolerance
+        is_spot_candidate = (len(self.path_points) == 1)
         
         dx = point.x() - self.start_point.x()
         dy = point.y() - self.start_point.y()
         dist = np.sqrt(dx*dx + dy*dy)
         
-        close_threshold = self.canvas.mapUnitsPerPixel() * 20
+        base_tol = 20 # pixels
+        if is_spot_candidate:
+            base_tol = 30 # Slightly larger for easier clicking
+            
+        close_threshold = self.canvas.mapUnitsPerPixel() * base_tol
         return dist < close_threshold
 
     def redraw_confirmed_path(self):
@@ -716,17 +930,72 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         smoothed = self.path_points
         
         # Create geometry
+        # Create geometry
         # ALWAYS use LineString. For closed loops, just make start==end.
-        if closed and len(smoothed) >= 3:
+        # Allow 2 points + close = 3 points (Triangle/Flat Loop)
+        if closed and len(smoothed) >= 2:
             # Add first point to end to close the loop
-            smoothed.append(smoothed[0])
+            # ONLY if not already closed
+            if smoothed[-1] != smoothed[0]:
+                smoothed.append(smoothed[0])
             
+        # Prepare geometry
         geom = QgsGeometry.fromPolylineXY(smoothed)
         
-        # Heavy QGIS simplification was causing "straight line" issues (deviating from AI)
-        # Reduced tolerance to 0.5px for higher fidelity to the green preview
-        tolerance = self.canvas.mapUnitsPerPixel() * 0.5
-        geom = geom.simplify(tolerance)
+        # MERGE LOGIC
+        if self.resume_feature_id is not None and not closed:
+            # We are extending an existing feature
+            existing_feat = self.vector_layer.getFeature(self.resume_feature_id)
+            if existing_feat.isValid() and existing_feat.geometry():
+                existing_geom = existing_feat.geometry()
+                
+                # Prevent crash on Multipart: Cannot simple-merge without knowing which part
+                if existing_geom.isMultipart():
+                    self.resume_feature_id = None # Logic will fall through to create NEW feature
+                else:
+                    existing_lines = existing_geom.asPolyline() # Assuming single part
+                
+                if self.resume_at_start:
+                    # We snapped to START. We are drawing AWAY from start.
+                    # So new line ends at old start.
+                    # Merged = (New Reversed) + Existing
+                    # BUT: self.path_points[0] IS the snap point (Old Start).
+                    # So self.path_points starts at Old Start and goes away.
+                    # So we should Reverse New and Append Existing.
+                    
+                    # current path: [Start(Snap), P1, P2 ...]
+                    # reversed: [..., P2, P1, Start(Snap)]
+                    # existing: [Start(Snap), E1, E2 ...]
+                    # Combined: [..., P2, P1, Start(Snap), E1, E2 ...]
+                    
+                    new_part = smoothed[::-1] # Reverse
+                    merged_points = new_part[:-1] + existing_lines # Skip duplicate join
+                else:
+                    # Snapped to END. Drawing away.
+                    # Existing: [..., End(Snap)]
+                    # New: [End(Snap), P1, P2 ...]
+                    # Combined: [..., End(Snap), P1, P2 ...]
+                    merged_points = existing_lines + smoothed[1:]
+                
+                geom = QgsGeometry.fromPolylineXY(merged_points)
+                
+                # Update existing feature instead of adding new
+                if not self.vector_layer.isEditable():
+                    self.vector_layer.startEditing()
+
+                self.vector_layer.changeGeometry(self.resume_feature_id, geom)
+                
+                # INSTANT SAVE: Commit immediately to prevent Undo from deleting it
+                self.vector_layer.commitChanges()
+                
+                self.vector_layer.triggerRepaint()
+                self.resume_feature_id = None # Reset
+                return
+        
+        # Standard Save (New Feature)
+        # REMOVED SIMPLIFICATION to prevent sharpness/spikes
+        # tolerance = self.canvas.mapUnitsPerPixel() * 0.5
+        # geom = geom.simplify(tolerance)
         
         feat = QgsFeature()
         feat.setGeometry(geom)
@@ -745,21 +1014,56 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             fields = self.vector_layer.fields()
             elev_idx = fields.indexOf('elevation')
         
-        # Prepare attributes
+        # Prepare geometry
+        if self.resume_feature_id is not None and not closed:
+             # ... Merge logic ...
+             # Note: Merge logic updates existing feature, so it returns early.
+             pass 
+
+        # Standard Save (New Feature)
+        # REMOVED SIMPLIFICATION to prevent sharpness/spikes
+        # tolerance = self.canvas.mapUnitsPerPixel() * 0.5
+        # geom = geom.simplify(tolerance)
+        
+        self.save_geometry(geom, elevation)
+
+    def save_geometry(self, geometry, elevation=None):
+        """Helper to save a generic geometry to the layer."""
+        if not self.vector_layer: return
+        
+        feat = QgsFeature()
+        feat.setGeometry(geometry)
+        
+        # Set attributes
+        attrs = [self.vector_layer.featureCount() + 1]
+        
+        # Elevation
+        fields = self.vector_layer.fields()
+        elev_idx = fields.indexOf('elevation')
+        if elev_idx == -1 and elevation is not None:
+            self.vector_layer.startEditing()
+            self.vector_layer.dataProvider().addAttributes([QgsField('elevation', QVariant.Double)])
+            self.vector_layer.updateFields()
+            fields = self.vector_layer.fields()
+            elev_idx = fields.indexOf('elevation')
+            
         if elev_idx >= 0 and elevation is not None:
             while len(attrs) <= elev_idx:
                 attrs.append(None)
             attrs[elev_idx] = float(elevation)
-        
+            
         feat.setAttributes(attrs)
         
-        # Ensure layer is editable
         if not self.vector_layer.isEditable():
             self.vector_layer.startEditing()
             
         self.vector_layer.addFeature(feat)
-        # Do NOT commit changes here. Keep in edit mode so user can delete/undo.
-        # self.vector_layer.commitChanges() 
+        
+        # INSTANT SAVE: Commit changes immediately
+        # This prevents the layer from staying in Edit Mode.
+        # So "Ctrl+Z" (QGIS Undo) has no active edit buffer to undo from.
+        self.vector_layer.commitChanges()
+        
         self.vector_layer.triggerRepaint()
 
     def ask_elevation(self):
@@ -791,12 +1095,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # Convert to numpy for easier math
         pts = np.array([[p.x(), p.y()] for p in points])
         
-        # Apply Chaikin's algorithm 2 times for "smooth but straight" look (Polygonal style)
-        for _ in range(2):
+        # Apply Chaikin's algorithm 3 times for smoother curves
+        # Increased from 2 to 3 for ultra-smoothness
+        for _ in range(3):
             if len(pts) < 3:
                 break
             
             new_pts = []
+
             
             # If NOT closed, keep first point
             if not closed:
@@ -838,6 +1144,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.checkpoints = []
         self.start_point = None
         self.last_map_point = None
+        self.last_hover_pos = None # Reset stabilizer
         self.preview_band.reset(QgsWkbTypes.LineGeometry)
         self.confirm_band.reset(QgsWkbTypes.LineGeometry)
         self.start_marker.reset(QgsWkbTypes.PointGeometry)
@@ -851,6 +1158,20 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.canvas.extentsChanged.connect(self.update_edge_cache)
         except:
             pass
+            
+        # NUCLEAR UNDO BLOCK: Disable QGIS Undo Action
+        if self.iface:
+            try:
+                # Primary method: Standard API
+                self.iface.actionUndo().setEnabled(False)
+                # Fallback: Find action by name (for some QGIS versions)
+                mw = self.iface.mainWindow()
+                undo_act = mw.findChild(QAction, 'mActionUndo')
+                if undo_act:
+                    undo_act.setEnabled(False)
+            except Exception as e:
+                print(f"Error disabling Undo: {e}")
+                
         super().activate()
 
     def deactivate(self):
@@ -859,6 +1180,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.canvas.extentsChanged.disconnect(self.update_edge_cache)
         except:
             pass
+            
+        # RESTORE UNDO ACTION
+        if self.iface:
+            try:
+                self.iface.actionUndo().setEnabled(True)
+                mw = self.iface.mainWindow()
+                undo_act = mw.findChild(QAction, 'mActionUndo')
+                if undo_act:
+                    undo_act.setEnabled(True)
+            except:
+                pass
+                
         self.reset_tracing()
         super().deactivate()
         self.deactivated.emit()
