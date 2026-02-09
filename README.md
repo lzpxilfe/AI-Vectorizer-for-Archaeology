@@ -1,4 +1,4 @@
-# 🏛️ ArchaeoTrace (v0.1.0 "Pallet Town") - AI 등고선 벡터화 QGIS 플러그인
+# 🏛️ ArchaeoTrace (v0.1.1 "Pallet Town") - AI 등고선 벡터화 QGIS 플러그인
 
 고지도에서 등고선을 AI로 추적하여 벡터 데이터로 변환하는 QGIS 플러그인입니다.
 
@@ -11,6 +11,15 @@
 이 플러그인이 유용했다면 **GitHub Star ⭐**를 눌러주세요! 개발자에게 큰 힘이 됩니다.  
 If you find this repository useful, please consider giving it a star ⭐ and citing it in your work:
 
+```bibtex
+@software{ArchaeoTrace2026,
+  author = {lzpxilfe},
+  title = {ArchaeoTrace: AI-assisted contour digitizing QGIS plugin for historical maps},
+  year = {2026},
+  url = {https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology},
+  version = {0.1.1}
+}
+```
 
 ---
 
