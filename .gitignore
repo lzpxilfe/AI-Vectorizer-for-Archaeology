@@ -12,5 +12,11 @@ __pycache__/
 *.png
 !icon.png
 ai_vectorizer/models/
+ai_vectorizer/models/*.pt
+ai_vectorizer/models/*.pth
+ai_vectorizer/models/*.onnx
+ai_vectorizer/models/*.ckpt
+ai_vectorizer/models/*.bin
+ai_vectorizer/core/models/*.caffemodel
 .idea/
 .vscode/
