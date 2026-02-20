@@ -12,6 +12,7 @@ AI-assisted contour digitizing plugin for QGIS, focused on historical maps.
 - QGIS 플러그인 업로드 제한(25MB)에 맞추기 위해, 대용량 AI 가중치 파일은 ZIP에 포함하지 않습니다.
 - 기본 모델 `Canny`, `LSD`는 바로 사용 가능합니다.
 - `HED`(약 56MB), `MobileSAM`(약 40MB + PyTorch)은 필요할 때 다운로드하여 사용합니다.
+- 업로드 권장 파일명: `ArchaeoTrace-v0.1.2-qgis.zip` (25MB 이하 확인 완료)
 
 ### 설치
 1. ZIP 설치 또는 소스 설치
@@ -75,6 +76,7 @@ AI-assisted contour digitizing plugin for QGIS, focused on historical maps.
 - To stay under the QGIS plugin upload limit (25MB), large AI weight files are not bundled in the plugin ZIP.
 - `Canny` and `LSD` work out of the box.
 - `HED` (~56MB) and `MobileSAM` (~40MB + PyTorch) are downloaded on demand.
+- Recommended upload file: `ArchaeoTrace-v0.1.2-qgis.zip` (verified under 25MB)
 
 ### Installation
 1. Install via ZIP or source
