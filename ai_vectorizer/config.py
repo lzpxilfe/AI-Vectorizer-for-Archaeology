@@ -11,22 +11,27 @@ MODEL_IDX_CANNY = 0
 MODEL_IDX_LSD = 1
 MODEL_IDX_HED = 2
 MODEL_IDX_SAM = 3
+MODEL_IDX_SAM3 = 4
 
 DEFAULT_EDGE_METHOD = "canny"
 DEFAULT_SAM_MODEL_TYPE = "vit_t"
+SAM_BACKEND_MOBILE = "mobile_sam"
+SAM_BACKEND_SAM3 = "sam3"
 
 EDGE_METHOD_BY_MODEL = {
     MODEL_IDX_CANNY: "canny",
     MODEL_IDX_LSD: "lsd",
     MODEL_IDX_HED: "hed",
     MODEL_IDX_SAM: "canny",
+    MODEL_IDX_SAM3: "canny",
 }
 
 MODE_NAME_BY_MODEL = {
     MODEL_IDX_CANNY: "Canny",
     MODEL_IDX_LSD: "LSD",
     MODEL_IDX_HED: "HED",
-    MODEL_IDX_SAM: "SAM",
+    MODEL_IDX_SAM: "MobileSAM",
+    MODEL_IDX_SAM3: "SAM3",
 }
 
 TRACE_BUTTON_IDLE_STYLE = "font-weight: bold; padding: 8px; background: #27ae60; color: white;"

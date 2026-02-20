@@ -40,11 +40,11 @@ def file_sha256(path):
 
 def recommendation(update_status):
     if update_status == "not_installed":
-        return "MobileSAM weights are missing. Download is recommended."
+        return "SAM weights are missing. Download is recommended."
     if update_status == "update_available":
-        return "A newer MobileSAM weights file appears available. Update is recommended."
+        return "A newer SAM weights file appears available. Update is recommended."
     if update_status == "up_to_date":
-        return "MobileSAM weights appear up-to-date."
+        return "SAM weights appear up-to-date."
     if update_status == "unknown":
         return "Could not compare exact versions. Re-download if you suspect mismatch."
     if update_status == "check_failed":
@@ -82,6 +82,8 @@ def main():
             "requests": module_exists("requests"),
             "torch": module_exists("torch"),
             "mobile_sam": module_exists("mobile_sam"),
+            "sam3": module_exists("sam3"),
+            "huggingface_hub": module_exists("huggingface_hub"),
             "yaml": module_exists("yaml"),
             "qgis": module_exists("qgis"),
         },
@@ -89,6 +91,8 @@ def main():
             "requests": safe_import_version("requests"),
             "torch": safe_import_version("torch"),
             "mobile_sam": safe_import_version("mobile_sam"),
+            "sam3": safe_import_version("sam3"),
+            "huggingface_hub": safe_import_version("huggingface_hub"),
             "PyYAML": safe_import_version("PyYAML"),
         },
         "env": {
@@ -118,7 +122,8 @@ def main():
             print(json.dumps(out, indent=2, ensure_ascii=False))
             return
 
-        engine = SAMEngine()
+        backend = os.environ.get("ARCHAEOTRACE_SAM_BACKEND", "mobile_sam")
+        engine = SAMEngine(backend=backend)
         local = engine.get_local_weights_info()
         remote = engine.get_remote_weights_info()
         update = engine.check_weights_update()
@@ -145,6 +150,7 @@ def main():
 
         out["sam_engine"] = {
             "loaded_module_file": getattr(sam_mod, "__file__", None),
+            "backend": backend,
             "weights_url": engine.WEIGHTS_DOWNLOAD_URL,
             "download_timeout_sec": engine.DOWNLOAD_TIMEOUT_SECONDS,
             "local": local,

@@ -52,7 +52,10 @@ from ..config import (
     MODEL_IDX_HED,
     MODEL_IDX_LSD,
     MODEL_IDX_SAM,
+    MODEL_IDX_SAM3,
     PREVIEW_EDGE_MAX_DIMENSION,
+    SAM_BACKEND_MOBILE,
+    SAM_BACKEND_SAM3,
     TRACE_BUTTON_ACTIVE_STYLE,
     TRACE_BUTTON_IDLE_STYLE,
 )
@@ -106,12 +109,14 @@ class AIVectorizerDock(QDockWidget):
                 "📐 LSD Line Detector (Fast)",
                 "🧠 HED Deep Learning (Smooth)",
                 "🎯 MobileSAM (High Quality)",
+                "🚀 SAM3 (Latest, Experimental)",
             ]
         return [
             "🔧 OpenCV Canny (기본)",
             "📐 LSD 선분검출 (빠름)",
             "🧠 HED 딥러닝 (매끄러움)",
             "🎯 MobileSAM (고품질)",
+            "🚀 SAM3 (최신, 실험적)",
         ]
 
     def _mode_name(self, idx):
@@ -119,9 +124,23 @@ class AIVectorizerDock(QDockWidget):
             MODEL_IDX_CANNY: "Canny",
             MODEL_IDX_LSD: "LSD",
             MODEL_IDX_HED: "HED",
-            MODEL_IDX_SAM: "SAM",
+            MODEL_IDX_SAM: "MobileSAM",
+            MODEL_IDX_SAM3: "SAM3",
         }
         return names.get(idx, "OpenCV")
+
+    @staticmethod
+    def _sam_backend_for_index(idx):
+        return SAM_BACKEND_SAM3 if idx == MODEL_IDX_SAM3 else SAM_BACKEND_MOBILE
+
+    def _sam_label_for_index(self, idx=None):
+        index = self.model_combo.currentIndex() if idx is None else idx
+        return "SAM3" if index == MODEL_IDX_SAM3 else "MobileSAM"
+
+    def _sam_install_command(self, idx):
+        if idx == MODEL_IDX_SAM3:
+            return "pip install sam3"
+        return "pip install torch torchvision git+https://github.com/ChaoningZhang/MobileSAM.git"
 
     def setup_ui(self):
         self.header_label = QLabel()
@@ -327,17 +346,20 @@ class AIVectorizerDock(QDockWidget):
         self.model_label.setText(self._tr("AI 모델:", "AI Model:"))
         self.model_label.setToolTip(
             self._tr(
-                "각 모델의 장단점:\n• Canny: 가장 빠름, 기본\n• LSD: 선분 기반, 빠름\n• HED: 딥러닝, 매끄러움\n• SAM: 최고 품질 (56MB)",
-                "Model tradeoffs:\n• Canny: fastest baseline\n• LSD: line-based, fast\n• HED: deep-learning, smooth\n• SAM: best quality (~56MB)",
+                "각 모델의 장단점:\n• Canny: 가장 빠름, 기본\n• LSD: 선분 기반, 빠름\n• HED: 딥러닝, 매끄러움\n• MobileSAM: 경량, 안정적\n• SAM3: 최신, 고사양 권장",
+                "Model tradeoffs:\n• Canny: fastest baseline\n• LSD: line-based, fast\n• HED: deep-learning, smooth\n• MobileSAM: lightweight, stable\n• SAM3: latest, heavier requirements",
             )
         )
         self.model_combo.setToolTip(
             self._tr(
-                "Canny: 기본\nLSD: 선분 기반\nHED: 딥러닝 엣지\nSAM: 세그멘테이션",
-                "Canny: baseline\nLSD: line detector\nHED: deep edge detector\nSAM: segmentation",
+                "Canny: 기본\nLSD: 선분 기반\nHED: 딥러닝 엣지\nMobileSAM: 경량 세그멘테이션\nSAM3: 최신 세그멘테이션",
+                "Canny: baseline\nLSD: line detector\nHED: deep edge detector\nMobileSAM: lightweight segmentation\nSAM3: latest segmentation",
             )
         )
-        self.sam_check_btn.setText(self._tr("🔎 MobileSAM 최신 확인", "🔎 Check MobileSAM Latest"))
+        sam_label = self._sam_label_for_index()
+        self.sam_check_btn.setText(
+            self._tr(f"🔎 {sam_label} 최신 확인", f"🔎 Check {sam_label} Latest")
+        )
         self.sam_check_btn.setToolTip(
             self._tr(
                 "원격 모델 메타데이터(ETag/크기)와 비교해 최신 여부를 확인합니다",
@@ -353,6 +375,7 @@ class AIVectorizerDock(QDockWidget):
         )
         self.sam_download_btn.setToolTip(self._tr("인터넷 연결 필요. 최초 1회만 다운로드", "Internet required. Download once on first use"))
         self.install_guide.setText(self._tr("📦 SAM 설치 (복사 가능):", "📦 SAM Install (copy this):"))
+        self.install_cmd.setText(self._sam_install_command(self.model_combo.currentIndex()))
         self.freehand_check.setText(self._tr("✏️ 프리핸드 (AI 비활성)", "✏️ Freehand (AI Off)"))
         self.freehand_check.setToolTip(self._tr("체크: AI 없이 순수 마우스 추적", "Checked: pure mouse tracing without AI"))
         self.edge_strength_label.setText(self._tr("AI 강도:", "AI Strength:"))
@@ -385,6 +408,8 @@ class AIVectorizerDock(QDockWidget):
 
         if self.model_combo.currentIndex() == MODEL_IDX_HED:
             self.sam_download_btn.setText(self._tr("📥 HED 다운로드", "📥 Download HED"))
+        elif self.model_combo.currentIndex() == MODEL_IDX_SAM3:
+            self.sam_download_btn.setText(self._tr("⬇️ SAM3 다운로드", "⬇️ Download SAM3"))
         else:
             self.sam_download_btn.setText(self._tr("⬇️ MobileSAM 다운로드 (~40MB)", "⬇️ Download MobileSAM (~40MB)"))
 
@@ -482,7 +507,7 @@ class AIVectorizerDock(QDockWidget):
             edge_weight = self.freedom_slider.value() / 100.0
             freehand = self.freehand_check.isChecked()
             model_idx = self.model_combo.currentIndex()
-            use_sam = model_idx == MODEL_IDX_SAM and self.sam_engine is not None and self.sam_engine.is_ready
+            use_sam = model_idx in (MODEL_IDX_SAM, MODEL_IDX_SAM3) and self.sam_engine is not None and self.sam_engine.is_ready
             edge_method = EDGE_METHOD_BY_MODEL.get(model_idx, DEFAULT_EDGE_METHOD)
 
             self.active_tool = SmartTraceTool(
@@ -499,7 +524,7 @@ class AIVectorizerDock(QDockWidget):
             self.iface.mapCanvas().setMapTool(self.active_tool)
             self.active_tool.deactivated.connect(self.on_tool_deactivated)
 
-            mode_name = "SAM" if use_sam else self._mode_name(model_idx)
+            mode_name = self._mode_name(model_idx)
             self.status_label.setText(self._tr("🖊️ [{mode}] 등고선을 클릭하세요", "🖊️ [{mode}] Click on contours").format(mode=mode_name))
             self.trace_btn.setText(self._tr("⏹️ 중지", "⏹️ Stop"))
             self.trace_btn.setStyleSheet(TRACE_BUTTON_ACTIVE_STYLE)
@@ -528,7 +553,7 @@ class AIVectorizerDock(QDockWidget):
             self.sam_status.setStyleSheet("color: green; font-size: 10px;")
         elif index == MODEL_IDX_HED:
             self.check_hed_status()
-        elif index == MODEL_IDX_SAM:
+        elif index in (MODEL_IDX_SAM, MODEL_IDX_SAM3):
             self.sam_check_btn.setVisible(True)
             self.sam_report_btn.setVisible(True)
             self.init_sam_engine()
@@ -544,22 +569,38 @@ class AIVectorizerDock(QDockWidget):
             self.sam_download_btn.setVisible(True)
             self.sam_download_btn.setText(self._tr("📥 HED 다운로드", "📥 Download HED"))
 
-    def init_sam_engine(self):
+    def _ensure_sam_engine_for_current_model(self):
         try:
-            from .core.sam_engine import SAMEngine, MOBILE_SAM_AVAILABLE
+            from .core.sam_engine import SAMEngine, MOBILE_SAM_AVAILABLE, SAM3_AVAILABLE
         except ImportError:
-            from ..core.sam_engine import SAMEngine, MOBILE_SAM_AVAILABLE
+            from ..core.sam_engine import SAMEngine, MOBILE_SAM_AVAILABLE, SAM3_AVAILABLE
 
-        if self.sam_engine is None:
-            self.sam_engine = SAMEngine(model_type=DEFAULT_SAM_MODEL_TYPE)
+        backend = self._sam_backend_for_index(self.model_combo.currentIndex())
+        if self.sam_engine is None or getattr(self.sam_engine, "backend", None) != backend:
+            self.sam_engine = SAMEngine(model_type=DEFAULT_SAM_MODEL_TYPE, backend=backend)
+        return SAMEngine, MOBILE_SAM_AVAILABLE, SAM3_AVAILABLE
+
+    def init_sam_engine(self):
+        _, mobile_available, sam3_available = self._ensure_sam_engine_for_current_model()
+        model_idx = self.model_combo.currentIndex()
+        sam_label = self._sam_label_for_index(model_idx)
+        backend = self._sam_backend_for_index(model_idx)
+        backend_available = sam3_available if backend == SAM_BACKEND_SAM3 else mobile_available
 
         self.sam_check_btn.setVisible(True)
         self.sam_report_btn.setVisible(True)
         self.sam_download_btn.setVisible(True)
-        self.sam_download_btn.setText(self._tr("⬇️ MobileSAM 다운로드 (~40MB)", "⬇️ Download MobileSAM (~40MB)"))
+        self.sam_check_btn.setText(self._tr(f"🔎 {sam_label} 최신 확인", f"🔎 Check {sam_label} Latest"))
+        self.sam_download_btn.setText(self._tr(f"⬇️ {sam_label} 다운로드", f"⬇️ Download {sam_label}"))
+        self.install_cmd.setText(self._sam_install_command(model_idx))
 
-        if not MOBILE_SAM_AVAILABLE:
-            self.sam_status.setText(self._tr("❌ PyTorch/MobileSAM 미설치", "❌ PyTorch/MobileSAM not installed"))
+        if not backend_available:
+            self.sam_status.setText(
+                self._tr(
+                    f"❌ PyTorch/{sam_label} 미설치",
+                    f"❌ PyTorch/{sam_label} not installed",
+                )
+            )
             self.sam_status.setStyleSheet("color: red; font-size: 10px;")
             self.install_guide.setVisible(True)
             self.install_cmd.setVisible(True)
@@ -567,34 +608,62 @@ class AIVectorizerDock(QDockWidget):
 
         success, _msg = self.sam_engine.load_model()
         if success:
-            self.sam_status.setText(self._tr("✅ MobileSAM 로드됨 (최신 확인 가능)", "✅ MobileSAM loaded (update check available)"))
+            self.sam_status.setText(
+                self._tr(
+                    f"✅ {sam_label} 로드됨 (최신 확인 가능)",
+                    f"✅ {sam_label} loaded (update check available)",
+                )
+            )
             self.sam_status.setStyleSheet("color: green; font-size: 10px;")
             self.install_guide.setVisible(False)
         else:
-            self.sam_status.setText(self._tr("⚠️ 모델 파일 필요", "⚠️ Model file required"))
+            self.sam_status.setText(
+                self._tr(
+                    f"⚠️ {sam_label} 모델 파일 필요",
+                    f"⚠️ {sam_label} model file required",
+                )
+            )
             self.sam_status.setStyleSheet("color: orange; font-size: 10px;")
             self.install_guide.setVisible(False)
 
     def download_sam(self):
-        if self.sam_engine is None:
-            from ..core.sam_engine import SAMEngine
-            self.sam_engine = SAMEngine(model_type=DEFAULT_SAM_MODEL_TYPE)
-
         model_idx = self.model_combo.currentIndex()
         if model_idx == MODEL_IDX_HED:
             self.download_hed()
             return
+        self._ensure_sam_engine_for_current_model()
+        sam_label = self._sam_label_for_index(model_idx)
+
         self.sam_download_btn.setEnabled(False)
-        self.sam_status.setText(self._tr("⏬ 다운로드 중...", "⏬ Downloading..."))
+        self.sam_status.setText(
+            self._tr(
+                f"⏬ {sam_label} 다운로드 중...",
+                f"⏬ Downloading {sam_label}...",
+            )
+        )
         self.iface.mainWindow().repaint()
         if self.sam_engine:
             success = self.sam_engine.download_weights()
             if success:
-                QMessageBox.information(self, self._tr("완료", "Done"), self._tr("MobileSAM 다운로드 완료!", "MobileSAM download complete!"))
+                QMessageBox.information(
+                    self,
+                    self._tr("완료", "Done"),
+                    self._tr(
+                        f"{sam_label} 다운로드 완료!",
+                        f"{sam_label} download complete!",
+                    ),
+                )
                 self.init_sam_engine()
                 self.check_sam_update(show_message=False)
             else:
-                QMessageBox.critical(self, self._tr("오류", "Error"), self._tr("다운로드 실패. 인터넷 연결을 확인하세요.", "Download failed. Check your internet connection."))
+                QMessageBox.critical(
+                    self,
+                    self._tr("오류", "Error"),
+                    self._tr(
+                        "다운로드 실패. 인터넷/프록시 설정 또는 접근 권한을 확인하세요.",
+                        "Download failed. Check internet/proxy settings or access permission.",
+                    ),
+                )
                 self.sam_status.setText(self._tr("❌ 다운로드 실패", "❌ Download failed"))
         self.sam_download_btn.setEnabled(True)
 
@@ -610,12 +679,16 @@ class AIVectorizerDock(QDockWidget):
         return f"{size_bytes}B"
 
     def check_sam_update(self, show_message=True):
-        if self.sam_engine is None:
-            from ..core.sam_engine import SAMEngine
-            self.sam_engine = SAMEngine(model_type=DEFAULT_SAM_MODEL_TYPE)
+        self._ensure_sam_engine_for_current_model()
+        sam_label = self._sam_label_for_index()
 
         self.sam_check_btn.setEnabled(False)
-        self.sam_status.setText(self._tr("🔎 최신 모델 확인 중...", "🔎 Checking latest model..."))
+        self.sam_status.setText(
+            self._tr(
+                f"🔎 {sam_label} 최신 모델 확인 중...",
+                f"🔎 Checking latest {sam_label} model...",
+            )
+        )
         self.iface.mainWindow().repaint()
 
         info = self.sam_engine.check_weights_update()
@@ -628,8 +701,8 @@ class AIVectorizerDock(QDockWidget):
                     self,
                     self._tr("경고", "Warning"),
                     self._tr(
-                        "최신 모델 확인에 실패했습니다.\n인터넷 연결을 확인하세요.",
-                        "Failed to check latest model.\nPlease check your internet connection.",
+                        "최신 모델 확인에 실패했습니다.\n인터넷/권한 설정을 확인하세요.",
+                        "Failed to check latest model.\nPlease check internet/access permissions.",
                     ),
                 )
             return
@@ -643,32 +716,32 @@ class AIVectorizerDock(QDockWidget):
         if status == "not_installed":
             self.sam_status.setText(
                 self._tr(
-                    f"⚠️ MobileSAM 없음 (원격 {remote_size})",
-                    f"⚠️ MobileSAM not installed (remote {remote_size})",
+                    f"⚠️ {sam_label} 없음 (원격 {remote_size})",
+                    f"⚠️ {sam_label} not installed (remote {remote_size})",
                 )
             )
             self.sam_download_btn.setText(
-                self._tr("⬇️ MobileSAM 다운로드", "⬇️ Download MobileSAM")
+                self._tr(f"⬇️ {sam_label} 다운로드", f"⬇️ Download {sam_label}")
             )
             return
 
         if status == "update_available":
             self.sam_status.setText(
                 self._tr(
-                    f"⬆️ MobileSAM 업데이트 가능 (로컬 {local_size} → 원격 {remote_size})",
-                    f"⬆️ MobileSAM update available (local {local_size} -> remote {remote_size})",
+                    f"⬆️ {sam_label} 업데이트 가능 (로컬 {local_size} → 원격 {remote_size})",
+                    f"⬆️ {sam_label} update available (local {local_size} -> remote {remote_size})",
                 )
             )
             self.sam_download_btn.setText(
-                self._tr("⬆️ MobileSAM 업데이트", "⬆️ Update MobileSAM")
+                self._tr(f"⬆️ {sam_label} 업데이트", f"⬆️ Update {sam_label}")
             )
             if show_message:
                 QMessageBox.information(
                     self,
                     self._tr("완료", "Done"),
                     self._tr(
-                        "새 MobileSAM 모델이 있습니다.\n'업데이트' 버튼으로 바로 받을 수 있습니다.",
-                        "A newer MobileSAM model is available.\nUse the update button to download it.",
+                        f"새 {sam_label} 모델이 있습니다.\n'업데이트' 버튼으로 바로 받을 수 있습니다.",
+                        f"A newer {sam_label} model is available.\nUse the update button to download it.",
                     ),
                 )
             return
@@ -676,12 +749,12 @@ class AIVectorizerDock(QDockWidget):
         if status == "up_to_date":
             self.sam_status.setText(
                 self._tr(
-                    f"✅ MobileSAM 최신 상태 (로컬 {local_size})",
-                    f"✅ MobileSAM is up to date (local {local_size})",
+                    f"✅ {sam_label} 최신 상태 (로컬 {local_size})",
+                    f"✅ {sam_label} is up to date (local {local_size})",
                 )
             )
             self.sam_download_btn.setText(
-                self._tr("⬇️ MobileSAM 재다운로드", "⬇️ Re-download MobileSAM")
+                self._tr(f"⬇️ {sam_label} 재다운로드", f"⬇️ Re-download {sam_label}")
             )
             return
 
@@ -692,7 +765,7 @@ class AIVectorizerDock(QDockWidget):
             )
         )
         self.sam_download_btn.setText(
-            self._tr("⬇️ MobileSAM 재다운로드", "⬇️ Re-download MobileSAM")
+            self._tr(f"⬇️ {sam_label} 재다운로드", f"⬇️ Re-download {sam_label}")
         )
 
     @staticmethod
@@ -720,17 +793,20 @@ class AIVectorizerDock(QDockWidget):
                 "requests": self._safe_module_version("requests"),
                 "torch": self._safe_module_version("torch"),
                 "mobile_sam": self._safe_module_version("mobile_sam"),
+                "sam3": self._safe_module_version("sam3"),
+                "huggingface_hub": self._safe_module_version("huggingface_hub"),
                 "PyYAML": self._safe_module_version("PyYAML"),
             },
         }
 
         try:
-            if self.sam_engine is None:
-                from ..core.sam_engine import SAMEngine
-                self.sam_engine = SAMEngine(model_type=DEFAULT_SAM_MODEL_TYPE)
+            self._ensure_sam_engine_for_current_model()
 
             update_info = self.sam_engine.check_weights_update()
+            sam_backend = getattr(self.sam_engine, "backend", self._sam_backend_for_index(self.model_combo.currentIndex()))
             report["sam_engine"] = {
+                "backend": sam_backend,
+                "backend_label": self._sam_label_for_index(),
                 "weights_path": getattr(self.sam_engine, "weights_path", None),
                 "weights_meta_path": getattr(self.sam_engine, "weights_meta_path", None),
                 "weights_url": getattr(self.sam_engine, "WEIGHTS_DOWNLOAD_URL", None),
@@ -856,7 +932,7 @@ class AIVectorizerDock(QDockWidget):
 <ol>
 <li><b>Select Raster Map</b> - choose a scanned map with contour lines.</li>
 <li><b>Create SHP Output</b> - create a new line SHP or pick an existing line layer.</li>
-<li><b>Choose AI Model</b> - Canny/LSD/HED/MobileSAM depending on speed and quality.</li>
+<li><b>Choose AI Model</b> - Canny/LSD/HED/MobileSAM/SAM3 depending on speed and quality.</li>
 <li><b>Start Tracing</b> - click along contours and save the result.</li>
 </ol>
 
@@ -867,6 +943,7 @@ class AIVectorizerDock(QDockWidget):
 <tr><td>📐 LSD</td><td>Fast</td><td>Good</td><td>Built-in</td></tr>
 <tr><td>🧠 HED</td><td>Medium</td><td>High</td><td>~56MB model</td></tr>
 <tr><td>🎯 MobileSAM</td><td>Slow</td><td>Best</td><td>Requires PyTorch + model file</td></tr>
+<tr><td>🚀 SAM3</td><td>Slowest</td><td>Best+</td><td>Requires PyTorch + sam3 package + model file</td></tr>
 </table>
 
 <h3>🖱️ Controls</h3>
@@ -883,7 +960,7 @@ class AIVectorizerDock(QDockWidget):
 <li>Zoom in until contour lines are clearly visible for better snapping.</li>
 <li>If tracing is noisy, move the mouse more slowly and lower AI strength.</li>
 <li>If SAM/HED is unavailable, start with Canny or LSD first.</li>
-<li>Use <b>Check MobileSAM Latest</b> before downloading to see if an update is needed.</li>
+<li>Use <b>Check Latest</b> before downloading to see if an update is needed.</li>
 <li>Use <b>SAM Status Report</b> to create a shareable JSON report for support.</li>
 </ul>
 
@@ -900,7 +977,7 @@ class AIVectorizerDock(QDockWidget):
 <ol>
 <li><b>래스터 지도 선택</b> - 등고선이 있는 스캔 지도를 선택합니다.</li>
 <li><b>SHP 출력 설정</b> - 새 라인 SHP를 만들거나 기존 라인 레이어를 선택합니다.</li>
-<li><b>AI 모델 선택</b> - 속도/품질에 맞춰 Canny/LSD/HED/MobileSAM을 선택합니다.</li>
+<li><b>AI 모델 선택</b> - 속도/품질에 맞춰 Canny/LSD/HED/MobileSAM/SAM3를 선택합니다.</li>
 <li><b>트레이싱 시작</b> - 등고선을 따라 클릭하며 추적한 뒤 저장합니다.</li>
 </ol>
 
@@ -911,6 +988,7 @@ class AIVectorizerDock(QDockWidget):
 <tr><td>📐 LSD</td><td>빠름</td><td>좋음</td><td>내장</td></tr>
 <tr><td>🧠 HED</td><td>보통</td><td>우수</td><td>약 56MB 모델 필요</td></tr>
 <tr><td>🎯 MobileSAM</td><td>느림</td><td>최고</td><td>PyTorch 및 모델 파일 필요</td></tr>
+<tr><td>🚀 SAM3</td><td>가장 느림</td><td>최상</td><td>PyTorch, sam3 패키지, 모델 파일 필요</td></tr>
 </table>
 
 <h3>🖱️ 조작법</h3>
@@ -927,7 +1005,7 @@ class AIVectorizerDock(QDockWidget):
 <li>등고선이 명확히 보일 정도로 확대하면 스냅 품질이 좋아집니다.</li>
 <li>선이 튀면 마우스를 천천히 움직이고 AI 강도를 낮춰보세요.</li>
 <li>SAM/HED가 준비되지 않았다면 Canny/LSD부터 시작하세요.</li>
-<li>다운로드 전에 <b>MobileSAM 최신 확인</b> 버튼으로 업데이트 필요 여부를 확인하세요.</li>
+<li>다운로드 전에 <b>최신 확인</b> 버튼으로 업데이트 필요 여부를 확인하세요.</li>
 <li>문제 공유가 필요하면 <b>SAM 상태 리포트</b> 버튼으로 JSON 리포트를 생성하세요.</li>
 </ul>
 
