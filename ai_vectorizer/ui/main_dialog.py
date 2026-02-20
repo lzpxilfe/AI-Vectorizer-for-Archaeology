@@ -3,289 +3,459 @@
 ArchaeoTrace - AI-assisted contour tracing for historical maps
 Dockable panel with guided workflow and tooltips
 """
+
 import os
+import json
+import tempfile
+import traceback
+from datetime import datetime, timezone
 from qgis.PyQt.QtWidgets import (
-    QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QCheckBox, 
-    QPushButton, QGroupBox, QFileDialog, QLineEdit, QSlider, QMessageBox
+    QDockWidget,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QComboBox,
+    QCheckBox,
+    QPushButton,
+    QGroupBox,
+    QFileDialog,
+    QLineEdit,
+    QSlider,
+    QMessageBox,
+    QApplication,
 )
 from qgis.core import (
-    QgsProject, QgsMapLayerProxyModel, QgsVectorLayer,
-    QgsField, QgsVectorFileWriter, QgsCoordinateReferenceSystem,
-    QgsSymbol, QgsSingleSymbolRenderer
+    QgsProject,
+    QgsMapLayerProxyModel,
+    QgsVectorLayer,
+    QgsField,
+    QgsVectorFileWriter,
+    QgsCoordinateReferenceSystem,
+    QgsSymbol,
+    QgsSingleSymbolRenderer,
+    Qgis,
 )
 from qgis.gui import QgsMapLayerComboBox
-from qgis.PyQt.QtCore import Qt, QVariant, QCoreApplication
+from qgis.PyQt.QtCore import Qt, QVariant, QSettings
 from qgis.PyQt.QtGui import QColor
+
+from ..config import (
+    DEFAULT_CRS_AUTHID,
+    DEFAULT_EDGE_METHOD,
+    DEFAULT_FREEDOM_SLIDER_VALUE,
+    DEFAULT_OUTPUT_LAYER_NAME,
+    DEFAULT_SAM_MODEL_TYPE,
+    EDGE_METHOD_BY_MODEL,
+    MAX_RASTER_BANDS_FOR_RGB,
+    MODEL_IDX_CANNY,
+    MODEL_IDX_HED,
+    MODEL_IDX_LSD,
+    MODEL_IDX_SAM,
+    PREVIEW_EDGE_MAX_DIMENSION,
+    TRACE_BUTTON_ACTIVE_STYLE,
+    TRACE_BUTTON_IDLE_STYLE,
+)
+
+
+LANG_KO = "ko"
+LANG_EN = "en"
+
 
 class AIVectorizerDock(QDockWidget):
     """Dockable panel for ArchaeoTrace plugin."""
-    
+
+    SETTINGS_LANG_KEY = "ArchaeoTrace/language"
+
     def __init__(self, iface, parent=None):
         super().__init__("ArchaeoTrace", parent)
         self.iface = iface
         self.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-        
+
         self.active_tool = None
         self.output_layer = None
-        
-        # Main widget
+        self.sam_engine = None
+        self.current_language = self._load_language()
+
         main_widget = QWidget()
         self.layout = QVBoxLayout()
         main_widget.setLayout(self.layout)
         self.setWidget(main_widget)
-        
+
         self.setup_ui()
-        
-    def tr(self, message):
-        return QCoreApplication.translate('ArchaeoTrace', message)
-        
-    def setup_ui(self):
-        # === Header ===
-        header = QLabel(self.tr("🏛️ ArchaeoTrace - 고지도 등고선 벡터화"))
-        header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px; background: #2c3e50; color: white; border-radius: 3px;")
-        self.layout.addWidget(header)
-        
-        # === Step 1: Input Map ===
-        step1 = QGroupBox(self.tr("1️⃣ 입력 지도"))
-        step1.setToolTip(self.tr("벡터화할 래스터 지도를 선택하세요"))
-        step1_layout = QVBoxLayout()
-        
-        step1_desc = QLabel(self.tr("💡 등고선이 있는 스캔 지도 선택"))
-        step1_desc.setStyleSheet("color: gray; font-size: 10px;")
-        step1_layout.addWidget(step1_desc)
-        
-        self.layer_combo = QgsMapLayerComboBox()
-        self.layer_combo.setFilters(QgsMapLayerProxyModel.RasterLayer)
-        self.layer_combo.setToolTip("QGIS에 로드된 래스터 레이어 중 선택")
-        step1_layout.addWidget(self.layer_combo)
-        step1.setLayout(step1_layout)
-        self.layout.addWidget(step1)
-        
-        # === Step 2: Output SHP ===
-        step2 = QGroupBox(self.tr("2️⃣ 출력 파일"))
-        step2.setToolTip(self.tr("등고선을 저장할 Shapefile 생성 또는 선택"))
-        step2_layout = QVBoxLayout()
-        
-        step2_desc = QLabel(self.tr("💡 새 SHP 생성 또는 기존 레이어 선택"))
-        step2_desc.setStyleSheet("color: gray; font-size: 10px;")
-        step2_layout.addWidget(step2_desc)
-        
-        # File path
-        path_layout = QHBoxLayout()
-        self.shp_path = QLineEdit()
-        self.shp_path.setPlaceholderText("저장할 SHP 파일 경로...")
-        browse_btn = QPushButton("📂")
-        browse_btn.setFixedWidth(30)
-        browse_btn.setToolTip("파일 위치 찾기")
-        browse_btn.clicked.connect(self.browse_shp)
-        path_layout.addWidget(self.shp_path)
-        path_layout.addWidget(browse_btn)
-        step2_layout.addLayout(path_layout)
-        
-        self.create_shp_btn = QPushButton(self.tr("📁 새 SHP 생성"))
-        self.create_shp_btn.clicked.connect(self.create_shp_layer)
-        self.create_shp_btn.setToolTip("지정한 경로에 새 Shapefile을 생성합니다")
-        step2_layout.addWidget(self.create_shp_btn)
-        
-        step2_layout.addWidget(QLabel("또는 기존 라인 레이어:"))
-        self.vector_combo = QgsMapLayerComboBox()
-        self.vector_combo.setFilters(QgsMapLayerProxyModel.LineLayer)
-        self.vector_combo.layerChanged.connect(self.on_layer_selected)
-        self.vector_combo.setToolTip("이미 있는 라인 레이어에 추가")
-        step2_layout.addWidget(self.vector_combo)
-        
-        step2.setLayout(step2_layout)
-        self.layout.addWidget(step2)
-        
-        # === Step 3: Tracing Options ===
-        step3 = QGroupBox(self.tr("3️⃣ 트레이싱 설정"))
-        step3.setToolTip(self.tr("등고선을 따라 그리기 위한 AI 설정"))
-        step3_layout = QVBoxLayout()
-        
-        # AI Model selector with description
-        model_desc = QLabel("💡 AI 모델: 등고선 인식 방식 선택")
-        model_desc.setStyleSheet("color: gray; font-size: 10px;")
-        step3_layout.addWidget(model_desc)
-        
-        model_layout = QHBoxLayout()
-        model_label = QLabel("AI 모델:")
-        model_label.setToolTip("각 모델의 장단점:\n• Canny: 가장 빠름, 기본\n• LSD: 선분 기반, 빠름\n• HED: 딥러닝, 매끄러움\n• SAM: 최고 품질 (56MB)")
-        model_layout.addWidget(model_label)
-        self.model_combo = QComboBox()
-        self.model_combo.addItems([
+
+    def _tr(self, ko, en):
+        return en if self.current_language == LANG_EN else ko
+
+    def _load_language(self):
+        settings = QSettings()
+        value = settings.value(self.SETTINGS_LANG_KEY, None)
+        if value is None:
+            locale = str(settings.value("locale/userLocale", "ko"))
+            return LANG_EN if locale.lower().startswith("en") else LANG_KO
+        lang = str(value)
+        return lang if lang in (LANG_KO, LANG_EN) else LANG_KO
+
+    def _save_language(self):
+        QSettings().setValue(self.SETTINGS_LANG_KEY, self.current_language)
+
+    def _model_items(self):
+        if self.current_language == LANG_EN:
+            return [
+                "🔧 OpenCV Canny (Default)",
+                "📐 LSD Line Detector (Fast)",
+                "🧠 HED Deep Learning (Smooth)",
+                "🎯 MobileSAM (High Quality)",
+            ]
+        return [
             "🔧 OpenCV Canny (기본)",
             "📐 LSD 선분검출 (빠름)",
             "🧠 HED 딥러닝 (매끄러움)",
-            "🎯 MobileSAM (고품질)"
-        ])
-        self.model_combo.setToolTip("Canny: 기본\nLSD: 선분 기반\nHED: 딥러닝 엣지\nSAM: 세그멘테이션")
+            "🎯 MobileSAM (고품질)",
+        ]
+
+    def _mode_name(self, idx):
+        names = {
+            MODEL_IDX_CANNY: "Canny",
+            MODEL_IDX_LSD: "LSD",
+            MODEL_IDX_HED: "HED",
+            MODEL_IDX_SAM: "SAM",
+        }
+        return names.get(idx, "OpenCV")
+
+    def setup_ui(self):
+        self.header_label = QLabel()
+        self.header_label.setStyleSheet(
+            "font-size: 14px; font-weight: bold; padding: 5px; "
+            "background: #2c3e50; color: white; border-radius: 3px;"
+        )
+        self.layout.addWidget(self.header_label)
+
+        lang_layout = QHBoxLayout()
+        self.lang_label = QLabel()
+        self.lang_combo = QComboBox()
+        self.lang_combo.addItem("한국어", LANG_KO)
+        self.lang_combo.addItem("English", LANG_EN)
+        idx = self.lang_combo.findData(self.current_language)
+        self.lang_combo.setCurrentIndex(idx if idx >= 0 else 0)
+        self.lang_combo.currentIndexChanged.connect(self.on_language_changed)
+        lang_layout.addWidget(self.lang_label)
+        lang_layout.addWidget(self.lang_combo)
+        lang_layout.addStretch()
+        self.layout.addLayout(lang_layout)
+
+        self.step1_group = QGroupBox()
+        step1_layout = QVBoxLayout()
+        self.step1_desc = QLabel()
+        self.step1_desc.setStyleSheet("color: gray; font-size: 10px;")
+        step1_layout.addWidget(self.step1_desc)
+        self.layer_combo = QgsMapLayerComboBox()
+        self.layer_combo.setFilters(QgsMapLayerProxyModel.RasterLayer)
+        step1_layout.addWidget(self.layer_combo)
+        self.step1_group.setLayout(step1_layout)
+        self.layout.addWidget(self.step1_group)
+
+        self.step2_group = QGroupBox()
+        step2_layout = QVBoxLayout()
+        self.step2_desc = QLabel()
+        self.step2_desc.setStyleSheet("color: gray; font-size: 10px;")
+        step2_layout.addWidget(self.step2_desc)
+
+        path_layout = QHBoxLayout()
+        self.shp_path = QLineEdit()
+        self.browse_btn = QPushButton("📂")
+        self.browse_btn.setFixedWidth(30)
+        self.browse_btn.clicked.connect(self.browse_shp)
+        path_layout.addWidget(self.shp_path)
+        path_layout.addWidget(self.browse_btn)
+        step2_layout.addLayout(path_layout)
+
+        self.create_shp_btn = QPushButton()
+        self.create_shp_btn.clicked.connect(self.create_shp_layer)
+        step2_layout.addWidget(self.create_shp_btn)
+
+        self.existing_layer_label = QLabel()
+        step2_layout.addWidget(self.existing_layer_label)
+        self.vector_combo = QgsMapLayerComboBox()
+        self.vector_combo.setFilters(QgsMapLayerProxyModel.LineLayer)
+        self.vector_combo.layerChanged.connect(self.on_layer_selected)
+        step2_layout.addWidget(self.vector_combo)
+        self.step2_group.setLayout(step2_layout)
+        self.layout.addWidget(self.step2_group)
+
+        self.step3_group = QGroupBox()
+        step3_layout = QVBoxLayout()
+        self.model_desc_label = QLabel()
+        self.model_desc_label.setStyleSheet("color: gray; font-size: 10px;")
+        step3_layout.addWidget(self.model_desc_label)
+
+        model_layout = QHBoxLayout()
+        self.model_label = QLabel()
+        model_layout.addWidget(self.model_label)
+        self.model_combo = QComboBox()
         self.model_combo.currentIndexChanged.connect(self.on_model_changed)
         model_layout.addWidget(self.model_combo)
         step3_layout.addLayout(model_layout)
-        
-        # SAM status & download
+
         self.sam_status = QLabel("")
         self.sam_status.setStyleSheet("font-size: 10px;")
         step3_layout.addWidget(self.sam_status)
-        
-        self.sam_download_btn = QPushButton("⬇️ MobileSAM 다운로드 (~40MB)")
+
+        self.sam_check_btn = QPushButton()
+        self.sam_check_btn.clicked.connect(self.check_sam_update)
+        self.sam_check_btn.setVisible(False)
+        step3_layout.addWidget(self.sam_check_btn)
+
+        self.sam_report_btn = QPushButton()
+        self.sam_report_btn.clicked.connect(self.export_sam_report)
+        self.sam_report_btn.setVisible(False)
+        step3_layout.addWidget(self.sam_report_btn)
+
+        self.sam_download_btn = QPushButton()
         self.sam_download_btn.clicked.connect(self.download_sam)
         self.sam_download_btn.setVisible(False)
-        self.sam_download_btn.setToolTip("인터넷 연결 필요. 최초 1회만 다운로드")
         step3_layout.addWidget(self.sam_download_btn)
-        
-        # Install guide (for SAM dependencies) - COPYABLE
-        install_label = QLabel("📦 SAM 설치 (복사 가능):")
-        install_label.setStyleSheet("color: #e67e22; font-size: 9px;")
-        install_label.setVisible(False)
-        step3_layout.addWidget(install_label)
-        
+
+        self.install_guide = QLabel()
+        self.install_guide.setStyleSheet("color: #e67e22; font-size: 9px;")
+        self.install_guide.setVisible(False)
+        step3_layout.addWidget(self.install_guide)
+
         self.install_cmd = QLineEdit()
-        self.install_cmd.setText("pip install torch torchvision git+https://github.com/ChaoningZhang/MobileSAM.git")
+        self.install_cmd.setText(
+            "pip install torch torchvision git+https://github.com/ChaoningZhang/MobileSAM.git"
+        )
         self.install_cmd.setReadOnly(True)
         self.install_cmd.setStyleSheet("background: #fff3e0; font-size: 9px; padding: 3px;")
         self.install_cmd.setVisible(False)
         step3_layout.addWidget(self.install_cmd)
-        
-        self.install_guide = install_label  # Reference for visibility toggle
-        
-        # Freehand checkbox
-        self.freehand_check = QCheckBox("✏️ 프리핸드 (AI 비활성)")
-        self.freehand_check.setToolTip("체크: AI 없이 순수 마우스 추적")
+
+        self.freehand_check = QCheckBox()
         step3_layout.addWidget(self.freehand_check)
-        
-        # Edge strength slider
+
         edge_layout = QHBoxLayout()
-        edge_label = QLabel("AI 강도:")
-        edge_layout.addWidget(edge_label)
-        
+        self.edge_strength_label = QLabel()
+        edge_layout.addWidget(self.edge_strength_label)
         self.freedom_slider = QSlider(Qt.Horizontal)
         self.freedom_slider.setMinimum(0)
         self.freedom_slider.setMaximum(100)
-        self.freedom_slider.setValue(30)
-        self.freedom_slider.setToolTip("0%: 자유롭게\n100%: 엣지 따라감")
+        self.freedom_slider.setValue(DEFAULT_FREEDOM_SLIDER_VALUE)
         edge_layout.addWidget(self.freedom_slider)
-        
-        self.freedom_label = QLabel("30%")
+        self.freedom_label = QLabel(f"{DEFAULT_FREEDOM_SLIDER_VALUE}%")
         self.freedom_slider.valueChanged.connect(lambda v: self.freedom_label.setText(f"{v}%"))
         edge_layout.addWidget(self.freedom_label)
         step3_layout.addLayout(edge_layout)
-        
-        # Start button
-        self.trace_btn = QPushButton(self.tr("🖊️ 트레이싱 시작"))
+
+        self.trace_btn = QPushButton()
         self.trace_btn.setCheckable(True)
         self.trace_btn.clicked.connect(self.toggle_trace_tool)
-        self.trace_btn.setStyleSheet("font-weight: bold; padding: 8px; background: #27ae60; color: white;")
+        self.trace_btn.setStyleSheet(TRACE_BUTTON_IDLE_STYLE)
         self.trace_btn.setEnabled(False)
-        self.trace_btn.setToolTip("클릭하여 트레이싱 시작")
         step3_layout.addWidget(self.trace_btn)
-        
-        step3.setLayout(step3_layout)
-        self.layout.addWidget(step3)
-        
-        # === Status & Controls ===
-        status_box = QGroupBox("📋 상태")
+
+        self.step3_group.setLayout(step3_layout)
+        self.layout.addWidget(self.step3_group)
+
+        self.status_box = QGroupBox()
         status_layout = QVBoxLayout()
-        
-        self.status_label = QLabel("SHP 파일을 먼저 생성하세요")
+        self.status_label = QLabel()
         self.status_label.setWordWrap(True)
-        self.status_label.setToolTip("현재 트레이싱 상태를 표시합니다")
         status_layout.addWidget(self.status_label)
-        
-        # Controls guide with better formatting
-        controls_title = QLabel("📖 사용법:")
-        controls_title.setStyleSheet("font-weight: bold; color: #333; margin-top: 5px;")
-        status_layout.addWidget(controls_title)
-        
-        controls = QLabel(
-            "• 드래그: 선 그리기 / 클릭: 체크포인트\n"
-            "• Ctrl+Z: 마지막 체크포인트로 되돌리기\n"
-            "• Esc: 조금 되돌리기 / Del: 전체 취소\n"
-            "• 시작점 클릭: 폴리곤 닫기 → 해발값\n"
-            "• 우클릭/Enter: 저장"
+        self.controls_title_label = QLabel()
+        self.controls_title_label.setStyleSheet("font-weight: bold; color: #333; margin-top: 5px;")
+        status_layout.addWidget(self.controls_title_label)
+        self.controls_label = QLabel()
+        self.controls_label.setStyleSheet(
+            "color: #555; font-size: 9px; background: #f8f9fa; "
+            "padding: 8px; border-radius: 4px; line-height: 1.4;"
         )
-        controls.setStyleSheet("color: #555; font-size: 9px; background: #f8f9fa; padding: 8px; border-radius: 4px; line-height: 1.4;")
-        controls.setToolTip("클릭으로 체크포인트 저장\n실수하면 Ctrl+Z로 되돌림")
-        status_layout.addWidget(controls)
-        
-        status_box.setLayout(status_layout)
-        self.layout.addWidget(status_box)
-        
-        # === Debug Tools ===
-        debug_box = QGroupBox("🔧 디버그 및 도움말")
-        debug_box.setToolTip("문제 해결을 위한 도구들")
+        status_layout.addWidget(self.controls_label)
+        self.status_box.setLayout(status_layout)
+        self.layout.addWidget(self.status_box)
+
+        self.debug_box = QGroupBox()
         debug_layout = QVBoxLayout()
-        
-        self.preview_edge_btn = QPushButton(self.tr("👁️ AI가 보는 엣지 미리보기"))
+        self.preview_edge_btn = QPushButton()
         self.preview_edge_btn.clicked.connect(self.preview_edges)
-        self.preview_edge_btn.setToolTip("현재 선택된 AI 모델이 감지하는 엣지를\n임시 래스터 레이어로 표시합니다.\n\n흰색 = AI가 인식하는 등고선")
         debug_layout.addWidget(self.preview_edge_btn)
-        
-        # Help button
-        help_btn = QPushButton(self.tr("❓ 도움말"))
-        help_btn.clicked.connect(self.show_help)
-        help_btn.setToolTip("사용법과 문제해결 안내")
-        debug_layout.addWidget(help_btn)
-        
-        debug_box.setLayout(debug_layout)
-        self.layout.addWidget(debug_box)
-        
-        # Add stretch to push everything up
+        self.help_btn = QPushButton()
+        self.help_btn.clicked.connect(self.show_help)
+        debug_layout.addWidget(self.help_btn)
+        self.debug_box.setLayout(debug_layout)
+        self.layout.addWidget(self.debug_box)
+
         self.layout.addStretch()
+
+        self.apply_language()
+        self.on_model_changed(self.model_combo.currentIndex())
+
+    def apply_language(self):
+        current_idx = self.model_combo.currentIndex()
+        self.model_combo.blockSignals(True)
+        self.model_combo.clear()
+        self.model_combo.addItems(self._model_items())
+        self.model_combo.setCurrentIndex(max(0, min(current_idx, self.model_combo.count() - 1)))
+        self.model_combo.blockSignals(False)
+
+        self.setWindowTitle("ArchaeoTrace")
+        self.header_label.setText(
+            self._tr(
+                "🏛️ ArchaeoTrace - 고지도 등고선 벡터화",
+                "🏛️ ArchaeoTrace - Historical Map Contour Vectorization",
+            )
+        )
+        self.lang_label.setText(self._tr("언어:", "Language:"))
+
+        self.step1_group.setTitle(self._tr("1️⃣ 입력 지도", "1️⃣ Input Map"))
+        self.step1_group.setToolTip(self._tr("벡터화할 래스터 지도를 선택하세요", "Select a raster map to vectorize"))
+        self.step1_desc.setText(self._tr("💡 등고선이 있는 스캔 지도 선택", "💡 Select a scanned map with contours"))
+        self.layer_combo.setToolTip(self._tr("QGIS에 로드된 래스터 레이어 중 선택", "Choose from raster layers loaded in QGIS"))
+
+        self.step2_group.setTitle(self._tr("2️⃣ 출력 파일", "2️⃣ Output File"))
+        self.step2_group.setToolTip(self._tr("등고선을 저장할 Shapefile 생성 또는 선택", "Create or select a Shapefile for output"))
+        self.step2_desc.setText(self._tr("💡 새 SHP 생성 또는 기존 레이어 선택", "💡 Create a new SHP or select an existing line layer"))
+        self.shp_path.setPlaceholderText(self._tr("저장할 SHP 파일 경로...", "Output SHP file path..."))
+        self.browse_btn.setToolTip(self._tr("파일 위치 찾기", "Browse file location"))
+        self.create_shp_btn.setText(self._tr("📁 새 SHP 생성", "📁 Create New SHP"))
+        self.create_shp_btn.setToolTip(self._tr("지정한 경로에 새 Shapefile을 생성합니다", "Create a new Shapefile at the selected path"))
+        self.existing_layer_label.setText(self._tr("또는 기존 라인 레이어:", "Or existing line layer:"))
+        self.vector_combo.setToolTip(self._tr("이미 있는 라인 레이어에 추가", "Append to an existing line layer"))
+
+        self.step3_group.setTitle(self._tr("3️⃣ 트레이싱 설정", "3️⃣ Tracing Options"))
+        self.step3_group.setToolTip(self._tr("등고선을 따라 그리기 위한 AI 설정", "AI options for contour tracing"))
+        self.model_desc_label.setText(self._tr("💡 AI 모델: 등고선 인식 방식 선택", "💡 AI model: choose contour detection behavior"))
+        self.model_label.setText(self._tr("AI 모델:", "AI Model:"))
+        self.model_label.setToolTip(
+            self._tr(
+                "각 모델의 장단점:\n• Canny: 가장 빠름, 기본\n• LSD: 선분 기반, 빠름\n• HED: 딥러닝, 매끄러움\n• SAM: 최고 품질 (56MB)",
+                "Model tradeoffs:\n• Canny: fastest baseline\n• LSD: line-based, fast\n• HED: deep-learning, smooth\n• SAM: best quality (~56MB)",
+            )
+        )
+        self.model_combo.setToolTip(
+            self._tr(
+                "Canny: 기본\nLSD: 선분 기반\nHED: 딥러닝 엣지\nSAM: 세그멘테이션",
+                "Canny: baseline\nLSD: line detector\nHED: deep edge detector\nSAM: segmentation",
+            )
+        )
+        self.sam_check_btn.setText(self._tr("🔎 MobileSAM 최신 확인", "🔎 Check MobileSAM Latest"))
+        self.sam_check_btn.setToolTip(
+            self._tr(
+                "원격 모델 메타데이터(ETag/크기)와 비교해 최신 여부를 확인합니다",
+                "Compare remote model metadata (ETag/size) with local file",
+            )
+        )
+        self.sam_report_btn.setText(self._tr("📄 SAM 상태 리포트", "📄 SAM Status Report"))
+        self.sam_report_btn.setToolTip(
+            self._tr(
+                "현재 SAM 환경/버전/모델 상태를 JSON으로 저장하고 클립보드에 복사합니다",
+                "Export current SAM environment/version/model status as JSON and copy it to clipboard",
+            )
+        )
+        self.sam_download_btn.setToolTip(self._tr("인터넷 연결 필요. 최초 1회만 다운로드", "Internet required. Download once on first use"))
+        self.install_guide.setText(self._tr("📦 SAM 설치 (복사 가능):", "📦 SAM Install (copy this):"))
+        self.freehand_check.setText(self._tr("✏️ 프리핸드 (AI 비활성)", "✏️ Freehand (AI Off)"))
+        self.freehand_check.setToolTip(self._tr("체크: AI 없이 순수 마우스 추적", "Checked: pure mouse tracing without AI"))
+        self.edge_strength_label.setText(self._tr("AI 강도:", "AI Strength:"))
+        self.freedom_slider.setToolTip(self._tr("0%: 자유롭게\n100%: 엣지 따라감", "0%: freer draw\n100%: stronger edge following"))
+        self.trace_btn.setText(self._tr("⏹️ 중지", "⏹️ Stop") if self.trace_btn.isChecked() else self._tr("🖊️ 트레이싱 시작", "🖊️ Start Tracing"))
+        self.trace_btn.setToolTip(self._tr("클릭하여 트레이싱 시작", "Click to start tracing"))
+
+        self.status_box.setTitle(self._tr("📋 상태", "📋 Status"))
+        self.status_label.setToolTip(self._tr("현재 트레이싱 상태를 표시합니다", "Shows current tracing state"))
+        self.controls_title_label.setText(self._tr("📖 사용법:", "📖 Controls:"))
+        self.controls_label.setText(
+            self._tr(
+                "• 드래그: 선 그리기 / 클릭: 체크포인트\n• Ctrl+Z: 마지막 체크포인트로 되돌리기\n• Esc: 현재 그리기 취소 / Del: 전체 취소\n• 시작점 클릭: 폴리곤 닫기 → 해발값\n• 우클릭/Enter: 저장",
+                "• Drag: draw line / Click: checkpoint\n• Ctrl+Z: undo to last checkpoint\n• Esc: cancel current trace / Del: cancel all\n• Click start point: close polygon -> elevation\n• Right click / Enter: save",
+            )
+        )
+        self.controls_label.setToolTip(self._tr("클릭으로 체크포인트 저장\n실수하면 Ctrl+Z로 되돌림", "Click to place checkpoints\nUse Ctrl+Z to undo"))
+
+        self.debug_box.setTitle(self._tr("🔧 디버그 및 도움말", "🔧 Debug & Help"))
+        self.debug_box.setToolTip(self._tr("문제 해결을 위한 도구들", "Tools for troubleshooting"))
+        self.preview_edge_btn.setText(self._tr("👁️ AI가 보는 엣지 미리보기", "👁️ Preview AI-Detected Edges"))
+        self.preview_edge_btn.setToolTip(
+            self._tr(
+                "현재 선택된 AI 모델이 감지하는 엣지를\n임시 래스터 레이어로 표시합니다.\n\n흰색 = AI가 인식하는 등고선",
+                "Shows detected edges from the selected AI model\nas a temporary raster layer.\n\nWhite = detected contour edges",
+            )
+        )
+        self.help_btn.setText(self._tr("❓ 도움말", "❓ Help"))
+        self.help_btn.setToolTip(self._tr("사용법과 문제해결 안내", "Usage guide and troubleshooting"))
+
+        if self.model_combo.currentIndex() == MODEL_IDX_HED:
+            self.sam_download_btn.setText(self._tr("📥 HED 다운로드", "📥 Download HED"))
+        else:
+            self.sam_download_btn.setText(self._tr("⬇️ MobileSAM 다운로드 (~40MB)", "⬇️ Download MobileSAM (~40MB)"))
+
+        if not self.trace_btn.isEnabled():
+            self.status_label.setText(self._tr("SHP 파일을 먼저 생성하세요", "Create or select an SHP layer first"))
+        elif self.trace_btn.isChecked():
+            self.status_label.setText(self._tr("🖊️ [{mode}] 등고선을 클릭하세요", "🖊️ [{mode}] Click on contours").format(mode=self._mode_name(self.model_combo.currentIndex())))
+        else:
+            self.status_label.setText(self._tr("✅ 준비 완료", "✅ Ready"))
+
+    def on_language_changed(self, _index):
+        selected = self.lang_combo.currentData()
+        if selected not in (LANG_KO, LANG_EN):
+            return
+        self.current_language = selected
+        self._save_language()
+        self.apply_language()
+        self.on_model_changed(self.model_combo.currentIndex())
+        if self.active_tool:
+            self.active_tool.language = self.current_language
 
     def browse_shp(self):
         path, _ = QFileDialog.getSaveFileName(
-            self, "SHP 파일 저장 위치", "", "Shapefile (*.shp)"
+            self,
+            self._tr("SHP 파일 저장 위치", "Save SHP File"),
+            "",
+            "Shapefile (*.shp)",
         )
         if path:
-            if not path.endswith('.shp'):
-                path += '.shp'
+            if not path.endswith(".shp"):
+                path += ".shp"
             self.shp_path.setText(path)
 
     def create_shp_layer(self):
         path = self.shp_path.text()
         if not path:
-            QMessageBox.warning(self, "경고", "파일 경로를 지정해주세요.")
+            QMessageBox.warning(self, self._tr("경고", "Warning"), self._tr("파일 경로를 지정해주세요.", "Please specify an output file path."))
             return
-        
+
         raster = self.layer_combo.currentLayer()
-        crs = raster.crs() if raster else QgsCoordinateReferenceSystem("EPSG:4326")
-        
-        fields = [
-            QgsField("id", QVariant.Int),
-            QgsField("elevation", QVariant.Double)
-        ]
-        
-        layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", "Contours", "memory")
+        crs = raster.crs() if raster else QgsCoordinateReferenceSystem(DEFAULT_CRS_AUTHID)
+        fields = [QgsField("id", QVariant.Int), QgsField("elevation", QVariant.Double)]
+
+        layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", DEFAULT_OUTPUT_LAYER_NAME, "memory")
         layer.dataProvider().addAttributes(fields)
         layer.updateFields()
-        
-        error = QgsVectorFileWriter.writeAsVectorFormat(
-            layer, path, "UTF-8", crs, "ESRI Shapefile"
-        )
-        
+        error = QgsVectorFileWriter.writeAsVectorFormat(layer, path, "UTF-8", crs, "ESRI Shapefile")
+
         if error[0] == QgsVectorFileWriter.NoError:
-            name = os.path.basename(path).replace('.shp', '')
+            name = os.path.basename(path).replace(".shp", "")
             self.output_layer = QgsVectorLayer(path, name, "ogr")
-            
-            # Set default color to RED for better visibility on black maps
             symbol = QgsSymbol.defaultSymbol(self.output_layer.geometryType())
-            symbol.setColor(QColor(255, 0, 0))  # Red
-            symbol.setWidth(1.2)  # Thicker line (Visible)
-            renderer = QgsSingleSymbolRenderer(symbol)
-            self.output_layer.setRenderer(renderer)
-            
+            symbol.setColor(QColor(255, 0, 0))
+            symbol.setWidth(1.2)
+            self.output_layer.setRenderer(QgsSingleSymbolRenderer(symbol))
             QgsProject.instance().addMapLayer(self.output_layer)
             self.vector_combo.setLayer(self.output_layer)
-            
-            # Start editing immediately so user can delete/undo
             if not self.output_layer.isEditable():
                 self.output_layer.startEditing()
-                
             self.enable_tracing()
-            QMessageBox.information(self, "성공", f"SHP 생성 완료 (편집 모드):\n{path}")
+            QMessageBox.information(
+                self,
+                self._tr("성공", "Success"),
+                self._tr("SHP 생성 완료 (편집 모드):\n{path}", "SHP created successfully (edit mode):\n{path}").format(path=path),
+            )
         else:
-            QMessageBox.critical(self, "오류", f"생성 실패: {error[1]}")
+            QMessageBox.critical(
+                self,
+                self._tr("오류", "Error"),
+                self._tr("생성 실패: {error}", "Creation failed: {error}").format(error=error[1]),
+            )
 
     def on_layer_selected(self, layer):
         if layer:
@@ -296,30 +466,25 @@ class AIVectorizerDock(QDockWidget):
 
     def enable_tracing(self):
         self.trace_btn.setEnabled(True)
-        self.status_label.setText("✅ 준비 완료! 트레이싱을 시작하세요")
+        self.status_label.setText(self._tr("✅ 준비 완료! 트레이싱을 시작하세요", "✅ Ready! Start tracing"))
         self.status_label.setStyleSheet("color: green; font-weight: bold;")
 
     def toggle_trace_tool(self, checked):
         if checked:
             raster = self.layer_combo.currentLayer()
             if not raster:
-                QMessageBox.warning(self, "경고", "래스터 지도를 선택하세요.")
+                QMessageBox.warning(self, self._tr("경고", "Warning"), self._tr("래스터 지도를 선택하세요.", "Please select a raster map."))
                 self.trace_btn.setChecked(False)
                 return
-                
+
             from ..tools.smart_trace_tool import SmartTraceTool
-            
+
             edge_weight = self.freedom_slider.value() / 100.0
             freehand = self.freehand_check.isChecked()
-            
-            # Model selection: 0=Canny, 1=LSD, 2=HED, 3=SAM
             model_idx = self.model_combo.currentIndex()
-            use_sam = model_idx == 3 and hasattr(self, 'sam_engine') and self.sam_engine and self.sam_engine.is_ready
-            
-            # Determine edge method
-            edge_methods = {0: 'canny', 1: 'lsd', 2: 'hed', 3: 'canny'}
-            edge_method = edge_methods.get(model_idx, 'canny')
-            
+            use_sam = model_idx == MODEL_IDX_SAM and self.sam_engine is not None and self.sam_engine.is_ready
+            edge_method = EDGE_METHOD_BY_MODEL.get(model_idx, DEFAULT_EDGE_METHOD)
+
             self.active_tool = SmartTraceTool(
                 self.iface.mapCanvas(),
                 raster,
@@ -328,284 +493,457 @@ class AIVectorizerDock(QDockWidget):
                 freehand=freehand,
                 sam_engine=self.sam_engine if use_sam else None,
                 edge_method=edge_method,
-                iface=self.iface
+                iface=self.iface,
+                language=self.current_language,
             )
             self.iface.mapCanvas().setMapTool(self.active_tool)
             self.active_tool.deactivated.connect(self.on_tool_deactivated)
-            
-            mode_names = {0: "Canny", 1: "LSD", 2: "HED", 3: "SAM"}
-            mode_name = "SAM" if use_sam else mode_names.get(model_idx, "OpenCV")
-            self.status_label.setText(f"🖊️ [{mode_name}] 등고선을 클릭하세요")
-            self.trace_btn.setText("⏹️ 중지")
-            self.trace_btn.setStyleSheet("font-weight: bold; padding: 8px; background: #e74c3c; color: white;")
+
+            mode_name = "SAM" if use_sam else self._mode_name(model_idx)
+            self.status_label.setText(self._tr("🖊️ [{mode}] 등고선을 클릭하세요", "🖊️ [{mode}] Click on contours").format(mode=mode_name))
+            self.trace_btn.setText(self._tr("⏹️ 중지", "⏹️ Stop"))
+            self.trace_btn.setStyleSheet(TRACE_BUTTON_ACTIVE_STYLE)
         else:
             if self.active_tool:
                 self.iface.mapCanvas().unsetMapTool(self.active_tool)
-            self.status_label.setText("✅ 준비 완료")
-            self.trace_btn.setText("🖊️ 트레이싱 시작")
-            self.trace_btn.setStyleSheet("font-weight: bold; padding: 8px; background: #27ae60; color: white;")
+            self.status_label.setText(self._tr("✅ 준비 완료", "✅ Ready"))
+            self.trace_btn.setText(self._tr("🖊️ 트레이싱 시작", "🖊️ Start Tracing"))
+            self.trace_btn.setStyleSheet(TRACE_BUTTON_IDLE_STYLE)
 
     def on_tool_deactivated(self):
         self.trace_btn.setChecked(False)
-        self.trace_btn.setText("🖊️ 트레이싱 시작")
-        self.trace_btn.setStyleSheet("font-weight: bold; padding: 8px; background: #27ae60; color: white;")
-        self.status_label.setText("✅ 준비 완료")
+        self.trace_btn.setText(self._tr("🖊️ 트레이싱 시작", "🖊️ Start Tracing"))
+        self.trace_btn.setStyleSheet(TRACE_BUTTON_IDLE_STYLE)
+        self.status_label.setText(self._tr("✅ 준비 완료", "✅ Ready"))
         self.active_tool = None
 
     def on_model_changed(self, index):
-        """Handle AI model selection change."""
-        # Hide all extra controls first
+        self.sam_check_btn.setVisible(False)
+        self.sam_report_btn.setVisible(False)
         self.sam_download_btn.setVisible(False)
         self.install_guide.setVisible(False)
         self.install_cmd.setVisible(False)
-        
-        if index == 0:  # Canny
-            self.sam_status.setText("OpenCV 내장")
+        if index in (MODEL_IDX_CANNY, MODEL_IDX_LSD):
+            self.sam_status.setText(self._tr("OpenCV 내장", "Built-in OpenCV"))
             self.sam_status.setStyleSheet("color: green; font-size: 10px;")
-        elif index == 1:  # LSD
-            self.sam_status.setText("OpenCV 내장")
-            self.sam_status.setStyleSheet("color: green; font-size: 10px;")
-        elif index == 2:  # HED
+        elif index == MODEL_IDX_HED:
             self.check_hed_status()
-        elif index == 3:  # MobileSAM
+        elif index == MODEL_IDX_SAM:
+            self.sam_check_btn.setVisible(True)
+            self.sam_report_btn.setVisible(True)
             self.init_sam_engine()
 
     def check_hed_status(self):
-        """Check if HED model is available."""
         from ..core.edge_detector import EdgeDetector
-        
         if EdgeDetector.is_hed_available():
-            self.sam_status.setText("✅ HED 모델 로드됨")
+            self.sam_status.setText(self._tr("✅ HED 모델 로드됨", "✅ HED model loaded"))
             self.sam_status.setStyleSheet("color: green; font-size: 10px;")
         else:
-            self.sam_status.setText("⚠️ HED 모델 필요 (56MB)")
+            self.sam_status.setText(self._tr("⚠️ HED 모델 필요 (56MB)", "⚠️ HED model required (~56MB)"))
             self.sam_status.setStyleSheet("color: orange; font-size: 10px;")
             self.sam_download_btn.setVisible(True)
-            self.sam_download_btn.setText("📥 HED 다운로드")
+            self.sam_download_btn.setText(self._tr("📥 HED 다운로드", "📥 Download HED"))
 
     def init_sam_engine(self):
-        """Initialize SAM engine."""
         try:
             from .core.sam_engine import SAMEngine, MOBILE_SAM_AVAILABLE
         except ImportError:
             from ..core.sam_engine import SAMEngine, MOBILE_SAM_AVAILABLE
-        
+
+        if self.sam_engine is None:
+            self.sam_engine = SAMEngine(model_type=DEFAULT_SAM_MODEL_TYPE)
+
+        self.sam_check_btn.setVisible(True)
+        self.sam_report_btn.setVisible(True)
+        self.sam_download_btn.setVisible(True)
+        self.sam_download_btn.setText(self._tr("⬇️ MobileSAM 다운로드 (~40MB)", "⬇️ Download MobileSAM (~40MB)"))
+
         if not MOBILE_SAM_AVAILABLE:
-            self.sam_status.setText("❌ PyTorch/MobileSAM 미설치")
+            self.sam_status.setText(self._tr("❌ PyTorch/MobileSAM 미설치", "❌ PyTorch/MobileSAM not installed"))
             self.sam_status.setStyleSheet("color: red; font-size: 10px;")
             self.install_guide.setVisible(True)
             self.install_cmd.setVisible(True)
-            self.sam_download_btn.setVisible(False)
             return
-        
-        if not hasattr(self, 'sam_engine') or self.sam_engine is None:
-            self.sam_engine = SAMEngine(model_type="vit_t")
-        
-        success, msg = self.sam_engine.load_model()
+
+        success, _msg = self.sam_engine.load_model()
         if success:
-            self.sam_status.setText("✅ MobileSAM 로드됨")
+            self.sam_status.setText(self._tr("✅ MobileSAM 로드됨 (최신 확인 가능)", "✅ MobileSAM loaded (update check available)"))
             self.sam_status.setStyleSheet("color: green; font-size: 10px;")
-            self.sam_download_btn.setVisible(False)
             self.install_guide.setVisible(False)
         else:
-            self.sam_status.setText("⚠️ 모델 파일 필요")
+            self.sam_status.setText(self._tr("⚠️ 모델 파일 필요", "⚠️ Model file required"))
             self.sam_status.setStyleSheet("color: orange; font-size: 10px;")
-            self.sam_download_btn.setVisible(True)
             self.install_guide.setVisible(False)
 
     def download_sam(self):
-        """Download model weights (SAM or HED based on selection)."""
+        if self.sam_engine is None:
+            from ..core.sam_engine import SAMEngine
+            self.sam_engine = SAMEngine(model_type=DEFAULT_SAM_MODEL_TYPE)
+
         model_idx = self.model_combo.currentIndex()
-        
-        if model_idx == 2:  # HED
+        if model_idx == MODEL_IDX_HED:
             self.download_hed()
             return
-        
-        # SAM download
         self.sam_download_btn.setEnabled(False)
-        self.sam_status.setText("⏬ 다운로드 중...")
+        self.sam_status.setText(self._tr("⏬ 다운로드 중...", "⏬ Downloading..."))
         self.iface.mainWindow().repaint()
-        
-        if hasattr(self, 'sam_engine') and self.sam_engine:
+        if self.sam_engine:
             success = self.sam_engine.download_weights()
             if success:
-                QMessageBox.information(self, "완료", "MobileSAM 다운로드 완료!")
+                QMessageBox.information(self, self._tr("완료", "Done"), self._tr("MobileSAM 다운로드 완료!", "MobileSAM download complete!"))
                 self.init_sam_engine()
+                self.check_sam_update(show_message=False)
             else:
-                QMessageBox.critical(self, "오류", "다운로드 실패. 인터넷 연결을 확인하세요.")
-                self.sam_status.setText("❌ 다운로드 실패")
-        
+                QMessageBox.critical(self, self._tr("오류", "Error"), self._tr("다운로드 실패. 인터넷 연결을 확인하세요.", "Download failed. Check your internet connection."))
+                self.sam_status.setText(self._tr("❌ 다운로드 실패", "❌ Download failed"))
         self.sam_download_btn.setEnabled(True)
 
-    def download_hed(self):
-        """Download HED model weights."""
-        import os
-        import urllib.request
-        
-        self.sam_download_btn.setEnabled(False)
-        self.sam_status.setText("⏬ HED 다운로드 중 (56MB)...")
+    @staticmethod
+    def _format_size(size_bytes):
+        if size_bytes is None:
+            return "?"
+        size = float(size_bytes)
+        for unit in ("B", "KB", "MB", "GB"):
+            if size < 1024 or unit == "GB":
+                return f"{size:.1f}{unit}"
+            size /= 1024.0
+        return f"{size_bytes}B"
+
+    def check_sam_update(self, show_message=True):
+        if self.sam_engine is None:
+            from ..core.sam_engine import SAMEngine
+            self.sam_engine = SAMEngine(model_type=DEFAULT_SAM_MODEL_TYPE)
+
+        self.sam_check_btn.setEnabled(False)
+        self.sam_status.setText(self._tr("🔎 최신 모델 확인 중...", "🔎 Checking latest model..."))
         self.iface.mainWindow().repaint()
-        
+
+        info = self.sam_engine.check_weights_update()
+        self.sam_check_btn.setEnabled(True)
+
+        if not info.get("ok"):
+            self.sam_status.setText(self._tr("❌ 최신 확인 실패", "❌ Latest check failed"))
+            if show_message:
+                QMessageBox.warning(
+                    self,
+                    self._tr("경고", "Warning"),
+                    self._tr(
+                        "최신 모델 확인에 실패했습니다.\n인터넷 연결을 확인하세요.",
+                        "Failed to check latest model.\nPlease check your internet connection.",
+                    ),
+                )
+            return
+
+        status = info.get("status")
+        local = info.get("local", {})
+        remote = info.get("remote", {})
+        local_size = self._format_size(local.get("size"))
+        remote_size = self._format_size(remote.get("content_length"))
+
+        if status == "not_installed":
+            self.sam_status.setText(
+                self._tr(
+                    f"⚠️ MobileSAM 없음 (원격 {remote_size})",
+                    f"⚠️ MobileSAM not installed (remote {remote_size})",
+                )
+            )
+            self.sam_download_btn.setText(
+                self._tr("⬇️ MobileSAM 다운로드", "⬇️ Download MobileSAM")
+            )
+            return
+
+        if status == "update_available":
+            self.sam_status.setText(
+                self._tr(
+                    f"⬆️ MobileSAM 업데이트 가능 (로컬 {local_size} → 원격 {remote_size})",
+                    f"⬆️ MobileSAM update available (local {local_size} -> remote {remote_size})",
+                )
+            )
+            self.sam_download_btn.setText(
+                self._tr("⬆️ MobileSAM 업데이트", "⬆️ Update MobileSAM")
+            )
+            if show_message:
+                QMessageBox.information(
+                    self,
+                    self._tr("완료", "Done"),
+                    self._tr(
+                        "새 MobileSAM 모델이 있습니다.\n'업데이트' 버튼으로 바로 받을 수 있습니다.",
+                        "A newer MobileSAM model is available.\nUse the update button to download it.",
+                    ),
+                )
+            return
+
+        if status == "up_to_date":
+            self.sam_status.setText(
+                self._tr(
+                    f"✅ MobileSAM 최신 상태 (로컬 {local_size})",
+                    f"✅ MobileSAM is up to date (local {local_size})",
+                )
+            )
+            self.sam_download_btn.setText(
+                self._tr("⬇️ MobileSAM 재다운로드", "⬇️ Re-download MobileSAM")
+            )
+            return
+
+        self.sam_status.setText(
+            self._tr(
+                "ℹ️ 버전 비교 정보 부족 (필요 시 재다운로드 가능)",
+                "ℹ️ Not enough metadata to compare versions (re-download available)",
+            )
+        )
+        self.sam_download_btn.setText(
+            self._tr("⬇️ MobileSAM 재다운로드", "⬇️ Re-download MobileSAM")
+        )
+
+    @staticmethod
+    def _safe_module_version(package_name):
+        try:
+            import importlib.metadata as md
+            return md.version(package_name)
+        except Exception:
+            return None
+
+    def export_sam_report(self):
+        self.sam_status.setText(self._tr("📄 SAM 리포트 생성 중...", "📄 Building SAM report..."))
+        self.iface.mainWindow().repaint()
+
+        report = {
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "qgis_version": getattr(Qgis, "QGIS_VERSION", None),
+            "python_version": os.sys.version,
+            "cwd": os.getcwd(),
+            "environment": {
+                "QGIS_PREFIX_PATH": os.environ.get("QGIS_PREFIX_PATH"),
+                "PYTHONPATH": os.environ.get("PYTHONPATH"),
+            },
+            "modules": {
+                "requests": self._safe_module_version("requests"),
+                "torch": self._safe_module_version("torch"),
+                "mobile_sam": self._safe_module_version("mobile_sam"),
+                "PyYAML": self._safe_module_version("PyYAML"),
+            },
+        }
+
+        try:
+            if self.sam_engine is None:
+                from ..core.sam_engine import SAMEngine
+                self.sam_engine = SAMEngine(model_type=DEFAULT_SAM_MODEL_TYPE)
+
+            update_info = self.sam_engine.check_weights_update()
+            report["sam_engine"] = {
+                "weights_path": getattr(self.sam_engine, "weights_path", None),
+                "weights_meta_path": getattr(self.sam_engine, "weights_meta_path", None),
+                "weights_url": getattr(self.sam_engine, "WEIGHTS_DOWNLOAD_URL", None),
+                "local_info": self.sam_engine.get_local_weights_info(),
+                "update_check": update_info,
+            }
+
+            out_path = os.path.join(tempfile.gettempdir(), "archaeotrace_sam_report.json")
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(report, f, ensure_ascii=False, indent=2)
+
+            QApplication.clipboard().setText(json.dumps(report, ensure_ascii=False, indent=2))
+
+            status = update_info.get("status", "unknown")
+            self.sam_status.setText(
+                self._tr(
+                    f"✅ SAM 리포트 생성 완료 ({status})",
+                    f"✅ SAM report generated ({status})",
+                )
+            )
+            QMessageBox.information(
+                self,
+                self._tr("완료", "Done"),
+                self._tr(
+                    "SAM 상태 리포트를 생성했습니다.\n- 클립보드에 복사됨\n- 저장 경로: {path}",
+                    "SAM status report generated.\n- Copied to clipboard\n- Saved at: {path}",
+                ).format(path=out_path),
+            )
+        except Exception as e:
+            report["error"] = str(e)
+            report["traceback"] = traceback.format_exc()
+            self.sam_status.setText(self._tr("❌ SAM 리포트 생성 실패", "❌ Failed to build SAM report"))
+            QMessageBox.critical(
+                self,
+                self._tr("오류", "Error"),
+                self._tr(
+                    "SAM 리포트 생성 실패:\n{err}",
+                    "Failed to generate SAM report:\n{err}",
+                ).format(err=str(e)),
+            )
+
+    def download_hed(self):
+        import urllib.request
+        self.sam_download_btn.setEnabled(False)
+        self.sam_status.setText(self._tr("⏬ HED 다운로드 중 (56MB)...", "⏬ Downloading HED (~56MB)..."))
+        self.iface.mainWindow().repaint()
         try:
             from ..core.edge_detector import EdgeDetector
             info = EdgeDetector.get_hed_download_info()
-            
-            # Create models directory
-            models_dir = os.path.dirname(info['caffemodel_path'])
-            os.makedirs(models_dir, exist_ok=True)
-            
-            # Download caffemodel
-            self.sam_status.setText("⏬ HED 다운로드 중...")
-            urllib.request.urlretrieve(
-                info['caffemodel_url'],
-                info['caffemodel_path']
-            )
-            
-            QMessageBox.information(self, "완료", "HED 모델 다운로드 완료!")
+            os.makedirs(os.path.dirname(info["caffemodel_path"]), exist_ok=True)
+            self.sam_status.setText(self._tr("⏬ HED 다운로드 중...", "⏬ Downloading HED..."))
+            urllib.request.urlretrieve(info["caffemodel_url"], info["caffemodel_path"])
+            QMessageBox.information(self, self._tr("완료", "Done"), self._tr("HED 모델 다운로드 완료!", "HED model download complete!"))
             self.check_hed_status()
-            
         except Exception as e:
-            QMessageBox.critical(self, "오류", f"HED 다운로드 실패:\n{str(e)}")
-            self.sam_status.setText("❌ 다운로드 실패")
-        
+            QMessageBox.critical(self, self._tr("오류", "Error"), self._tr("HED 다운로드 실패:\n{err}", "HED download failed:\n{err}").format(err=str(e)))
+            self.sam_status.setText(self._tr("❌ 다운로드 실패", "❌ Download failed"))
         self.sam_download_btn.setEnabled(True)
 
     def preview_edges(self):
-        """Show what the AI edge detector sees as a preview layer."""
-        import os
         import tempfile
         import numpy as np
         from osgeo import gdal
-        
+
         raster = self.layer_combo.currentLayer()
         if not raster:
-            QMessageBox.warning(self, "경고", "래스터 지도를 먼저 선택하세요.")
+            QMessageBox.warning(self, self._tr("경고", "Warning"), self._tr("래스터 지도를 먼저 선택하세요.", "Select a raster map first."))
             return
-        
-        # Get model method
+
         model_idx = self.model_combo.currentIndex()
-        edge_methods = {0: 'canny', 1: 'lsd', 2: 'hed', 3: 'canny'}
-        edge_method = edge_methods.get(model_idx, 'canny')
-        
+        edge_method = EDGE_METHOD_BY_MODEL.get(model_idx, DEFAULT_EDGE_METHOD)
+
         try:
             from ..core.edge_detector import EdgeDetector
-            
-            # Read current view extent
+
             extent = self.iface.mapCanvas().extent()
             provider = raster.dataProvider()
             raster_ext = raster.extent()
             read_ext = extent.intersect(raster_ext)
-            
             if read_ext.isEmpty():
-                QMessageBox.warning(self, "경고", "래스터 범위 밖입니다.")
+                QMessageBox.warning(self, self._tr("경고", "Warning"), self._tr("래스터 범위 밖입니다.", "Current view is outside raster extent."))
                 return
-            
-            # Read raster
+
             raster_res = raster_ext.width() / raster.width()
-            out_w = min(800, int(read_ext.width() / raster_res))
-            out_h = min(800, int(read_ext.height() / raster_res))
-            
+            out_w = min(PREVIEW_EDGE_MAX_DIMENSION, int(read_ext.width() / raster_res))
+            out_h = min(PREVIEW_EDGE_MAX_DIMENSION, int(read_ext.height() / raster_res))
             bands = []
-            for b in range(1, min(4, provider.bandCount() + 1)):
+            for b in range(1, min(MAX_RASTER_BANDS_FOR_RGB + 1, provider.bandCount() + 1)):
                 block = provider.block(b, read_ext, out_w, out_h)
                 if block.isValid() and block.data():
-                    arr = np.frombuffer(block.data(), dtype=np.uint8).reshape((out_h, out_w))
-                    bands.append(arr)
-            
+                    bands.append(np.frombuffer(block.data(), dtype=np.uint8).reshape((out_h, out_w)))
             if not bands:
-                QMessageBox.warning(self, "경고", "래스터 데이터를 읽을 수 없습니다.")
+                QMessageBox.warning(self, self._tr("경고", "Warning"), self._tr("래스터 데이터를 읽을 수 없습니다.", "Failed to read raster data."))
                 return
-            
-            # Convert to grayscale
+
             import cv2
-            if len(bands) >= 3:
-                image = cv2.cvtColor(np.stack(bands[:3], axis=-1), cv2.COLOR_RGB2GRAY)
-            else:
-                image = bands[0]
-            
-            # Detect edges
-            detector = EdgeDetector(method=edge_method)
-            edges = detector.detect_edges(image)
-            
-            # Save as temporary GeoTiff
+            image = cv2.cvtColor(np.stack(bands[:3], axis=-1), cv2.COLOR_RGB2GRAY) if len(bands) >= 3 else bands[0]
+            edges = EdgeDetector(method=edge_method).detect_edges(image)
+
             temp_path = os.path.join(tempfile.gettempdir(), f"edge_preview_{edge_method}.tif")
-            
-            driver = gdal.GetDriverByName('GTiff')
-            ds = driver.Create(temp_path, out_w, out_h, 1, gdal.GDT_Byte)
-            ds.SetGeoTransform([
-                read_ext.xMinimum(), 
-                read_ext.width() / out_w, 0,
-                read_ext.yMaximum(), 
-                0, -read_ext.height() / out_h
-            ])
+            ds = gdal.GetDriverByName("GTiff").Create(temp_path, out_w, out_h, 1, gdal.GDT_Byte)
+            ds.SetGeoTransform([read_ext.xMinimum(), read_ext.width() / out_w, 0, read_ext.yMaximum(), 0, -read_ext.height() / out_h])
             ds.SetProjection(raster.crs().toWkt())
             ds.GetRasterBand(1).WriteArray(edges)
-            ds = None  # Close
-            
-            # Load as layer
+            ds = None
+
             from qgis.core import QgsRasterLayer
-            layer_name = f"Edge Preview ({edge_method.upper()})"
+            layer_name = self._tr("엣지 미리보기", "Edge Preview") + f" ({edge_method.upper()})"
             edge_layer = QgsRasterLayer(temp_path, layer_name)
             if edge_layer.isValid():
                 QgsProject.instance().addMapLayer(edge_layer)
-                QMessageBox.information(self, "완료", f"'{layer_name}' 레이어가 추가되었습니다.\n흰색=감지된 엣지")
+                QMessageBox.information(self, self._tr("완료", "Done"), self._tr("'{name}' 레이어가 추가되었습니다.\n흰색=감지된 엣지", "Layer '{name}' added.\nWhite=detected edges").format(name=layer_name))
             else:
-                QMessageBox.critical(self, "오류", "미리보기 레이어 생성 실패")
-                
+                QMessageBox.critical(self, self._tr("오류", "Error"), self._tr("미리보기 레이어 생성 실패", "Failed to create preview layer"))
         except Exception as e:
-            QMessageBox.critical(self, "오류", f"엣지 감지 실패:\n{str(e)}")
+            QMessageBox.critical(self, self._tr("오류", "Error"), self._tr("엣지 감지 실패:\n{err}", "Edge detection failed:\n{err}").format(err=str(e)))
 
-    def show_help(self):
-        """Show comprehensive help dialog."""
-        help_text = """
+    def _help_text(self):
+        if self.current_language == LANG_EN:
+            return """
+<h2>🏛️ ArchaeoTrace Guide</h2>
+<h3>📋 Basic Workflow</h3>
+<ol>
+<li><b>Select Raster Map</b> - choose a scanned map with contour lines.</li>
+<li><b>Create SHP Output</b> - create a new line SHP or pick an existing line layer.</li>
+<li><b>Choose AI Model</b> - Canny/LSD/HED/MobileSAM depending on speed and quality.</li>
+<li><b>Start Tracing</b> - click along contours and save the result.</li>
+</ol>
+
+<h3>🤖 AI Model Comparison</h3>
+<table border='1' cellpadding='5'>
+<tr><th>Model</th><th>Speed</th><th>Quality</th><th>Notes</th></tr>
+<tr><td>🔧 Canny</td><td>Fastest</td><td>Basic</td><td>Built-in</td></tr>
+<tr><td>📐 LSD</td><td>Fast</td><td>Good</td><td>Built-in</td></tr>
+<tr><td>🧠 HED</td><td>Medium</td><td>High</td><td>~56MB model</td></tr>
+<tr><td>🎯 MobileSAM</td><td>Slow</td><td>Best</td><td>Requires PyTorch + model file</td></tr>
+</table>
+
+<h3>🖱️ Controls</h3>
+<ul>
+<li><b>Left Click</b>: place/confirm points while tracing.</li>
+<li><b>Right Click / Enter</b>: save current line.</li>
+<li><b>Esc / Delete</b>: cancel current trace.</li>
+<li><b>Ctrl+Z</b>: undo back to checkpoint.</li>
+<li><b>Click near start point</b>: close loop and enter elevation.</li>
+</ul>
+
+<h3>💡 Tips</h3>
+<ul>
+<li>Zoom in until contour lines are clearly visible for better snapping.</li>
+<li>If tracing is noisy, move the mouse more slowly and lower AI strength.</li>
+<li>If SAM/HED is unavailable, start with Canny or LSD first.</li>
+<li>Use <b>Check MobileSAM Latest</b> before downloading to see if an update is needed.</li>
+<li>Use <b>SAM Status Report</b> to create a shareable JSON report for support.</li>
+</ul>
+
+<h3>⚠️ Troubleshooting</h3>
+<ul>
+<li><b>No raster selected</b>: choose a raster layer in Step 1.</li>
+<li><b>Model download failed</b>: check internet connection and retry.</li>
+<li><b>No edges in preview</b>: zoom to map area and try another model.</li>
+</ul>
+"""
+        return """
 <h2>🏛️ ArchaeoTrace 사용 가이드</h2>
-
 <h3>📋 기본 워크플로우</h3>
 <ol>
-<li><b>래스터 지도 선택</b> - 등고선이 있는 스캔 지도</li>
-<li><b>SHP 파일 생성</b> - 결과를 저장할 파일</li>
-<li><b>AI 모델 선택</b> - 아래 설명 참고</li>
-<li><b>트레이싱 시작</b> - 등고선 따라 그리기</li>
+<li><b>래스터 지도 선택</b> - 등고선이 있는 스캔 지도를 선택합니다.</li>
+<li><b>SHP 출력 설정</b> - 새 라인 SHP를 만들거나 기존 라인 레이어를 선택합니다.</li>
+<li><b>AI 모델 선택</b> - 속도/품질에 맞춰 Canny/LSD/HED/MobileSAM을 선택합니다.</li>
+<li><b>트레이싱 시작</b> - 등고선을 따라 클릭하며 추적한 뒤 저장합니다.</li>
 </ol>
 
 <h3>🤖 AI 모델 비교</h3>
 <table border='1' cellpadding='5'>
-<tr><th>모델</th><th>속도</th><th>품질</th><th>크기</th></tr>
-<tr><td>🔧 Canny</td><td>⚡최고</td><td>기본</td><td>내장</td></tr>
-<tr><td>📐 LSD</td><td>⚡빠름</td><td>좋음</td><td>내장</td></tr>
-<tr><td>🧠 HED</td><td>보통</td><td>우수</td><td>56MB</td></tr>
-<tr><td>🎯 SAM</td><td>느림</td><td>최고</td><td>설치필요</td></tr>
+<tr><th>모델</th><th>속도</th><th>품질</th><th>비고</th></tr>
+<tr><td>🔧 Canny</td><td>가장 빠름</td><td>기본</td><td>내장</td></tr>
+<tr><td>📐 LSD</td><td>빠름</td><td>좋음</td><td>내장</td></tr>
+<tr><td>🧠 HED</td><td>보통</td><td>우수</td><td>약 56MB 모델 필요</td></tr>
+<tr><td>🎯 MobileSAM</td><td>느림</td><td>최고</td><td>PyTorch 및 모델 파일 필요</td></tr>
 </table>
 
 <h3>🖱️ 조작법</h3>
 <ul>
-<li><b>좌클릭</b>: 경로 따라 그리기 (클릭할 때마다 고정)</li>
-<li><b>우클릭 / Enter</b>: 현재 선 저장 (열린 선)</li>
-<li><b>Esc</b>: 현재 그리기 취소</li>
-<li><b>Ctrl+Z</b>: 마지막 점 취소 (저장된 선은 안 지워짐)</li>
-<li><b>이어그리기</b>: 기존 선의 끝점에 마우스를 올리고 클릭 (분홍색 점)</li>
-<li><b>폴리곤 닫기</b>: 시작점 근처 클릭 (해발값 입력)</li>
+<li><b>좌클릭</b>: 점 배치/확정</li>
+<li><b>우클릭 / Enter</b>: 현재 선 저장</li>
+<li><b>Esc / Delete</b>: 현재 그리기 취소</li>
+<li><b>Ctrl+Z</b>: 체크포인트로 되돌리기</li>
+<li><b>시작점 근처 클릭</b>: 닫힌 루프 생성 후 해발값 입력</li>
 </ul>
 
 <h3>💡 팁</h3>
 <ul>
-<li><b>원 그리기</b>: 점 3개를 찍어서 닫으면 더 예쁜 원이 됩니다</li>
-<li>줌 레벨을 적절히 조절하세요 (등고선이 3~5픽셀 두께가 최적)</li>
-<li>트레이싱 도중 <b>Esc</b>를 누르면 처음부터 다시 그릴 수 있습니다</li>
-<li>실수로 저장했다면 QGIS <b>객체 지우기</b>로 지워주세요 (Ctrl+Z는 그리기 취소용)</li>
+<li>등고선이 명확히 보일 정도로 확대하면 스냅 품질이 좋아집니다.</li>
+<li>선이 튀면 마우스를 천천히 움직이고 AI 강도를 낮춰보세요.</li>
+<li>SAM/HED가 준비되지 않았다면 Canny/LSD부터 시작하세요.</li>
+<li>다운로드 전에 <b>MobileSAM 최신 확인</b> 버튼으로 업데이트 필요 여부를 확인하세요.</li>
+<li>문제 공유가 필요하면 <b>SAM 상태 리포트</b> 버튼으로 JSON 리포트를 생성하세요.</li>
 </ul>
 
 <h3>⚠️ 문제 해결</h3>
 <ul>
-<li><b>선이 자글자글</b>: 마우스를 너무 빨리 움직이지 마세요</li>
-<li><b>초록선이 거슬려요</b>: Enter/우클릭 시 클릭한 점까지만 저장됩니다</li>
-<li><b>이어그리기가 안돼요</b>: 선의 끝점에 정확히 마우스를 올려보세요 (손가락 커서)</li>
+<li><b>래스터 선택 안 됨</b>: 1단계에서 래스터 레이어를 선택하세요.</li>
+<li><b>모델 다운로드 실패</b>: 인터넷 연결 확인 후 다시 시도하세요.</li>
+<li><b>엣지 미리보기가 비어 있음</b>: 지도 범위로 이동/확대 후 다른 모델을 시도하세요.</li>
 </ul>
 """
+
+    def show_help(self):
         msg = QMessageBox(self)
-        msg.setWindowTitle("ArchaeoTrace 도움말")
+        msg.setWindowTitle(self._tr("ArchaeoTrace 도움말", "ArchaeoTrace Help"))
         msg.setTextFormat(Qt.RichText)
-        msg.setText(help_text)
+        msg.setText(self._help_text())
         msg.setStandardButtons(QMessageBox.Ok)
         msg.exec_()
 

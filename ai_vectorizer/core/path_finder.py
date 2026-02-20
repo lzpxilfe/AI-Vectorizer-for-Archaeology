@@ -8,6 +8,14 @@ import numpy as np
 import heapq
 
 class PathFinder:
+    NEIGHBOR_OFFSETS = [
+        (-1, 0), (1, 0), (0, -1), (0, 1),
+        (-1, -1), (-1, 1), (1, -1), (1, 1),
+    ]
+    STRAIGHT_MOVE_COST = 1.0
+    DIAGONAL_MOVE_COST = float(np.sqrt(2.0))
+    MAX_SEARCH_STEPS = 50000
+
     def __init__(self):
         pass
 
@@ -43,14 +51,10 @@ class PathFinder:
         came_from[start] = None
         cost_so_far[start] = 0
         
-        # 8-connected neighbors
-        neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1), 
-                     (-1, -1), (-1, 1), (1, -1), (1, 1)]
-
         found = False
         
         # Safety break for very long searches
-        max_steps = 50000
+        max_steps = self.MAX_SEARCH_STEPS
         steps = 0
 
         while frontier:
@@ -68,14 +72,18 @@ class PathFinder:
             # Optimization: if we are close enough to end? 
             # For now, exact match.
 
-            for dx, dy in neighbors:
+            for dx, dy in self.NEIGHBOR_OFFSETS:
                 next_node = (current[0] + dx, current[1] + dy)
                 
                 # Check bounds
                 if 0 <= next_node[0] < rows and 0 <= next_node[1] < cols:
                     # Calculate new cost
                     # Base move cost is 1 (or 1.414 for diagonal) * map cost
-                    move_cost = 1.414 if dx != 0 and dy != 0 else 1.0
+                    move_cost = (
+                        self.DIAGONAL_MOVE_COST
+                        if dx != 0 and dy != 0
+                        else self.STRAIGHT_MOVE_COST
+                    )
                     
                     # Add map cost (pixel value)
                     node_cost = cost_map[next_node]

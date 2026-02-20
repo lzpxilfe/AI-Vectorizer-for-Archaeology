@@ -7,13 +7,12 @@ GNU General Public License v2
 """
 
 import os
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication
+from qgis.PyQt.QtCore import QCoreApplication
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QToolBar
-
-from qgis.core import QgsProject
+from qgis.PyQt.QtWidgets import QAction
 
 from .ui.main_dialog import AIVectorizerDialog
+from .config import PLUGIN_MENU, PLUGIN_NAME, PLUGIN_TOOLBAR_OBJECT_NAME
 
 
 class AIVectorizer:
@@ -28,7 +27,7 @@ class AIVectorizer:
         self.iface = iface
         self.plugin_dir = os.path.dirname(__file__)
         self.actions = []
-        self.menu = '&ArchaeoTrace'
+        self.menu = PLUGIN_MENU
         self.toolbar = None
         self.dialog = None
 
@@ -62,8 +61,8 @@ class AIVectorizer:
 
         if add_to_toolbar:
             if self.toolbar is None:
-                self.toolbar = self.iface.addToolBar('ArchaeoTrace')
-                self.toolbar.setObjectName('ArchaeoTraceToolbar')
+                self.toolbar = self.iface.addToolBar(PLUGIN_NAME)
+                self.toolbar.setObjectName(PLUGIN_TOOLBAR_OBJECT_NAME)
             self.toolbar.addAction(action)
 
         if add_to_menu:
@@ -79,10 +78,10 @@ class AIVectorizer:
         # Main dialog action
         self.add_action(
             icon_path,
-            text=self.tr('ArchaeoTrace'),
+            text=self.tr(PLUGIN_NAME),
             callback=self.run,
             parent=self.iface.mainWindow(),
-            status_tip=self.tr('Open ArchaeoTrace dialog')
+            status_tip=self.tr(f'Open {PLUGIN_NAME} dialog')
         )
 
     def unload(self):

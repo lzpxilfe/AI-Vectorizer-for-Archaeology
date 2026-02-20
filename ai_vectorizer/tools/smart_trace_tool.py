@@ -15,33 +15,89 @@ import math
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
 from qgis.core import (
     QgsWkbTypes, QgsProject, QgsPointXY, QgsGeometry, 
-    QgsFeature, QgsCoordinateTransform, QgsRectangle,
+    QgsFeature, QgsCoordinateTransform,
     QgsVectorLayer, QgsField, Qgis
 )
 from qgis.PyQt.QtCore import Qt, QVariant, pyqtSignal
-from qgis.PyQt.QtGui import QColor, QCursor
-from qgis.PyQt.QtWidgets import QMenu
+from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtWidgets import QAction
 
 from ..core.edge_detector import EdgeDetector
+from ..config import DEFAULT_OUTPUT_LAYER_NAME, DEFAULT_SPOT_LAYER_NAME
 
 
 class SmartTraceTool(QgsMapToolEmitPoint):
     deactivated = pyqtSignal()
+    SNAP_RADIUS_BASE = 15
+    SNAP_RADIUS_EDGE_WEIGHT_FACTOR = 0.7
+    SAMPLE_INTERVAL_MULTIPLIER = 18
+
+    HOVER_SMOOTH_OLD_WEIGHT = 0.7
+    HOVER_SMOOTH_NEW_WEIGHT = 0.3
+    EDGE_BLEND_FACTOR = 0.3
+    EDGE_PIXEL_THRESHOLD = 128
+
+    ANGLE_CONSTRAINED_SNAP_RADIUS = 6
+    GENTLE_SNAP_RADIUS = 5
+    MAX_TURN_ANGLE_DEGREES = 60
+
+    ENDPOINT_SNAP_TOLERANCE_PIXELS = 10
+    CLOSE_TOLERANCE_BASE_PIXELS = 20
+    CLOSE_TOLERANCE_SPOT_PIXELS = 30
+
+    CACHE_MAX_DIMENSION = 1000
+    CACHE_MIN_DIMENSION = 10
+    CACHE_MAX_BANDS_FOR_RGB = 3
+
+    PATH_MOVE_COST_STRAIGHT = 1.0
+    PATH_MOVE_COST_DIAGONAL = 1.41421356237
+    PATH_MAX_ITER_BASE = 100000
+    PATH_MAX_ITER_DISTANCE_FACTOR = 500
+    PATH_SMOOTH_WINDOW_SIZE = 5
+    PATH_TIMEOUT_MESSAGE_SECONDS = 3
+
+    ELEVATION_DEFAULT = 0.0
+    ELEVATION_MIN = -1000.0
+    ELEVATION_MAX = 10000.0
+    ELEVATION_DECIMALS = 1
+
+    CHAIKIN_ITERATIONS = 3
+    CHAIKIN_Q_WEIGHT = 0.75
+    CHAIKIN_R_WEIGHT = 0.25
+
+    UNDO_MESSAGE_SECONDS = 2
+    UNDO_ACTION_OBJECT_NAME = 'mActionUndo'
+    A_STAR_NEIGHBORS = [
+        (-1, 0), (1, 0), (0, -1), (0, 1),
+        (-1, -1), (-1, 1), (1, -1), (1, 1),
+    ]
     
+    def _tr(self, ko_text, en_text):
+        return en_text if getattr(self, "language", "ko") == "en" else ko_text
+
     def __init__(self, canvas, raster_layer, vector_layer, model_type=0, 
-                 sam_engine=None, edge_weight=0.5, freehand=False, edge_method='canny', iface=None):
+                 sam_engine=None, edge_weight=0.5, freehand=False, edge_method='canny',
+                 iface=None, language="ko"):
         self.canvas = canvas
         super().__init__(self.canvas)
         self.iface = iface
+        self.language = language
         
         self.raster_layer = raster_layer
         self.vector_layer = vector_layer
         self.sam_engine = sam_engine
         self.freehand = freehand
         self.edge_method = edge_method
+        self.edge_weight = float(edge_weight)
         
         # Snap radius (pixels) - higher = more magnetic
-        self.snap_radius = int(15 * (1.0 - edge_weight * 0.7))  # 5~15 pixels
+        self.snap_radius = max(
+            1,
+            int(
+                self.SNAP_RADIUS_BASE
+                * (1.0 - self.edge_weight * self.SNAP_RADIUS_EDGE_WEIGHT_FACTOR)
+            ),
+        )
         
         # Path tracking
         self.path_points = []
@@ -97,6 +153,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         
         # Edge cache
         self.cached_edges = None
+        self.cached_cost = None
         self.cache_extent = None
         self.cache_transform = None  # Pixel <-> Map transform
         
@@ -120,7 +177,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def create_output_layer(self):
         crs = self.canvas.mapSettings().destinationCrs().authid()
-        layer = QgsVectorLayer(f"LineString?crs={crs}", "Contours", "memory")
+        layer = QgsVectorLayer(f"LineString?crs={crs}", DEFAULT_OUTPUT_LAYER_NAME, "memory")
         pr = layer.dataProvider()
         pr.addAttributes([QgsField("id", QVariant.Int)])
         layer.updateFields()
@@ -135,13 +192,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if self.spot_height_layer is None:
             # Check if exists in project
             for layer in QgsProject.instance().mapLayers().values():
-                if layer.name() == "Spot Heights" and layer.geometryType() == QgsWkbTypes.PointGeometry:
+                if layer.name() == DEFAULT_SPOT_LAYER_NAME and layer.geometryType() == QgsWkbTypes.PointGeometry:
                     self.spot_height_layer = layer
                     break
         
         if self.spot_height_layer is None:
             crs = self.canvas.mapSettings().destinationCrs().authid()
-            self.spot_height_layer = QgsVectorLayer(f"Point?crs={crs}", "Spot Heights", "memory")
+            self.spot_height_layer = QgsVectorLayer(f"Point?crs={crs}", DEFAULT_SPOT_LAYER_NAME, "memory")
             pr = self.spot_height_layer.dataProvider()
             pr.addAttributes([QgsField("elevation", QVariant.Double)])
             self.spot_height_layer.updateFields()
@@ -208,7 +265,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
             
             # Set sample interval based on scale (larger = smoother, less jitter)
-            self.sample_interval = self.canvas.mapUnitsPerPixel() * 18
+            self.sample_interval = self.canvas.mapUnitsPerPixel() * self.SAMPLE_INTERVAL_MULTIPLIER
             
             # Update edge cache
             if not self.freehand:
@@ -274,8 +331,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if self.last_hover_pos:
             # Exponential Moving Average: 30% New, 70% Old -> Heavy smoothing
             # effectively delays the cursor slightly but removes high-frequency jitter
-            sx = self.last_hover_pos.x() * 0.7 + current_point.x() * 0.3
-            sy = self.last_hover_pos.y() * 0.7 + current_point.y() * 0.3
+            sx = (
+                self.last_hover_pos.x() * self.HOVER_SMOOTH_OLD_WEIGHT
+                + current_point.x() * self.HOVER_SMOOTH_NEW_WEIGHT
+            )
+            sy = (
+                self.last_hover_pos.y() * self.HOVER_SMOOTH_OLD_WEIGHT
+                + current_point.y() * self.HOVER_SMOOTH_NEW_WEIGHT
+            )
             smoothed_point = QgsPointXY(sx, sy)
         else:
             smoothed_point = current_point
@@ -399,7 +462,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 last_angle = math.atan2(p2.y() - p1.y(), p2.x() - p1.x())
             
             # 2. Search for nearby edge pixels
-            snap_radius = 6  # Small radius
+            snap_radius = max(self.ANGLE_CONSTRAINED_SNAP_RADIUS, self.snap_radius)
             best_dist = snap_radius + 1
             best_px, best_py = px, py
             found = False
@@ -408,7 +471,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 for dx in range(-snap_radius, snap_radius + 1):
                     nx, ny = int(px + dx), int(py + dy)
                     if 0 <= nx < w and 0 <= ny < h:
-                        if self.cached_edges[ny, nx] > 128:
+                        if self.cached_edges[ny, nx] > self.EDGE_PIXEL_THRESHOLD:
                             # 3. Angle Filter: Check if this point causes sharp turn
                             if has_history:
                                 edge_pt = self.pixel_to_map(nx, ny)
@@ -419,7 +482,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                                 while angle_diff < -math.pi: angle_diff += 2*math.pi
                                 
                                 # If turn is sharper than 60 degrees, ignore this edge (it's noise/hairline)
-                                if abs(angle_diff) > math.radians(60):
+                                if abs(angle_diff) > math.radians(self.MAX_TURN_ANGLE_DEGREES):
                                     continue
                             
                             dist = abs(dx) + abs(dy)
@@ -431,7 +494,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if found:
                 edge_point = self.pixel_to_map(best_px, best_py)
                 # Gentle blend: 30% edge, 70% mouse
-                blend = 0.3
+                blend = self.EDGE_BLEND_FACTOR
                 result_x = map_point.x() * (1 - blend) + edge_point.x() * blend
                 result_y = map_point.y() * (1 - blend) + edge_point.y() * blend
                 return QgsPointXY(result_x, result_y)
@@ -453,7 +516,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             else:
                  # Inform user that global undo is blocked here for safety
                  if self.iface:
-                     self.iface.messageBar().pushMessage("ArchaeoTrace", "Undo is disabled to protect finished lines. Use Delete key to remove features.", Qgis.Info, 2)
+                     self.iface.messageBar().pushMessage(
+                         "ArchaeoTrace",
+                         self._tr(
+                             "완료된 선 보호를 위해 Undo가 비활성화되어 있습니다. 피처 삭제는 Delete 키를 사용하세요.",
+                             "Undo is disabled to protect finished lines. Use Delete key to remove features.",
+                         ),
+                         Qgis.Info,
+                         self.UNDO_MESSAGE_SECONDS,
+                     )
             
             # CRITICAL: Always accept event to stop propagation
             event.accept()
@@ -523,7 +594,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # Optimization: Limit iterations (don't search forever)
             # Distance based limit - Maximized for 1:50,000 scale map contours
             manhattan_dist = abs(end_px - start_px) + abs(end_py - start_py)
-            max_iter = max(100000, manhattan_dist * 500) # Covers almost entire screen search
+            max_iter = max(
+                self.PATH_MAX_ITER_BASE,
+                manhattan_dist * self.PATH_MAX_ITER_DISTANCE_FACTOR,
+            )
             iter_count = 0
             
             # Track closest approach in case of timeout
@@ -550,13 +624,17 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     break
                 
                 # Check 8 neighbors
-                for dx, dy in [(-1,0), (1,0), (0,-1), (0,1), (-1,-1), (-1,1), (1,-1), (1,1)]:
+                for dx, dy in self.A_STAR_NEIGHBORS:
                     nx, ny = cx + dx, cy + dy
                     
                     if 0 <= nx < w and 0 <= ny < h:
                         # Cost calculation:
                         # Edge cost (from map) + Movement cost (1 for straight, 1.4 for diag)
-                        move_cost = 1.414 if dx!=0 and dy!=0 else 1.0
+                        move_cost = (
+                            self.PATH_MOVE_COST_DIAGONAL
+                            if dx != 0 and dy != 0
+                            else self.PATH_MOVE_COST_STRAIGHT
+                        )
                         edge_cost = self.cached_cost[ny, nx] # Lower is better (1.0 = on edge)
                         
                         # Weight edge cost heavily
@@ -580,13 +658,16 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 if self.iface:
                     self.iface.messageBar().pushMessage(
                         "ArchaeoTrace",
-                        "Pathfinding timeout - simplified path used (Try zooming in)",
+                        self._tr(
+                            "경로 탐색 시간이 초과되어 단순화된 경로를 사용했습니다. (확대해서 시도해보세요)",
+                            "Pathfinding timeout - simplified path used (Try zooming in)",
+                        ),
                         Qgis.Warning,
-                        3
+                        self.PATH_TIMEOUT_MESSAGE_SECONDS
                     )
                 else:
                     # Fallback if no iface
-                    print("Pathfinding timeout")
+                    print(self._tr("Pathfinding timeout", "Pathfinding timeout"))
             
             if found:
                 # Reconstruct path
@@ -602,7 +683,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 # Apply 5-point Moving Average Smoothing (Anti-Aliasing)
                 # This converts integer grid steps into smooth float coordinates
                 smoothed_path = []
-                window_size = 5
+                window_size = self.PATH_SMOOTH_WINDOW_SIZE
                 
                 if len(path) > window_size:
                     path_arr = np.array(path)
@@ -712,12 +793,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 return map_point
             
             # Check only immediate vicinity (5 pixels)
-            snap_radius = 5
+            snap_radius = max(1, min(self.GENTLE_SNAP_RADIUS, self.snap_radius))
             
             # Check if directly on edge first
             ipx, ipy = int(px), int(py)
             if 0 <= ipx < w and 0 <= ipy < h:
-                if self.cached_edges[ipy, ipx] > 128:
+                if self.cached_edges[ipy, ipx] > self.EDGE_PIXEL_THRESHOLD:
                     # Already on edge, no change needed
                     return map_point
             
@@ -730,7 +811,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 for dx in range(-snap_radius, snap_radius + 1):
                     nx, ny = int(px + dx), int(py + dy)
                     if 0 <= nx < w and 0 <= ny < h:
-                        if self.cached_edges[ny, nx] > 128:
+                        if self.cached_edges[ny, nx] > self.EDGE_PIXEL_THRESHOLD:
                             dist = abs(dx) + abs(dy)  # Manhattan distance for stability
                             if dist < best_dist:
                                 best_dist = dist
@@ -740,7 +821,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if found:
                 edge_point = self.pixel_to_map(best_px, best_py)
                 # VERY gentle nudge - only 30% toward edge
-                blend = 0.3
+                blend = self.EDGE_BLEND_FACTOR
                 result_x = map_point.x() * (1 - blend) + edge_point.x() * blend
                 result_y = map_point.y() * (1 - blend) + edge_point.y() * blend
                 return QgsPointXY(result_x, result_y)
@@ -759,7 +840,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if not self.vector_layer or self.vector_layer.featureCount() == 0:
             return None, None, False
             
-        tolerance = self.canvas.mapUnitsPerPixel() * 10
+        tolerance = self.canvas.mapUnitsPerPixel() * self.ENDPOINT_SNAP_TOLERANCE_PIXELS
         min_dist = tolerance
         best_point = None
         best_fid = None
@@ -833,15 +914,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             
             # Determine output size (limit for performance)
             raster_res = raster_ext.width() / self.raster_layer.width()
-            out_w = min(1000, int(read_ext.width() / raster_res))
-            out_h = min(1000, int(read_ext.height() / raster_res))
+            out_w = min(self.CACHE_MAX_DIMENSION, int(read_ext.width() / raster_res))
+            out_h = min(self.CACHE_MAX_DIMENSION, int(read_ext.height() / raster_res))
             
-            if out_w < 10 or out_h < 10:
+            if out_w < self.CACHE_MIN_DIMENSION or out_h < self.CACHE_MIN_DIMENSION:
                 return
             
             # Read bands
             bands = []
-            for b in range(1, min(4, provider.bandCount() + 1)):
+            for b in range(1, min(self.CACHE_MAX_BANDS_FOR_RGB + 1, provider.bandCount() + 1)):
                 block = provider.block(b, read_ext, out_w, out_h)
                 if block.isValid() and block.data():
                     try:
@@ -874,7 +955,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             }
             
             # Generate Cost Map for Path Finding
-            self.cached_cost = self.edge_detector.get_edge_cost_map(self.cached_edges)
+            self.cached_cost = self.edge_detector.get_edge_cost_map(self.cached_edges, self.edge_weight)
             
         except Exception as e:
             print(f"Edge cache error: {e}")
@@ -907,9 +988,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         dy = point.y() - self.start_point.y()
         dist = np.sqrt(dx*dx + dy*dy)
         
-        base_tol = 20 # pixels
+        base_tol = self.CLOSE_TOLERANCE_BASE_PIXELS
         if is_spot_candidate:
-            base_tol = 30 # Slightly larger for easier clicking
+            base_tol = self.CLOSE_TOLERANCE_SPOT_PIXELS
             
         close_threshold = self.canvas.mapUnitsPerPixel() * base_tol
         return dist < close_threshold
@@ -1072,12 +1153,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         
         value, ok = QInputDialog.getDouble(
             None,
-            "등고선 해발값",
-            "해발고도 (m):",
-            0.0,  # default
-            -1000.0,  # min
-            10000.0,  # max
-            1  # decimals
+            self._tr("등고선 해발값", "Contour Elevation"),
+            self._tr("해발고도 (m):", "Elevation (m):"),
+            self.ELEVATION_DEFAULT,
+            self.ELEVATION_MIN,
+            self.ELEVATION_MAX,
+            self.ELEVATION_DECIMALS,
         )
         
         if ok:
@@ -1095,9 +1176,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # Convert to numpy for easier math
         pts = np.array([[p.x(), p.y()] for p in points])
         
-        # Apply Chaikin's algorithm 3 times for smoother curves
-        # Increased from 2 to 3 for ultra-smoothness
-        for _ in range(3):
+        for _ in range(self.CHAIKIN_ITERATIONS):
             if len(pts) < 3:
                 break
             
@@ -1115,9 +1194,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 p0 = pts[i]
                 p1 = pts[(i + 1) % len(pts)]
                 
-                # 1/4 and 3/4 points (Standard Chaikin)
-                q = p0 * 0.75 + p1 * 0.25
-                r = p0 * 0.25 + p1 * 0.75
+                q = p0 * self.CHAIKIN_Q_WEIGHT + p1 * self.CHAIKIN_R_WEIGHT
+                r = p0 * self.CHAIKIN_R_WEIGHT + p1 * self.CHAIKIN_Q_WEIGHT
                 new_pts.extend([q, r])
             
             # If NOT closed, keep last point
@@ -1126,14 +1204,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 
             pts = np.array(new_pts)
             
-        # Convert back to QgsPointXY
-        return [QgsPointXY(p[0], p[1]) for p in pts]
-        
-        # Subsample to reduce point count
-        if len(pts) > 100:
-            indices = np.linspace(0, len(pts) - 1, 100, dtype=int)
-            pts = pts[indices]
-        
         return [QgsPointXY(p[0], p[1]) for p in pts]
 
     def reset_tracing(self):
@@ -1166,7 +1236,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 self.iface.actionUndo().setEnabled(False)
                 # Fallback: Find action by name (for some QGIS versions)
                 mw = self.iface.mainWindow()
-                undo_act = mw.findChild(QAction, 'mActionUndo')
+                undo_act = mw.findChild(QAction, self.UNDO_ACTION_OBJECT_NAME)
                 if undo_act:
                     undo_act.setEnabled(False)
             except Exception as e:
@@ -1186,7 +1256,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             try:
                 self.iface.actionUndo().setEnabled(True)
                 mw = self.iface.mainWindow()
-                undo_act = mw.findChild(QAction, 'mActionUndo')
+                undo_act = mw.findChild(QAction, self.UNDO_ACTION_OBJECT_NAME)
                 if undo_act:
                     undo_act.setEnabled(True)
             except:

@@ -10,10 +10,41 @@ import os
 from skimage.morphology import skeletonize
 
 class EdgeDetector:
-    HED_PROTOTXT = os.path.join(os.path.dirname(__file__), 'models', 'hed_deploy.prototxt')
-    HED_CAFFEMODEL = os.path.join(os.path.dirname(__file__), 'models', 'hed_pretrained_bsds.caffemodel')
+    METHOD_CANNY = 'canny'
+    METHOD_LSD = 'lsd'
+    METHOD_HED = 'hed'
 
-    def __init__(self, method='canny'):
+    EDGE_MAX_VALUE = 255
+    EDGE_PRESENCE_THRESHOLD = 50
+
+    DEFAULT_CANNY_LOW_THRESHOLD = 30
+    DEFAULT_CANNY_HIGH_THRESHOLD = 100
+    CANNY_ADAPTIVE_BLOCK_SIZE = 21
+    CANNY_ADAPTIVE_C = 10
+    CANNY_BLUR_KERNEL = (3, 3)
+    CANNY_CLOSE_KERNEL = (2, 2)
+
+    LSD_LINE_WIDTH = 2
+    LSD_ADAPTIVE_BLOCK_SIZE = 21
+    LSD_ADAPTIVE_C = 8
+    LSD_CLOSE_KERNEL = (3, 3)
+
+    HED_MEAN = (104.00698793, 116.66876762, 122.67891434)
+    HED_BINARY_THRESHOLD = 50
+    HED_CLOSE_KERNEL = (2, 2)
+
+    EDGE_COST_BASE_MULTIPLIER = 0.1
+    EDGE_COST_WEIGHT_SCALE = 0.9
+    DIST_TRANSFORM_MASK_SIZE = 5
+
+    HED_MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
+    HED_PROTOTXT = os.path.join(HED_MODEL_DIR, 'hed_deploy.prototxt')
+    HED_CAFFEMODEL = os.path.join(HED_MODEL_DIR, 'hed_pretrained_bsds.caffemodel')
+    HED_PROTOTXT_URL = 'https://raw.githubusercontent.com/s9xie/hed/master/examples/hed/deploy.prototxt'
+    HED_CAFFEMODEL_URL = 'https://vcl.ucsd.edu/hed/hed_pretrained_bsds.caffemodel'
+    HED_MODEL_SIZE_MB = 56
+
+    def __init__(self, method=METHOD_CANNY):
         """
         Args:
             method: 'canny', 'lsd', or 'hed'
@@ -22,11 +53,11 @@ class EdgeDetector:
         self.hed_net = None
         
         # LSD detector instance
-        if method == 'lsd':
+        if method == self.METHOD_LSD:
             self.lsd = cv2.createLineSegmentDetector(cv2.LSD_REFINE_STD)
         
         # HED network
-        if method == 'hed':
+        if method == self.METHOD_HED:
             self._init_hed()
 
     def _init_hed(self):
@@ -43,7 +74,12 @@ class EdgeDetector:
             print(f"HED init error: {e}")
             self.hed_net = None
 
-    def detect_edges(self, image: np.ndarray, low_threshold=30, high_threshold=100) -> np.ndarray:
+    def detect_edges(
+        self,
+        image: np.ndarray,
+        low_threshold=DEFAULT_CANNY_LOW_THRESHOLD,
+        high_threshold=DEFAULT_CANNY_HIGH_THRESHOLD,
+    ) -> np.ndarray:
         """
         Detect edges using selected method.
         """
@@ -54,9 +90,9 @@ class EdgeDetector:
             gray = image
             color = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
-        if self.method == 'lsd':
+        if self.method == self.METHOD_LSD:
             edges = self._detect_lsd(gray)
-        elif self.method == 'hed':
+        elif self.method == self.METHOD_HED:
             edges = self._detect_hed(color, gray)
         else:
             edges = self._detect_canny(gray, low_threshold, high_threshold)
@@ -65,35 +101,44 @@ class EdgeDetector:
         # This prevents "walking inside the edge" and reduces jitter
         try:
             # Normalize to binary (0 or 1)
-            binary = edges > 50
+            binary = edges > self.EDGE_PRESENCE_THRESHOLD
             
             # Skeletonize
             skeleton = skeletonize(binary)
             
             # Convert back to uint8 (0 or 255)
-            edges = (skeleton * 255).astype(np.uint8)
+            edges = (skeleton * self.EDGE_MAX_VALUE).astype(np.uint8)
         except Exception as e:
             print(f"Skeletonize error: {e}")
             
         return edges
 
-    def _detect_canny(self, gray: np.ndarray, low_threshold=30, high_threshold=100) -> np.ndarray:
+    def _detect_canny(
+        self,
+        gray: np.ndarray,
+        low_threshold=DEFAULT_CANNY_LOW_THRESHOLD,
+        high_threshold=DEFAULT_CANNY_HIGH_THRESHOLD,
+    ) -> np.ndarray:
         """Canny + Adaptive threshold method."""
         # Adaptive threshold for dark lines
         dark_mask = cv2.adaptiveThreshold(
-            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-            cv2.THRESH_BINARY_INV, 21, 10
+            gray,
+            self.EDGE_MAX_VALUE,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY_INV,
+            self.CANNY_ADAPTIVE_BLOCK_SIZE,
+            self.CANNY_ADAPTIVE_C,
         )
         
         # Canny for fine edges
-        blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+        blurred = cv2.GaussianBlur(gray, self.CANNY_BLUR_KERNEL, 0)
         canny = cv2.Canny(blurred, low_threshold, high_threshold)
         
         # Combine
         combined = cv2.bitwise_or(dark_mask, canny)
         
         # Clean up
-        kernel = np.ones((2, 2), np.uint8)
+        kernel = np.ones(self.CANNY_CLOSE_KERNEL, np.uint8)
         combined = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, kernel)
         
         return combined
@@ -113,19 +158,23 @@ class EdgeDetector:
             for line in lines:
                 x1, y1, x2, y2 = line[0].astype(int)
                 # Draw thicker lines for better pathfinding
-                cv2.line(edge_mask, (x1, y1), (x2, y2), 255, 2)
+                cv2.line(edge_mask, (x1, y1), (x2, y2), self.EDGE_MAX_VALUE, self.LSD_LINE_WIDTH)
         
         # Also add dark line detection for completeness
         dark_mask = cv2.adaptiveThreshold(
-            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-            cv2.THRESH_BINARY_INV, 21, 8
+            gray,
+            self.EDGE_MAX_VALUE,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY_INV,
+            self.LSD_ADAPTIVE_BLOCK_SIZE,
+            self.LSD_ADAPTIVE_C,
         )
         
         # Combine LSD with dark detection
         combined = cv2.bitwise_or(edge_mask, dark_mask)
         
         # Morphological closing for continuity
-        kernel = np.ones((3, 3), np.uint8)
+        kernel = np.ones(self.LSD_CLOSE_KERNEL, np.uint8)
         combined = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, kernel)
         
         return combined
@@ -149,7 +198,7 @@ class EdgeDetector:
                 color, 
                 scalefactor=1.0, 
                 size=(w, h),
-                mean=(104.00698793, 116.66876762, 122.67891434),
+                mean=self.HED_MEAN,
                 swapRB=False, 
                 crop=False
             )
@@ -160,13 +209,18 @@ class EdgeDetector:
             # Post-process: convert to 0-255 range
             hed_edges = hed_output[0, 0]
             hed_edges = cv2.resize(hed_edges, (w, h))
-            hed_edges = (255 * hed_edges).astype(np.uint8)
+            hed_edges = (self.EDGE_MAX_VALUE * hed_edges).astype(np.uint8)
             
             # Threshold to binary
-            _, binary = cv2.threshold(hed_edges, 50, 255, cv2.THRESH_BINARY)
+            _, binary = cv2.threshold(
+                hed_edges,
+                self.HED_BINARY_THRESHOLD,
+                self.EDGE_MAX_VALUE,
+                cv2.THRESH_BINARY,
+            )
             
             # Optional: thin the edges
-            kernel = np.ones((2, 2), np.uint8)
+            kernel = np.ones(self.HED_CLOSE_KERNEL, np.uint8)
             binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
             
             return binary
@@ -182,10 +236,10 @@ class EdgeDetector:
         """
         # Distance to nearest edge
         inverted = cv2.bitwise_not(edges)
-        dist = cv2.distanceTransform(inverted, cv2.DIST_L2, 5)
+        dist = cv2.distanceTransform(inverted, cv2.DIST_L2, self.DIST_TRANSFORM_MASK_SIZE)
         
         # Lower multiplier = more freedom
-        multiplier = 0.1 + edge_weight * 0.9  # Range: 0.1 ~ 1.0
+        multiplier = self.EDGE_COST_BASE_MULTIPLIER + edge_weight * self.EDGE_COST_WEIGHT_SCALE
         cost_map = 1.0 + dist * multiplier
         
         return cost_map.astype(np.float32)
@@ -199,9 +253,9 @@ class EdgeDetector:
     def get_hed_download_info(cls):
         """Get info about downloading HED model."""
         return {
-            'prototxt_url': 'https://raw.githubusercontent.com/s9xie/hed/master/examples/hed/deploy.prototxt',
-            'caffemodel_url': 'https://vcl.ucsd.edu/hed/hed_pretrained_bsds.caffemodel',
+            'prototxt_url': cls.HED_PROTOTXT_URL,
+            'caffemodel_url': cls.HED_CAFFEMODEL_URL,
             'prototxt_path': cls.HED_PROTOTXT,
             'caffemodel_path': cls.HED_CAFFEMODEL,
-            'size_mb': 56
+            'size_mb': cls.HED_MODEL_SIZE_MB
         }
