@@ -1,76 +1,100 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
-SAM Engine Module for ArchaeoTrace.
-Supports MobileSAM and SAM3 backends.
+Unified SAM engine for MobileSAM and Meta Segment Anything backends.
 """
 
-import os
-import json
-import shutil
 import importlib.util
+import json
+import os
+import tempfile
 
 import numpy as np
-import requests
 
 from ..config import (
-    DEFAULT_SAM_MODEL_TYPE,
+    DEFAULT_FULL_SAM_MODEL_TYPE,
+    DEFAULT_MOBILE_SAM_MODEL_TYPE,
+    PLUGIN_NAME,
+    SAM_BACKEND_FULL,
     SAM_BACKEND_MOBILE,
-    SAM_BACKEND_SAM3,
 )
 
-HAS_TORCH = importlib.util.find_spec("torch") is not None
-MOBILE_SAM_AVAILABLE = HAS_TORCH and importlib.util.find_spec("mobile_sam") is not None
-SAM3_AVAILABLE = HAS_TORCH and importlib.util.find_spec("sam3") is not None
+
+MOBILE_SAM_AVAILABLE = (
+    importlib.util.find_spec("torch") is not None
+    and importlib.util.find_spec("mobile_sam") is not None
+)
+SEGMENT_ANYTHING_AVAILABLE = (
+    importlib.util.find_spec("torch") is not None
+    and importlib.util.find_spec("segment_anything") is not None
+)
 
 
 class SAMEngine:
-    BACKEND_LABELS = {
-        SAM_BACKEND_MOBILE: "MobileSAM",
-        SAM_BACKEND_SAM3: "SAM3",
-    }
-
-    MOBILE_WEIGHTS_FILENAME = "mobile_sam.pt"
-    MOBILE_META_FILENAME = "mobile_sam.meta.json"
-    MOBILE_WEIGHTS_DOWNLOAD_URL = "https://github.com/ChaoningZhang/MobileSAM/raw/master/weights/mobile_sam.pt"
-
-    SAM3_WEIGHTS_FILENAME = "sam3.pt"
-    SAM3_META_FILENAME = "sam3.meta.json"
-    SAM3_HF_REPO_ID = "facebook/sam3"
-    SAM3_WEIGHTS_PAGE_URL = "https://huggingface.co/facebook/sam3"
-
     DOWNLOAD_CHUNK_SIZE = 8192
     DOWNLOAD_TIMEOUT_SECONDS = 60
-    REQUEST_HEADERS = {"User-Agent": "ArchaeoTrace/1.0"}
+    REQUEST_HEADERS = {"User-Agent": PLUGIN_NAME}
 
-    def __init__(self, model_type=DEFAULT_SAM_MODEL_TYPE, device=None, backend=SAM_BACKEND_MOBILE):
+    BACKEND_SPECS = {
+        SAM_BACKEND_MOBILE: {
+            "display_name": "MobileSAM",
+            "default_model_type": DEFAULT_MOBILE_SAM_MODEL_TYPE,
+            "module_name": "mobile_sam",
+            "models": {
+                "vit_t": {
+                    "weights_filename": "mobile_sam.pt",
+                    "weights_url": "https://github.com/ChaoningZhang/MobileSAM/raw/master/weights/mobile_sam.pt",
+                    "size_hint_mb": 39,
+                },
+            },
+        },
+        SAM_BACKEND_FULL: {
+            "display_name": "SAM",
+            "default_model_type": DEFAULT_FULL_SAM_MODEL_TYPE,
+            "module_name": "segment_anything",
+            "models": {
+                "vit_b": {
+                    "weights_filename": "sam_vit_b_01ec64.pth",
+                    "weights_url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
+                    "size_hint_mb": 358,
+                },
+                "vit_l": {
+                    "weights_filename": "sam_vit_l_0b3195.pth",
+                    "weights_url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
+                    "size_hint_mb": 1247,
+                },
+                "vit_h": {
+                    "weights_filename": "sam_vit_h_4b8939.pth",
+                    "weights_url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
+                    "size_hint_mb": 2445,
+                },
+            },
+        },
+    }
+
+    def __init__(self, backend=SAM_BACKEND_MOBILE, model_type=None, device=None):
         """
-        Initialize SAM Engine.
+        Initialize a SAM backend.
 
         Args:
-            model_type (str): 'vit_t' for MobileSAM (ignored by SAM3).
+            backend (str): SAM backend key.
+            model_type (str): model family key (e.g. vit_t or vit_b).
             device (str): 'cuda' or 'cpu'. Auto-detect if None.
-            backend (str): 'mobile_sam' or 'sam3'.
         """
+        self.backend = backend
+        self.model_type = model_type or self.default_model_type_for_backend(backend)
         self.predictor = None
-        self.model = None
         self.is_ready = False
-        self.model_type = model_type
-        self.backend = backend if backend in (SAM_BACKEND_MOBILE, SAM_BACKEND_SAM3) else SAM_BACKEND_MOBILE
+        self.model_spec = self._resolve_model_spec(self.backend, self.model_type)
+        self.display_name = self.display_name_for_backend(self.backend, self.model_type)
 
         models_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
-        if self.backend == SAM_BACKEND_SAM3:
-            weights_filename = self.SAM3_WEIGHTS_FILENAME
-            meta_filename = self.SAM3_META_FILENAME
-            self.WEIGHTS_DOWNLOAD_URL = self.SAM3_WEIGHTS_PAGE_URL
-        else:
-            weights_filename = self.MOBILE_WEIGHTS_FILENAME
-            meta_filename = self.MOBILE_META_FILENAME
-            self.WEIGHTS_DOWNLOAD_URL = self.MOBILE_WEIGHTS_DOWNLOAD_URL
+        self.weights_path = os.path.join(models_dir, self.model_spec["weights_filename"])
+        self.weights_meta_path = os.path.join(
+            models_dir,
+            f"{os.path.splitext(self.model_spec['weights_filename'])[0]}.meta.json",
+        )
 
-        self.weights_path = os.path.join(models_dir, weights_filename)
-        self.weights_meta_path = os.path.join(models_dir, meta_filename)
-
-        if not self._is_backend_available(self.backend):
+        if not self.is_backend_available(self.backend):
             self.device = None
             return
 
@@ -82,19 +106,57 @@ class SAMEngine:
             self.device = device or "cpu"
 
     @classmethod
-    def backend_label(cls, backend):
-        return cls.BACKEND_LABELS.get(backend, "SAM")
+    def _backend_spec(cls, backend):
+        spec = cls.BACKEND_SPECS.get(backend)
+        if spec is None:
+            raise ValueError(f"Unsupported SAM backend: {backend}")
+        return spec
 
-    @staticmethod
-    def _is_backend_available(backend):
-        if backend == SAM_BACKEND_SAM3:
-            return SAM3_AVAILABLE
-        return MOBILE_SAM_AVAILABLE
+    @classmethod
+    def _resolve_model_spec(cls, backend, model_type):
+        backend_spec = cls._backend_spec(backend)
+        model_spec = backend_spec["models"].get(model_type)
+        if model_spec is None:
+            raise ValueError(f"Unsupported model type '{model_type}' for backend '{backend}'")
+        return model_spec
+
+    @classmethod
+    def is_backend_available(cls, backend):
+        backend_spec = cls._backend_spec(backend)
+        return (
+            importlib.util.find_spec("torch") is not None
+            and importlib.util.find_spec(backend_spec["module_name"]) is not None
+        )
+
+    @classmethod
+    def default_model_type_for_backend(cls, backend):
+        return cls._backend_spec(backend)["default_model_type"]
+
+    @classmethod
+    def display_name_for_backend(cls, backend, model_type=None):
+        backend_spec = cls._backend_spec(backend)
+        resolved_model_type = model_type or backend_spec["default_model_type"]
+        if backend == SAM_BACKEND_FULL:
+            return f"{backend_spec['display_name']} ({resolved_model_type.upper()})"
+        return backend_spec["display_name"]
+
+    @classmethod
+    def size_hint_mb_for_backend(cls, backend, model_type=None):
+        resolved_model_type = model_type or cls.default_model_type_for_backend(backend)
+        return cls._resolve_model_spec(backend, resolved_model_type).get("size_hint_mb")
 
     def _ensure_models_dir(self):
         models_dir = os.path.dirname(self.weights_path)
         if not os.path.exists(models_dir):
             os.makedirs(models_dir)
+
+    @staticmethod
+    def _import_requests():
+        try:
+            import requests
+            return requests, None
+        except Exception as exc:
+            return None, str(exc)
 
     def _read_local_meta(self):
         if not os.path.exists(self.weights_meta_path):
@@ -107,8 +169,9 @@ class SAMEngine:
 
     def _write_local_meta(self, remote_info):
         meta = {
+            "url": self.model_spec["weights_url"],
             "backend": self.backend,
-            "url": self.WEIGHTS_DOWNLOAD_URL,
+            "model_type": self.model_type,
             "etag": remote_info.get("etag"),
             "last_modified": remote_info.get("last_modified"),
             "content_length": remote_info.get("content_length"),
@@ -116,8 +179,8 @@ class SAMEngine:
         try:
             with open(self.weights_meta_path, "w", encoding="utf-8") as f:
                 json.dump(meta, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Failed to write SAM metadata: {e}")
+        except Exception as exc:
+            print(f"Failed to write SAM metadata: {exc}")
 
     @staticmethod
     def _parse_remote_headers(headers):
@@ -132,20 +195,24 @@ class SAMEngine:
             "content_length": content_length,
         }
 
-    def _get_remote_info_mobile(self):
+    def get_remote_weights_info(self):
+        """Fetch remote metadata for the selected SAM backend weights."""
+        url = self.model_spec["weights_url"]
+        requests, import_error = self._import_requests()
+        if requests is None:
+            return {"ok": False, "error": f"requests is unavailable: {import_error}"}
         try:
             response = requests.head(
-                self.MOBILE_WEIGHTS_DOWNLOAD_URL,
+                url,
                 allow_redirects=True,
                 timeout=self.DOWNLOAD_TIMEOUT_SECONDS,
                 headers=self.REQUEST_HEADERS,
             )
-            # Some hosts may not provide useful HEAD responses.
             if response.status_code >= 400 or (
                 "Content-Length" not in response.headers and "ETag" not in response.headers
             ):
                 response = requests.get(
-                    self.MOBILE_WEIGHTS_DOWNLOAD_URL,
+                    url,
                     stream=True,
                     timeout=self.DOWNLOAD_TIMEOUT_SECONDS,
                     headers=self.REQUEST_HEADERS,
@@ -155,67 +222,9 @@ class SAMEngine:
                 response.raise_for_status()
 
             info = self._parse_remote_headers(response.headers)
-            return {
-                "ok": True,
-                **info,
-            }
-        except Exception as e:
-            return {
-                "ok": False,
-                "error": str(e),
-            }
-
-    def _get_remote_info_sam3(self):
-        try:
-            from huggingface_hub import HfApi
-
-            api = HfApi()
-            info = api.model_info(self.SAM3_HF_REPO_ID, files_metadata=True)
-            siblings = getattr(info, "siblings", []) or []
-
-            size = None
-            etag = None
-            for sibling in siblings:
-                rfilename = getattr(sibling, "rfilename", None)
-                if rfilename != self.SAM3_WEIGHTS_FILENAME:
-                    continue
-
-                sibling_size = getattr(sibling, "size", None)
-                lfs = getattr(sibling, "lfs", None)
-                if isinstance(lfs, dict):
-                    if sibling_size is None:
-                        sibling_size = lfs.get("size")
-                    etag = lfs.get("oid") or lfs.get("sha256")
-
-                if etag is None:
-                    etag = getattr(sibling, "blob_id", None)
-
-                size = sibling_size
-                break
-
-            if size is None and etag is None:
-                return {
-                    "ok": False,
-                    "error": f"Could not read metadata for {self.SAM3_WEIGHTS_FILENAME} from {self.SAM3_HF_REPO_ID}",
-                }
-
-            return {
-                "ok": True,
-                "etag": etag,
-                "last_modified": None,
-                "content_length": int(size) if size is not None else None,
-            }
-        except Exception as e:
-            return {
-                "ok": False,
-                "error": str(e),
-            }
-
-    def get_remote_weights_info(self):
-        """Fetch remote metadata for the selected backend weights."""
-        if self.backend == SAM_BACKEND_SAM3:
-            return self._get_remote_info_sam3()
-        return self._get_remote_info_mobile()
+            return {"ok": True, **info}
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
 
     def get_local_weights_info(self):
         """Get local weights presence and metadata."""
@@ -223,9 +232,10 @@ class SAMEngine:
         size = os.path.getsize(self.weights_path) if exists else None
         meta = self._read_local_meta()
         return {
-            "backend": self.backend,
             "exists": exists,
             "size": size,
+            "backend": meta.get("backend"),
+            "model_type": meta.get("model_type"),
             "etag": meta.get("etag"),
             "last_modified": meta.get("last_modified"),
             "content_length": meta.get("content_length"),
@@ -263,7 +273,6 @@ class SAMEngine:
                 "remote": remote,
             }
 
-        # Prefer strong metadata when available.
         if remote.get("etag") and local.get("etag") and remote["etag"] != local["etag"]:
             return {
                 "ok": True,
@@ -273,7 +282,6 @@ class SAMEngine:
                 "remote": remote,
             }
 
-        # Fall back to size comparison.
         if remote.get("content_length") and local.get("size"):
             if int(remote["content_length"]) != int(local["size"]):
                 return {
@@ -284,7 +292,6 @@ class SAMEngine:
                     "remote": remote,
                 }
 
-        # Weak fallback: last-modified.
         if (
             remote.get("last_modified")
             and local.get("last_modified")
@@ -299,7 +306,6 @@ class SAMEngine:
                 "remote": remote,
             }
 
-        # If we cannot compare anything concrete, mark as unknown.
         if not remote.get("etag") and not remote.get("content_length") and not remote.get("last_modified"):
             return {
                 "ok": True,
@@ -317,14 +323,27 @@ class SAMEngine:
             "remote": remote,
         }
 
-    def _load_mobile_sam(self):
-        if not MOBILE_SAM_AVAILABLE:
-            return False, "MobileSAM library not installed."
+    def _load_predictor(self):
+        if self.backend == SAM_BACKEND_MOBILE:
+            from mobile_sam import SamPredictor, sam_model_registry
+        else:
+            from segment_anything import SamPredictor, sam_model_registry
+        return SamPredictor, sam_model_registry
+
+    def load_model(self):
+        """Load the selected SAM backend from the local checkpoint file."""
+        self.predictor = None
+        self.is_ready = False
+
+        if not self.is_backend_available(self.backend):
+            return False, f"{self.display_name} library not installed."
+
         try:
-            import torch
-            from mobile_sam import sam_model_registry, SamPredictor
-        except Exception as e:
-            return False, f"MobileSAM dependencies are not ready: {str(e)}"
+            import torch  # noqa: F401
+
+            SamPredictor, sam_model_registry = self._load_predictor()
+        except Exception as exc:
+            return False, f"{self.display_name} dependencies are not ready: {str(exc)}"
 
         if not os.path.exists(self.weights_path):
             return False, f"Model weights not found at {self.weights_path}"
@@ -333,56 +352,26 @@ class SAMEngine:
             sam = sam_model_registry[self.model_type](checkpoint=self.weights_path)
             sam.to(device=self.device)
             sam.eval()
-            self.model = sam
             self.predictor = SamPredictor(sam)
             self.is_ready = True
             return True, "Model loaded successfully."
-        except Exception as e:
-            return False, f"Error loading model: {str(e)}"
+        except Exception as exc:
+            return False, f"Error loading model: {str(exc)}"
 
-    def _load_sam3(self):
-        if not SAM3_AVAILABLE:
-            return False, "SAM3 library not installed."
-        try:
-            from sam3.model_builder import build_sam3_image_model
-        except Exception as e:
-            return False, f"SAM3 dependencies are not ready: {str(e)}"
-
-        if not os.path.exists(self.weights_path):
-            return False, f"Model weights not found at {self.weights_path}"
-
-        try:
-            model = build_sam3_image_model(
-                device=self.device or "cpu",
-                eval_mode=True,
-                checkpoint_path=self.weights_path,
-                load_from_HF=False,
-                enable_inst_interactivity=True,
-            )
-            predictor = getattr(model, "inst_interactive_predictor", None)
-            if predictor is None:
-                return False, "SAM3 interactive predictor was not initialized."
-
-            self.model = model
-            self.predictor = predictor
-            self.is_ready = True
-            return True, "Model loaded successfully."
-        except Exception as e:
-            return False, f"Error loading model: {str(e)}"
-
-    def load_model(self):
-        """Load the selected SAM backend model from local weights file."""
-        if self.backend == SAM_BACKEND_SAM3:
-            return self._load_sam3()
-        return self._load_mobile_sam()
-
-    def _download_mobile_sam(self):
+    def download_weights(self):
+        """Download the selected SAM backend weights."""
+        url = self.model_spec["weights_url"]
         self._ensure_models_dir()
+        requests, import_error = self._import_requests()
+        if requests is None:
+            print(f"Download failed: requests is unavailable: {import_error}")
+            return False
 
+        temp_path = None
         try:
-            print(f"Downloading MobileSAM weights from {self.MOBILE_WEIGHTS_DOWNLOAD_URL}...")
+            print(f"Downloading {self.display_name} weights from {url}...")
             response = requests.get(
-                self.MOBILE_WEIGHTS_DOWNLOAD_URL,
+                url,
                 stream=True,
                 timeout=self.DOWNLOAD_TIMEOUT_SECONDS,
                 headers=self.REQUEST_HEADERS,
@@ -390,63 +379,37 @@ class SAMEngine:
             response.raise_for_status()
             remote_info = self._parse_remote_headers(response.headers)
 
-            with open(self.weights_path, "wb") as f:
+            fd, temp_path = tempfile.mkstemp(
+                prefix=f"{os.path.basename(self.weights_path)}.",
+                suffix=".download",
+                dir=os.path.dirname(self.weights_path),
+            )
+            os.close(fd)
+
+            with open(temp_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=self.DOWNLOAD_CHUNK_SIZE):
                     if chunk:
                         f.write(chunk)
-
             if remote_info.get("content_length") is not None:
-                local_size = os.path.getsize(self.weights_path)
+                local_size = os.path.getsize(temp_path)
                 if int(local_size) != int(remote_info["content_length"]):
                     raise RuntimeError(
                         f"Incomplete download: expected {remote_info['content_length']} bytes, got {local_size} bytes"
                     )
-
+            os.replace(temp_path, self.weights_path)
+            temp_path = None
             self._write_local_meta(remote_info)
             print("Download complete.")
             return True
-        except Exception as e:
-            print(f"Download failed: {e}")
+        except Exception as exc:
+            print(f"Download failed: {exc}")
             return False
-
-    def _download_sam3(self):
-        self._ensure_models_dir()
-
-        try:
-            from huggingface_hub import hf_hub_download
-
-            print(f"Downloading SAM3 weights from {self.SAM3_HF_REPO_ID}/{self.SAM3_WEIGHTS_FILENAME}...")
-            downloaded_path = hf_hub_download(
-                repo_id=self.SAM3_HF_REPO_ID,
-                filename=self.SAM3_WEIGHTS_FILENAME,
-            )
-
-            if os.path.abspath(downloaded_path) != os.path.abspath(self.weights_path):
-                shutil.copyfile(downloaded_path, self.weights_path)
-
-            local_size = os.path.getsize(self.weights_path)
-            remote_info = self.get_remote_weights_info()
-            if not remote_info.get("ok"):
-                remote_info = {
-                    "etag": None,
-                    "last_modified": None,
-                    "content_length": local_size,
-                }
-            elif remote_info.get("content_length") is None:
-                remote_info["content_length"] = local_size
-
-            self._write_local_meta(remote_info)
-            print("Download complete.")
-            return True
-        except Exception as e:
-            print(f"Download failed: {e}")
-            return False
-
-    def download_weights(self):
-        """Download weights for current backend."""
-        if self.backend == SAM_BACKEND_SAM3:
-            return self._download_sam3()
-        return self._download_mobile_sam()
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
     def set_image(self, image: np.ndarray):
         """
@@ -472,11 +435,9 @@ class SAMEngine:
         if not self.predictor:
             return None
 
-        masks, scores, logits = self.predictor.predict(
+        masks, _scores, _logits = self.predictor.predict(
             point_coords=np.array(points),
             point_labels=np.array(labels),
             multimask_output=False,
         )
-
-        # masks shape: (1, H, W) -> return (H, W)
         return masks[0]

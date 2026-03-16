@@ -6,8 +6,9 @@ Converts binary masks (from SAM or Edge Detection) into vector polylines.
 
 import numpy as np
 import cv2
-from skimage.morphology import skeletonize
 from qgis.core import QgsGeometry, QgsPointXY
+
+from .edge_detector import EdgeDetector
 
 class Vectorizer:
     def __init__(self):
@@ -23,7 +24,7 @@ class Vectorizer:
             mask = mask > 0
             
         # Skeletonize (Topological thinning)
-        skeleton = skeletonize(mask)
+        skeleton = EdgeDetector.thin_binary_mask(mask)
         
         # Convert skeleton to points
         # skeleton is boolean matrix. True = line pixel.

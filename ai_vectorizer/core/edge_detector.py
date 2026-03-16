@@ -7,7 +7,14 @@ Supports: Canny+Adaptive, LSD Line Detector, HED (Holistically-Nested Edge Detec
 import cv2
 import numpy as np
 import os
-from skimage.morphology import skeletonize
+import shutil
+import tempfile
+import urllib.request
+
+try:
+    from skimage.morphology import skeletonize as _skimage_skeletonize
+except Exception:
+    _skimage_skeletonize = None
 
 class EdgeDetector:
     METHOD_CANNY = 'canny'
@@ -43,6 +50,63 @@ class EdgeDetector:
     HED_PROTOTXT_URL = 'https://raw.githubusercontent.com/s9xie/hed/master/examples/hed/deploy.prototxt'
     HED_CAFFEMODEL_URL = 'https://vcl.ucsd.edu/hed/hed_pretrained_bsds.caffemodel'
     HED_MODEL_SIZE_MB = 56
+    HED_VALIDATION_IMAGE_SIZE = 64
+
+    _hed_runtime_status_cache = None
+    _hed_runtime_status_signature = None
+    _hed_crop_layer_registered = False
+
+    class _HEDCropLayer:
+        """OpenCV DNN compatibility layer for Caffe Crop nodes used by HED."""
+
+        def __init__(self, _params, _blobs):
+            self.x_start = 0
+            self.x_end = 0
+            self.y_start = 0
+            self.y_end = 0
+
+        def getMemoryShapes(self, inputs):
+            input_shape, target_shape = inputs[0], inputs[1]
+            target_h = int(target_shape[2])
+            target_w = int(target_shape[3])
+            self.y_start = max(0, int((input_shape[2] - target_h) / 2))
+            self.x_start = max(0, int((input_shape[3] - target_w) / 2))
+            self.y_end = self.y_start + target_h
+            self.x_end = self.x_start + target_w
+            return [[input_shape[0], input_shape[1], target_h, target_w]]
+
+        def forward(self, inputs):
+            return [inputs[0][:, :, self.y_start:self.y_end, self.x_start:self.x_end]]
+
+    @staticmethod
+    def thin_binary_mask(binary_mask: np.ndarray) -> np.ndarray:
+        """Return a thin centerline mask with graceful runtime fallbacks."""
+        binary = np.asarray(binary_mask).astype(bool)
+        if not binary.any():
+            return binary
+
+        if _skimage_skeletonize is not None:
+            return _skimage_skeletonize(binary)
+
+        ximgproc = getattr(cv2, "ximgproc", None)
+        if ximgproc is not None and hasattr(ximgproc, "thinning"):
+            thinned = ximgproc.thinning(binary.astype(np.uint8) * 255)
+            return thinned > 0
+
+        return binary
+
+    @staticmethod
+    def _prepare_input_images(image: np.ndarray):
+        """Normalize raster input into gray + BGR variants for detectors."""
+        if len(image.shape) == 3:
+            rgb = np.ascontiguousarray(image[..., :3])
+            gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+            color_bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+        else:
+            gray = np.ascontiguousarray(image)
+            color_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+        return gray, color_bgr
 
     def __init__(self, method=METHOD_CANNY):
         """
@@ -60,16 +124,122 @@ class EdgeDetector:
         if method == self.METHOD_HED:
             self._init_hed()
 
+    @classmethod
+    def _hed_file_signature(cls):
+        if not os.path.exists(cls.HED_PROTOTXT) or not os.path.exists(cls.HED_CAFFEMODEL):
+            return None
+        return (
+            os.path.getsize(cls.HED_PROTOTXT),
+            os.path.getmtime(cls.HED_PROTOTXT),
+            os.path.getsize(cls.HED_CAFFEMODEL),
+            os.path.getmtime(cls.HED_CAFFEMODEL),
+        )
+
+    @classmethod
+    def _invalidate_hed_status_cache(cls):
+        cls._hed_runtime_status_cache = None
+        cls._hed_runtime_status_signature = None
+
+    @classmethod
+    def _register_hed_layers(cls):
+        if cls._hed_crop_layer_registered:
+            return
+
+        register_fn = getattr(cv2.dnn, "registerLayer", None)
+        if register_fn is None:
+            register_fn = getattr(cv2, "dnn_registerLayer", None)
+
+        if register_fn is None:
+            return
+
+        try:
+            register_fn("Crop", cls._HEDCropLayer)
+        except Exception as exc:
+            if "already" not in str(exc).lower():
+                raise
+
+        cls._hed_crop_layer_registered = True
+
+    @classmethod
+    def _create_hed_net(cls, prototxt_path=None, caffemodel_path=None, validate_forward=False):
+        prototxt = prototxt_path or cls.HED_PROTOTXT
+        caffemodel = caffemodel_path or cls.HED_CAFFEMODEL
+        cls._register_hed_layers()
+        net = cv2.dnn.readNetFromCaffe(prototxt, caffemodel)
+        if validate_forward:
+            cls._validate_hed_net(net)
+        return net
+
+    @classmethod
+    def _validate_hed_net(cls, net):
+        dummy = np.zeros(
+            (cls.HED_VALIDATION_IMAGE_SIZE, cls.HED_VALIDATION_IMAGE_SIZE, 3),
+            dtype=np.uint8,
+        )
+        blob = cv2.dnn.blobFromImage(
+            dummy,
+            scalefactor=1.0,
+            size=(cls.HED_VALIDATION_IMAGE_SIZE, cls.HED_VALIDATION_IMAGE_SIZE),
+            mean=cls.HED_MEAN,
+            swapRB=False,
+            crop=False,
+        )
+        net.setInput(blob)
+        output = net.forward()
+        if output is None or np.asarray(output).size == 0:
+            raise RuntimeError("HED forward pass returned no output")
+
+    @classmethod
+    def get_hed_runtime_status(cls, force_refresh=False):
+        """Return whether HED assets are present and actually loadable."""
+        if not os.path.exists(cls.HED_PROTOTXT):
+            return {
+                "ok": False,
+                "reason": "missing_prototxt",
+                "message": f"Missing HED prototxt: {cls.HED_PROTOTXT}",
+            }
+        if not os.path.exists(cls.HED_CAFFEMODEL):
+            return {
+                "ok": False,
+                "reason": "missing_weights",
+                "message": f"Missing HED weights: {cls.HED_CAFFEMODEL}",
+            }
+
+        signature = cls._hed_file_signature()
+        if (
+            not force_refresh
+            and cls._hed_runtime_status_cache is not None
+            and cls._hed_runtime_status_signature == signature
+        ):
+            return dict(cls._hed_runtime_status_cache)
+
+        try:
+            cls._create_hed_net(validate_forward=True)
+            status = {
+                "ok": True,
+                "reason": "ready",
+                "message": "HED model loaded successfully.",
+            }
+        except Exception as exc:
+            status = {
+                "ok": False,
+                "reason": "invalid_runtime",
+                "message": str(exc),
+            }
+
+        cls._hed_runtime_status_cache = dict(status)
+        cls._hed_runtime_status_signature = signature
+        return dict(status)
+
     def _init_hed(self):
         """Initialize HED network if available."""
         try:
-            if os.path.exists(self.HED_PROTOTXT) and os.path.exists(self.HED_CAFFEMODEL):
-                self.hed_net = cv2.dnn.readNetFromCaffe(self.HED_PROTOTXT, self.HED_CAFFEMODEL)
+            status = self.get_hed_runtime_status()
+            if status.get("ok"):
+                self.hed_net = self._create_hed_net(validate_forward=False)
                 print("HED model loaded successfully")
             else:
-                print(f"HED model files not found. Will fallback to Canny.")
-                print(f"Expected: {self.HED_PROTOTXT}")
-                print(f"Expected: {self.HED_CAFFEMODEL}")
+                print(f"HED runtime is not ready. Will fallback to Canny: {status.get('message')}")
         except Exception as e:
             print(f"HED init error: {e}")
             self.hed_net = None
@@ -83,12 +253,7 @@ class EdgeDetector:
         """
         Detect edges using selected method.
         """
-        if len(image.shape) == 3:
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            color = image
-        else:
-            gray = image
-            color = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+        gray, color = self._prepare_input_images(image)
 
         if self.method == self.METHOD_LSD:
             edges = self._detect_lsd(gray)
@@ -102,11 +267,9 @@ class EdgeDetector:
         try:
             # Normalize to binary (0 or 1)
             binary = edges > self.EDGE_PRESENCE_THRESHOLD
-            
-            # Skeletonize
-            skeleton = skeletonize(binary)
-            
+
             # Convert back to uint8 (0 or 255)
+            skeleton = self.thin_binary_mask(binary)
             edges = (skeleton * self.EDGE_MAX_VALUE).astype(np.uint8)
         except Exception as e:
             print(f"Skeletonize error: {e}")
@@ -247,7 +410,64 @@ class EdgeDetector:
     @classmethod
     def is_hed_available(cls):
         """Check if HED model files are available."""
-        return os.path.exists(cls.HED_PROTOTXT) and os.path.exists(cls.HED_CAFFEMODEL)
+        return cls.get_hed_runtime_status().get("ok", False)
+
+    @classmethod
+    def download_hed_assets(cls, timeout=60):
+        """Download HED assets atomically and validate them before replacing local files."""
+        info = cls.get_hed_download_info()
+        model_dir = os.path.dirname(info["caffemodel_path"])
+        os.makedirs(model_dir, exist_ok=True)
+
+        temp_paths = []
+
+        try:
+            fd, temp_prototxt = tempfile.mkstemp(
+                prefix="hed_prototxt_",
+                suffix=".prototxt",
+                dir=model_dir,
+            )
+            os.close(fd)
+            temp_paths.append(temp_prototxt)
+            with urllib.request.urlopen(info["prototxt_url"], timeout=timeout) as response, open(
+                temp_prototxt,
+                "wb",
+            ) as out_file:
+                shutil.copyfileobj(response, out_file)
+
+            fd, temp_caffemodel = tempfile.mkstemp(
+                prefix="hed_weights_",
+                suffix=".caffemodel",
+                dir=model_dir,
+            )
+            os.close(fd)
+            temp_paths.append(temp_caffemodel)
+            with urllib.request.urlopen(info["caffemodel_url"], timeout=timeout) as response, open(
+                temp_caffemodel,
+                "wb",
+            ) as out_file:
+                shutil.copyfileobj(response, out_file)
+
+            cls._create_hed_net(
+                prototxt_path=temp_prototxt,
+                caffemodel_path=temp_caffemodel,
+                validate_forward=True,
+            )
+
+            os.replace(temp_prototxt, info["prototxt_path"])
+            temp_paths.remove(temp_prototxt)
+            os.replace(temp_caffemodel, info["caffemodel_path"])
+            temp_paths.remove(temp_caffemodel)
+            cls._invalidate_hed_status_cache()
+            return True, None
+        except Exception as exc:
+            return False, str(exc)
+        finally:
+            for temp_path in temp_paths:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
     @classmethod
     def get_hed_download_info(cls):

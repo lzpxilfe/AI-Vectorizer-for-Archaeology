@@ -33,7 +33,7 @@ class AIVectorizer:
 
     def tr(self, message):
         """Get the translation for a string."""
-        return QCoreApplication.translate('ArchaeoTrace', message)
+        return QCoreApplication.translate(PLUGIN_NAME, message)
 
     def add_action(
         self,
@@ -89,6 +89,22 @@ class AIVectorizer:
         for action in self.actions:
             self.iface.removePluginVectorMenu(self.menu, action)
             self.iface.removeToolBarIcon(action)
+
+        if self.dialog is not None:
+            try:
+                self.dialog.cleanup()
+            except Exception:
+                pass
+            try:
+                self.iface.removeDockWidget(self.dialog)
+            except Exception:
+                try:
+                    self.iface.mainWindow().removeDockWidget(self.dialog)
+                except Exception:
+                    pass
+            self.dialog.close()
+            self.dialog.deleteLater()
+            self.dialog = None
         
         if self.toolbar is not None:
             del self.toolbar

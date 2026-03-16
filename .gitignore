@@ -2,10 +2,14 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
 
 # QGIS
 .qgis2/
 .qgis3/
+
+# macOS
+.DS_Store
 
 # Project specific
 174 청양.jpg
@@ -17,6 +21,10 @@ ai_vectorizer/models/*.pth
 ai_vectorizer/models/*.onnx
 ai_vectorizer/models/*.ckpt
 ai_vectorizer/models/*.bin
+ai_vectorizer/models/*.meta.json
 ai_vectorizer/core/models/*.caffemodel
+dist/
+ai_vectorizer */
+*.zip
 .idea/
 .vscode/
