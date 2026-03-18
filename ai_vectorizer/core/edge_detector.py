@@ -4,12 +4,13 @@ Edge Detection Module - Multiple detection methods for historical maps
 Supports: Canny+Adaptive, LSD Line Detector, HED (Holistically-Nested Edge Detection)
 """
 
-import cv2
 import numpy as np
 import os
 import shutil
 import tempfile
 import urllib.request
+
+from .dependencies import build_missing_cv2_message, get_cv2, is_cv2_available, require_cv2
 
 try:
     from skimage.morphology import skeletonize as _skimage_skeletonize
@@ -88,6 +89,10 @@ class EdgeDetector:
         if _skimage_skeletonize is not None:
             return _skimage_skeletonize(binary)
 
+        cv2 = get_cv2()
+        if cv2 is None:
+            return binary
+
         ximgproc = getattr(cv2, "ximgproc", None)
         if ximgproc is not None and hasattr(ximgproc, "thinning"):
             thinned = ximgproc.thinning(binary.astype(np.uint8) * 255)
@@ -98,6 +103,7 @@ class EdgeDetector:
     @staticmethod
     def _prepare_input_images(image: np.ndarray):
         """Normalize raster input into gray + BGR variants for detectors."""
+        cv2 = require_cv2("OpenCV edge detection")
         if len(image.shape) == 3:
             rgb = np.ascontiguousarray(image[..., :3])
             gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
@@ -108,6 +114,18 @@ class EdgeDetector:
 
         return gray, color_bgr
 
+    @classmethod
+    def _missing_opencv_status(cls, feature_name):
+        return {
+            "ok": False,
+            "reason": "missing_opencv",
+            "message": build_missing_cv2_message(feature_name),
+        }
+
+    @classmethod
+    def _require_cv2_runtime(cls, feature_name):
+        return require_cv2(feature_name)
+
     def __init__(self, method=METHOD_CANNY):
         """
         Args:
@@ -115,10 +133,15 @@ class EdgeDetector:
         """
         self.method = method
         self.hed_net = None
+        self.cv2 = None
+        self.lsd = None
+
+        if method in (self.METHOD_CANNY, self.METHOD_LSD, self.METHOD_HED):
+            self.cv2 = self._require_cv2_runtime(f"{method.upper()} edge detection")
         
         # LSD detector instance
         if method == self.METHOD_LSD:
-            self.lsd = cv2.createLineSegmentDetector(cv2.LSD_REFINE_STD)
+            self.lsd = self.cv2.createLineSegmentDetector(self.cv2.LSD_REFINE_STD)
         
         # HED network
         if method == self.METHOD_HED:
@@ -145,6 +168,7 @@ class EdgeDetector:
         if cls._hed_crop_layer_registered:
             return
 
+        cv2 = cls._require_cv2_runtime("HED edge detection")
         register_fn = getattr(cv2.dnn, "registerLayer", None)
         if register_fn is None:
             register_fn = getattr(cv2, "dnn_registerLayer", None)
@@ -164,6 +188,7 @@ class EdgeDetector:
     def _create_hed_net(cls, prototxt_path=None, caffemodel_path=None, validate_forward=False):
         prototxt = prototxt_path or cls.HED_PROTOTXT
         caffemodel = caffemodel_path or cls.HED_CAFFEMODEL
+        cv2 = cls._require_cv2_runtime("HED edge detection")
         cls._register_hed_layers()
         net = cv2.dnn.readNetFromCaffe(prototxt, caffemodel)
         if validate_forward:
@@ -172,6 +197,7 @@ class EdgeDetector:
 
     @classmethod
     def _validate_hed_net(cls, net):
+        cv2 = cls._require_cv2_runtime("HED edge detection")
         dummy = np.zeros(
             (cls.HED_VALIDATION_IMAGE_SIZE, cls.HED_VALIDATION_IMAGE_SIZE, 3),
             dtype=np.uint8,
@@ -192,6 +218,8 @@ class EdgeDetector:
     @classmethod
     def get_hed_runtime_status(cls, force_refresh=False):
         """Return whether HED assets are present and actually loadable."""
+        if not is_cv2_available():
+            return cls._missing_opencv_status("HED edge detection")
         if not os.path.exists(cls.HED_PROTOTXT):
             return {
                 "ok": False,
@@ -283,6 +311,7 @@ class EdgeDetector:
         high_threshold=DEFAULT_CANNY_HIGH_THRESHOLD,
     ) -> np.ndarray:
         """Canny + Adaptive threshold method."""
+        cv2 = self.cv2 or self._require_cv2_runtime("Canny edge detection")
         # Adaptive threshold for dark lines
         dark_mask = cv2.adaptiveThreshold(
             gray,
@@ -311,6 +340,7 @@ class EdgeDetector:
         LSD Line Segment Detector - detects line segments directly.
         Much smoother and more accurate for contour lines.
         """
+        cv2 = self.cv2 or self._require_cv2_runtime("LSD edge detection")
         # Detect line segments
         lines, widths, precs, nfas = self.lsd.detect(gray)
         
@@ -347,6 +377,7 @@ class EdgeDetector:
         HED (Holistically-Nested Edge Detection) - Deep learning based.
         Produces smoother, more natural edges than traditional methods.
         """
+        cv2 = self.cv2 or self._require_cv2_runtime("HED edge detection")
         if self.hed_net is None:
             # Fallback to Canny if HED not available
             print("HED not available, falling back to Canny")
@@ -397,6 +428,7 @@ class EdgeDetector:
         Create cost map for pathfinding.
         edge_weight: 0.0 = free draw, 1.0 = strict edge follow
         """
+        cv2 = self.cv2 or self._require_cv2_runtime("OpenCV edge cost mapping")
         # Distance to nearest edge
         inverted = cv2.bitwise_not(edges)
         dist = cv2.distanceTransform(inverted, cv2.DIST_L2, self.DIST_TRANSFORM_MASK_SIZE)

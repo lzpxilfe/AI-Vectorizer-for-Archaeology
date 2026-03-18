@@ -3,8 +3,9 @@
 Raster helpers shared by preview and tracing cache code.
 """
 
-import cv2
 import numpy as np
+
+from .dependencies import get_cv2
 
 
 BYTE_DEPTH_TO_DTYPE = {
@@ -107,7 +108,12 @@ def raster_block_to_uint8(block, width, height, data_type=None):
     if max_value <= min_value:
         return np.zeros((height, width), dtype=np.uint8)
 
-    normalized = cv2.normalize(array, None, 0, 255, cv2.NORM_MINMAX)
+    cv2 = get_cv2()
+    if cv2 is not None:
+        normalized = cv2.normalize(array, None, 0, 255, cv2.NORM_MINMAX)
+    else:
+        scale = 255.0 / (max_value - min_value)
+        normalized = np.clip((array - min_value) * scale, 0, 255)
     return normalized.astype(np.uint8)
 
 

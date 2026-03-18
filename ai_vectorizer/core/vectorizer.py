@@ -5,7 +5,6 @@ Converts binary masks (from SAM or Edge Detection) into vector polylines.
 """
 
 import numpy as np
-import cv2
 from qgis.core import QgsGeometry, QgsPointXY
 
 from .edge_detector import EdgeDetector

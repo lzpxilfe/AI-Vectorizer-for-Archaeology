@@ -9,7 +9,6 @@ Key concept:
 - Result is smoothed with Bézier curves
 """
 import numpy as np
-import cv2
 import heapq
 import math
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
@@ -22,6 +21,7 @@ from qgis.PyQt.QtCore import Qt, QVariant, pyqtSignal
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import QAction
 
+from ..core.dependencies import get_cv2, require_cv2
 from ..core.edge_detector import EdgeDetector
 from ..core.raster_utils import compute_resampled_dimensions, read_raster_bands
 from ..config import (
@@ -215,9 +215,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # Spot Height Layer (Point)
         self.spot_height_layer = None
 
-        
+        self.cv2 = get_cv2()
+        if not self.freehand or self.use_sam:
+            self.cv2 = require_cv2("OpenCV tracing")
+
         # Edge detector
-        self.edge_detector = EdgeDetector(method=self.edge_method)
+        self.edge_detector = None
+        if not self.freehand or self.use_sam:
+            self.edge_detector = EdgeDetector(method=self.edge_method)
         
         # Edge cache
         self.cached_edges = None
@@ -544,6 +549,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if mask.ndim != 2:
             return None
 
+        cv2 = self.cv2 or require_cv2("SAM tracing")
         mask = cv2.morphologyEx(
             (mask > 0).astype(np.uint8) * 255,
             cv2.MORPH_CLOSE,
@@ -593,6 +599,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         return None
 
     def _build_sam_cost_map(self, mask):
+        cv2 = self.cv2 or require_cv2("SAM tracing")
         closed_mask = cv2.morphologyEx(
             mask.astype(np.uint8) * 255,
             cv2.MORPH_CLOSE,
@@ -1363,6 +1370,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def update_edge_cache(self):
         """Cache edge detection for current view."""
         try:
+            if self.edge_detector is None:
+                self._clear_edge_cache()
+                return
+
             extent = self._canvas_extent_in_raster_crs()
             if extent is None:
                 self._clear_edge_cache()

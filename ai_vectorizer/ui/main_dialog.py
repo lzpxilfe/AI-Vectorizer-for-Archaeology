@@ -41,6 +41,7 @@ from qgis.gui import QgsMapLayerComboBox
 from qgis.PyQt.QtCore import Qt, QVariant, QSettings
 from qgis.PyQt.QtGui import QColor
 
+from ..core.dependencies import get_cv2_error_text, get_opencv_install_command, is_cv2_available
 from ..core.raster_utils import compute_resampled_dimensions, read_raster_bands
 from ..config import (
     DEFAULT_CRS_AUTHID,
@@ -178,6 +179,31 @@ class AIVectorizerDock(QDockWidget):
         self.sam_download_btn.setVisible(show_download)
         self.install_guide.setVisible(show_install)
         self.install_cmd.setVisible(show_install)
+
+    def _set_install_hint(self, label, command):
+        self.install_guide.setText(label)
+        self.install_cmd.setText(command)
+
+    def _opencv_detail_text(self):
+        detail = get_cv2_error_text()
+        if not detail:
+            return ""
+        return self._tr(f"\n원인: {detail}", f"\nDetail: {detail}")
+
+    def _show_opencv_warning(self, feature_name):
+        command = get_opencv_install_command()
+        QMessageBox.warning(
+            self,
+            self._tr("OpenCV 필요", "OpenCV Required"),
+            self._tr(
+                "{feature} 기능에는 OpenCV(`cv2`)가 필요합니다.\nQGIS Python 환경에 아래 명령으로 설치하세요:\n{cmd}{detail}",
+                "{feature} requires OpenCV (`cv2`).\nInstall it into the QGIS Python environment with:\n{cmd}{detail}",
+            ).format(
+                feature=feature_name,
+                cmd=command,
+                detail=self._opencv_detail_text(),
+            ),
+        )
 
     def _download_button_text(self, model_idx=None):
         idx = self.model_combo.currentIndex() if model_idx is None else model_idx
@@ -653,16 +679,27 @@ class AIVectorizerDock(QDockWidget):
                 self.trace_btn.setChecked(False)
                 return
 
-            from ..tools.smart_trace_tool import SmartTraceTool
-
             edge_weight = self.freedom_slider.value() / 100.0
             freehand = self.freehand_check.isChecked()
             model_idx = self.model_combo.currentIndex()
-            self._get_or_create_sam_engine(model_idx if self._is_sam_model(model_idx) else None)
-            use_sam = self._is_sam_model(model_idx) and self.sam_engine is not None and self.sam_engine.is_ready
+            if self._is_sam_model(model_idx) and not freehand:
+                self._get_or_create_sam_engine(model_idx)
+            else:
+                self.sam_engine = None
+            use_sam = (
+                not freehand
+                and self._is_sam_model(model_idx)
+                and self.sam_engine is not None
+                and self.sam_engine.is_ready
+            )
             edge_method = SAM_ASSIST_EDGE_METHOD if use_sam else EDGE_METHOD_BY_MODEL.get(model_idx, DEFAULT_EDGE_METHOD)
 
-            if model_idx == MODEL_IDX_HED:
+            if not freehand and not is_cv2_available():
+                self._show_opencv_warning(self._tr("AI 트레이싱", "AI tracing"))
+                self.trace_btn.setChecked(False)
+                return
+
+            if not freehand and model_idx == MODEL_IDX_HED:
                 from ..core.edge_detector import EdgeDetector
                 hed_status = EdgeDetector.get_hed_runtime_status(force_refresh=True)
                 if not hed_status.get("ok"):
@@ -677,7 +714,7 @@ class AIVectorizerDock(QDockWidget):
                     self.trace_btn.setChecked(False)
                     return
 
-            if self._is_sam_model(model_idx) and not use_sam:
+            if not freehand and self._is_sam_model(model_idx) and not use_sam:
                 QMessageBox.warning(
                     self,
                     self._tr("경고", "Warning"),
@@ -691,6 +728,7 @@ class AIVectorizerDock(QDockWidget):
                 self.trace_btn.setChecked(False)
                 return
 
+            from ..tools.smart_trace_tool import SmartTraceTool
             self.active_tool = SmartTraceTool(
                 self.iface.mapCanvas(),
                 raster,
@@ -706,7 +744,10 @@ class AIVectorizerDock(QDockWidget):
             self.iface.mapCanvas().setMapTool(self.active_tool)
             self.active_tool.deactivated.connect(self.on_tool_deactivated)
 
-            mode_name = self._sam_display_name(model_idx) if use_sam else self._mode_name(model_idx)
+            if freehand:
+                mode_name = self._tr("프리핸드", "Freehand")
+            else:
+                mode_name = self._sam_display_name(model_idx) if use_sam else self._mode_name(model_idx)
             self._set_tracing_state(mode_name)
         else:
             if self.active_tool:
@@ -721,7 +762,17 @@ class AIVectorizerDock(QDockWidget):
         self._set_model_aux_visibility()
         self.sam_engine = None
         if index in (MODEL_IDX_CANNY, MODEL_IDX_LSD):
-            self._set_sam_status(self._tr("OpenCV 내장", "Built-in OpenCV"), "info")
+            if is_cv2_available():
+                self._set_sam_status(self._tr("✅ OpenCV 로드됨", "✅ OpenCV loaded"), "info")
+                self.sam_status.setToolTip("")
+            else:
+                self._set_sam_status(self._tr("❌ OpenCV 미설치", "❌ OpenCV not installed"), "error")
+                self.sam_status.setToolTip(get_cv2_error_text())
+                self._set_model_aux_visibility(show_install=True)
+                self._set_install_hint(
+                    self._tr("📦 OpenCV 설치 (복사 가능):", "📦 Install OpenCV (copy this):"),
+                    get_opencv_install_command(),
+                )
         elif index == MODEL_IDX_HED:
             self.check_hed_status()
         elif self._is_sam_model(index):
@@ -735,7 +786,17 @@ class AIVectorizerDock(QDockWidget):
         if status.get("ok"):
             self._set_sam_status(self._tr("✅ HED 모델 로드됨", "✅ HED model loaded"), "info")
         else:
-            if status.get("reason") in ("missing_prototxt", "missing_weights"):
+            if status.get("reason") == "missing_opencv":
+                self._set_sam_status(
+                    self._tr("❌ OpenCV 미설치", "❌ OpenCV not installed"),
+                    "error",
+                )
+                self._set_model_aux_visibility(show_install=True)
+                self._set_install_hint(
+                    self._tr("📦 OpenCV 설치 (복사 가능):", "📦 Install OpenCV (copy this):"),
+                    get_opencv_install_command(),
+                )
+            elif status.get("reason") in ("missing_prototxt", "missing_weights"):
                 self._set_sam_status(
                     self._tr(
                         f"⚠️ HED 모델 필요 ({self._hed_size_hint_mb()}MB)",
@@ -743,6 +804,8 @@ class AIVectorizerDock(QDockWidget):
                     ),
                     "warning",
                 )
+                self._set_model_aux_visibility(show_download=True)
+                self.sam_download_btn.setText(self._download_button_text(MODEL_IDX_HED))
             else:
                 self._set_sam_status(
                     self._tr(
@@ -751,8 +814,8 @@ class AIVectorizerDock(QDockWidget):
                     ),
                     "error",
                 )
-            self._set_model_aux_visibility(show_download=True)
-            self.sam_download_btn.setText(self._download_button_text(MODEL_IDX_HED))
+                self._set_model_aux_visibility(show_download=True)
+                self.sam_download_btn.setText(self._download_button_text(MODEL_IDX_HED))
 
     def init_sam_engine(self):
         model_idx = self.model_combo.currentIndex()
@@ -774,14 +837,29 @@ class AIVectorizerDock(QDockWidget):
 
         success, load_msg = self.sam_engine.load_model()
         if success:
-            self._set_sam_status(
-                self._tr(
-                    "✅ {name} 로드됨 (최신 확인 가능)",
-                    "✅ {name} loaded (update check available)",
-                ).format(name=self._sam_display_name(model_idx)),
-                "info",
-            )
-            self.sam_status.setToolTip("")
+            if is_cv2_available():
+                self._set_sam_status(
+                    self._tr(
+                        "✅ {name} 로드됨 (최신 확인 가능)",
+                        "✅ {name} loaded (update check available)",
+                    ).format(name=self._sam_display_name(model_idx)),
+                    "info",
+                )
+                self.sam_status.setToolTip("")
+            else:
+                self._set_sam_status(
+                    self._tr(
+                        "⚠️ {name} 로드됨, 하지만 OpenCV가 없어 트레이싱 불가",
+                        "⚠️ {name} loaded, but tracing is blocked until OpenCV is installed",
+                    ).format(name=self._sam_display_name(model_idx)),
+                    "warning",
+                )
+                self.sam_status.setToolTip(get_cv2_error_text())
+                self._set_model_aux_visibility(show_check=True, show_report=True, show_download=True, show_install=True)
+                self._set_install_hint(
+                    self._tr("📦 OpenCV 설치 (복사 가능):", "📦 Install OpenCV (copy this):"),
+                    get_opencv_install_command(),
+                )
         else:
             weights_path = getattr(self.sam_engine, "weights_path", "")
             if weights_path and os.path.exists(weights_path):
@@ -1019,6 +1097,10 @@ class AIVectorizerDock(QDockWidget):
             )
 
     def download_hed(self):
+        if not is_cv2_available():
+            self._show_opencv_warning("HED")
+            return
+
         self.sam_download_btn.setEnabled(False)
         self._set_sam_status(
             self._tr(
@@ -1070,6 +1152,10 @@ class AIVectorizerDock(QDockWidget):
             return
 
         edge_method = EDGE_METHOD_BY_MODEL.get(model_idx, DEFAULT_EDGE_METHOD)
+
+        if not is_cv2_available():
+            self._show_opencv_warning(self._tr("엣지 미리보기", "edge preview"))
+            return
 
         try:
             from ..core.edge_detector import EdgeDetector
