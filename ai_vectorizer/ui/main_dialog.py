@@ -119,6 +119,10 @@ class AIVectorizerDock(QDockWidget):
     def _save_language(self):
         QSettings().setValue(SETTINGS_LANG_KEY, self.current_language)
 
+    @staticmethod
+    def _log_nonfatal_ui_error(context, exc):
+        print(f"{context}: {exc}")
+
     def _model_items(self):
         return [
             MODEL_MENU_LABELS[idx][self.current_language]
@@ -300,8 +304,8 @@ class AIVectorizerDock(QDockWidget):
         if self.active_tool:
             try:
                 self.iface.mapCanvas().unsetMapTool(self.active_tool)
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_nonfatal_ui_error("Failed to unset active tool", exc)
         self.active_tool = None
         self._set_idle_ui()
 
@@ -532,7 +536,11 @@ class AIVectorizerDock(QDockWidget):
         self.model_combo.setToolTip(
             self._tr(
                 "Canny: 기본\nLSD: 선분 기반\nHED: 딥러닝 엣지\nMobileSAM: 경량 세그멘테이션\nSAM: 정밀 세그멘테이션",
-                "Canny: baseline\nLSD: line detector\nHED: deep edge detector\nMobileSAM: lightweight segmentation\nSAM: precise segmentation",
+                "Canny: baseline\n"
+                "LSD: line detector\n"
+                "HED: deep edge detector\n"
+                "MobileSAM: lightweight segmentation\n"
+                "SAM: precise segmentation",
             )
         )
         self.sam_check_btn.setText(self._tr("🔎 선택 SAM 모델 최신 확인", "🔎 Check Selected SAM Model"))
@@ -567,8 +575,16 @@ class AIVectorizerDock(QDockWidget):
         self.controls_title_label.setText(self._tr("📖 사용법:", "📖 Controls:"))
         self.controls_label.setText(
             self._tr(
-                "• 드래그: 선 그리기 / 클릭: 체크포인트\n• Ctrl+Z: 마지막 체크포인트로 되돌리기\n• Esc: 현재 그리기 취소 / Del: 전체 취소\n• 시작점 클릭: 폴리곤 닫기 → 해발값\n• 우클릭/Enter: 저장",
-                "• Drag: draw line / Click: checkpoint\n• Ctrl+Z: undo to last checkpoint\n• Esc: cancel current trace / Del: cancel all\n• Click start point: close polygon -> elevation\n• Right click / Enter: save",
+                "• 드래그: 선 그리기 / 클릭: 체크포인트\n"
+                "• Ctrl+Z: 마지막 체크포인트로 되돌리기\n"
+                "• Esc: 현재 그리기 취소 / Del: 전체 취소\n"
+                "• 시작점 클릭: 폴리곤 닫기 → 해발값\n"
+                "• 우클릭/Enter: 저장",
+                "• Drag: draw line / Click: checkpoint\n"
+                "• Ctrl+Z: undo to last checkpoint\n"
+                "• Esc: cancel current trace / Del: cancel all\n"
+                "• Click start point: close polygon -> elevation\n"
+                "• Right click / Enter: save",
             )
         )
         self.controls_label.setToolTip(self._tr("클릭으로 체크포인트 저장\n실수하면 Ctrl+Z로 되돌림", "Click to place checkpoints\nUse Ctrl+Z to undo"))
@@ -591,7 +607,12 @@ class AIVectorizerDock(QDockWidget):
             self._set_status_label(self._tr("SHP 파일을 먼저 생성하세요", "Create or select an SHP layer first"))
         elif self.trace_btn.isChecked():
             self._set_status_label(
-                self._tr("🖊️ [{mode}] 등고선을 클릭하세요", "🖊️ [{mode}] Click on contours").format(mode=self._mode_name(self.model_combo.currentIndex()))
+                self._tr(
+                    "🖊️ [{mode}] 등고선을 클릭하세요",
+                    "🖊️ [{mode}] Click on contours",
+                ).format(
+                    mode=self._mode_name(self.model_combo.currentIndex()),
+                )
             )
         else:
             self._set_ready_state()
@@ -903,7 +924,14 @@ class AIVectorizerDock(QDockWidget):
                 self.init_sam_engine()
                 self.check_sam_update(show_message=False)
             else:
-                QMessageBox.critical(self, self._tr("오류", "Error"), self._tr("다운로드 실패. 인터넷 연결을 확인하세요.", "Download failed. Check your internet connection."))
+                QMessageBox.critical(
+                    self,
+                    self._tr("오류", "Error"),
+                    self._tr(
+                        "다운로드 실패. 인터넷 연결을 확인하세요.",
+                        "Download failed. Check your internet connection.",
+                    ),
+                )
                 self._set_sam_status(self._tr("❌ 다운로드 실패", "❌ Download failed"), "error")
         self.sam_download_btn.setEnabled(True)
 
@@ -1122,7 +1150,14 @@ class AIVectorizerDock(QDockWidget):
             )
             self.check_hed_status()
         except Exception as e:
-            QMessageBox.critical(self, self._tr("오류", "Error"), self._tr("HED 다운로드 실패:\n{err}", "HED download failed:\n{err}").format(err=str(e)))
+            QMessageBox.critical(
+                self,
+                self._tr("오류", "Error"),
+                self._tr(
+                    "HED 다운로드 실패:\n{err}",
+                    "HED download failed:\n{err}",
+                ).format(err=str(e)),
+            )
             self._set_sam_status(self._tr("❌ 다운로드 실패", "❌ Download failed"), "error")
         self.sam_download_btn.setEnabled(True)
 
@@ -1204,11 +1239,25 @@ class AIVectorizerDock(QDockWidget):
             edge_layer = QgsRasterLayer(temp_path, layer_name)
             if edge_layer.isValid():
                 QgsProject.instance().addMapLayer(edge_layer)
-                QMessageBox.information(self, self._tr("완료", "Done"), self._tr("'{name}' 레이어가 추가되었습니다.\n흰색=감지된 엣지", "Layer '{name}' added.\nWhite=detected edges").format(name=layer_name))
+                QMessageBox.information(
+                    self,
+                    self._tr("완료", "Done"),
+                    self._tr(
+                        "'{name}' 레이어가 추가되었습니다.\n흰색=감지된 엣지",
+                        "Layer '{name}' added.\nWhite=detected edges",
+                    ).format(name=layer_name),
+                )
             else:
                 QMessageBox.critical(self, self._tr("오류", "Error"), self._tr("미리보기 레이어 생성 실패", "Failed to create preview layer"))
         except Exception as e:
-            QMessageBox.critical(self, self._tr("오류", "Error"), self._tr("엣지 감지 실패:\n{err}", "Edge detection failed:\n{err}").format(err=str(e)))
+            QMessageBox.critical(
+                self,
+                self._tr("오류", "Error"),
+                self._tr(
+                    "엣지 감지 실패:\n{err}",
+                    "Edge detection failed:\n{err}",
+                ).format(err=str(e)),
+            )
 
     def _help_text(self):
         if self.current_language == LANG_EN:

@@ -2,7 +2,7 @@
 import zipfile
 from pathlib import Path
 
-VERSION = "0.1.2"
+VERSION = "0.1.4"
 PLUGIN_DIRNAME = "ai_vectorizer"
 MAX_UPLOAD_MB = 25.0
 OUTPUT_NAME = f"ArchaeoTrace-v{VERSION}-qgis.zip"

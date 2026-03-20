@@ -8,6 +8,7 @@ import numpy as np
 import os
 import shutil
 import tempfile
+import urllib.parse
 import urllib.request
 
 from .dependencies import build_missing_cv2_message, get_cv2, is_cv2_available, require_cv2
@@ -16,6 +17,7 @@ try:
     from skimage.morphology import skeletonize as _skimage_skeletonize
 except Exception:
     _skimage_skeletonize = None
+
 
 class EdgeDetector:
     METHOD_CANNY = 'canny'
@@ -50,6 +52,11 @@ class EdgeDetector:
     HED_CAFFEMODEL = os.path.join(HED_MODEL_DIR, 'hed_pretrained_bsds.caffemodel')
     HED_PROTOTXT_URL = 'https://raw.githubusercontent.com/s9xie/hed/master/examples/hed/deploy.prototxt'
     HED_CAFFEMODEL_URL = 'https://vcl.ucsd.edu/hed/hed_pretrained_bsds.caffemodel'
+    HED_ALLOWED_DOWNLOAD_SCHEMES = {"https"}
+    HED_ALLOWED_DOWNLOAD_HOSTS = {
+        "raw.githubusercontent.com",
+        "vcl.ucsd.edu",
+    }
     HED_MODEL_SIZE_MB = 56
     HED_VALIDATION_IMAGE_SIZE = 64
 
@@ -138,11 +145,11 @@ class EdgeDetector:
 
         if method in (self.METHOD_CANNY, self.METHOD_LSD, self.METHOD_HED):
             self.cv2 = self._require_cv2_runtime(f"{method.upper()} edge detection")
-        
+
         # LSD detector instance
         if method == self.METHOD_LSD:
             self.lsd = self.cv2.createLineSegmentDetector(self.cv2.LSD_REFINE_STD)
-        
+
         # HED network
         if method == self.METHOD_HED:
             self._init_hed()
@@ -289,7 +296,7 @@ class EdgeDetector:
             edges = self._detect_hed(color, gray)
         else:
             edges = self._detect_canny(gray, low_threshold, high_threshold)
-            
+
         # SKELETONIZATION: Ensure edges are 1px wide
         # This prevents "walking inside the edge" and reduces jitter
         try:
@@ -301,7 +308,7 @@ class EdgeDetector:
             edges = (skeleton * self.EDGE_MAX_VALUE).astype(np.uint8)
         except Exception as e:
             print(f"Skeletonize error: {e}")
-            
+
         return edges
 
     def _detect_canny(
@@ -321,18 +328,18 @@ class EdgeDetector:
             self.CANNY_ADAPTIVE_BLOCK_SIZE,
             self.CANNY_ADAPTIVE_C,
         )
-        
+
         # Canny for fine edges
         blurred = cv2.GaussianBlur(gray, self.CANNY_BLUR_KERNEL, 0)
         canny = cv2.Canny(blurred, low_threshold, high_threshold)
-        
+
         # Combine
         combined = cv2.bitwise_or(dark_mask, canny)
-        
+
         # Clean up
         kernel = np.ones(self.CANNY_CLOSE_KERNEL, np.uint8)
         combined = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, kernel)
-        
+
         return combined
 
     def _detect_lsd(self, gray: np.ndarray) -> np.ndarray:
@@ -343,16 +350,16 @@ class EdgeDetector:
         cv2 = self.cv2 or self._require_cv2_runtime("LSD edge detection")
         # Detect line segments
         lines, widths, precs, nfas = self.lsd.detect(gray)
-        
+
         # Create edge mask from detected lines
         edge_mask = np.zeros(gray.shape, dtype=np.uint8)
-        
+
         if lines is not None:
             for line in lines:
                 x1, y1, x2, y2 = line[0].astype(int)
                 # Draw thicker lines for better pathfinding
                 cv2.line(edge_mask, (x1, y1), (x2, y2), self.EDGE_MAX_VALUE, self.LSD_LINE_WIDTH)
-        
+
         # Also add dark line detection for completeness
         dark_mask = cv2.adaptiveThreshold(
             gray,
@@ -362,14 +369,14 @@ class EdgeDetector:
             self.LSD_ADAPTIVE_BLOCK_SIZE,
             self.LSD_ADAPTIVE_C,
         )
-        
+
         # Combine LSD with dark detection
         combined = cv2.bitwise_or(edge_mask, dark_mask)
-        
+
         # Morphological closing for continuity
         kernel = np.ones(self.LSD_CLOSE_KERNEL, np.uint8)
         combined = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, kernel)
-        
+
         return combined
 
     def _detect_hed(self, color: np.ndarray, gray: np.ndarray) -> np.ndarray:
@@ -382,29 +389,29 @@ class EdgeDetector:
             # Fallback to Canny if HED not available
             print("HED not available, falling back to Canny")
             return self._detect_canny(gray)
-        
+
         try:
             h, w = color.shape[:2]
-            
+
             # Prepare input blob
             # HED expects specific preprocessing
             blob = cv2.dnn.blobFromImage(
-                color, 
-                scalefactor=1.0, 
+                color,
+                scalefactor=1.0,
                 size=(w, h),
                 mean=self.HED_MEAN,
-                swapRB=False, 
+                swapRB=False,
                 crop=False
             )
-            
+
             self.hed_net.setInput(blob)
             hed_output = self.hed_net.forward()
-            
+
             # Post-process: convert to 0-255 range
             hed_edges = hed_output[0, 0]
             hed_edges = cv2.resize(hed_edges, (w, h))
             hed_edges = (self.EDGE_MAX_VALUE * hed_edges).astype(np.uint8)
-            
+
             # Threshold to binary
             _, binary = cv2.threshold(
                 hed_edges,
@@ -412,13 +419,13 @@ class EdgeDetector:
                 self.EDGE_MAX_VALUE,
                 cv2.THRESH_BINARY,
             )
-            
+
             # Optional: thin the edges
             kernel = np.ones(self.HED_CLOSE_KERNEL, np.uint8)
             binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
-            
+
             return binary
-            
+
         except Exception as e:
             print(f"HED detection error: {e}")
             return self._detect_canny(gray)
@@ -432,11 +439,11 @@ class EdgeDetector:
         # Distance to nearest edge
         inverted = cv2.bitwise_not(edges)
         dist = cv2.distanceTransform(inverted, cv2.DIST_L2, self.DIST_TRANSFORM_MASK_SIZE)
-        
+
         # Lower multiplier = more freedom
         multiplier = self.EDGE_COST_BASE_MULTIPLIER + edge_weight * self.EDGE_COST_WEIGHT_SCALE
         cost_map = 1.0 + dist * multiplier
-        
+
         return cost_map.astype(np.float32)
 
     @classmethod
@@ -445,9 +452,26 @@ class EdgeDetector:
         return cls.get_hed_runtime_status().get("ok", False)
 
     @classmethod
+    def _validate_download_url(cls, url: str) -> str:
+        """Return a validated remote download URL for HED assets."""
+        parsed = urllib.parse.urlparse(url)
+        host = (parsed.hostname or "").lower()
+        scheme = parsed.scheme.lower()
+
+        if scheme not in cls.HED_ALLOWED_DOWNLOAD_SCHEMES:
+            raise ValueError(
+                f"Unsupported HED download scheme: {parsed.scheme or '<missing>'}"
+            )
+        if host not in cls.HED_ALLOWED_DOWNLOAD_HOSTS:
+            raise ValueError(f"Unsupported HED download host: {host or '<missing>'}")
+        return url
+
+    @classmethod
     def download_hed_assets(cls, timeout=60):
         """Download HED assets atomically and validate them before replacing local files."""
         info = cls.get_hed_download_info()
+        prototxt_url = cls._validate_download_url(info["prototxt_url"])
+        caffemodel_url = cls._validate_download_url(info["caffemodel_url"])
         model_dir = os.path.dirname(info["caffemodel_path"])
         os.makedirs(model_dir, exist_ok=True)
 
@@ -461,7 +485,11 @@ class EdgeDetector:
             )
             os.close(fd)
             temp_paths.append(temp_prototxt)
-            with urllib.request.urlopen(info["prototxt_url"], timeout=timeout) as response, open(
+            prototxt_response = urllib.request.urlopen(  # nosec B310
+                prototxt_url,
+                timeout=timeout,
+            )
+            with prototxt_response as response, open(
                 temp_prototxt,
                 "wb",
             ) as out_file:
@@ -474,7 +502,11 @@ class EdgeDetector:
             )
             os.close(fd)
             temp_paths.append(temp_caffemodel)
-            with urllib.request.urlopen(info["caffemodel_url"], timeout=timeout) as response, open(
+            caffemodel_response = urllib.request.urlopen(  # nosec B310
+                caffemodel_url,
+                timeout=timeout,
+            )
+            with caffemodel_response as response, open(
                 temp_caffemodel,
                 "wb",
             ) as out_file:

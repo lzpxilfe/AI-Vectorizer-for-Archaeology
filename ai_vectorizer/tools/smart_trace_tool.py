@@ -13,7 +13,7 @@ import heapq
 import math
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
 from qgis.core import (
-    QgsWkbTypes, QgsProject, QgsPointXY, QgsGeometry, 
+    QgsWkbTypes, QgsProject, QgsPointXY, QgsGeometry,
     QgsFeature, QgsCoordinateTransform,
     QgsVectorLayer, QgsField, Qgis
 )
@@ -107,7 +107,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         (-1, 0), (1, 0), (0, -1), (0, 1),
         (-1, -1), (-1, 1), (1, -1), (1, 1),
     ]
-    
+
     def _tr(self, ko_text, en_text):
         return en_text if getattr(self, "language", "ko") == "en" else ko_text
 
@@ -120,14 +120,52 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if line_style is not None:
             band.setLineStyle(line_style)
 
-    def __init__(self, canvas, raster_layer, vector_layer, model_type=0, 
+    def _set_extent_cache_listener(self, enabled):
+        if enabled == getattr(self, "_extent_cache_listener_connected", False):
+            return
+
+        signal = self.canvas.extentsChanged
+        try:
+            if enabled:
+                signal.connect(self.update_edge_cache)
+            else:
+                signal.disconnect(self.update_edge_cache)
+            self._extent_cache_listener_connected = enabled
+        except (RuntimeError, TypeError) as exc:
+            if not enabled:
+                self._extent_cache_listener_connected = False
+            print(f"Extent cache listener update failed: {exc}")
+
+    def _set_undo_enabled(self, enabled):
+        if not self.iface:
+            return
+
+        try:
+            undo_action = self.iface.actionUndo()
+            if undo_action is not None:
+                undo_action.setEnabled(enabled)
+
+            main_window = self.iface.mainWindow()
+            fallback_action = None
+            if main_window is not None:
+                fallback_action = main_window.findChild(
+                    QAction,
+                    self.UNDO_ACTION_OBJECT_NAME,
+                )
+            if fallback_action is not None and fallback_action is not undo_action:
+                fallback_action.setEnabled(enabled)
+        except Exception as exc:
+            action_name = "enable" if enabled else "disable"
+            print(f"Failed to {action_name} undo action: {exc}")
+
+    def __init__(self, canvas, raster_layer, vector_layer, model_type=0,
                  sam_engine=None, edge_weight=0.5, freehand=False, edge_method='canny',
                  iface=None, language="ko"):
         self.canvas = canvas
         super().__init__(self.canvas)
         self.iface = iface
         self.language = language
-        
+
         self.raster_layer = raster_layer
         self.vector_layer = vector_layer
         self.sam_engine = sam_engine
@@ -139,7 +177,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.freehand = freehand
         self.edge_method = edge_method
         self.edge_weight = float(edge_weight)
-        
+
         # Snap radius (pixels) - higher = more magnetic
         self.snap_radius = max(
             1,
@@ -148,17 +186,17 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 * (1.0 - self.edge_weight * self.SNAP_RADIUS_EDGE_WEIGHT_FACTOR)
             ),
         )
-        
+
         # Path tracking
         self.path_points = []
         self.preview_path = []  # For hovering preview
         self.is_tracing = False
         self.start_point = None
         self.last_map_point = None
-        
+
         # Sampling interval (map units per sample point)
         self.sample_interval = 0
-        
+
         # RubberBands for visualization
         self.preview_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
         self._configure_band(
@@ -167,14 +205,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.PREVIEW_BAND_WIDTH,
             line_style=self.PREVIEW_BAND_LINE_STYLE,
         )
-        
+
         self.confirm_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
         self._configure_band(
             self.confirm_band,
             self.CONFIRM_BAND_COLOR,
             self.CONFIRM_BAND_WIDTH,
         )
-        
+
         self.start_marker = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
         self._configure_band(
             self.start_marker,
@@ -182,7 +220,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.START_MARKER_WIDTH,
             icon=self.START_MARKER_ICON,
         )
-        
+
         self.close_indicator = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
         self._configure_band(
             self.close_indicator,
@@ -190,7 +228,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.CLOSE_INDICATOR_WIDTH,
             icon=self.CLOSE_INDICATOR_ICON,
         )
-        
+
         # Checkpoint markers (blue diamonds)
         self.checkpoint_markers = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
         self._configure_band(
@@ -199,10 +237,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.CHECKPOINT_MARKER_WIDTH,
             icon=self.CHECKPOINT_MARKER_ICON,
         )
-        
+
         # Checkpoints: list of point indices where user clicked
         self.checkpoints = []
-        
+
         # Snap marker (for resuming drawing)
         self.snap_marker = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
         self._configure_band(
@@ -211,7 +249,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.SNAP_MARKER_WIDTH,
             icon=self.SNAP_MARKER_ICON,
         )
-        
+
         # Spot Height Layer (Point)
         self.spot_height_layer = None
 
@@ -223,7 +261,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.edge_detector = None
         if not self.freehand or self.use_sam:
             self.edge_detector = EdgeDetector(method=self.edge_method)
-        
+
         # Edge cache
         self.cached_edges = None
         self.cached_cost = None
@@ -232,7 +270,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.cached_rgb_image = None
         self.sam_image_ready = False
         self.sam_warning_emitted = False
-        
+        self._extent_cache_listener_connected = False
+
         # CRS transforms
         self.to_raster_transform = QgsCoordinateTransform(
             self.canvas.mapSettings().destinationCrs(),
@@ -244,14 +283,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.canvas.mapSettings().destinationCrs(),
             QgsProject.instance()
         )
-        
+
         # Resume/Merge State
         self.resume_feature_id = None
         self.resume_at_start = False  # True if appending to Start of existing line
-        
+
         # Stability (Anti-Pulse)
         self.last_hover_pos = None
-        
+
         # Auto-create output layer if needed
         if not self.vector_layer:
             self.vector_layer = self.create_output_layer()
@@ -268,15 +307,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def get_or_create_spot_layer(self):
         """Get or create the Spot Heights (Point) layer."""
         if self.spot_height_layer and not self.spot_height_layer.isValid():
-             self.spot_height_layer = None
-             
+            self.spot_height_layer = None
+
         if self.spot_height_layer is None:
             # Check if exists in project
             for layer in QgsProject.instance().mapLayers().values():
                 if layer.name() == DEFAULT_SPOT_LAYER_NAME and layer.geometryType() == QgsWkbTypes.PointGeometry:
                     self.spot_height_layer = layer
                     break
-        
+
         if self.spot_height_layer is None:
             crs = self.canvas.mapSettings().destinationCrs().authid()
             self.spot_height_layer = QgsVectorLayer(f"Point?crs={crs}", DEFAULT_SPOT_LAYER_NAME, "memory")
@@ -284,7 +323,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             pr.addAttributes([QgsField(FIELD_ELEVATION, QVariant.Double)])
             self.spot_height_layer.updateFields()
             QgsProject.instance().addMapLayer(self.spot_height_layer)
-            
+
         return self.spot_height_layer
 
     def _push_message(self, text, level=Qgis.Warning, duration=4):
@@ -753,7 +792,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         except Exception:
             return []
 
-
     def canvasPressEvent(self, event):
         if event.button() == Qt.RightButton:
             # Right click = Finish Line (Enter)
@@ -764,7 +802,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # User request: "삐져나온 초록선이 거슬린다" -> Only save clicked points
             # if self.preview_path:
             #    self.path_points.extend(self.preview_path)
-            
+
             if len(self.path_points) >= 2:
                 elevation = self.ask_elevation()
                 if elevation is None:
@@ -775,43 +813,43 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
             self.reset_tracing()
             return
-        
+
         if event.button() != Qt.LeftButton:
             return
-        
+
         point = self.toMapCoordinates(event.pos())
-        
+
         if not self.is_tracing:
             # Start tracing
-            
+
             # Check if snapping to existing endpoint (Resume)
             snapped_start, feat_id, is_start = self.snap_to_existing_endpoint(point)
-            
+
             self.resume_feature_id = feat_id
             self.resume_at_start = is_start
-            
+
             if snapped_start:
                 place_point = snapped_start
             else:
                 place_point = point
-            
+
             self.is_tracing = True
             self.start_point = place_point
             self.last_map_point = place_point
             self.path_points = [place_point]
             self.checkpoints = [0]  # Start point is first checkpoint
-            
+
             # Show start marker
             self.start_marker.reset(QgsWkbTypes.PointGeometry)
             self.start_marker.addPoint(place_point)
-            self.snap_marker.reset(QgsWkbTypes.PointGeometry) # Hide snap marker
-            
+            self.snap_marker.reset(QgsWkbTypes.PointGeometry)  # Hide snap marker
+
             # Reset checkpoint markers
             self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
-            
+
             # Set sample interval based on scale (larger = smoother, less jitter)
             self.sample_interval = self.canvas.mapUnitsPerPixel() * self.SAMPLE_INTERVAL_MULTIPLIER
-            
+
             # Update edge cache
             if not self.freehand:
                 self.update_edge_cache()
@@ -830,13 +868,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 # Normal Polygon Close
                 # Use AI Pathfinding to close the loop smoothly
                 closing_path = self.find_optimal_path(self.start_point)
-                
+
                 # Apply smoothing to closing path
                 if len(closing_path) > 2:
                     closing_path = self.smooth_bezier(closing_path, closed=False)
-                    
+
                 self.path_points.extend(closing_path)
-                
+
                 # Check for duplicate end point and remove to prevent artifact
                 if len(self.path_points) > 1 and self.path_points[-1] == self.path_points[0]:
                     self.path_points.pop()
@@ -849,7 +887,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 if self.save_to_layer(closed=True, elevation=elevation):
                     self.reset_tracing()
                 return
-            
+
             # ADD CHECKPOINT: Save current position as checkpoint
             if self.preview_path:
                 # Commit SMOOTHED AI path (WYSIWYG)
@@ -863,18 +901,17 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 if len(self.path_points) > 0:
                     # If points exist, add straight line to click
                     self.path_points.append(point)
-            
+
             # Add checkpoint
             self.checkpoints.append(len(self.path_points) - 1)
             self.checkpoint_markers.addPoint(self.path_points[-1])
-            
+
             # Confirm current preview path
             self.redraw_confirmed_path()
 
-
     def canvasMoveEvent(self, event):
         current_point = self.toMapCoordinates(event.pos())
-        
+
         # STABILIZER (Anti-Pulse): Smooth mouse input to prevent AI jitters
         if self.last_hover_pos:
             # Exponential Moving Average: 30% New, 70% Old -> Heavy smoothing
@@ -890,100 +927,99 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             smoothed_point = QgsPointXY(sx, sy)
         else:
             smoothed_point = current_point
-            
+
         self.last_hover_pos = smoothed_point
-        
+
         # Use smoothed point for heavy AI calculations, but keep snappy feel for feedback?
         # Actually, for "Pulse" fix, we must use smoothed point for the AI target.
         ai_target_point = smoothed_point
-        
+
         # 1. NOT TRACING: Check for Snap-to-Resume
         if not self.is_tracing:
-            snapped, _, _ = self.snap_to_existing_endpoint(current_point) # Use raw point for snapping (snappier)
+            snapped, _, _ = self.snap_to_existing_endpoint(current_point)  # Use raw point for snapping (snappier)
             self.snap_marker.reset(QgsWkbTypes.PointGeometry)
             if snapped:
                 self.snap_marker.addPoint(snapped)
             return
-        
+
         # 2. TRACING ACTIVE
-        
+
         # Check close indicator
         if self.is_near_start(current_point):
             self.close_indicator.reset(QgsWkbTypes.PointGeometry)
             self.close_indicator.addPoint(self.start_point)
         else:
             self.close_indicator.reset(QgsWkbTypes.PointGeometry)
-        
+
         if self.last_map_point is None:
             self.last_map_point = current_point
             return
-        
+
         dx = current_point.x() - self.last_map_point.x()
         dy = current_point.y() - self.last_map_point.y()
         dist = np.sqrt(dx*dx + dy*dy)
-        
+
         # Minimum movement check (optimization)
         if dist < self.sample_interval:
             return
 
         # MODE CHECK: Dragging vs Hovering
         is_manual_mode = (event.modifiers() & (Qt.ShiftModifier | Qt.ControlModifier))
-        
+
         if event.buttons() & Qt.LeftButton:
             # DRAGGING: Manual Draw (Mouse Following + Gentle Snap)
             self.preview_path = []
-            
+
             # If Manual Mode (Shift/Ctrl): No snapping, just exact mouse pos
             if is_manual_mode or self.freehand or self.cached_edges is None:
                 final_point = current_point
             else:
                 final_point = self.angle_constrained_snap(current_point)
-            
+
             self.path_points.append(final_point)
             self.last_map_point = current_point
             self.redraw_confirmed_path()
         else:
             # HOVERING (Not Dragging)
-            
+
             # 1. Not Tracing yet? Check for Resume Snap
             if not self.path_points:
-                 snap_pt, snap_fid, is_start = self.snap_to_existing_endpoint(current_point)
-                 if snap_pt:
-                     self.snap_marker.reset(QgsWkbTypes.PointGeometry)
-                     self.snap_marker.addPoint(snap_pt)
-                     if self.iface:
-                         self.iface.mapCanvas().setCursor(Qt.PointingHandCursor)
-                 else:
-                     self.snap_marker.reset(QgsWkbTypes.PointGeometry)
-                     if self.iface:
-                         self.iface.mapCanvas().setCursor(Qt.CrossCursor)
-                 return
-                 
+                snap_pt, snap_fid, is_start = self.snap_to_existing_endpoint(current_point)
+                if snap_pt:
+                    self.snap_marker.reset(QgsWkbTypes.PointGeometry)
+                    self.snap_marker.addPoint(snap_pt)
+                    if self.iface:
+                        self.iface.mapCanvas().setCursor(Qt.PointingHandCursor)
+                else:
+                    self.snap_marker.reset(QgsWkbTypes.PointGeometry)
+                    if self.iface:
+                        self.iface.mapCanvas().setCursor(Qt.CrossCursor)
+                return
+
             # 2. Tracing: Prediction Logic
             if is_manual_mode or self.freehand:
-                 # MANUAL MODE PREVIEW: Literal straight line
-                 smoothed_preview = [current_point]
+                # MANUAL MODE PREVIEW: Literal straight line
+                smoothed_preview = [current_point]
             else:
                 # AI Auto-Path Preview (Bunting Style)
                 # Calculate A* path from last point to mouse
                 # Use SMOOTHED target to prevent pulse
                 ai_path = self.find_optimal_path(ai_target_point)
-                
+
                 # Apply Smoothing to Preview
                 if len(ai_path) > 2:
                     smoothed_preview = self.smooth_bezier(ai_path, closed=False)
                 else:
                     smoothed_preview = ai_path
-                
+
             self.preview_path = smoothed_preview
-            
+
             # Draw preview (Green line)
             self.preview_band.reset(QgsWkbTypes.LineGeometry)
             if self.path_points:
                 self.preview_band.addPoint(self.path_points[-1])
             for pt in smoothed_preview:
                 self.preview_band.addPoint(pt)
-
 
     def angle_constrained_snap(self, map_point):
         """
@@ -993,14 +1029,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """
         if self.cached_edges is None:
             return map_point
-        
+
         try:
             px, py = self.map_to_pixel(map_point)
             h, w = self.cached_edges.shape
-            
+
             if px < 0 or py < 0 or px >= w or py >= h:
                 return map_point
-            
+
             # 1. Check if we have history to determine direction
             has_history = len(self.path_points) >= 2
             last_angle = 0
@@ -1008,13 +1044,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 p1 = self.path_points[-2]
                 p2 = self.path_points[-1]
                 last_angle = math.atan2(p2.y() - p1.y(), p2.x() - p1.x())
-            
+
             # 2. Search for nearby edge pixels
             snap_radius = max(self.ANGLE_CONSTRAINED_SNAP_RADIUS, self.snap_radius)
             best_dist = snap_radius + 1
             best_px, best_py = px, py
             found = False
-            
+
             for dy in range(-snap_radius, snap_radius + 1):
                 for dx in range(-snap_radius, snap_radius + 1):
                     nx, ny = int(px + dx), int(py + dy)
@@ -1026,19 +1062,21 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                                 last_pt = self.path_points[-1]
                                 new_angle = math.atan2(edge_pt.y() - last_pt.y(), edge_pt.x() - last_pt.x())
                                 angle_diff = abs(new_angle - last_angle)
-                                while angle_diff > math.pi: angle_diff -= 2*math.pi
-                                while angle_diff < -math.pi: angle_diff += 2*math.pi
-                                
+                                while angle_diff > math.pi:
+                                    angle_diff -= 2*math.pi
+                                while angle_diff < -math.pi:
+                                    angle_diff += 2*math.pi
+
                                 # If turn is sharper than 60 degrees, ignore this edge (it's noise/hairline)
                                 if abs(angle_diff) > math.radians(self.MAX_TURN_ANGLE_DEGREES):
                                     continue
-                            
+
                             dist = abs(dx) + abs(dy)
                             if dist < best_dist:
                                 best_dist = dist
                                 best_px, best_py = nx, ny
                                 found = True
-            
+
             if found:
                 edge_point = self.pixel_to_map(best_px, best_py)
                 # Gentle blend: 30% edge, 70% mouse
@@ -1046,15 +1084,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 result_x = map_point.x() * (1 - blend) + edge_point.x() * blend
                 result_y = map_point.y() * (1 - blend) + edge_point.y() * blend
                 return QgsPointXY(result_x, result_y)
-            
+
             return map_point
-            
+
         except Exception:
             return map_point
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts for undo and save."""
-        
+
         # GLOBAL UNDO BLOCKER:
         # Prevent QGIS from consuming Ctrl+Z and deleting committed features
         # CRITICAL: This must be handled BEFORE the is_tracing check to protect idle state
@@ -1062,37 +1100,37 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if self.is_tracing:
                 self.undo_to_checkpoint()
             else:
-                 # Inform user that global undo is blocked here for safety
-                 if self.iface:
-                     self.iface.messageBar().pushMessage(
-                         PLUGIN_NAME,
-                         self._tr(
-                             "완료된 선 보호를 위해 Undo가 비활성화되어 있습니다. 피처 삭제는 Delete 키를 사용하세요.",
-                             "Undo is disabled to protect finished lines. Use Delete key to remove features.",
-                         ),
-                         Qgis.Info,
-                         self.UNDO_MESSAGE_SECONDS,
-                     )
-            
+                # Inform user that global undo is blocked here for safety
+                if self.iface:
+                    self.iface.messageBar().pushMessage(
+                        PLUGIN_NAME,
+                        self._tr(
+                            "완료된 선 보호를 위해 Undo가 비활성화되어 있습니다. 피처 삭제는 Delete 키를 사용하세요.",
+                            "Undo is disabled to protect finished lines. Use Delete key to remove features.",
+                        ),
+                        Qgis.Info,
+                        self.UNDO_MESSAGE_SECONDS,
+                    )
+
             # CRITICAL: Always accept event to stop propagation
             event.accept()
             return
 
         if not self.is_tracing:
             return
-        
+
         # Esc: Remove last 10 points (quick undo)
-        
+
         # Esc: Cancel entire line (Reset Tracing)
         if event.key() == Qt.Key_Escape:
             self.reset_tracing()
             return
-        
+
         # Delete: Cancel entire line
         if event.key() == Qt.Key_Delete:
             self.reset_tracing()
             return
-        
+
         # Enter: Save current line (Capture PREVIEW if exists)
         if event.key() in (Qt.Key_Return, Qt.Key_Enter):
             if self.is_tracing:
@@ -1100,7 +1138,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 # User request: "삐져나온 초록선이 거슬린다" -> Only save clicked points
                 # if self.preview_path:
                 #    self.path_points.extend(self.preview_path)
-                    
+
                 if len(self.path_points) >= 2:
                     # Ask for elevation
                     elevation = self.ask_elevation()
@@ -1167,10 +1205,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if len(self.checkpoints) <= 1:
             # Only start checkpoint - can't undo further, just notify
             return
-        
+
         # Get last checkpoint index (the one we want to KEEP)
         last_cp_idx = self.checkpoints[-1]
-        
+
         # Check if we're already AT the checkpoint (no new points after it)
         if len(self.path_points) <= last_cp_idx + 1:
             # Already at checkpoint, go back to PREVIOUS checkpoint
@@ -1181,20 +1219,20 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 else:
                     self.reset_tracing()
                     return
-        
+
         # Trim path to checkpoint (keep points UP TO AND INCLUDING checkpoint)
         self.path_points = self.path_points[:last_cp_idx + 1]
-        
+
         # Update last_map_point so user can continue from checkpoint
         if self.path_points:
             self.last_map_point = self.path_points[-1]
-        
+
         # Rebuild checkpoint markers
         self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
         for cp_idx in self.checkpoints[1:]:  # Skip start point
             if cp_idx < len(self.path_points):
                 self.checkpoint_markers.addPoint(self.path_points[cp_idx])
-        
+
         # Redraw
         self.redraw_confirmed_path()
 
@@ -1202,25 +1240,25 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """Remove last N points."""
         if len(self.path_points) <= 1:
             return
-        
+
         # Remove points but keep at least the start
         remove_count = min(count, len(self.path_points) - 1)
         self.path_points = self.path_points[:-remove_count]
-        
+
         # Update last_map_point
         if self.path_points:
             self.last_map_point = self.path_points[-1]
-        
+
         # Remove checkpoints that are now beyond the path
         while self.checkpoints and self.checkpoints[-1] >= len(self.path_points):
             self.checkpoints.pop()
-        
+
         # Rebuild checkpoint markers
         self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
         for cp_idx in self.checkpoints[1:]:
             if cp_idx < len(self.path_points):
                 self.checkpoint_markers.addPoint(self.path_points[cp_idx])
-        
+
         # Redraw
         self.redraw_confirmed_path()
 
@@ -1233,29 +1271,29 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """
         if self.cached_edges is None or self.cache_transform is None:
             return map_point
-        
+
         try:
             px, py = self.map_to_pixel(map_point)
             h, w = self.cached_edges.shape
-            
+
             if px < 0 or py < 0 or px >= w or py >= h:
                 return map_point
-            
+
             # Check only immediate vicinity (5 pixels)
             snap_radius = max(1, min(self.GENTLE_SNAP_RADIUS, self.snap_radius))
-            
+
             # Check if directly on edge first
             ipx, ipy = int(px), int(py)
             if 0 <= ipx < w and 0 <= ipy < h:
                 if self.cached_edges[ipy, ipx] > self.EDGE_PIXEL_THRESHOLD:
                     # Already on edge, no change needed
                     return map_point
-            
+
             # Look for nearby edge
             best_dist = snap_radius + 1
             best_px, best_py = px, py
             found = False
-            
+
             for dy in range(-snap_radius, snap_radius + 1):
                 for dx in range(-snap_radius, snap_radius + 1):
                     nx, ny = int(px + dx), int(py + dy)
@@ -1266,7 +1304,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                                 best_dist = dist
                                 best_px, best_py = nx, ny
                                 found = True
-            
+
             if found:
                 edge_point = self.pixel_to_map(best_px, best_py)
                 # VERY gentle nudge - only 30% toward edge
@@ -1274,10 +1312,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 result_x = map_point.x() * (1 - blend) + edge_point.x() * blend
                 result_y = map_point.y() * (1 - blend) + edge_point.y() * blend
                 return QgsPointXY(result_x, result_y)
-            
+
             # No edge nearby - just follow mouse exactly
             return map_point
-            
+
         except Exception:
             return map_point
 
@@ -1288,17 +1326,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """
         if not self.vector_layer or self.vector_layer.featureCount() == 0:
             return None, None, False
-            
+
         tolerance = self.canvas.mapUnitsPerPixel() * self.ENDPOINT_SNAP_TOLERANCE_PIXELS
         min_dist = tolerance
         best_point = None
         best_fid = None
         best_is_start = False
-        
+
         for feat in self.vector_layer.getFeatures():
             geom = feat.geometry()
-            if not geom or geom.isEmpty(): continue
-            
+            if not geom or geom.isEmpty():
+                continue
+
             # Skip non-line geometries (e.g. Polygons) to prevent crash
             if geom.type() != QgsWkbTypes.LineGeometry:
                 continue
@@ -1307,11 +1346,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 lines = geom.asMultiPolyline()
             else:
                 lines = [geom.asPolyline()]
-            
+
             # Only support single line merging for simplicity
             line = lines[0]
-            if not line: continue
-            
+            if not line:
+                continue
+
             # Start point
             p1 = line[0]
             d1 = np.sqrt((p1.x()-point.x())**2 + (p1.y()-point.y())**2)
@@ -1319,8 +1359,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 min_dist = d1
                 best_point = p1
                 best_fid = feat.id()
-                best_is_start = True # Snapped to Start
-                
+                best_is_start = True  # Snapped to Start
+
             # End point
             p2 = line[-1]
             d2 = np.sqrt((p2.x()-point.x())**2 + (p2.y()-point.y())**2)
@@ -1328,8 +1368,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 min_dist = d2
                 best_point = p2
                 best_fid = feat.id()
-                best_is_start = False # Snapped to End
-        
+                best_is_start = False  # Snapped to End
+
         return best_point, best_fid, best_is_start
 
     def create_spot_height(self, point, elevation):
@@ -1366,7 +1406,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         layer.triggerRepaint()
         return True
 
-
     def update_edge_cache(self):
         """Cache edge detection for current view."""
         try:
@@ -1382,11 +1421,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             provider = self.raster_layer.dataProvider()
             raster_ext = self.raster_layer.extent()
             read_ext = extent.intersect(raster_ext)
-            
+
             if read_ext.isEmpty():
                 self._clear_edge_cache()
                 return
-            
+
             # Determine output size using the source raster resolution on each axis.
             out_w, out_h = compute_resampled_dimensions(
                 raster_ext.width(),
@@ -1398,11 +1437,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 self.CACHE_MAX_DIMENSION,
                 min_dimension=1,
             )
-            
+
             if out_w < self.CACHE_MIN_DIMENSION or out_h < self.CACHE_MIN_DIMENSION:
                 self._clear_edge_cache()
                 return
-            
+
             # Read bands
             bands = read_raster_bands(
                 provider,
@@ -1411,7 +1450,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 out_h,
                 max_bands=self.CACHE_MAX_BANDS_FOR_RGB,
             )
-            
+
             if not bands:
                 self._clear_edge_cache()
                 return
@@ -1425,11 +1464,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 image = self.cached_rgb_image
             else:
                 image = bands[0]
-            
+
             # Detect edges
             self.cached_edges = self.edge_detector.detect_edges(image)
             self.cache_extent = read_ext
-            
+
             # Store transform info
             self.cache_transform = {
                 'x_min': read_ext.xMinimum(),
@@ -1439,10 +1478,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 'width': out_w,
                 'height': out_h
             }
-            
+
             # Generate Cost Map for Path Finding
             self.cached_cost = self.edge_detector.get_edge_cost_map(self.cached_edges, self.edge_weight)
-            
+
         except Exception as e:
             print(f"Edge cache error: {e}")
             self._clear_edge_cache()
@@ -1474,18 +1513,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """Check if point is near start point for polygon close."""
         if not self.start_point:
             return False
-            
+
         # If we only have the start point (Spot Height candidate), use larger tolerance
         is_spot_candidate = (len(self.path_points) == 1)
-        
+
         dx = point.x() - self.start_point.x()
         dy = point.y() - self.start_point.y()
         dist = np.sqrt(dx*dx + dy*dy)
-        
+
         base_tol = self.CLOSE_TOLERANCE_BASE_PIXELS
         if is_spot_candidate:
             base_tol = self.CLOSE_TOLERANCE_SPOT_PIXELS
-            
+
         close_threshold = self.canvas.mapUnitsPerPixel() * base_tol
         return dist < close_threshold
 
@@ -1506,11 +1545,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 Qgis.Critical,
             )
             return False
-        
+
         # Disable extra smoothing to match Green Preview exactly
         # The points are already smoothed by 5-point Moving Average in find_optimal_path
         smoothed = list(self.path_points)
-        
+
         # Create geometry
         # Create geometry
         # ALWAYS use LineString. For closed loops, just make start==end.
@@ -1520,10 +1559,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # ONLY if not already closed
             if smoothed[-1] != smoothed[0]:
                 smoothed.append(smoothed[0])
-            
+
         # Prepare geometry
         geom = QgsGeometry.fromPolylineXY(smoothed)
-        
+
         # MERGE LOGIC
         if self.resume_feature_id is not None and not closed:
             # We are extending an existing feature
@@ -1531,7 +1570,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if existing_feat.isValid() and existing_feat.geometry():
                 existing_geom = existing_feat.geometry()
                 existing_lines = None
-                
+
                 # Prevent crash on Multipart: Cannot simple-merge without knowing which part
                 if existing_geom.isMultipart():
                     self.resume_feature_id = None
@@ -1552,21 +1591,21 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     # BUT: self.path_points[0] IS the snap point (Old Start).
                     # So self.path_points starts at Old Start and goes away.
                     # So we should Reverse New and Append Existing.
-                    
+
                     # current path: [Start(Snap), P1, P2 ...]
                     # reversed: [..., P2, P1, Start(Snap)]
                     # existing: [Start(Snap), E1, E2 ...]
                     # Combined: [..., P2, P1, Start(Snap), E1, E2 ...]
-                    
-                    new_part = smoothed[::-1] # Reverse
-                    merged_points = new_part[:-1] + existing_lines # Skip duplicate join
+
+                    new_part = smoothed[::-1]  # Reverse
+                    merged_points = new_part[:-1] + existing_lines  # Skip duplicate join
                 elif existing_lines:
                     # Snapped to END. Drawing away.
                     # Existing: [..., End(Snap)]
                     # New: [End(Snap), P1, P2 ...]
                     # Combined: [..., End(Snap), P1, P2 ...]
                     merged_points = existing_lines + smoothed[1:]
-                
+
                 if existing_lines:
                     geom = QgsGeometry.fromPolylineXY(merged_points)
                     if not self._update_geometry(self.vector_layer, self.resume_feature_id, geom):
@@ -1580,7 +1619,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     self.resume_feature_id = None
                     self.resume_at_start = False
                     return True
-        
+
         return self.save_geometry(geom, elevation)
 
     def save_geometry(self, geometry, elevation=None):
@@ -1609,7 +1648,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def ask_elevation(self):
         """Show dialog to input elevation value."""
         from qgis.PyQt.QtWidgets import QInputDialog
-        
+
         value, ok = QInputDialog.getDouble(
             None,
             self._tr("등고선 해발값", "Contour Elevation"),
@@ -1619,7 +1658,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.ELEVATION_MAX,
             self.ELEVATION_DECIMALS,
         )
-        
+
         if ok:
             return value
         return None
@@ -1631,38 +1670,37 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """
         if len(points) < 3:
             return points
-        
+
         # Convert to numpy for easier math
         pts = np.array([[p.x(), p.y()] for p in points])
-        
+
         for _ in range(self.CHAIKIN_ITERATIONS):
             if len(pts) < 3:
                 break
-            
+
             new_pts = []
 
-            
             # If NOT closed, keep first point
             if not closed:
                 new_pts.append(pts[0])
-            
+
             # Loop segments
             count = len(pts) if closed else len(pts) - 1
-            
+
             for i in range(count):
                 p0 = pts[i]
                 p1 = pts[(i + 1) % len(pts)]
-                
+
                 q = p0 * self.CHAIKIN_Q_WEIGHT + p1 * self.CHAIKIN_R_WEIGHT
                 r = p0 * self.CHAIKIN_R_WEIGHT + p1 * self.CHAIKIN_Q_WEIGHT
                 new_pts.extend([q, r])
-            
+
             # If NOT closed, keep last point
             if not closed:
                 new_pts.append(pts[-1])
-                
+
             pts = np.array(new_pts)
-            
+
         return [QgsPointXY(p[0], p[1]) for p in pts]
 
     def reset_tracing(self):
@@ -1673,7 +1711,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.checkpoints = []
         self.start_point = None
         self.last_map_point = None
-        self.last_hover_pos = None # Reset stabilizer
+        self.last_hover_pos = None  # Reset stabilizer
         self.resume_feature_id = None
         self.resume_at_start = False
         self.preview_band.reset(QgsWkbTypes.LineGeometry)
@@ -1686,44 +1724,20 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def activate(self):
         """Called when tool is activated."""
         self.update_edge_cache()
-        try:
-            self.canvas.extentsChanged.connect(self.update_edge_cache)
-        except:
-            pass
-            
+        self._set_extent_cache_listener(True)
+
         # NUCLEAR UNDO BLOCK: Disable QGIS Undo Action
-        if self.iface:
-            try:
-                # Primary method: Standard API
-                self.iface.actionUndo().setEnabled(False)
-                # Fallback: Find action by name (for some QGIS versions)
-                mw = self.iface.mainWindow()
-                undo_act = mw.findChild(QAction, self.UNDO_ACTION_OBJECT_NAME)
-                if undo_act:
-                    undo_act.setEnabled(False)
-            except Exception as e:
-                print(f"Error disabling Undo: {e}")
-                
+        self._set_undo_enabled(False)
+
         super().activate()
 
     def deactivate(self):
         """Called when tool is deactivated."""
-        try:
-            self.canvas.extentsChanged.disconnect(self.update_edge_cache)
-        except:
-            pass
-            
+        self._set_extent_cache_listener(False)
+
         # RESTORE UNDO ACTION
-        if self.iface:
-            try:
-                self.iface.actionUndo().setEnabled(True)
-                mw = self.iface.mainWindow()
-                undo_act = mw.findChild(QAction, self.UNDO_ACTION_OBJECT_NAME)
-                if undo_act:
-                    undo_act.setEnabled(True)
-            except:
-                pass
-                
+        self._set_undo_enabled(True)
+
         self.reset_tracing()
         super().deactivate()
         self.deactivated.emit()

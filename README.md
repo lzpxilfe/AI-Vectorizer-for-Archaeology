@@ -1,20 +1,19 @@
-# 🏛️ ArchaeoTrace v0.1.3
+# 🏛️ ArchaeoTrace v0.1.4
 
 AI-assisted contour digitizing plugin for QGIS.  
 고지도와 지형도의 등고선 벡터화를 더 빠르고 안정적으로 도와주는 QGIS 플러그인입니다.
 
 ![QGIS 3.22+](https://img.shields.io/badge/QGIS-3.22+-3c8c3c.svg)
 ![Python 3.12](https://img.shields.io/badge/Python-3.12-3776ab.svg)
-![Version 0.1.3](https://img.shields.io/badge/version-0.1.3-f28c28.svg)
+![Version 0.1.4](https://img.shields.io/badge/version-0.1.4-f28c28.svg)
 ![License GPLv2](https://img.shields.io/badge/license-GPLv2-d64541.svg)
 
-## ✨ 0.1.3 Highlights
+## ✨ 0.1.4 Highlights
 
-- 🛡️ `OpenCV (cv2)`가 없어도 플러그인 자체는 로드되며, 필요한 기능만 안내 메시지와 함께 차단됩니다.
-- ✅ `HED`는 파일 존재 여부가 아니라 실제 로드와 forward 검증이 성공해야 준비 상태로 표시됩니다.
-- 📦 `HED` / `SAM` 가중치 다운로드는 임시 파일 검증 후 교체되어 손상 파일이 남지 않습니다.
-- 🧮 래스터 dtype 해석과 엣지 미리보기 해상도 계산이 더 안전해졌습니다.
-- 🔁 릴리스 폴더와 ZIP은 스크립트로 재생성해 배포 드리프트를 줄였습니다.
+- 🔐 `HED` 다운로드 URL은 허용된 `https` 호스트만 통과하도록 검증해 보안 스캐너 경고를 해소했습니다.
+- 🧹 `Flake8` 전수 정리로 공백, 들여쓰기, 예외 처리 스타일 이슈를 정리했습니다.
+- 🛠️ 조용히 삼키던 cleanup/undo 예외는 helper 기반의 안전한 처리로 바꿨습니다.
+- 📦 릴리스 버전 표기와 패키징 스크립트 값을 `0.1.4`로 동기화했습니다.
 
 ## 🎯 What You Can Do
 
@@ -136,7 +135,7 @@ macOS QGIS.app 예시:
 ## 🇬🇧 English Summary
 
 - ArchaeoTrace is a QGIS plugin for contour digitizing on historical maps.
-- `v0.1.3` focuses on safer runtime behavior, validated HED loading, atomic model downloads, and cleaner release packaging.
+- `v0.1.4` focuses on security hardening, lint cleanup, safer non-fatal exception handling, and synchronized release packaging.
 - `Freehand` works without extra packages.
 - `Canny / LSD / HED / SAM` features require `OpenCV` inside the QGIS Python environment.
 - `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
@@ -149,7 +148,7 @@ macOS QGIS.app 예시:
   title = {ArchaeoTrace: AI-assisted contour digitizing QGIS plugin for historical maps},
   year = {2026},
   url = {https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology},
-  version = {0.1.3}
+  version = {0.1.4}
 }
 ```
 
