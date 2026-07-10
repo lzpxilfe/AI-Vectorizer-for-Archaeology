@@ -141,6 +141,11 @@ macOS QGIS.app 예시:
 - `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
 
 ## 📚 Citation
+[![Cite this repository](https://img.shields.io/badge/Cite_this-repository-2ea44f?logo=github)](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology)
+[![Star this repository](https://img.shields.io/github/stars/lzpxilfe/AI-Vectorizer-for-Archaeology?style=social)](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology)
+
+인용 메타데이터는 [CITATION.cff](CITATION.cff)에 보관합니다.
+
 
 ```bibtex
 @software{ArchaeoTrace2026,
