@@ -1,0 +1,36 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 1024,
+    "height": 1024
+  },
+  "paths": [
+    {
+      "id": "upper-ellipse-centerline",
+      "closed": false,
+      "points": [
+        [132, 512],
+        [141, 465],
+        [161, 420],
+        [195, 378],
+        [240, 342],
+        [294, 312],
+        [359, 290],
+        [433, 276],
+        [512, 272],
+        [591, 276],
+        [665, 290],
+        [730, 312],
+        [784, 342],
+        [829, 378],
+        [863, 420],
+        [883, 465],
+        [892, 512]
+      ]
+    }
+  ],
+  "metadata": {
+    "purpose": "synthetic connectivity smoke reference; not accuracy evidence"
+  }
+}

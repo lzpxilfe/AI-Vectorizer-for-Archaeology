@@ -21,6 +21,7 @@ AI-assisted contour digitizing plugin for QGIS.
 - 🧲 엣지를 따라가는 스마트 트레이싱
 - 👁️ `Preview AI-Detected Edges`로 현재 모델이 보는 윤곽선 확인
 - ⛰️ 등고선 고도값 입력 및 `Spot Heights` 포인트 저장
+- 🏔️ 고도 등고선을 선형 TIN `DEM`/`hillshade` GeoTIFF로 변환
 - 📄 `Check Selected SAM Model` / `SAM Status Report`로 모델 상태 점검
 - 🌏 한국어 / English UI 지원
 
@@ -37,6 +38,9 @@ AI-assisted contour digitizing plugin for QGIS.
 
 > `Freehand`는 추가 패키지 없이도 사용할 수 있습니다.  
 > `Canny / LSD / HED / SAM` 계열 AI 기능은 QGIS Python 환경에 `OpenCV`가 필요합니다.
+
+> 개발 브랜치의 EfficientSAM-Ti ONNX 경로는 합성·실데이터 비교를 위한 격리 benchmark 후보입니다. 고지도 정확도 근거가 쌓이기 전에는 제품 기본 모델이나 UI 선택지로 바꾸지 않습니다.
+> 이 후보의 모델 파일은 플러그인에 포함되지 않으며, benchmark는 고정 SHA-256 캐시·CPU provider readback·동일 prompt 및 반복 mask/logit 증거를 검증합니다.
 
 ## 📦 Installation
 
@@ -106,6 +110,16 @@ macOS QGIS.app 예시:
 5. 클릭/드래그로 등고선을 추적합니다.
 6. `Enter` 또는 우클릭으로 저장합니다.
 7. 시작점 근처를 다시 클릭하면 폐합 후 고도값을 입력할 수 있습니다.
+8. 편집을 저장한 뒤 `Step 4 > DEM 생성…`에서 격자 크기와 출력 경로를 확인합니다.
+
+## 🏔️ Terrain Reconstruction (development)
+
+`elevation` 등고선 + 선택적 표고점 → QGIS 선형 TIN 보간 → GeoTIFF DEM → GDAL hillshade
+
+- 숫자형 고도 필드, 서로 다른 두 개 이상의 고도값, 미터 단위 투영 CRS가 필요합니다.
+- 편집을 저장한 후 실행하세요. 임시 `Spot Heights`도 현재 세션에서 쓸 수 있지만, 재현을 위해 파일 레이어로 저장하는 것을 권장합니다.
+- 출력은 기본 2,500만 셀까지 허용하고, 기존 파일은 확인 후에만 덮어씁니다.
+- TIN의 범위 밖·입력 누락 구간은 추정 한계로 남습니다. 결과는 자동 확정값이 아니라 검토할 수 있는 지형 가설입니다.
 
 ## ⌨️ Shortcuts
 
@@ -138,6 +152,7 @@ macOS QGIS.app 예시:
 - `Freehand` works without extra packages.
 - `Canny / LSD / HED / SAM` features require `OpenCV` inside the QGIS Python environment.
 - `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
+- The development version can build a background QGIS linear-TIN DEM and GDAL hillshade from saved, elevated contours in a projected metre CRS.
 
 ## 📚 Citation
 

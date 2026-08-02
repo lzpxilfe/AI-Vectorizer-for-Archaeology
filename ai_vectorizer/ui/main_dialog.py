@@ -93,6 +93,7 @@ class AIVectorizerDock(QDockWidget):
 
         self.active_tool = None
         self.output_layer = None
+        self.dem_dialog = None
         self.sam_engines = {}
         self.sam_engine = None
         self.current_language = self._load_language()
@@ -300,7 +301,14 @@ class AIVectorizerDock(QDockWidget):
         )
         return transform.transformBoundingBox(extent)
 
-    def cleanup(self):
+    def cleanup(self, permanent=False):
+        if self.dem_dialog:
+            try:
+                self.dem_dialog.shutdown(permanent=permanent)
+            except Exception as exc:
+                self._log_nonfatal_ui_error("Failed to close DEM dialog", exc)
+            if permanent:
+                self.dem_dialog = None
         if self.active_tool:
             try:
                 self.iface.mapCanvas().unsetMapTool(self.active_tool)
@@ -444,6 +452,20 @@ class AIVectorizerDock(QDockWidget):
         self.step3_group.setLayout(step3_layout)
         self.layout.addWidget(self.step3_group)
 
+        self.step4_group = QGroupBox()
+        step4_layout = QVBoxLayout()
+        self.step4_desc = QLabel()
+        self.step4_desc.setWordWrap(True)
+        self.step4_desc.setStyleSheet("color: gray; font-size: 10px;")
+        step4_layout.addWidget(self.step4_desc)
+        self.dem_btn = QPushButton()
+        self.dem_btn.setEnabled(False)
+        self.dem_btn.clicked.connect(self.open_dem_dialog)
+        self.trace_btn.toggled.connect(self._update_dem_button_for_tracing)
+        step4_layout.addWidget(self.dem_btn)
+        self.step4_group.setLayout(step4_layout)
+        self.layout.addWidget(self.step4_group)
+
         self.status_box = QGroupBox()
         status_layout = QVBoxLayout()
         self.status_label = QLabel()
@@ -570,6 +592,27 @@ class AIVectorizerDock(QDockWidget):
             self._set_trace_button_idle()
         self.trace_btn.setToolTip(self._tr("클릭하여 트레이싱 시작", "Click to start tracing"))
 
+        self.step4_group.setTitle(self._tr("4️⃣ 지형 복원", "4️⃣ Terrain Reconstruction"))
+        self.step4_group.setToolTip(
+            self._tr(
+                "고도값을 가진 등고선에서 DEM과 hillshade를 생성합니다",
+                "Build a DEM and hillshade from elevated contours",
+            )
+        )
+        self.step4_desc.setText(
+            self._tr(
+                "💡 투영 좌표계(m)의 등고선과 고도 필드가 필요합니다",
+                "💡 Requires contours with elevations in a projected CRS (metres)",
+            )
+        )
+        self.dem_btn.setText(self._tr("⛰️ DEM 생성…", "⛰️ Build DEM…"))
+        self.dem_btn.setToolTip(
+            self._tr(
+                "선형 TIN DEM과 GDAL hillshade 생성 대화상자 열기",
+                "Open the linear-TIN DEM and GDAL hillshade builder",
+            )
+        )
+
         self.status_box.setTitle(self._tr("📋 상태", "📋 Status"))
         self.status_label.setToolTip(self._tr("현재 트레이싱 상태를 표시합니다", "Shows current tracing state"))
         self.controls_title_label.setText(self._tr("📖 사용법:", "📖 Controls:"))
@@ -627,6 +670,12 @@ class AIVectorizerDock(QDockWidget):
         self.on_model_changed(self.model_combo.currentIndex())
         if self.active_tool:
             self.active_tool.language = self.current_language
+        if self.dem_dialog:
+            self.dem_dialog.set_inputs(
+                self.vector_combo.currentLayer(),
+                self.layer_combo.currentLayer(),
+                self.current_language,
+            )
 
     def browse_shp(self):
         path, _ = QFileDialog.getSaveFileName(
@@ -641,10 +690,24 @@ class AIVectorizerDock(QDockWidget):
             self.shp_path.setText(path)
 
     def create_shp_layer(self):
-        path = self.shp_path.text()
+        path = self.shp_path.text().strip()
         if not path:
             QMessageBox.warning(self, self._tr("경고", "Warning"), self._tr("파일 경로를 지정해주세요.", "Please specify an output file path."))
             return
+
+        if os.path.exists(path):
+            answer = QMessageBox.question(
+                self,
+                self._tr("기존 파일 덮어쓰기", "Overwrite Existing File"),
+                self._tr(
+                    "기존 Shapefile을 덮어쓸까요?\n{path}",
+                    "Overwrite the existing Shapefile?\n{path}",
+                ).format(path=path),
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if answer != QMessageBox.Yes:
+                return
 
         raster = self.layer_combo.currentLayer()
         crs = raster.crs() if raster else QgsCoordinateReferenceSystem(DEFAULT_CRS_AUTHID)
@@ -684,13 +747,66 @@ class AIVectorizerDock(QDockWidget):
             )
 
     def on_layer_selected(self, layer):
+        self.output_layer = layer
+        self.trace_btn.setEnabled(bool(layer))
+        self._update_dem_button_for_tracing(self.trace_btn.isChecked())
         if layer:
-            self.output_layer = layer
             self.enable_tracing()
+        elif not self.trace_btn.isChecked():
+            self._set_status_label(self._tr("SHP 파일을 먼저 생성하세요", "Create or select an SHP layer first"))
 
     def enable_tracing(self):
         self.trace_btn.setEnabled(True)
+        self._update_dem_button_for_tracing(self.trace_btn.isChecked())
         self._set_ready_state(prompt=True)
+
+    def _update_dem_button_for_tracing(self, tracing):
+        self.dem_btn.setEnabled(
+            self.vector_combo.currentLayer() is not None and not tracing
+        )
+
+    def open_dem_dialog(self):
+        contour_layer = self.vector_combo.currentLayer()
+        if contour_layer is None:
+            QMessageBox.warning(
+                self,
+                self._tr("등고선 레이어 필요", "Contour Layer Required"),
+                self._tr(
+                    "고도값을 가진 라인 레이어를 먼저 선택하세요.",
+                    "Select a line layer with elevation values first.",
+                ),
+            )
+            return
+        if self.active_tool or self.trace_btn.isChecked():
+            QMessageBox.warning(
+                self,
+                self._tr("트레이싱 진행 중", "Tracing In Progress"),
+                self._tr(
+                    "현재 등고선을 먼저 저장하거나 취소한 뒤 DEM을 생성하세요.",
+                    "Save or cancel the current contour before building a DEM.",
+                ),
+            )
+            return
+
+        if self.dem_dialog is None:
+            from .dem_dialog import DemBuildDialog
+
+            self.dem_dialog = DemBuildDialog(
+                self.iface,
+                contour_layer=contour_layer,
+                raster_layer=self.layer_combo.currentLayer(),
+                language=self.current_language,
+                parent=self.iface.mainWindow(),
+            )
+        else:
+            self.dem_dialog.set_inputs(
+                contour_layer,
+                self.layer_combo.currentLayer(),
+                self.current_language,
+            )
+        self.dem_dialog.show()
+        self.dem_dialog.raise_()
+        self.dem_dialog.activateWindow()
 
     def toggle_trace_tool(self, checked):
         if checked:

@@ -350,15 +350,15 @@ class EdgeDetector:
         cv2 = self.cv2 or self._require_cv2_runtime("LSD edge detection")
         # Detect line segments
         lines, widths, precs, nfas = self.lsd.detect(gray)
+        line_segments = self._normalize_lsd_lines(lines)
 
         # Create edge mask from detected lines
         edge_mask = np.zeros(gray.shape, dtype=np.uint8)
 
-        if lines is not None:
-            for line in lines:
-                x1, y1, x2, y2 = line[0].astype(int)
-                # Draw thicker lines for better pathfinding
-                cv2.line(edge_mask, (x1, y1), (x2, y2), self.EDGE_MAX_VALUE, self.LSD_LINE_WIDTH)
+        for line in line_segments:
+            x1, y1, x2, y2 = line.astype(int)
+            # Draw thicker lines for better pathfinding
+            cv2.line(edge_mask, (x1, y1), (x2, y2), self.EDGE_MAX_VALUE, self.LSD_LINE_WIDTH)
 
         # Also add dark line detection for completeness
         dark_mask = cv2.adaptiveThreshold(
@@ -378,6 +378,34 @@ class EdgeDetector:
         combined = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, kernel)
 
         return combined
+
+    @staticmethod
+    def _normalize_lsd_lines(lines: np.ndarray) -> np.ndarray:
+        """Normalize OpenCV 4/5 LSD coordinates to an ``(N, 4)`` array.
+
+        OpenCV 4 Python wheels return ``(N, 1, 4)`` while OpenCV 5 wheels
+        return ``(N, 4)``.  Reject other layouts instead of silently drawing
+        corrupt segments or falling back to another detector.
+        """
+        if lines is None:
+            return np.empty((0, 4), dtype=np.float32)
+
+        line_array = np.asarray(lines)
+        if line_array.ndim == 3 and line_array.shape[1:] == (1, 4):
+            line_array = line_array[:, 0, :]
+        elif line_array.ndim == 2 and line_array.shape[1] == 4:
+            pass
+        else:
+            raise ValueError(
+                "Unexpected OpenCV LSD line array shape: "
+                f"{line_array.shape}; expected (N, 1, 4) or (N, 4)."
+            )
+
+        if not np.issubdtype(line_array.dtype, np.number):
+            raise ValueError("OpenCV LSD line coordinates must be numeric.")
+        if not np.isfinite(line_array).all():
+            raise ValueError("OpenCV LSD line coordinates must be finite.")
+        return line_array.astype(np.float32, copy=False)
 
     def _detect_hed(self, color: np.ndarray, gray: np.ndarray) -> np.ndarray:
         """

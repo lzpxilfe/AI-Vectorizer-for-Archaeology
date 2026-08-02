@@ -21,6 +21,7 @@ AI-assisted contour digitizing plugin for QGIS.
 - 🧲 엣지를 따라가는 스마트 트레이싱
 - 👁️ `Preview AI-Detected Edges`로 현재 모델이 보는 윤곽선 확인
 - ⛰️ 등고선 고도값 입력 및 `Spot Heights` 포인트 저장
+- 🏔️ 고도 등고선을 선형 TIN `DEM`/`hillshade` GeoTIFF로 변환
 - 📄 `Check Selected SAM Model` / `SAM Status Report`로 모델 상태 점검
 - 🌏 한국어 / English UI 지원
 
@@ -106,6 +107,71 @@ macOS QGIS.app 예시:
 5. 클릭/드래그로 등고선을 추적합니다.
 6. `Enter` 또는 우클릭으로 저장합니다.
 7. 시작점 근처를 다시 클릭하면 폐합 후 고도값을 입력할 수 있습니다.
+8. 편집을 저장한 뒤 `Step 4 > DEM 생성…`에서 격자 크기와 출력 경로를 확인합니다.
+
+## 🏔️ Terrain Reconstruction (development)
+
+현재 개발 버전은 다음 수직 파이프라인을 제공합니다.
+
+`elevation` 등고선 + 선택적 표고점 → QGIS 선형 TIN 보간 → GeoTIFF DEM → GDAL hillshade
+
+실행 조건:
+
+- 등고선은 숫자형 고도 필드와 서로 다른 두 개 이상의 고도값을 가져야 합니다.
+- 입력 레이어는 미터 단위의 투영 좌표계를 사용해야 합니다. 경위도 레이어는 먼저 지역에 맞는 CRS로 재투영하세요.
+- 편집 중인 내용은 먼저 저장해야 합니다.
+- 표고점은 선택 입력입니다. 임시 `Spot Heights` 레이어도 현재 세션에서 쓸 수 있지만, 재현을 위해 파일 레이어로 저장하는 것을 권장합니다.
+- 안전을 위해 출력은 기본 2,500만 셀까지 허용하고, 기존 파일은 확인 후에만 덮어씁니다.
+
+선형 TIN은 피처의 범위 밖을 신뢰성 있게 복원하지 못하며, 등고선 간격·누락·오표기가 결과에 그대로 반영됩니다. 생성물은 고고학적 사실의 자동 확정값이 아니라 검토할 수 있는 지형 가설입니다.
+
+중기 개발 계획과 합격 기준은 [`ROADMAP.md`](ROADMAP.md)에 기록합니다.
+
+## 🧪 Local contour benchmark (M1)
+
+개발용 `benchmarks/` 하네스는 모델별 최종 ordered centerline을 같은 조건에서 평가합니다. 입력·기준선·예측 파일의 SHA-256, CPU 실행 여부, 실제 backend/fallback, 반복 시간과 peak RSS를 기록하고 JSON 및 CSV 보고서를 만듭니다. 각 실행은 불변 `runs/` 디렉터리에 저장되고 `benchmark_latest.json` 포인터 하나만 원자적으로 교체되므로 중단된 실행과 이전 CSV가 섞이지 않습니다.
+
+```bash
+python3 -m benchmarks validate benchmarks/data/synthetic-smoke/manifest.json
+python3 -m benchmarks evaluate benchmarks/data/synthetic-smoke/manifest.json \
+  --output work/benchmark-results
+```
+
+`SmartTraceTool`의 실제 A*와 평활화는 이제 QGIS 독립 공용 커널이며, Canny/LSD worker도 같은 `EdgeDetector → 비용지도 → 커널 → 최종 ordered centerline` 경로를 사용합니다. 실제 격리 smoke 실행은 다음처럼 만듭니다.
+
+```bash
+python3 -m venv work/benchmark-runtime
+work/benchmark-runtime/bin/python -m pip install \
+  'opencv-python-headless>=4.8.0' 'scikit-image>=0.21.0'
+work/benchmark-runtime/bin/python -m benchmarks generate \
+  benchmarks/data/runtime-template/manifest.json \
+  --output work/runtime-smoke \
+  --python-executable work/benchmark-runtime/bin/python
+python3 -m benchmarks evaluate work/runtime-smoke/manifest.json \
+  --output work/runtime-smoke-report --require-eligible
+```
+
+EfficientSAM-Ti는 아직 제품 기본 모델이 아니라 M1 비교 후보입니다. 공식 split ONNX 두 파일은 패키지에 넣지 않으며, 아래의 명시적 `fetch`에서만 네트워크를 사용합니다. `status`, `verify`, `generate`는 오프라인으로 content-addressed cache의 고정 크기와 SHA-256을 다시 확인합니다.
+
+```bash
+work/benchmark-runtime/bin/python -m pip install 'onnxruntime>=1.17.0'
+
+work/benchmark-runtime/bin/python -m benchmarks model fetch \
+  --model-cache work/model-cache
+work/benchmark-runtime/bin/python -m benchmarks model verify \
+  --model-cache work/model-cache
+
+work/benchmark-runtime/bin/python -m benchmarks generate \
+  benchmarks/data/efficientsam-runtime-template/manifest.json \
+  --output work/efficientsam-runtime-smoke \
+  --python-executable work/benchmark-runtime/bin/python \
+  --model-cache work/model-cache
+python3 -m benchmarks evaluate \
+  work/efficientsam-runtime-smoke/manifest.json \
+  --output work/efficientsam-runtime-report --require-eligible
+```
+
+worker는 sample×method마다 새 프로세스로 실행되고 실제 provider, 모델·패키지·thread 상태, 실행 소스 파일, 입력/설정/출력의 SHA-256, 반복 시간과 peak RSS를 직접 기록합니다. EfficientSAM 경로는 encoder/decoder의 ORT 설정과 OpenCV 상태를 실제 세션에서 다시 읽고, 동일 prompt의 의미 해시·float32 tensor 해시와 반복별 IoU/선택 index/logit·mask 해시를 첫 측정 산출물에 결속합니다. 생성기는 이 증거를 요청과 대조하고 로컬 model-cache 경로가 든 private IPC 파일을 제거한 뒤 기존 디렉터리를 교체하지 않는 원자적 게시만 허용합니다. 포함된 9×9/1024² 자료는 연결 상태만 확인하는 합성 smoke fixture이므로 Canny/LSD/SAM의 실제 고지도 성능 순위를 뜻하지 않습니다. 형식과 EfficientSAM-Ti ONNX 계약은 [`benchmarks/README.md`](benchmarks/README.md)와 [`benchmarks/ADAPTER_CONTRACT.md`](benchmarks/ADAPTER_CONTRACT.md)에 있습니다.
 
 ## ⌨️ Shortcuts
 
@@ -139,6 +205,7 @@ macOS QGIS.app 예시:
 - `Freehand` works without extra packages.
 - `Canny / LSD / HED / SAM` features require `OpenCV` inside the QGIS Python environment.
 - `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
+- The development version can build a background QGIS linear-TIN DEM and GDAL hillshade from saved, elevated contours in a projected metre CRS.
 
 ## 📚 Citation
 [![Cite this repository](https://img.shields.io/badge/Cite_this-repository-2ea44f?logo=github)](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology)

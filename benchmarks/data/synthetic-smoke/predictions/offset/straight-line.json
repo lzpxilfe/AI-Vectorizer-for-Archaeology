@@ -1,0 +1,13 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {"width": 9, "height": 9},
+  "paths": [
+    {
+      "id": "predicted-contour",
+      "closed": false,
+      "points": [[1, 5], [7, 5]]
+    }
+  ],
+  "metadata": {"fixture": "one-pixel offset prediction"}
+}

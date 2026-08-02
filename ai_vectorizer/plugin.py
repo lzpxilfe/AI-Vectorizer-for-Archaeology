@@ -96,7 +96,7 @@ class AIVectorizer:
 
         if self.dialog is not None:
             try:
-                self.dialog.cleanup()
+                self.dialog.cleanup(permanent=True)
             except Exception as exc:
                 self._log_cleanup_warning("Dialog cleanup failed", exc)
 

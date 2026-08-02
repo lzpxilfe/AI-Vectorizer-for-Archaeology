@@ -1,0 +1,18 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {"width": 9, "height": 9},
+  "paths": [
+    {
+      "id": "predicted-left",
+      "closed": false,
+      "points": [[1, 4], [3, 4]]
+    },
+    {
+      "id": "predicted-right",
+      "closed": false,
+      "points": [[5, 4], [7, 4]]
+    }
+  ],
+  "metadata": {"fixture": "single-pixel gap prediction"}
+}

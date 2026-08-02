@@ -9,7 +9,6 @@ Key concept:
 - Result is smoothed with Bézier curves
 """
 import numpy as np
-import heapq
 import math
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
 from qgis.core import (
@@ -24,6 +23,20 @@ from qgis.PyQt.QtWidgets import QAction
 from ..core.dependencies import get_cv2, require_cv2
 from ..core.edge_detector import EdgeDetector
 from ..core.raster_utils import compute_resampled_dimensions, read_raster_bands
+from ..core.sam_trace_kernel import (
+    DEFAULT_CONFIG as DEFAULT_SAM_TRACE_CONFIG,
+    SamTraceConfig,
+    build_cost_map as build_sam_cost_map,
+    nearest_active_pixel as find_nearest_active_pixel,
+    postprocess_mask as postprocess_sam_mask,
+    trace_mask as trace_sam_mask,
+)
+from ..core.trace_kernel import (
+    TraceConfig,
+    chaikin_smooth_path,
+    find_path,
+    smooth_pixel_path,
+)
 from ..config import (
     DEFAULT_OUTPUT_LAYER_NAME,
     DEFAULT_SPOT_LAYER_NAME,
@@ -63,17 +76,17 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     PATH_SMOOTH_WINDOW_SIZE = 5
     PATH_TIMEOUT_MESSAGE_SECONDS = 3
 
-    SAM_MASK_MIN_PIXELS = 24
-    SAM_MASK_MAX_AREA_RATIO = 0.35
+    SAM_MASK_MIN_PIXELS = DEFAULT_SAM_TRACE_CONFIG.mask_min_pixels
+    SAM_MASK_MAX_AREA_RATIO = DEFAULT_SAM_TRACE_CONFIG.mask_max_area_ratio
     SAM_PROMPT_HISTORY_POINTS = 2
     SAM_NEGATIVE_DISTANCE_PIXELS = 10
-    SAM_NEAREST_ACTIVE_RADIUS = 20
-    SAM_OUTSIDE_COST = 12.0
-    SAM_INSIDE_COST = 2.5
-    SAM_EDGE_COST = 1.6
-    SAM_SKELETON_COST = 1.0
-    SAM_CENTERLINE_BONUS = 0.75
-    SAM_MASK_CLOSE_KERNEL = (3, 3)
+    SAM_NEAREST_ACTIVE_RADIUS = DEFAULT_SAM_TRACE_CONFIG.nearest_active_radius
+    SAM_OUTSIDE_COST = DEFAULT_SAM_TRACE_CONFIG.outside_cost
+    SAM_INSIDE_COST = DEFAULT_SAM_TRACE_CONFIG.inside_cost
+    SAM_EDGE_COST = DEFAULT_SAM_TRACE_CONFIG.edge_cost
+    SAM_SKELETON_COST = DEFAULT_SAM_TRACE_CONFIG.skeleton_cost
+    SAM_CENTERLINE_BONUS = DEFAULT_SAM_TRACE_CONFIG.centerline_bonus
+    SAM_MASK_CLOSE_KERNEL = DEFAULT_SAM_TRACE_CONFIG.mask_close_kernel
 
     ELEVATION_DEFAULT = 0.0
     ELEVATION_MIN = -1000.0
@@ -309,15 +322,25 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if self.spot_height_layer and not self.spot_height_layer.isValid():
             self.spot_height_layer = None
 
+        target_crs = (
+            self.vector_layer.crs()
+            if self.vector_layer and self.vector_layer.crs().isValid()
+            else self.canvas.mapSettings().destinationCrs()
+        )
+
         if self.spot_height_layer is None:
             # Check if exists in project
             for layer in QgsProject.instance().mapLayers().values():
-                if layer.name() == DEFAULT_SPOT_LAYER_NAME and layer.geometryType() == QgsWkbTypes.PointGeometry:
+                if (
+                    layer.name() == DEFAULT_SPOT_LAYER_NAME
+                    and layer.geometryType() == QgsWkbTypes.PointGeometry
+                    and layer.crs() == target_crs
+                ):
                     self.spot_height_layer = layer
                     break
 
         if self.spot_height_layer is None:
-            crs = self.canvas.mapSettings().destinationCrs().authid()
+            crs = target_crs.authid()
             self.spot_height_layer = QgsVectorLayer(f"Point?crs={crs}", DEFAULT_SPOT_LAYER_NAME, "memory")
             pr = self.spot_height_layer.dataProvider()
             pr.addAttributes([QgsField(FIELD_ELEVATION, QVariant.Double)])
@@ -467,6 +490,48 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         return QgsPointXY(transformed.x(), transformed.y())
 
     @staticmethod
+    def _transform_geometry(geometry, source_crs, target_crs):
+        """Return a geometry copy transformed between two valid layer CRSs."""
+
+        if geometry is None or geometry.isEmpty():
+            raise ValueError("Cannot transform an empty geometry.")
+        if not source_crs.isValid() or not target_crs.isValid():
+            raise ValueError("Source and destination CRS must be valid.")
+
+        transformed = QgsGeometry(geometry)
+        if source_crs == target_crs:
+            return transformed
+
+        coordinate_transform = QgsCoordinateTransform(
+            source_crs,
+            target_crs,
+            QgsProject.instance(),
+        )
+        result = transformed.transform(coordinate_transform)
+        if result is not None:
+            try:
+                if int(result) != 0:
+                    raise ValueError(f"Geometry transform failed with result {result}.")
+            except TypeError:
+                # Some older bindings expose a non-integer success enum.
+                pass
+        return transformed
+
+    def _map_geometry_to_layer(self, geometry, layer):
+        return self._transform_geometry(
+            geometry,
+            self.canvas.mapSettings().destinationCrs(),
+            layer.crs(),
+        )
+
+    def _layer_geometry_to_map(self, geometry, layer):
+        return self._transform_geometry(
+            geometry,
+            layer.crs(),
+            self.canvas.mapSettings().destinationCrs(),
+        )
+
+    @staticmethod
     def _is_pixel_in_bounds(px, py, width, height):
         return 0 <= int(px) < width and 0 <= int(py) < height
 
@@ -484,6 +549,30 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         else:
             rgb = np.stack([bands[0], bands[0], bands[0]], axis=-1)
         return np.ascontiguousarray(rgb)
+
+    def _sam_trace_config(self):
+        """Bind compatibility constants to the shared QGIS-free SAM kernel."""
+
+        return SamTraceConfig(
+            mask_min_pixels=self.SAM_MASK_MIN_PIXELS,
+            mask_max_area_ratio=self.SAM_MASK_MAX_AREA_RATIO,
+            mask_close_kernel=tuple(self.SAM_MASK_CLOSE_KERNEL),
+            nearest_active_radius=self.SAM_NEAREST_ACTIVE_RADIUS,
+            edge_pixel_threshold=self.EDGE_PIXEL_THRESHOLD,
+            outside_cost=self.SAM_OUTSIDE_COST,
+            inside_cost=self.SAM_INSIDE_COST,
+            edge_cost=self.SAM_EDGE_COST,
+            skeleton_cost=self.SAM_SKELETON_COST,
+            centerline_bonus=self.SAM_CENTERLINE_BONUS,
+            straight_move_cost=self.PATH_MOVE_COST_STRAIGHT,
+            diagonal_move_cost=self.PATH_MOVE_COST_DIAGONAL,
+            max_iterations_base=self.PATH_MAX_ITER_BASE,
+            max_iterations_distance_factor=self.PATH_MAX_ITER_DISTANCE_FACTOR,
+            max_dimension=self.CACHE_MAX_DIMENSION,
+            smooth_window_size=self.PATH_SMOOTH_WINDOW_SIZE,
+            chaikin_iterations=self.CHAIKIN_ITERATIONS,
+            neighbors=tuple(self.A_STAR_NEIGHBORS),
+        )
 
     def _ensure_sam_image(self):
         if not self.use_sam or self.sam_engine is None or self.cached_rgb_image is None:
@@ -588,168 +677,62 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if mask.ndim != 2:
             return None
 
-        cv2 = self.cv2 or require_cv2("SAM tracing")
-        mask = cv2.morphologyEx(
-            (mask > 0).astype(np.uint8) * 255,
-            cv2.MORPH_CLOSE,
-            np.ones(self.SAM_MASK_CLOSE_KERNEL, np.uint8),
+        return postprocess_sam_mask(
+            mask,
+            cv2_module=self.cv2,
+            np_module=np,
+            config=self._sam_trace_config(),
         )
-        active_pixels = int(np.count_nonzero(mask))
-        if active_pixels < self.SAM_MASK_MIN_PIXELS:
-            return None
-        if active_pixels > int(mask.size * self.SAM_MASK_MAX_AREA_RATIO):
-            return None
-        return mask > 0
 
     def _nearest_active_pixel(self, binary_mask, px, py, max_radius=None):
-        if binary_mask is None:
-            return None
-
-        height, width = binary_mask.shape
-        px, py = self._clamp_pixel(px, py, width, height)
-        if binary_mask[py, px]:
-            return (px, py)
-
-        radius_limit = max_radius or self.SAM_NEAREST_ACTIVE_RADIUS
-        best = None
-        best_distance = None
-
-        for radius in range(1, radius_limit + 1):
-            x_min = max(0, px - radius)
-            x_max = min(width - 1, px + radius)
-            y_min = max(0, py - radius)
-            y_max = min(height - 1, py + radius)
-
-            for ny in range(y_min, y_max + 1):
-                for nx in range(x_min, x_max + 1):
-                    if nx not in (x_min, x_max) and ny not in (y_min, y_max):
-                        continue
-                    if not binary_mask[ny, nx]:
-                        continue
-
-                    distance = (nx - px) ** 2 + (ny - py) ** 2
-                    if best is None or distance < best_distance:
-                        best = (nx, ny)
-                        best_distance = distance
-
-            if best is not None:
-                return best
-
-        return None
+        return find_nearest_active_pixel(
+            binary_mask,
+            px,
+            py,
+            max_radius=max_radius,
+            config=self._sam_trace_config(),
+        )
 
     def _build_sam_cost_map(self, mask):
-        cv2 = self.cv2 or require_cv2("SAM tracing")
-        closed_mask = cv2.morphologyEx(
-            mask.astype(np.uint8) * 255,
-            cv2.MORPH_CLOSE,
-            np.ones(self.SAM_MASK_CLOSE_KERNEL, np.uint8),
-        ) > 0
-        skeleton = EdgeDetector.thin_binary_mask(closed_mask)
-
-        cost_map = np.full(closed_mask.shape, self.SAM_OUTSIDE_COST, dtype=np.float32)
-        cost_map[closed_mask] = self.SAM_INSIDE_COST
-
-        if self.cached_edges is not None:
-            edge_pixels = self.cached_edges > self.EDGE_PIXEL_THRESHOLD
-            cost_map[np.logical_and(closed_mask, edge_pixels)] = self.SAM_EDGE_COST
-
-        distance_to_background = cv2.distanceTransform(
-            closed_mask.astype(np.uint8),
-            cv2.DIST_L2,
-            3,
+        return build_sam_cost_map(
+            mask,
+            self.cached_edges,
+            cv2_module=self.cv2,
+            np_module=np,
+            thin_binary_mask=EdgeDetector.thin_binary_mask,
+            config=self._sam_trace_config(),
         )
-        max_distance = float(distance_to_background.max())
-        if max_distance > 0.0:
-            normalized_distance = distance_to_background / max_distance
-            cost_map[closed_mask] -= normalized_distance[closed_mask] * self.SAM_CENTERLINE_BONUS
-
-        cost_map[skeleton] = self.SAM_SKELETON_COST
-        cost_map = np.clip(cost_map, self.SAM_SKELETON_COST, None)
-        return closed_mask, skeleton, cost_map
 
     def _run_a_star_path(self, cost_map, start_px, start_py, end_px, end_py, allow_partial=True):
-        height, width = cost_map.shape
-        start_px, start_py = self._clamp_pixel(start_px, start_py, width, height)
-        end_px, end_py = self._clamp_pixel(end_px, end_py, width, height)
-
-        pq = [(0.0, start_px, start_py)]
-        came_from = {}
-        cost_so_far = {(start_px, start_py): 0.0}
-
-        manhattan_dist = abs(end_px - start_px) + abs(end_py - start_py)
-        max_iter = max(
-            self.PATH_MAX_ITER_BASE,
-            manhattan_dist * self.PATH_MAX_ITER_DISTANCE_FACTOR,
+        config = TraceConfig(
+            straight_move_cost=self.PATH_MOVE_COST_STRAIGHT,
+            diagonal_move_cost=self.PATH_MOVE_COST_DIAGONAL,
+            max_iterations_base=self.PATH_MAX_ITER_BASE,
+            max_iterations_distance_factor=self.PATH_MAX_ITER_DISTANCE_FACTOR,
+            max_width=self.CACHE_MAX_DIMENSION,
+            max_height=self.CACHE_MAX_DIMENSION,
+            max_cells=self.CACHE_MAX_DIMENSION * self.CACHE_MAX_DIMENSION,
+            validate_all_costs=False,
+            validate_accessed_costs=False,
+            neighbors=tuple(self.A_STAR_NEIGHBORS),
         )
-        iter_count = 0
-        found = False
-        best_node = (start_px, start_py)
-        min_dist_to_target = abs(end_px - start_px) + abs(end_py - start_py)
-
-        while pq:
-            iter_count += 1
-            if iter_count > max_iter:
-                break
-
-            _priority, cx, cy = heapq.heappop(pq)
-            dist_to_target = abs(end_px - cx) + abs(end_py - cy)
-            if dist_to_target < min_dist_to_target:
-                min_dist_to_target = dist_to_target
-                best_node = (cx, cy)
-
-            if (cx, cy) == (end_px, end_py):
-                found = True
-                break
-
-            for dx, dy in self.A_STAR_NEIGHBORS:
-                nx, ny = cx + dx, cy + dy
-                if not self._is_pixel_in_bounds(nx, ny, width, height):
-                    continue
-
-                move_cost = (
-                    self.PATH_MOVE_COST_DIAGONAL
-                    if dx != 0 and dy != 0
-                    else self.PATH_MOVE_COST_STRAIGHT
-                )
-                new_cost = cost_so_far[(cx, cy)] + float(cost_map[ny, nx]) * move_cost
-                if (nx, ny) not in cost_so_far or new_cost < cost_so_far[(nx, ny)]:
-                    cost_so_far[(nx, ny)] = new_cost
-                    heuristic = math.sqrt((end_px - nx) ** 2 + (end_py - ny) ** 2)
-                    heapq.heappush(pq, (new_cost + heuristic, nx, ny))
-                    came_from[(nx, ny)] = (cx, cy)
-
-        used_partial = False
-        if not found:
-            if not allow_partial or best_node == (start_px, start_py):
-                return [], False
-            end_px, end_py = best_node
-            used_partial = True
-
-        path = []
-        curr = (end_px, end_py)
-        while curr != (start_px, start_py):
-            path.append(curr)
-            curr = came_from.get(curr)
-            if curr is None:
-                return [], used_partial
-        path.reverse()
-        return path, used_partial
+        result = find_path(
+            cost_map,
+            (start_px, start_py),
+            (end_px, end_py),
+            allow_partial=allow_partial,
+            config=config,
+        )
+        return list(result.path), result.used_partial
 
     def _pixel_path_to_map(self, pixel_path):
         if not pixel_path:
             return []
 
-        smoothed_path = []
-        window_size = self.PATH_SMOOTH_WINDOW_SIZE
-        if len(pixel_path) > window_size:
-            path_arr = np.array(pixel_path, dtype=np.float32)
-            for idx in range(len(pixel_path)):
-                start_idx = max(0, idx - window_size // 2)
-                end_idx = min(len(pixel_path), idx + window_size // 2 + 1)
-                smoothed_path.append(np.mean(path_arr[start_idx:end_idx], axis=0))
-        else:
-            smoothed_path = pixel_path
-
+        smoothed_path = smooth_pixel_path(
+            pixel_path,
+            window_size=self.PATH_SMOOTH_WINDOW_SIZE,
+        )
         return [self.pixel_to_map(point[0], point[1]) for point in smoothed_path]
 
     def _find_sam_path(self, target_point):
@@ -769,26 +752,19 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if sam_mask is None:
                 return []
 
-            mask, skeleton, cost_map = self._build_sam_cost_map(sam_mask)
-            start_active = self._nearest_active_pixel(skeleton, start_px, start_py)
-            end_active = self._nearest_active_pixel(skeleton, target_px, target_py)
-
-            if start_active is None or end_active is None:
-                start_active = self._nearest_active_pixel(mask, start_px, start_py)
-                end_active = self._nearest_active_pixel(mask, target_px, target_py)
-
-            if start_active is None or end_active is None:
-                return []
-
-            pixel_path, _used_partial = self._run_a_star_path(
-                cost_map,
-                start_active[0],
-                start_active[1],
-                end_active[0],
-                end_active[1],
-                allow_partial=False,
+            traced = trace_sam_mask(
+                sam_mask,
+                self.cached_edges,
+                (start_px, start_py),
+                (target_px, target_py),
+                cv2_module=self.cv2,
+                np_module=np,
+                thin_binary_mask=EdgeDetector.thin_binary_mask,
+                config=self._sam_trace_config(),
             )
-            return self._pixel_path_to_map(pixel_path)
+            if traced is None or not traced.path:
+                return []
+            return self._pixel_path_to_map(traced.path)
         except Exception:
             return []
 
@@ -1338,6 +1314,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if not geom or geom.isEmpty():
                 continue
 
+            try:
+                geom = self._layer_geometry_to_map(geom, self.vector_layer)
+            except Exception as exc:
+                print(f"Endpoint snap CRS transform failed: {exc}")
+                return None, None, False
+
             # Skip non-line geometries (e.g. Polygons) to prevent crash
             if geom.type() != QgsWkbTypes.LineGeometry:
                 continue
@@ -1391,7 +1373,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         feat = QgsFeature()
         feat.setFields(layer.fields())
-        feat.setGeometry(QgsGeometry.fromPointXY(point))
+        try:
+            geometry = self._map_geometry_to_layer(QgsGeometry.fromPointXY(point), layer)
+        except Exception as exc:
+            self._push_message(
+                self._tr(
+                    f"Spot Height 좌표계 변환에 실패했습니다: {exc}",
+                    f"Failed to transform Spot Height coordinates: {exc}",
+                ),
+                Qgis.Critical,
+            )
+            return False
+        feat.setGeometry(geometry)
         attrs = [None] * len(layer.fields())
         attrs[elev_idx] = float(elevation)
         feat.setAttributes(attrs)
@@ -1550,8 +1543,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # The points are already smoothed by 5-point Moving Average in find_optimal_path
         smoothed = list(self.path_points)
 
-        # Create geometry
-        # Create geometry
         # ALWAYS use LineString. For closed loops, just make start==end.
         # Allow 2 points + close = 3 points (Triangle/Flat Loop)
         if closed and len(smoothed) >= 2:
@@ -1561,14 +1552,27 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 smoothed.append(smoothed[0])
 
         # Prepare geometry
-        geom = QgsGeometry.fromPolylineXY(smoothed)
+        map_geometry = QgsGeometry.fromPolylineXY(smoothed)
 
         # MERGE LOGIC
         if self.resume_feature_id is not None and not closed:
             # We are extending an existing feature
             existing_feat = self.vector_layer.getFeature(self.resume_feature_id)
             if existing_feat.isValid() and existing_feat.geometry():
-                existing_geom = existing_feat.geometry()
+                try:
+                    existing_geom = self._layer_geometry_to_map(
+                        existing_feat.geometry(),
+                        self.vector_layer,
+                    )
+                except Exception as exc:
+                    self._push_message(
+                        self._tr(
+                            f"기존 선의 좌표계 변환에 실패했습니다: {exc}",
+                            f"Failed to transform the existing line: {exc}",
+                        ),
+                        Qgis.Critical,
+                    )
+                    return False
                 existing_lines = None
 
                 # Prevent crash on Multipart: Cannot simple-merge without knowing which part
@@ -1607,8 +1611,26 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     merged_points = existing_lines + smoothed[1:]
 
                 if existing_lines:
-                    geom = QgsGeometry.fromPolylineXY(merged_points)
-                    if not self._update_geometry(self.vector_layer, self.resume_feature_id, geom):
+                    merged_map_geometry = QgsGeometry.fromPolylineXY(merged_points)
+                    try:
+                        layer_geometry = self._map_geometry_to_layer(
+                            merged_map_geometry,
+                            self.vector_layer,
+                        )
+                    except Exception as exc:
+                        self._push_message(
+                            self._tr(
+                                f"병합한 선의 좌표계 변환에 실패했습니다: {exc}",
+                                f"Failed to transform the merged line: {exc}",
+                            ),
+                            Qgis.Critical,
+                        )
+                        return False
+                    if not self._update_geometry(
+                        self.vector_layer,
+                        self.resume_feature_id,
+                        layer_geometry,
+                    ):
                         self._push_message(
                             self._tr("기존 선 갱신에 실패했습니다.", "Failed to update existing line."),
                             Qgis.Critical,
@@ -1620,7 +1642,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     self.resume_at_start = False
                     return True
 
-        return self.save_geometry(geom, elevation)
+        try:
+            layer_geometry = self._map_geometry_to_layer(map_geometry, self.vector_layer)
+        except Exception as exc:
+            self._push_message(
+                self._tr(
+                    f"등고선 좌표계 변환에 실패했습니다: {exc}",
+                    f"Failed to transform contour coordinates: {exc}",
+                ),
+                Qgis.Critical,
+            )
+            return False
+        return self.save_geometry(layer_geometry, elevation)
 
     def save_geometry(self, geometry, elevation=None):
         """Helper to save a generic geometry to the layer."""
@@ -1670,6 +1703,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """
         if len(points) < 3:
             return points
+
+        if not closed:
+            smoothed = chaikin_smooth_path(
+                ((point.x(), point.y()) for point in points),
+                iterations=self.CHAIKIN_ITERATIONS,
+                q_weight=self.CHAIKIN_Q_WEIGHT,
+                r_weight=self.CHAIKIN_R_WEIGHT,
+            )
+            return [QgsPointXY(x, y) for x, y in smoothed]
 
         # Convert to numpy for easier math
         pts = np.array([[p.x(), p.y()] for p in points])

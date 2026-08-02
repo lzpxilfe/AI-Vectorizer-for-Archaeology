@@ -15,6 +15,7 @@ __pycache__/
 174 청양.jpg
 *.png
 !icon.png
+!benchmarks/data/**/*.png
 ai_vectorizer/models/
 ai_vectorizer/models/*.pt
 ai_vectorizer/models/*.pth
@@ -24,6 +25,7 @@ ai_vectorizer/models/*.bin
 ai_vectorizer/models/*.meta.json
 ai_vectorizer/core/models/*.caffemodel
 dist/
+/work/
 ai_vectorizer */
 *.zip
 .idea/
