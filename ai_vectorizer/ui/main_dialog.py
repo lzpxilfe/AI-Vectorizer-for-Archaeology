@@ -538,31 +538,31 @@ class AIVectorizerDock(QDockWidget):
         self.model_label.setToolTip(
             self._tr(
                 (
-                    "각 모델의 장단점:\n"
-                    "• Canny: 가장 빠름, 기본\n"
-                    "• LSD: 선분 기반, 빠름\n"
-                    f"• HED: 딥러닝, 매끄러움 (~{self._hed_size_hint_mb()}MB)\n"
-                    f"• MobileSAM: 경량 세그멘테이션 (~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB)\n"
-                    f"• SAM: 고정밀 세그멘테이션 (~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB)"
+                    "각 추적 방식의 역할:\n"
+                    "• Canny: 엣지 비용지도 A*\n"
+                    "• LSD: 선분 보조 A*\n"
+                    f"• HED: 학습된 엣지 지도 (~{self._hed_size_hint_mb()}MB)\n"
+                    f"• MobileSAM: 프롬프트 마스크 + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB)\n"
+                    f"• SAM: ViT-B 프롬프트 마스크 + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB)"
                 ),
                 (
-                    "Model tradeoffs:\n"
-                    "• Canny: fastest baseline\n"
-                    "• LSD: line-based, fast\n"
-                    f"• HED: deep-learning, smooth (~{self._hed_size_hint_mb()}MB)\n"
-                    f"• MobileSAM: lightweight segmentation (~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB)\n"
-                    f"• SAM: highest-precision segmentation (~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB)"
+                    "Tracing-mode roles:\n"
+                    "• Canny: edge-cost A*\n"
+                    "• LSD: line-segment-assisted A*\n"
+                    f"• HED: learned edge map (~{self._hed_size_hint_mb()}MB)\n"
+                    f"• MobileSAM: prompt mask + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB)\n"
+                    f"• SAM: ViT-B prompt mask + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB)"
                 ),
             )
         )
         self.model_combo.setToolTip(
             self._tr(
-                "Canny: 기본\nLSD: 선분 기반\nHED: 딥러닝 엣지\nMobileSAM: 경량 세그멘테이션\nSAM: 정밀 세그멘테이션",
-                "Canny: baseline\n"
-                "LSD: line detector\n"
-                "HED: deep edge detector\n"
-                "MobileSAM: lightweight segmentation\n"
-                "SAM: precise segmentation",
+                "Canny: 엣지 비용지도\nLSD: 선분 보조\nHED: 학습된 엣지 지도\nMobileSAM: 프롬프트 마스크\nSAM: ViT-B 프롬프트 마스크",
+                "Canny: edge cost map\n"
+                "LSD: line-segment assistance\n"
+                "HED: learned edge map\n"
+                "MobileSAM: prompt mask\n"
+                "SAM: ViT-B prompt mask",
             )
         )
         self.sam_check_btn.setText(self._tr("🔎 선택 SAM 모델 최신 확인", "🔎 Check Selected SAM Model"))
@@ -575,8 +575,8 @@ class AIVectorizerDock(QDockWidget):
         self.sam_report_btn.setText(self._tr("📄 SAM 상태 리포트", "📄 SAM Status Report"))
         self.sam_report_btn.setToolTip(
             self._tr(
-                "현재 SAM 환경/버전/모델 상태를 JSON으로 저장하고 클립보드에 복사합니다",
-                "Export current SAM environment/version/model status as JSON and copy it to clipboard",
+                "선택 모델의 원격 메타데이터를 조회한 뒤(인터넷 사용)\nSAM 환경/버전/모델 상태를 JSON으로 저장하고 클립보드에 복사합니다",
+                "Query remote metadata for the selected model (uses the internet),\nthen export SAM environment/version/model status as JSON and copy it to the clipboard",
             )
         )
         self.sam_download_btn.setToolTip(self._tr("인터넷 연결 필요. 최초 1회만 다운로드", "Internet required. Download once on first use"))
@@ -634,11 +634,11 @@ class AIVectorizerDock(QDockWidget):
 
         self.debug_box.setTitle(self._tr("🔧 디버그 및 도움말", "🔧 Debug & Help"))
         self.debug_box.setToolTip(self._tr("문제 해결을 위한 도구들", "Tools for troubleshooting"))
-        self.preview_edge_btn.setText(self._tr("👁️ AI가 보는 엣지 미리보기", "👁️ Preview AI-Detected Edges"))
+        self.preview_edge_btn.setText(self._tr("👁️ 추적 미리보기", "👁️ Trace Preview"))
         self.preview_edge_btn.setToolTip(
             self._tr(
-                "현재 선택된 AI 모델이 감지하는 엣지를\n임시 래스터 레이어로 표시합니다.\n\n흰색 = AI가 인식하는 등고선",
-                "Shows detected edges from the selected AI model\nas a temporary raster layer.\n\nWhite = detected contour edges",
+                "Canny/LSD/HED 모드에서는 감지된 엣지를\n임시 래스터 레이어로 표시합니다.\nSAM 모드에서는 지도에서 대화형 초록색 미리보기를 사용합니다.",
+                "Canny/LSD/HED modes show detected edges\nas a temporary raster layer.\nSAM modes use the interactive green preview on the map.",
             )
         )
         self.help_btn.setText(self._tr("❓ 도움말", "❓ Help"))
@@ -1383,19 +1383,20 @@ class AIVectorizerDock(QDockWidget):
 <ol>
 <li><b>Select Raster Map</b> - choose a scanned map with contour lines.</li>
 <li><b>Create SHP Output</b> - create a new line SHP or pick an existing line layer.</li>
-<li><b>Choose AI Model</b> - Canny/LSD/HED/MobileSAM/SAM depending on speed and quality.</li>
+<li><b>Choose Tracing Mode</b> - select Canny/LSD/HED/MobileSAM/SAM for the map and installed runtime.</li>
 <li><b>Start Tracing</b> - click along contours and save the result.</li>
 </ol>
 
-<h3>🤖 AI Model Comparison</h3>
+<h3>🤖 Tracing Modes</h3>
 <table border='1' cellpadding='5'>
-<tr><th>Model</th><th>Speed</th><th>Quality</th><th>Notes</th></tr>
-<tr><td>🔧 Canny</td><td>Fastest</td><td>Basic</td><td>Built-in</td></tr>
-<tr><td>📐 LSD</td><td>Fast</td><td>Good</td><td>Built-in</td></tr>
-<tr><td>🧠 HED</td><td>Medium</td><td>High</td><td>~{self._hed_size_hint_mb()}MB model</td></tr>
-<tr><td>🎯 MobileSAM</td><td>Slow</td><td>High</td><td>Requires PyTorch + ~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB model</td></tr>
-<tr><td>🧩 SAM</td><td>Slowest</td><td>Highest</td><td>Requires PyTorch + ~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB checkpoint</td></tr>
+<tr><th>Mode</th><th>Role</th><th>Requirements</th></tr>
+<tr><td>🔧 Canny</td><td>Edge-cost A* tracing</td><td>OpenCV</td></tr>
+<tr><td>📐 LSD</td><td>Line-segment-assisted A* tracing</td><td>OpenCV</td></tr>
+<tr><td>🧠 HED</td><td>Learned edge-map assistance</td><td>OpenCV + ~{self._hed_size_hint_mb()}MB model</td></tr>
+<tr><td>🎯 MobileSAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + mobile_sam + ~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB weights</td></tr>
+<tr><td>🧩 SAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + segment_anything + ~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB checkpoint</td></tr>
 </table>
+<p>Accuracy rankings are intentionally omitted until the historical-map benchmark dataset is complete.</p>
 
 <h3>🖱️ Controls</h3>
 <ul>
@@ -1412,7 +1413,7 @@ class AIVectorizerDock(QDockWidget):
 <li>If tracing is noisy, move the mouse more slowly and lower AI strength.</li>
 <li>If SAM/HED is unavailable, start with Canny or LSD first.</li>
 <li>Use <b>Check Selected SAM Model</b> before downloading to see if an update is needed.</li>
-<li>Use <b>SAM Status Report</b> to create a shareable JSON report for support.</li>
+<li><b>SAM Status Report</b> queries remote model metadata (internet access) before creating a shareable JSON report.</li>
 </ul>
 
 <h3>⚠️ Troubleshooting</h3>
@@ -1428,19 +1429,20 @@ class AIVectorizerDock(QDockWidget):
 <ol>
 <li><b>래스터 지도 선택</b> - 등고선이 있는 스캔 지도를 선택합니다.</li>
 <li><b>SHP 출력 설정</b> - 새 라인 SHP를 만들거나 기존 라인 레이어를 선택합니다.</li>
-<li><b>AI 모델 선택</b> - 속도/품질에 맞춰 Canny/LSD/HED/MobileSAM/SAM을 선택합니다.</li>
+<li><b>추적 방식 선택</b> - 지도와 설치된 런타임에 맞춰 Canny/LSD/HED/MobileSAM/SAM을 선택합니다.</li>
 <li><b>트레이싱 시작</b> - 등고선을 따라 클릭하며 추적한 뒤 저장합니다.</li>
 </ol>
 
-<h3>🤖 AI 모델 비교</h3>
+<h3>🤖 추적 방식</h3>
 <table border='1' cellpadding='5'>
-<tr><th>모델</th><th>속도</th><th>품질</th><th>비고</th></tr>
-<tr><td>🔧 Canny</td><td>가장 빠름</td><td>기본</td><td>내장</td></tr>
-<tr><td>📐 LSD</td><td>빠름</td><td>좋음</td><td>내장</td></tr>
-<tr><td>🧠 HED</td><td>보통</td><td>우수</td><td>약 {self._hed_size_hint_mb()}MB 모델 필요</td></tr>
-<tr><td>🎯 MobileSAM</td><td>느림</td><td>우수</td><td>PyTorch 및 약 {self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB 모델 필요</td></tr>
-<tr><td>🧩 SAM</td><td>가장 느림</td><td>최고</td><td>PyTorch 및 약 {self._sam_size_hint_mb(MODEL_IDX_SAM)}MB 체크포인트 필요</td></tr>
+<tr><th>방식</th><th>역할</th><th>필요 항목</th></tr>
+<tr><td>🔧 Canny</td><td>엣지 비용지도 A* 추적</td><td>OpenCV</td></tr>
+<tr><td>📐 LSD</td><td>선분 보조 A* 추적</td><td>OpenCV</td></tr>
+<tr><td>🧠 HED</td><td>학습된 엣지 지도 보조</td><td>OpenCV 및 약 {self._hed_size_hint_mb()}MB 모델</td></tr>
+<tr><td>🎯 MobileSAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + mobile_sam 및 약 {self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB 가중치</td></tr>
+<tr><td>🧩 SAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + segment_anything 및 약 {self._sam_size_hint_mb(MODEL_IDX_SAM)}MB 체크포인트</td></tr>
 </table>
+<p>실제 고지도 benchmark 데이터셋이 완성되기 전까지 정확도 순위는 표시하지 않습니다.</p>
 
 <h3>🖱️ 조작법</h3>
 <ul>
@@ -1457,7 +1459,7 @@ class AIVectorizerDock(QDockWidget):
 <li>선이 튀면 마우스를 천천히 움직이고 AI 강도를 낮춰보세요.</li>
 <li>SAM/HED가 준비되지 않았다면 Canny/LSD부터 시작하세요.</li>
 <li>다운로드 전에 <b>선택 SAM 모델 최신 확인</b> 버튼으로 업데이트 필요 여부를 확인하세요.</li>
-<li>문제 공유가 필요하면 <b>SAM 상태 리포트</b> 버튼으로 JSON 리포트를 생성하세요.</li>
+<li><b>SAM 상태 리포트</b>는 원격 모델 메타데이터를 조회(인터넷 사용)한 뒤 공유용 JSON 리포트를 생성합니다.</li>
 </ul>
 
 <h3>⚠️ 문제 해결</h3>

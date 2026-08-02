@@ -4,19 +4,21 @@
 [general]
 name=ArchaeoTrace
 qgisMinimumVersion=3.22
-description=AI-assisted contour digitizing for historical maps. Features smart path tracing, edge snapping, and multiple AI engine options.
+description=Local-first contour tracing for historical maps with optional AI assistance and experimental DEM reconstruction.
 version=0.1.4
 author=lzpxilfe(balguljang2)
 email=your-email@example.com
 
-about=AI Vectorizer helps archaeologists digitize contour lines from scanned historical maps. 
-    
+about=ArchaeoTrace helps users digitize elevation contours from scanned historical maps and review locally generated terrain hypotheses.
+
     Features:
-    - Smart Trace: Click two points to get AI-suggested path along contour lines
-    - Edge Snap: Mouse automatically snaps to detected contour edges
-    - Multiple AI Modes: Lite (OpenCV), Standard (MobileSAM), Pro (Full SAM)
-    
-    Designed for Japanese colonial-era topographic maps and similar historical documents.
+    - Manual and edge-guided tracing with Freehand, Canny, LSD, and HED
+    - Optional point-prompt tracing with MobileSAM and SAM (ViT-B)
+    - Elevation attributes and optional spot-height capture
+    - Experimental linear-TIN DEM and hillshade generation from saved elevation data
+    - Developer-only reproducible benchmarks; EfficientSAM is not a UI option or default model
+
+    Processing is local-first. Terrain outputs are reviewable hypotheses rather than archaeological ground truth.
 
 tracker=https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/issues
 repository=https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology
