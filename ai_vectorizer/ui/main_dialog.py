@@ -574,7 +574,7 @@ class AIVectorizerDock(QDockWidget):
             self._tr(
                 (
                     "각 추적 방식의 역할:\n"
-                    "• Canny: 엣지 비용지도 A*\n"
+                    "• Canny: 마우스 주도 국소 보조 (Auto Path에서만 A*)\n"
                     "• LSD: 선분 보조 A*\n"
                     f"• HED: 학습된 엣지 지도 (~{self._hed_size_hint_mb()}MB)\n"
                     f"• MobileSAM: 프롬프트 마스크 + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB)\n"
@@ -582,7 +582,7 @@ class AIVectorizerDock(QDockWidget):
                 ),
                 (
                     "Tracing-mode roles:\n"
-                    "• Canny: edge-cost A*\n"
+                    "• Canny: mouse-led local assist (A* only in Auto Path)\n"
                     "• LSD: line-segment-assisted A*\n"
                     f"• HED: learned edge map (~{self._hed_size_hint_mb()}MB)\n"
                     f"• MobileSAM: prompt mask + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB)\n"
@@ -619,8 +619,13 @@ class AIVectorizerDock(QDockWidget):
         self.install_cmd.setText(self._install_command_for_model())
         self.freehand_check.setText(self._tr("✏️ 프리핸드 (AI 비활성)", "✏️ Freehand (AI Off)"))
         self.freehand_check.setToolTip(self._tr("체크: AI 없이 순수 마우스 추적", "Checked: pure mouse tracing without AI"))
-        self.edge_strength_label.setText(self._tr("AI 강도:", "AI Strength:"))
-        self.freedom_slider.setToolTip(self._tr("0%: 자유롭게\n100%: 엣지 따라감", "0%: freer draw\n100%: stronger edge following"))
+        self.edge_strength_label.setText(self._tr("국소 보조 강도:", "Local Assist Strength:"))
+        self.freedom_slider.setToolTip(
+            self._tr(
+                "0%: 커서 그대로\n100%: 가까운 엣지 최대 보조 (여전히 커서 주도)\nAuto Path/SAM은 별도 제안 모드",
+                "0%: exact cursor\n100%: strongest nearby-edge assist (still cursor-led)\nAuto Path/SAM is a separate proposal mode",
+            )
+        )
         if self.trace_btn.isChecked():
             self._set_trace_button_active()
         else:
@@ -1491,7 +1496,7 @@ class AIVectorizerDock(QDockWidget):
 <h3>🤖 Tracing Modes</h3>
 <table border='1' cellpadding='5'>
 <tr><th>Mode</th><th>Role</th><th>Requirements</th></tr>
-<tr><td>🔧 Canny</td><td>Edge-cost A* tracing</td><td>OpenCV</td></tr>
+<tr><td>🔧 Canny</td><td>Mouse-led local assist; optional A* proposal</td><td>NumPy by default, OpenCV for A*</td></tr>
 <tr><td>📐 LSD</td><td>Line-segment-assisted A* tracing</td><td>OpenCV</td></tr>
 <tr><td>🧠 HED</td><td>Learned edge-map assistance</td><td>OpenCV + ~{self._hed_size_hint_mb()}MB model</td></tr>
 <tr><td>🎯 MobileSAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + mobile_sam + ~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB weights</td></tr>
@@ -1511,7 +1516,8 @@ class AIVectorizerDock(QDockWidget):
 <h3>💡 Tips</h3>
 <ul>
 <li>Zoom in until contour lines are clearly visible for better snapping.</li>
-<li>If tracing is noisy, move the mouse more slowly and lower AI strength.</li>
+<li>The local assist slider is literal: 0% follows the cursor exactly; 100% is the strongest nearby-edge nudge while remaining cursor-led.</li>
+<li>Auto Path / SAM is a separate proposal mode and must be enabled explicitly.</li>
 <li>If SAM/HED is unavailable, start with Canny or LSD first.</li>
 <li>Use <b>Check Selected SAM Model</b> before downloading to see if an update is needed.</li>
 <li><b>SAM Status Report</b> queries remote model metadata (internet access) before creating a shareable JSON report.</li>
@@ -1537,7 +1543,7 @@ class AIVectorizerDock(QDockWidget):
 <h3>🤖 추적 방식</h3>
 <table border='1' cellpadding='5'>
 <tr><th>방식</th><th>역할</th><th>필요 항목</th></tr>
-<tr><td>🔧 Canny</td><td>엣지 비용지도 A* 추적</td><td>OpenCV</td></tr>
+<tr><td>🔧 Canny</td><td>마우스 주도 국소 보조, 선택적 A* 제안</td><td>기본 NumPy, A*에는 OpenCV</td></tr>
 <tr><td>📐 LSD</td><td>선분 보조 A* 추적</td><td>OpenCV</td></tr>
 <tr><td>🧠 HED</td><td>학습된 엣지 지도 보조</td><td>OpenCV 및 약 {self._hed_size_hint_mb()}MB 모델</td></tr>
 <tr><td>🎯 MobileSAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + mobile_sam 및 약 {self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB 가중치</td></tr>
@@ -1557,7 +1563,8 @@ class AIVectorizerDock(QDockWidget):
 <h3>💡 팁</h3>
 <ul>
 <li>등고선이 명확히 보일 정도로 확대하면 스냅 품질이 좋아집니다.</li>
-<li>선이 튀면 마우스를 천천히 움직이고 AI 강도를 낮춰보세요.</li>
+<li>국소 보조 슬라이더는 실제 강도입니다. 0%는 커서를 그대로 따르고, 100%는 커서 주도 상태에서 가까운 엣지를 가장 강하게 보조합니다.</li>
+<li>Auto Path / SAM은 별도 제안 모드이며 명시적으로 켜야 합니다.</li>
 <li>SAM/HED가 준비되지 않았다면 Canny/LSD부터 시작하세요.</li>
 <li>다운로드 전에 <b>선택 SAM 모델 최신 확인</b> 버튼으로 업데이트 필요 여부를 확인하세요.</li>
 <li><b>SAM 상태 리포트</b>는 원격 모델 메타데이터를 조회(인터넷 사용)한 뒤 공유용 JSON 리포트를 생성합니다.</li>

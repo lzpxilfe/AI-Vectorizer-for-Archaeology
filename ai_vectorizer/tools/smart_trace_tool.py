@@ -60,8 +60,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     SAMPLE_INTERVAL_PIXELS = 3
     AUTO_PATH_SAMPLE_INTERVAL_PIXELS = 12
 
-    EDGE_BLEND_FACTOR = 0.22
-    MAX_EDGE_BLEND = 0.25
+    EDGE_BLEND_FACTOR = 0.35
+    MAX_EDGE_BLEND = 0.35
     EDGE_PIXEL_THRESHOLD = 128
 
     ANGLE_CONSTRAINED_SNAP_RADIUS = 6
@@ -140,6 +140,20 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def _tr(self, ko_text, en_text):
         return en_text if getattr(self, "language", "ko") == "en" else ko_text
+
+    def _needs_edge_cache(self):
+        """Return whether this interaction actually needs raster edge data.
+
+        A zero-strength mouse-led trace must be a literal cursor trace.  In
+        that state, skipping the raster read is important both semantically
+        (no hidden AI nudge remains) and for startup/zoom responsiveness.
+        Explicit Auto Path still needs a cache because it is a separate,
+        opt-in global proposal mode.
+        """
+        return (
+            not self.freehand
+            and (self.edge_weight > 0.0 or self.auto_path)
+        )
 
     @staticmethod
     def _configure_band(band, color, width, icon=None, line_style=None):
@@ -222,10 +236,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         )
         self.freehand = freehand
         self.edge_method = edge_method
-        self.edge_weight = float(edge_weight)
+        # The UI exposes a 0-100 slider. Clamp programmatic callers too so
+        # the interaction contract remains exactly [0.0, 1.0].
+        self.edge_weight = max(0.0, min(1.0, float(edge_weight)))
         self.auto_path = bool(auto_path) and not self.freehand
 
-        # Snap radius (pixels) - higher = more magnetic
+        # Keep the search geometry local. The strength slider controls the
+        # actual attraction radius and blend below; it must not turn into a
+        # global route selector.
         self.snap_radius = max(
             1,
             int(
@@ -1004,7 +1022,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
 
             # Update edge cache
-            if not self.freehand:
+            if self._needs_edge_cache():
                 self.update_edge_cache()
 
             self.confirm_band.reset(QgsWkbTypes.LineGeometry)
@@ -1243,6 +1261,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if px < 0 or py < 0 or px >= w or py >= h:
                 return map_point
 
+            if self.edge_weight <= 0.0:
+                return map_point
+
             # Search a deliberately small neighborhood with NumPy instead of
             # a Python double loop. A nearby edge attracts the cursor; a
             # farther edge is ignored so the suggestion cannot jump across
@@ -1266,7 +1287,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             delta_x = candidate_x - px
             delta_y = candidate_y - py
             distances = np.hypot(delta_x, delta_y)
-            nearby = distances <= self.MAX_EDGE_ATTRACTION_PIXELS
+            attraction_radius = max(
+                1,
+                int(round(self.MAX_EDGE_ATTRACTION_PIXELS * self.edge_weight)),
+            )
+            nearby = distances <= attraction_radius
             if not np.any(nearby):
                 return map_point
             candidate_x = candidate_x[nearby]
@@ -1310,15 +1335,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # strength of the local nudge and never permits a route jump.
             proximity = max(
                 0.0,
-                1.0 - float(distances[best_index]) / (self.MAX_EDGE_ATTRACTION_PIXELS + 1.0),
+                1.0 - float(distances[best_index]) / (attraction_radius + 1.0),
             )
             blend = min(
                 self.MAX_EDGE_BLEND,
                 max(
                     0.0,
-                    self.EDGE_BLEND_FACTOR
-                    * (0.25 + self.edge_weight)
-                    * proximity,
+                    self.EDGE_BLEND_FACTOR * self.edge_weight * proximity,
                 ),
             )
             result_x = map_point.x() * (1 - blend) + edge_point.x() * blend
@@ -1664,6 +1687,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def update_edge_cache(self):
         """Cache edge detection for current view."""
         self._edge_cache_timer.stop()
+        if not self._needs_edge_cache():
+            self._clear_edge_cache()
+            return
         if not self.cache_dirty and self.cached_edges is not None:
             return
         try:
@@ -2046,7 +2072,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def activate(self):
         """Called when tool is activated."""
-        self.update_edge_cache()
+        if self._needs_edge_cache():
+            self.update_edge_cache()
+        else:
+            self._clear_edge_cache()
         self._set_extent_cache_listener(True)
 
         # NUCLEAR UNDO BLOCK: Disable QGIS Undo Action

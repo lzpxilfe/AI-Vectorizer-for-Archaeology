@@ -11,7 +11,7 @@
 
 ## 🚧 Current Source Status
 
-- 현재 플러그인 metadata 버전은 `0.1.4`입니다. 현재 개발 소스에는 그 이후의 실험 기능이 포함되어 있으며 별도 GitHub release artifact로 배포된 상태는 아닙니다.
+- 현재 플러그인 metadata 버전은 `0.1.5`입니다.
 - `0.1.4` 릴리스 metadata는 QGIS `3.22+`를 선언하지만, 현재 post-`0.1.4` 소스의 신규 모듈은 Python `3.10+`가 필요합니다. 자동화된 코어/benchmark 검증은 Python `3.12`에서 수행했습니다.
 - QGIS UI는 `Freehand`, `Canny`, `LSD`, `HED`, `MobileSAM`, `SAM (ViT-B)` 추적과 고도 입력을 제공합니다.
 - 저장한 고도 등고선과 선택적 표고점으로 선형 TIN DEM 및 GDAL hillshade를 생성할 수 있습니다.
@@ -21,7 +21,9 @@
 ## 🎯 What You Can Do
 
 - ✏️ `Freehand` 모드로 순수 수동 디지타이징
-- 🧲 엣지를 따라가는 스마트 트레이싱
+- 🧲 기본 `Canny / NumPy Human Assist`는 마우스 주도 국소 보조
+- 🎚️ 국소 보조 강도는 `0%`(커서 그대로)부터 `100%`(가까운 엣지 최대 보조)까지 조절
+- 👁️ 제안선은 채택 전 초록색으로 실제 경로를 미리 표시하며, `Auto Path / SAM`은 명시적으로 켜야 함
 - 👁️ `Canny`/`LSD`/`HED` 엣지 미리보기와 SAM 계열의 인터랙티브 초록색 경로 미리보기
 - ⛰️ 등고선 고도값 입력 및 `Spot Heights` 포인트 저장
 - 🏔️ 고도 등고선을 선형 TIN `DEM`/`hillshade` GeoTIFF로 변환
@@ -33,13 +35,13 @@
 | UI option | 역할 | 필요한 런타임 | 상태 |
 | --- | --- | --- | --- |
 | `✏️ Freehand` | 사용자가 직접 선을 입력 | 없음 | 항상 사용 가능 |
-| `🔧 Canny` | Canny 엣지 비용지도를 따라 A* 추적 | `OpenCV` | 기본 edge 방식 |
+| `🔧 Canny` | 마우스 주도 국소 보조. `Auto Path`를 켜면 Canny 비용지도로 A* 제안 | NumPy 기본, `OpenCV` 선택 | 기본 edge 방식 |
 | `📐 LSD` | 선분 검출 결과를 비용지도에 결합 | `OpenCV` | OpenCV 4/5 지원 |
 | `🧠 HED` | 학습된 엣지 지도로 추적 보조 | `OpenCV` + 약 `56MB` 모델 | UI에서 다운로드 가능 |
 | `🎯 MobileSAM` | point-prompt mask와 edge/A*를 결합 | `OpenCV` + `PyTorch` + `MobileSAM` + 약 `39MB` weights | 선택 설치 |
 | `🧩 SAM (ViT-B)` | point-prompt mask와 edge/A*를 결합 | `OpenCV` + `PyTorch` + `segment_anything` + 약 `358MB` checkpoint | 선택 설치 |
 
-> `Freehand`는 별도 모델이나 OpenCV 없이 동작하지만 QGIS Python에 포함된 NumPy를 사용합니다. 나머지 추적 방식은 선택 의존성이 필요합니다. 실제 고지도 기준 데이터셋이 마련되기 전까지 모델 간 정확도 순위는 주장하지 않습니다.
+> `0%`는 기본 마우스 주도 모드에서 엣지 감지·국소 스냅을 끄고 커서 좌표를 그대로 사용합니다. `100%`도 전역 경로를 강제로 만들지 않고, 가까우며 진행 방향에 맞는 엣지에만 제한적으로 붙습니다. `Auto Path / SAM`은 별도의 명시적 제안 모드이므로 0%에서도 경로 계산 자체는 수행되며, 0%는 그 경로의 엣지 편향만 끕니다. `Freehand`는 항상 순수 수동 입력입니다.
 
 ## 📦 Installation
 

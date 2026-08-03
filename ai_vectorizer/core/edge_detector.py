@@ -43,7 +43,11 @@ class EdgeDetector:
     HED_BINARY_THRESHOLD = 50
     HED_CLOSE_KERNEL = (2, 2)
 
-    EDGE_COST_BASE_MULTIPLIER = 0.1
+    # At edge_weight=0 the edge distance must have no influence on an
+    # explicitly requested Auto Path proposal.  The proposal itself remains
+    # opt-in and can still choose a shortest grid path; this constant only
+    # controls edge attraction within that path search.
+    EDGE_COST_BASE_MULTIPLIER = 0.0
     EDGE_COST_WEIGHT_SCALE = 0.9
     DIST_TRANSFORM_MASK_SIZE = 5
 
@@ -536,6 +540,7 @@ class EdgeDetector:
         edge_weight: 0.0 = free draw, 1.0 = strict edge follow
         """
         cv2 = self.cv2 or self._require_cv2_runtime("OpenCV edge cost mapping")
+        edge_weight = max(0.0, min(1.0, float(edge_weight)))
         # Distance to nearest edge
         inverted = cv2.bitwise_not(edges)
         dist = cv2.distanceTransform(inverted, cv2.DIST_L2, self.DIST_TRANSFORM_MASK_SIZE)
