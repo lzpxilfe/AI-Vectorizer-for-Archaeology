@@ -16,7 +16,7 @@ from qgis.core import (
     QgsFeature, QgsCoordinateTransform,
     QgsVectorLayer, QgsField, Qgis
 )
-from qgis.PyQt.QtCore import Qt, QVariant, pyqtSignal
+from qgis.PyQt.QtCore import Qt, QVariant, QTimer, pyqtSignal
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import QAction
 
@@ -56,8 +56,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     deactivated = pyqtSignal()
     SNAP_RADIUS_BASE = 15
     SNAP_RADIUS_EDGE_WEIGHT_FACTOR = 0.7
-    SAMPLE_INTERVAL_MULTIPLIER = 18
-    MOUSE_ASSIST_SAMPLE_INTERVAL_MULTIPLIER = 4
+    SAMPLE_INTERVAL_PIXELS = 3
+    AUTO_PATH_SAMPLE_INTERVAL_PIXELS = 12
 
     EDGE_BLEND_FACTOR = 0.3
     EDGE_PIXEL_THRESHOLD = 128
@@ -73,6 +73,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     CACHE_MAX_DIMENSION = 1000
     CACHE_MIN_DIMENSION = 10
     CACHE_MAX_BANDS_FOR_RGB = 3
+    CACHE_DEBOUNCE_MS = 150
 
     PATH_MOVE_COST_STRAIGHT = 1.0
     PATH_MOVE_COST_DIAGONAL = 1.41421356237
@@ -145,14 +146,25 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         signal = self.canvas.extentsChanged
         try:
             if enabled:
-                signal.connect(self.update_edge_cache)
+                signal.connect(self._schedule_edge_cache_update)
             else:
-                signal.disconnect(self.update_edge_cache)
+                signal.disconnect(self._schedule_edge_cache_update)
+                self._edge_cache_timer.stop()
             self._extent_cache_listener_connected = enabled
         except (RuntimeError, TypeError) as exc:
             if not enabled:
                 self._extent_cache_listener_connected = False
             print(f"Extent cache listener update failed: {exc}")
+
+    def _schedule_edge_cache_update(self):
+        """Debounce expensive raster reads while the map is being zoomed."""
+        self._clear_edge_cache()
+        # A preview can contain pixel-to-map points from the previous extent.
+        # Never commit that stale preview after a zoom or pan.
+        self.preview_path = []
+        self.preview_band.reset(QgsWkbTypes.LineGeometry)
+        self.last_sample_pos = None
+        self._edge_cache_timer.start()
 
     def _set_undo_enabled(self, enabled):
         if not self.iface:
@@ -213,9 +225,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.start_point = None
         self.last_map_point = None
         self.last_input_point = None
-
-        # Sampling interval (map units per sample point)
-        self.sample_interval = 0
 
         # RubberBands for visualization
         self.preview_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
@@ -290,6 +299,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.cached_rgb_image = None
         self.sam_image_ready = False
         self.sam_warning_emitted = False
+
+        self._edge_cache_timer = QTimer(self.canvas)
+        self._edge_cache_timer.setSingleShot(True)
+        self._edge_cache_timer.setInterval(self.CACHE_DEBOUNCE_MS)
+        self._edge_cache_timer.timeout.connect(self.update_edge_cache)
         self._extent_cache_listener_connected = False
 
         # CRS transforms
@@ -310,6 +324,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         # Stability (Anti-Pulse)
         self.last_hover_pos = None
+        self.last_sample_pos = None
 
         # Auto-create output layer if needed
         if not self.vector_layer:
@@ -823,6 +838,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.last_hover_pos = None
             self.path_points = [place_point]
             self.checkpoints = [0]  # Start point is first checkpoint
+            self.last_sample_pos = event.pos()
 
             # Show start marker
             self.start_marker.reset(QgsWkbTypes.PointGeometry)
@@ -832,18 +848,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # Reset checkpoint markers
             self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
 
-            # Mouse-led assist must keep up with the cursor.  The old, larger
-            # interval is retained for the deliberate whole-segment mode.
-            sample_multiplier = (
-                self.SAMPLE_INTERVAL_MULTIPLIER
-                if self.auto_path
-                else self.MOUSE_ASSIST_SAMPLE_INTERVAL_MULTIPLIER
-            )
-            self.sample_interval = self.canvas.mapUnitsPerPixel() * sample_multiplier
-
             # Update edge cache
             if not self.freehand:
                 self.update_edge_cache()
+
+            self.confirm_band.reset(QgsWkbTypes.LineGeometry)
+            self.confirm_band.addPoint(place_point)
+            self.preview_band.reset(QgsWkbTypes.LineGeometry)
         else:
             # Check if closing polygon (near start)
             if self.is_near_start(point):
@@ -905,6 +916,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
             # Confirm current preview path
             self.redraw_confirmed_path()
+            self.last_sample_pos = event.pos()
 
     def canvasMoveEvent(self, event):
         current_point = self.toMapCoordinates(event.pos())
@@ -937,19 +949,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.last_input_point = current_point
             return
 
-        input_anchor = (
-            self.last_input_point
-            if self.last_input_point is not None
-            else self.last_map_point
-        )
-        dx = current_point.x() - input_anchor.x()
-        dy = current_point.y() - input_anchor.y()
-        dist = np.sqrt(dx*dx + dy*dy)
-
-        # Minimum movement check (optimization)
-        if dist < self.sample_interval:
-            return
-
         # MODE CHECK: Dragging vs Hovering
         is_manual_mode = (event.modifiers() & (Qt.ShiftModifier | Qt.ControlModifier))
         interaction_mode = resolve_interaction_mode(
@@ -958,22 +957,37 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             manual_override=bool(is_manual_mode),
         )
 
+        # Throttle by screen distance, not map distance.  This stays stable
+        # when the user zooms during a trace and avoids over-sampling at a
+        # different scale.
+        if self.last_sample_pos is None:
+            self.last_sample_pos = event.pos()
+        sample_pixels = (
+            self.AUTO_PATH_SAMPLE_INTERVAL_PIXELS
+            if uses_global_path_search(interaction_mode)
+            else self.SAMPLE_INTERVAL_PIXELS
+        )
+        screen_dx = event.pos().x() - self.last_sample_pos.x()
+        screen_dy = event.pos().y() - self.last_sample_pos.y()
+        if screen_dx * screen_dx + screen_dy * screen_dy < sample_pixels * sample_pixels:
+            return
+        self.last_sample_pos = event.pos()
+
         if event.buttons() & Qt.LeftButton:
             # DRAGGING: Manual Draw (Mouse Following + Gentle Snap)
             self.preview_path = []
 
             # If Manual Mode (Shift/Ctrl): No snapping, just exact mouse pos
-            if interaction_mode != MODE_AUTO_PATH and (
-                interaction_mode == MODE_FREEHAND or self.cached_edges is None
-            ):
-                final_point = current_point
-            else:
+            if interaction_mode == MODE_AUTO_PATH and self.cached_edges is not None:
                 final_point = self.angle_constrained_snap(current_point)
+            else:
+                final_point = current_point
 
             self.path_points.append(final_point)
             self.last_input_point = current_point
             self.last_map_point = current_point
-            self.redraw_confirmed_path()
+            self.preview_band.reset(QgsWkbTypes.LineGeometry)
+            self.confirm_band.addPoint(final_point)
         else:
             # HOVERING (Not Dragging)
 
@@ -1432,6 +1446,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def update_edge_cache(self):
         """Cache edge detection for current view."""
+        self._edge_cache_timer.stop()
         try:
             if self.edge_detector is None:
                 self._clear_edge_cache()
@@ -1503,8 +1518,16 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 'height': out_h
             }
 
-            # Generate Cost Map for Path Finding
-            self.cached_cost = self.edge_detector.get_edge_cost_map(self.cached_edges, self.edge_weight)
+            # Mouse-led tracing only needs the binary edge mask.  Distance
+            # transforms are reserved for explicit Auto Path mode, where A*
+            # actually consumes the cost map.
+            if self.auto_path:
+                self.cached_cost = self.edge_detector.get_edge_cost_map(
+                    self.cached_edges,
+                    self.edge_weight,
+                )
+            else:
+                self.cached_cost = None
 
         except Exception as e:
             print(f"Edge cache error: {e}")
@@ -1786,6 +1809,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.last_map_point = None
         self.last_input_point = None
         self.last_hover_pos = None  # Reset stabilizer
+        self.last_sample_pos = None
         self.resume_feature_id = None
         self.resume_at_start = False
         self.preview_band.reset(QgsWkbTypes.LineGeometry)
@@ -1807,6 +1831,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def deactivate(self):
         """Called when tool is deactivated."""
+        self._edge_cache_timer.stop()
         self._set_extent_cache_listener(False)
 
         # RESTORE UNDO ACTION
