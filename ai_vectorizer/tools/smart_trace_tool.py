@@ -23,6 +23,12 @@ from qgis.PyQt.QtWidgets import QAction
 from ..core.dependencies import get_cv2, require_cv2
 from ..core.edge_detector import EdgeDetector
 from ..core.raster_utils import compute_resampled_dimensions, read_raster_bands
+from ..core.interaction_policy import (
+    MODE_AUTO_PATH,
+    MODE_FREEHAND,
+    resolve_interaction_mode,
+    uses_global_path_search,
+)
 from ..core.sam_trace_kernel import (
     DEFAULT_CONFIG as DEFAULT_SAM_TRACE_CONFIG,
     SamTraceConfig,
@@ -51,9 +57,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     SNAP_RADIUS_BASE = 15
     SNAP_RADIUS_EDGE_WEIGHT_FACTOR = 0.7
     SAMPLE_INTERVAL_MULTIPLIER = 18
+    MOUSE_ASSIST_SAMPLE_INTERVAL_MULTIPLIER = 4
 
-    HOVER_SMOOTH_OLD_WEIGHT = 0.7
-    HOVER_SMOOTH_NEW_WEIGHT = 0.3
     EDGE_BLEND_FACTOR = 0.3
     EDGE_PIXEL_THRESHOLD = 128
 
@@ -173,7 +178,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def __init__(self, canvas, raster_layer, vector_layer, model_type=0,
                  sam_engine=None, edge_weight=0.5, freehand=False, edge_method='canny',
-                 iface=None, language="ko"):
+                 iface=None, language="ko", auto_path=False):
         self.canvas = canvas
         super().__init__(self.canvas)
         self.iface = iface
@@ -190,6 +195,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.freehand = freehand
         self.edge_method = edge_method
         self.edge_weight = float(edge_weight)
+        self.auto_path = bool(auto_path) and not self.freehand
 
         # Snap radius (pixels) - higher = more magnetic
         self.snap_radius = max(
@@ -206,6 +212,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.is_tracing = False
         self.start_point = None
         self.last_map_point = None
+        self.last_input_point = None
 
         # Sampling interval (map units per sample point)
         self.sample_interval = 0
@@ -812,6 +819,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.is_tracing = True
             self.start_point = place_point
             self.last_map_point = place_point
+            self.last_input_point = place_point
+            self.last_hover_pos = None
             self.path_points = [place_point]
             self.checkpoints = [0]  # Start point is first checkpoint
 
@@ -823,8 +832,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # Reset checkpoint markers
             self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
 
-            # Set sample interval based on scale (larger = smoother, less jitter)
-            self.sample_interval = self.canvas.mapUnitsPerPixel() * self.SAMPLE_INTERVAL_MULTIPLIER
+            # Mouse-led assist must keep up with the cursor.  The old, larger
+            # interval is retained for the deliberate whole-segment mode.
+            sample_multiplier = (
+                self.SAMPLE_INTERVAL_MULTIPLIER
+                if self.auto_path
+                else self.MOUSE_ASSIST_SAMPLE_INTERVAL_MULTIPLIER
+            )
+            self.sample_interval = self.canvas.mapUnitsPerPixel() * sample_multiplier
 
             # Update edge cache
             if not self.freehand:
@@ -841,13 +856,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                         self.reset_tracing()
                     return
 
-                # Normal Polygon Close
-                # Use AI Pathfinding to close the loop smoothly
-                closing_path = self.find_optimal_path(self.start_point)
-
-                # Apply smoothing to closing path
-                if len(closing_path) > 2:
-                    closing_path = self.smooth_bezier(closing_path, closed=False)
+                # Normal Polygon Close.  Only the deliberate Auto Path mode
+                # may invent a route for the closing segment; the default
+                # mouse-led mode closes directly to the user's start point.
+                if self.auto_path:
+                    closing_path = self.find_optimal_path(self.start_point)
+                    if len(closing_path) > 2:
+                        closing_path = self.smooth_bezier(closing_path, closed=False)
+                else:
+                    closing_path = [self.start_point]
 
                 self.path_points.extend(closing_path)
 
@@ -878,6 +895,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     # If points exist, add straight line to click
                     self.path_points.append(point)
 
+            if self.path_points:
+                self.last_input_point = point
+                self.last_map_point = self.path_points[-1]
+
             # Add checkpoint
             self.checkpoints.append(len(self.path_points) - 1)
             self.checkpoint_markers.addPoint(self.path_points[-1])
@@ -887,28 +908,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def canvasMoveEvent(self, event):
         current_point = self.toMapCoordinates(event.pos())
-
-        # STABILIZER (Anti-Pulse): Smooth mouse input to prevent AI jitters
-        if self.last_hover_pos:
-            # Exponential Moving Average: 30% New, 70% Old -> Heavy smoothing
-            # effectively delays the cursor slightly but removes high-frequency jitter
-            sx = (
-                self.last_hover_pos.x() * self.HOVER_SMOOTH_OLD_WEIGHT
-                + current_point.x() * self.HOVER_SMOOTH_NEW_WEIGHT
-            )
-            sy = (
-                self.last_hover_pos.y() * self.HOVER_SMOOTH_OLD_WEIGHT
-                + current_point.y() * self.HOVER_SMOOTH_NEW_WEIGHT
-            )
-            smoothed_point = QgsPointXY(sx, sy)
-        else:
-            smoothed_point = current_point
-
-        self.last_hover_pos = smoothed_point
-
-        # Use smoothed point for heavy AI calculations, but keep snappy feel for feedback?
-        # Actually, for "Pulse" fix, we must use smoothed point for the AI target.
-        ai_target_point = smoothed_point
+        # Keep the raw cursor as the source of truth.  The previous 70/30 EMA
+        # introduced visible cursor lag and leaked pre-trace hover state into
+        # the first segment.  Local snapping below is enough to tame detector
+        # jitter without delaying the user's input.
+        self.last_hover_pos = current_point
+        ai_target_point = current_point
 
         # 1. NOT TRACING: Check for Snap-to-Resume
         if not self.is_tracing:
@@ -929,10 +934,16 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         if self.last_map_point is None:
             self.last_map_point = current_point
+            self.last_input_point = current_point
             return
 
-        dx = current_point.x() - self.last_map_point.x()
-        dy = current_point.y() - self.last_map_point.y()
+        input_anchor = (
+            self.last_input_point
+            if self.last_input_point is not None
+            else self.last_map_point
+        )
+        dx = current_point.x() - input_anchor.x()
+        dy = current_point.y() - input_anchor.y()
         dist = np.sqrt(dx*dx + dy*dy)
 
         # Minimum movement check (optimization)
@@ -941,18 +952,26 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         # MODE CHECK: Dragging vs Hovering
         is_manual_mode = (event.modifiers() & (Qt.ShiftModifier | Qt.ControlModifier))
+        interaction_mode = resolve_interaction_mode(
+            freehand=self.freehand,
+            auto_path=self.auto_path,
+            manual_override=bool(is_manual_mode),
+        )
 
         if event.buttons() & Qt.LeftButton:
             # DRAGGING: Manual Draw (Mouse Following + Gentle Snap)
             self.preview_path = []
 
             # If Manual Mode (Shift/Ctrl): No snapping, just exact mouse pos
-            if is_manual_mode or self.freehand or self.cached_edges is None:
+            if interaction_mode != MODE_AUTO_PATH and (
+                interaction_mode == MODE_FREEHAND or self.cached_edges is None
+            ):
                 final_point = current_point
             else:
                 final_point = self.angle_constrained_snap(current_point)
 
             self.path_points.append(final_point)
+            self.last_input_point = current_point
             self.last_map_point = current_point
             self.redraw_confirmed_path()
         else:
@@ -973,13 +992,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 return
 
             # 2. Tracing: Prediction Logic
-            if is_manual_mode or self.freehand:
+            if interaction_mode == MODE_FREEHAND:
                 # MANUAL MODE PREVIEW: Literal straight line
                 smoothed_preview = [current_point]
-            else:
+            elif uses_global_path_search(interaction_mode):
                 # AI Auto-Path Preview (Bunting Style)
                 # Calculate A* path from last point to mouse
-                # Use SMOOTHED target to prevent pulse
                 ai_path = self.find_optimal_path(ai_target_point)
 
                 # Apply Smoothing to Preview
@@ -987,8 +1005,21 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     smoothed_preview = self.smooth_bezier(ai_path, closed=False)
                 else:
                     smoothed_preview = ai_path
+            else:
+                # Mouse-led assist: one nearby, direction-compatible snap
+                # point.  This never replaces the user's segment with a
+                # global route and never invokes SAM per mouse event.
+                smoothed_preview = [
+                    self.angle_constrained_snap(current_point)
+                    if self.cached_edges is not None
+                    else current_point
+                ]
 
             self.preview_path = smoothed_preview
+            # Advance the throttle anchor after each accepted preview.  The
+            # old hover branch kept measuring from the last committed point,
+            # which made it effectively run on every mouse event.
+            self.last_input_point = current_point
 
             # Draw preview (Green line)
             self.preview_band.reset(QgsWkbTypes.LineGeometry)
@@ -1753,6 +1784,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.checkpoints = []
         self.start_point = None
         self.last_map_point = None
+        self.last_input_point = None
         self.last_hover_pos = None  # Reset stabilizer
         self.resume_feature_id = None
         self.resume_at_start = False

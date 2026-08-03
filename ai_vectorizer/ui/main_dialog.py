@@ -429,6 +429,9 @@ class AIVectorizerDock(QDockWidget):
         self.freehand_check = QCheckBox()
         step3_layout.addWidget(self.freehand_check)
 
+        self.auto_path_check = QCheckBox()
+        step3_layout.addWidget(self.auto_path_check)
+
         edge_layout = QHBoxLayout()
         self.edge_strength_label = QLabel()
         edge_layout.addWidget(self.edge_strength_label)
@@ -644,6 +647,10 @@ class AIVectorizerDock(QDockWidget):
         self.help_btn.setText(self._tr("❓ 도움말", "❓ Help"))
         self.help_btn.setToolTip(self._tr("사용법과 문제해결 안내", "Usage guide and troubleshooting"))
 
+        self.auto_path_check.setText("Auto Path (AI chooses the route)")
+        self.auto_path_check.setToolTip(
+            "Legacy whole-segment A*/SAM route preview. The default is mouse-led local assistance."
+        )
         self.sam_download_btn.setText(self._download_button_text())
 
         if not self.trace_btn.isEnabled():
@@ -818,13 +825,15 @@ class AIVectorizerDock(QDockWidget):
 
             edge_weight = self.freedom_slider.value() / 100.0
             freehand = self.freehand_check.isChecked()
+            auto_path = self.auto_path_check.isChecked() and not freehand
             model_idx = self.model_combo.currentIndex()
-            if self._is_sam_model(model_idx) and not freehand:
-                self._get_or_create_sam_engine(model_idx)
+            if self._is_sam_model(model_idx) and auto_path:
+                self.init_sam_engine()
             else:
                 self.sam_engine = None
             use_sam = (
                 not freehand
+                and auto_path
                 and self._is_sam_model(model_idx)
                 and self.sam_engine is not None
                 and self.sam_engine.is_ready
@@ -851,7 +860,7 @@ class AIVectorizerDock(QDockWidget):
                     self.trace_btn.setChecked(False)
                     return
 
-            if not freehand and self._is_sam_model(model_idx) and not use_sam:
+            if auto_path and self._is_sam_model(model_idx) and not use_sam:
                 QMessageBox.warning(
                     self,
                     self._tr("경고", "Warning"),
@@ -877,6 +886,7 @@ class AIVectorizerDock(QDockWidget):
                 edge_method=edge_method,
                 iface=self.iface,
                 language=self.current_language,
+                auto_path=auto_path,
             )
             self.iface.mapCanvas().setMapTool(self.active_tool)
             self.active_tool.deactivated.connect(self.on_tool_deactivated)
@@ -913,8 +923,13 @@ class AIVectorizerDock(QDockWidget):
         elif index == MODEL_IDX_HED:
             self.check_hed_status()
         elif self._is_sam_model(index):
-            self._set_model_aux_visibility(show_check=True, show_report=True)
-            self.init_sam_engine()
+            self._set_model_aux_visibility(show_check=True, show_report=True, show_download=True)
+            self.sam_download_btn.setText(self._download_button_text(index))
+            self.install_cmd.setText(self._install_command_for_model(index))
+            self._set_sam_status(
+                "SAM is optional in mouse-led assist; enable Auto Path to load it.",
+                "info",
+            )
 
     def check_hed_status(self):
         from ..core.edge_detector import EdgeDetector
