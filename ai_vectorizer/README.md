@@ -4,15 +4,15 @@
 
 ![QGIS release metadata 3.22+](https://img.shields.io/badge/QGIS_release_metadata-3.22%2B-3c8c3c.svg)
 ![Source Python 3.10+](https://img.shields.io/badge/source_Python-3.10%2B-3776ab.svg)
-![Metadata 0.1.5](https://img.shields.io/badge/metadata-0.1.5-f28c28.svg)
+![Metadata 0.1.6](https://img.shields.io/badge/metadata-0.1.6-f28c28.svg)
 ![Development M1.2](https://img.shields.io/badge/development-M1.2-5b5bd6.svg)
 ![Local first](https://img.shields.io/badge/processing-local--first-2f855a.svg)
 ![License GPLv2](https://img.shields.io/badge/license-GPLv2-d64541.svg)
 
 ## 🚧 Current Source Status
 
-- 현재 플러그인 metadata 버전은 `0.1.4`입니다. 현재 개발 소스에는 실험적인 DEM/hillshade 기능이 추가되어 있으며 별도 GitHub release artifact로 배포된 상태는 아닙니다.
-- `0.1.4` metadata는 QGIS `3.22+`를 선언하지만, 현재 post-`0.1.4` 소스의 신규 모듈은 Python `3.10+`가 필요합니다.
+- 현재 플러그인 metadata 버전은 `0.1.6`입니다.
+- QGIS `3.22+`와 Python `3.10+`를 대상으로 하며 QGIS 3.40.5 / Python 3.12에서 실기동 검증했습니다.
 - UI 추적 방식은 `Freehand`, `Canny`, `LSD`, `HED`, `MobileSAM`, `SAM (ViT-B)`입니다.
 - EfficientSAM-Ti ONNX는 비교용 benchmark 전용이며 UI 모델이나 제품 기본값이 아닙니다.
 - 지도와 추적 처리는 로컬에서 수행되며, 네트워크는 사용자가 다운로드·업데이트 확인·SAM 상태 리포트 같은 모델 관리 작업을 시작할 때만 필요합니다. SAM 상태 리포트도 원격 모델 정보를 조회합니다.
@@ -20,7 +20,9 @@
 ## 🎯 What You Can Do
 
 - ✏️ `Freehand` 모드로 순수 수동 디지타이징
-- 🧲 엣지를 따라가는 스마트 트레이싱
+- 🧲 기준점마다 한 번 계산하고 커서 이동 때 즉시 조회하는 방향 인식 Live-Wire
+- 🎚️ `0%` 정확한 커서부터 `100%` 완전 보조 경로까지 실제 좌표 비율로 혼합
+- 👁️ 클릭 한 번으로 채택될 정확한 경로를 같은 초록색 선으로 실시간 표시
 - 👁️ `Canny`/`LSD`/`HED` 엣지 미리보기와 SAM 계열의 인터랙티브 초록색 경로 미리보기
 - ⛰️ 등고선 고도값 입력 및 `Spot Heights` 포인트 저장
 - 🏔️ 고도 등고선을 선형 TIN `DEM`/`hillshade` GeoTIFF로 변환
@@ -32,13 +34,13 @@
 | UI option | 역할 | 필요한 런타임 | 상태 |
 | --- | --- | --- | --- |
 | `✏️ Freehand` | 사용자가 직접 선을 입력 | 없음 | 항상 사용 가능 |
-| `🔧 Canny` | Canny 엣지 비용지도를 따라 A* 추적 | `OpenCV` | 기본 edge 방식 |
-| `📐 LSD` | 선분 검출 결과를 비용지도에 결합 | `OpenCV` | OpenCV 4/5 지원 |
+| `🔧 Canny` | 짧은 끊김을 잇고 진행 방향을 유지하는 실시간 Live-Wire | `NumPy` + `SciPy`, `OpenCV` 선택 | 기본 방식 |
+| `📐 LSD` | 선분 검출 결과를 방향 인식 Live-Wire에 결합 | `OpenCV` + `SciPy` | OpenCV 4/5 지원 |
 | `🧠 HED` | 학습된 엣지 지도로 추적 보조 | `OpenCV` + 약 `56MB` 모델 | UI에서 다운로드 가능 |
 | `🎯 MobileSAM` | point-prompt mask와 edge/A*를 결합 | `OpenCV` + `PyTorch` + `MobileSAM` + 약 `39MB` weights | 선택 설치 |
 | `🧩 SAM (ViT-B)` | point-prompt mask와 edge/A*를 결합 | `OpenCV` + `PyTorch` + `segment_anything` + 약 `358MB` checkpoint | 선택 설치 |
 
-> `Freehand`는 별도 모델이나 OpenCV 없이 동작하지만 QGIS Python에 포함된 NumPy를 사용합니다. 나머지 추적 방식은 선택 의존성이 필요합니다. 실제 고지도 기준 데이터셋이 마련되기 전까지 모델 간 정확도 순위는 주장하지 않습니다.
+> `0%`는 엣지 감지와 모델 실행을 건너뛰고 커서를 그대로 사용합니다. `1~99%`는 같은 완전 보조 경로와 커서 경로를 좌표 비율로 혼합하고, `100%`는 방향 인식 Live-Wire 전체 경로입니다. 탐색 창은 최근 기준점 주변으로 제한되어 인접 등고선이나 글자로 멀리 도망가지 않습니다. 실제 고지도 기준 데이터셋이 마련되기 전까지 모델 간 정확도 순위는 주장하지 않습니다.
 
 > 현재 개발 소스의 EfficientSAM-Ti ONNX 경로는 합성·실데이터 비교를 위한 격리 benchmark 후보입니다. 고지도 정확도 근거가 쌓이기 전에는 제품 기본 모델이나 UI 선택지로 바꾸지 않습니다.
 > 이 후보의 모델 파일은 플러그인에 포함되지 않으며, benchmark는 고정 SHA-256 캐시·CPU provider readback·동일 prompt 및 반복 mask/logit 증거를 검증합니다.
@@ -56,10 +58,10 @@
 아래 패키지는 시스템 Python이 아니라 QGIS가 사용하는 Python에 설치해야 합니다.
 
 ```bash
-# Canny / LSD / HED / edge preview / AI tracing
+# LSD / HED / edge preview (Canny Live-Wire에는 OpenCV 불필요)
 <QGIS_PYTHON> -m pip install opencv-python-headless
 
-# Optional: better thinning quality
+# Direction-aware Live-Wire and better thinning quality
 <QGIS_PYTHON> -m pip install scikit-image
 
 # Optional: MobileSAM/SAM download and update checks
@@ -157,10 +159,11 @@ are migrated automatically on first use.
 ## 🇬🇧 English Summary
 
 - ArchaeoTrace is a local-first QGIS plugin for tracing elevation contours on historical maps and building reviewable terrain hypotheses.
-- The plugin metadata version is `0.1.5`; this update makes Human-led Assist the responsive default and keeps SAM weights outside the plugin directory.
-- All uncommitted suggestions use the same green preview line; `AI Proposal / Auto Path` remains an explicit optional mode.
+- The plugin metadata version is `0.1.6`; this update replaces per-target A* with an anchor-rooted, direction-aware Live-Wire tree.
+- Cursor movement performs only a predecessor lookup after one asynchronous tree build per accepted anchor; the green line is the exact one-click result.
+- Assist is literal from 0% (exact cursor, no model work), through coordinate blending, to 100% (the full Live-Wire route).
 - `Freehand` needs no external model or OpenCV, but uses NumPy from the QGIS Python environment.
-- Default mouse-led `Canny` Human Assist uses a NumPy local-edge fallback when OpenCV is absent; LSD/HED/SAM still require OpenCV.
+- Default `Canny` uses NumPy edge evidence plus SciPy Live-Wire without OpenCV; a local NumPy snap remains the fallback if SciPy is absent.
 - `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
 - EfficientSAM-Ti ONNX is benchmark-only and is not a product default or a UI option.
 - The DEM workflow requires saved elevation contours in a projected metre CRS; its output is a reviewable hypothesis, not an archaeological ground truth.
@@ -173,7 +176,7 @@ are migrated automatically on first use.
   title = {ArchaeoTrace: AI-assisted contour digitizing QGIS plugin for historical maps},
   year = {2026},
   url = {https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology},
-  version = {0.1.5}
+  version = {0.1.6}
 }
 ```
 

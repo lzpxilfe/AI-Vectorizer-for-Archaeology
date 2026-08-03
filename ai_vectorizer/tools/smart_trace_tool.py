@@ -30,6 +30,13 @@ from ..core.interaction_policy import (
     resolve_interaction_mode,
     uses_global_path_search,
 )
+from ..core.livewire import (
+    LiveWireCancelled,
+    LiveWireConfig,
+    blend_path_with_cursor,
+    build_livewire_tree,
+    is_livewire_available,
+)
 from ..core.sam_trace_kernel import (
     DEFAULT_CONFIG as DEFAULT_SAM_TRACE_CONFIG,
     SamTraceConfig,
@@ -100,6 +107,57 @@ class _AStarPreviewTask(QgsTask):
         self.callback(self, bool(result), self.trace_result, self.error)
 
 
+class _LiveWireTreeTask(QgsTask):
+    """Build one anchor-rooted Live-Wire tree away from the UI thread."""
+
+    def __init__(
+        self,
+        *,
+        image,
+        edges,
+        anchor_pixel,
+        incoming_direction,
+        strength,
+        generation,
+        config,
+        callback,
+    ):
+        super().__init__("ArchaeoTrace Live-Wire tree", QgsTask.CanCancel)
+        self.image = image
+        self.edges = edges
+        self.anchor_pixel = tuple(anchor_pixel)
+        self.incoming_direction = incoming_direction
+        self.strength = float(strength)
+        self.generation = int(generation)
+        self.config = config
+        self.callback = callback
+        self.tree = None
+        self.error = None
+
+    def run(self):
+        if self.isCanceled():
+            return False
+        try:
+            self.tree = build_livewire_tree(
+                self.image,
+                self.edges,
+                self.anchor_pixel,
+                strength=self.strength,
+                incoming_direction=self.incoming_direction,
+                config=self.config,
+                cancel_check=self.isCanceled,
+            )
+            return not self.isCanceled()
+        except LiveWireCancelled:
+            return False
+        except Exception as exc:
+            self.error = exc
+            return False
+
+    def finished(self, result):
+        self.callback(self, bool(result), self.tree, self.error)
+
+
 class SmartTraceTool(QgsMapToolEmitPoint):
     deactivated = pyqtSignal()
     SNAP_RADIUS_BASE = 15
@@ -107,8 +165,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     SAMPLE_INTERVAL_PIXELS = 3
     PREVIEW_INTERVAL_PIXELS = 1
 
-    EDGE_BLEND_FACTOR = 0.35
-    MAX_EDGE_BLEND = 0.35
+    # The slider is literal: at 100% a nearby fallback snap can reach the
+    # detected line completely; at 0% it cannot move the cursor at all.
+    EDGE_BLEND_FACTOR = 1.0
+    MAX_EDGE_BLEND = 1.0
     EDGE_PIXEL_THRESHOLD = 128
 
     ANGLE_CONSTRAINED_SNAP_RADIUS = 6
@@ -127,6 +187,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     CACHE_DEBOUNCE_MS = 150
     PROPOSAL_DEBOUNCE_MS = 110
     PROPOSAL_ACCEPT_TOLERANCE_PIXELS = 12
+
+    LIVEWIRE_WINDOW_PIXELS = 384
+    LIVEWIRE_TARGET_SNAP_PIXELS = 6
+    LIVEWIRE_SMOOTH_WINDOW_SIZE = 5
 
     PATH_MOVE_COST_STRAIGHT = 1.0
     PATH_MOVE_COST_DIAGONAL = 1.41421356237
@@ -194,12 +258,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         A zero-strength mouse-led trace must be a literal cursor trace.  In
         that state, skipping the raster read is important both semantically
         (no hidden AI nudge remains) and for startup/zoom responsiveness.
-        Explicit Auto Path still needs a cache because it is a separate,
-        opt-in global proposal mode.
+        SAM still needs an image cache for its explicit prompt mode. A
+        non-SAM Auto Path at 0% remains a literal cursor segment and skips
+        all raster work too.
         """
         return (
             not self.freehand
-            and (self.edge_weight > 0.0 or self.auto_path)
+            and (self.edge_weight > 0.0 or self.use_sam)
         )
 
     @staticmethod
@@ -372,16 +437,19 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.cv2 = get_cv2()
         # Default Canny Human Assist has a NumPy edge fallback and should not
         # require a separate OpenCV install. SAM, LSD, and HED still need cv2.
-        needs_cv2 = self.use_sam or self.edge_method in (
-            EdgeDetector.METHOD_LSD,
-            EdgeDetector.METHOD_HED,
+        needs_cv2 = self.use_sam or (
+            self.edge_weight > 0.0
+            and self.edge_method in (
+                EdgeDetector.METHOD_LSD,
+                EdgeDetector.METHOD_HED,
+            )
         )
         if needs_cv2:
             self.cv2 = require_cv2("OpenCV tracing")
 
         # Edge detector
         self.edge_detector = None
-        if not self.freehand or self.use_sam:
+        if self._needs_edge_cache():
             self.edge_detector = EdgeDetector(method=self.edge_method)
 
         # Edge cache
@@ -409,6 +477,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._proposal_request_point = None
         self._proposal_generation = 0
         self._proposal_task = None
+
+        # Human-led Live-Wire builds once per accepted anchor. Mouse moves
+        # only trace predecessor indices from this immutable tree.
+        self._livewire_tree = None
+        self._livewire_task = None
+        self._livewire_generation = 0
+        self._livewire_anchor_pixel = None
+        self._livewire_request_point = None
+        self._livewire_warning_emitted = False
 
         # CRS transforms
         self.to_raster_transform = QgsCoordinateTransform(
@@ -482,6 +559,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             print(text)
 
     def _clear_edge_cache(self):
+        self._cancel_livewire_task()
+        self._livewire_generation += 1
+        self._livewire_tree = None
+        self._livewire_anchor_pixel = None
+        self._livewire_request_point = None
         self.cached_edges = None
         self.cached_cost = None
         self.cache_extent = None
@@ -864,6 +946,201 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         )
         return [self.pixel_to_map(point[0], point[1]) for point in smoothed_path]
 
+    def _livewire_config(self):
+        return LiveWireConfig(
+            max_window_size=self.LIVEWIRE_WINDOW_PIXELS,
+            target_snap_radius=self.LIVEWIRE_TARGET_SNAP_PIXELS,
+        )
+
+    def _cancel_livewire_task(self):
+        task = getattr(self, "_livewire_task", None)
+        self._livewire_task = None
+        if task is not None:
+            try:
+                task.cancel()
+            except RuntimeError:
+                pass
+
+    def _current_livewire_anchor_pixel(self):
+        if not self.path_points or self.cache_transform is None:
+            return None
+        try:
+            anchor = self.map_to_pixel(self.path_points[-1])
+        except Exception:
+            return None
+        if self.cached_edges is None:
+            return None
+        height, width = self.cached_edges.shape
+        if not self._is_pixel_in_bounds(anchor[0], anchor[1], width, height):
+            return None
+        return tuple(anchor)
+
+    def _livewire_incoming_direction(self, anchor_pixel):
+        if len(self.path_points) < 2:
+            return None
+        try:
+            previous_pixel = self.map_to_pixel(self.path_points[-2])
+        except Exception:
+            return None
+        direction = (
+            anchor_pixel[0] - previous_pixel[0],
+            anchor_pixel[1] - previous_pixel[1],
+        )
+        if direction == (0, 0):
+            return None
+        return direction
+
+    def _request_livewire_tree(self, force=False):
+        """Build one tree for the latest accepted point, if needed."""
+        if (
+            self.freehand
+            or self.use_sam
+            or self.edge_weight <= 0.0
+            or self.cached_edges is None
+            or self.cached_rgb_image is None
+            or not self.path_points
+        ):
+            return False
+
+        if not is_livewire_available():
+            if not self._livewire_warning_emitted:
+                self._push_message(
+                    self._tr(
+                        "SciPy가 없어 방향 인식 Live-Wire 대신 가까운 선 스냅을 사용합니다.",
+                        "SciPy is unavailable; using nearby-edge snapping instead of Live-Wire.",
+                    ),
+                    Qgis.Warning,
+                    5,
+                )
+                self._livewire_warning_emitted = True
+            return False
+
+        anchor_pixel = self._current_livewire_anchor_pixel()
+        if anchor_pixel is None:
+            return False
+        if (
+            not force
+            and self._livewire_tree is not None
+            and self._livewire_tree.root == anchor_pixel
+        ):
+            return True
+        if (
+            not force
+            and self._livewire_task is not None
+            and self._livewire_task.anchor_pixel == anchor_pixel
+        ):
+            return True
+
+        self._cancel_livewire_task()
+        self._livewire_generation += 1
+        generation = self._livewire_generation
+        self._livewire_tree = None
+        self._livewire_anchor_pixel = anchor_pixel
+        task = _LiveWireTreeTask(
+            image=self.cached_rgb_image,
+            edges=self.cached_edges,
+            anchor_pixel=anchor_pixel,
+            incoming_direction=self._livewire_incoming_direction(anchor_pixel),
+            strength=self.edge_weight,
+            generation=generation,
+            config=self._livewire_config(),
+            callback=self._on_livewire_tree_finished,
+        )
+        self._livewire_task = task
+        QgsApplication.taskManager().addTask(task)
+        return True
+
+    def _on_livewire_tree_finished(self, task, succeeded, tree, error):
+        """Publish a current tree and redraw the latest cursor proposal."""
+        if self._livewire_task is not task:
+            return
+        self._livewire_task = None
+
+        current_anchor = self._current_livewire_anchor_pixel()
+        is_current = (
+            succeeded
+            and tree is not None
+            and task.generation == self._livewire_generation
+            and current_anchor == task.anchor_pixel
+            and self.is_tracing
+        )
+        if is_current:
+            self._livewire_tree = tree
+            request_point = self._livewire_request_point
+            if request_point is not None and not self.use_sam:
+                self._present_livewire_cursor_preview(
+                    request_point,
+                    global_mode=self.auto_path,
+                    request_tree=False,
+                )
+            return
+
+        if error is not None:
+            print(f"Live-Wire tree build failed: {error}")
+
+        # A drag or click may have advanced the accepted anchor while the old
+        # tree was building. Coalesce that state into one fresh build.
+        if self.is_tracing and current_anchor is not None:
+            self._request_livewire_tree(force=False)
+
+    def _livewire_preview_path(self, target_point, request_tree=True):
+        """Return a cursor-led path; tree lookup is sub-millisecond."""
+        if self.edge_weight <= 0.0 or self.cached_edges is None:
+            return [QgsPointXY(target_point)]
+
+        anchor_pixel = self._current_livewire_anchor_pixel()
+        if request_tree:
+            self._request_livewire_tree(force=False)
+        tree = self._livewire_tree
+        if tree is None or anchor_pixel is None or tree.root != anchor_pixel:
+            return [self.angle_constrained_snap(target_point)]
+
+        try:
+            target_pixel = self.map_to_pixel_float(target_point)
+            pixel_path = tree.trace(target_pixel)
+            if len(pixel_path) < 2:
+                return [self.angle_constrained_snap(target_point)]
+
+            # Suppress 8-neighbour staircase artifacts while preserving the
+            # exact anchor and strength-blended endpoint.
+            if len(pixel_path) > self.LIVEWIRE_SMOOTH_WINDOW_SIZE:
+                smoothed = list(
+                    smooth_pixel_path(
+                        pixel_path,
+                        window_size=self.LIVEWIRE_SMOOTH_WINDOW_SIZE,
+                    )
+                )
+                smoothed[0] = pixel_path[0]
+                smoothed[-1] = pixel_path[-1]
+                pixel_path = smoothed
+
+            map_path = [self.pixel_to_map(x, y) for x, y in pixel_path]
+            # LiveWireTree always includes its root. The rubber band prepends
+            # the exact accepted map point, so discard the pixel-quantized
+            # root unconditionally.
+            if len(map_path) >= 2:
+                map_path = map_path[1:]
+            return map_path or [QgsPointXY(target_point)]
+        except Exception as exc:
+            print(f"Live-Wire preview failed: {exc}")
+            return [self.angle_constrained_snap(target_point)]
+
+    def _present_livewire_cursor_preview(
+        self,
+        target_point,
+        *,
+        global_mode=False,
+        request_tree=True,
+    ):
+        self._livewire_request_point = QgsPointXY(target_point)
+        self.preview_path = self._livewire_preview_path(
+            target_point,
+            request_tree=request_tree,
+        )
+        self.preview_is_global = bool(global_mode)
+        self.preview_target = QgsPointXY(target_point) if global_mode else None
+        self._render_preview()
+
     def _find_sam_path(self, target_point):
         if not self.use_sam or self.cached_rgb_image is None or not self.path_points:
             return []
@@ -949,6 +1226,17 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         self._proposal_generation += 1
         self._proposal_request_point = QgsPointXY(point)
+        if self.edge_weight <= 0.0:
+            # The slider contract also applies to explicit SAM mode. At zero,
+            # do not run the model and make the literal green segment
+            # immediately acceptable with one click.
+            self._proposal_timer.stop()
+            self._cancel_proposal_task()
+            self.preview_path = [QgsPointXY(point)]
+            self.preview_is_global = True
+            self.preview_target = QgsPointXY(point)
+            self._render_preview()
+            return
         self.preview_path = [
             self.angle_constrained_snap(point)
             if self.cached_edges is not None
@@ -974,8 +1262,17 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if len(proposed_path) > 2:
             proposed_path = self.smooth_bezier(proposed_path, closed=False)
 
-        if proposed_path and proposed_path[0] == self.path_points[-1]:
-            proposed_path = proposed_path[1:]
+        if proposed_path and self.path_points:
+            anchor = self.path_points[-1]
+            if proposed_path[0] != anchor:
+                proposed_path.insert(0, anchor)
+            blended = blend_path_with_cursor(
+                ((point.x(), point.y()) for point in proposed_path),
+                (anchor.x(), anchor.y()),
+                (target_point.x(), target_point.y()),
+                self.edge_weight,
+            )
+            proposed_path = [QgsPointXY(x, y) for x, y in blended[1:]]
         if not proposed_path:
             proposed_path = [QgsPointXY(target_point)]
 
@@ -1187,6 +1484,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # Update edge cache
             if self._needs_edge_cache():
                 self.update_edge_cache()
+                self._request_livewire_tree(force=False)
 
             self.confirm_band.reset(QgsWkbTypes.LineGeometry)
             self.confirm_band.addPoint(place_point)
@@ -1203,7 +1501,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 return
 
             auto_path_accepted = False
-            if self.auto_path:
+            if self.auto_path and self.use_sam:
                 # A visible complete proposal is accepted by clicking its
                 # target. If the route is not ready yet, this click only
                 # displays it and the next click becomes the acceptance.
@@ -1222,15 +1520,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                         self.reset_tracing()
                     return
 
-                # Normal Polygon Close.  Only the deliberate Auto Path mode
-                # may invent a route for the closing segment; the default
-                # mouse-led mode closes directly to the user's start point.
-                if self.auto_path and not auto_path_accepted:
+                # Preserve WYSIWYG for the closing segment too. SAM keeps its
+                # explicit proposal flow; Live-Wire commits the green route
+                # already shown under the cursor.
+                if self.auto_path and self.use_sam and not auto_path_accepted:
                     closing_path = self.find_optimal_path(self.start_point)
                     if len(closing_path) > 2:
                         closing_path = self.smooth_bezier(closing_path, closed=False)
-                elif self.auto_path:
+                elif self.auto_path and self.use_sam:
                     closing_path = []
+                elif self.preview_path:
+                    closing_path = list(self.preview_path)
+                    closing_path[-1] = self.start_point
                 else:
                     closing_path = [self.start_point]
 
@@ -1278,6 +1579,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # Confirm current preview path
             self.redraw_confirmed_path()
             self.last_sample_pos = event.pos()
+            self._livewire_request_point = None
+            self._request_livewire_tree(force=True)
 
     def canvasMoveEvent(self, event):
         current_point = self.toMapCoordinates(event.pos())
@@ -1323,7 +1626,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # The old Auto Path branch throttled the visible green cursor line to
         # one update per 12 screen pixels, which made it visibly trail behind
         # the mouse before any AI work even began.
-        if uses_global_path_search(interaction_mode):
+        if uses_global_path_search(interaction_mode) and self.use_sam:
             if self.last_preview_pos is not None:
                 preview_dx = event.pos().x() - self.last_preview_pos.x()
                 preview_dy = event.pos().y() - self.last_preview_pos.y()
@@ -1357,6 +1660,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.preview_target = None
             self._proposal_timer.stop()
             self._proposal_generation += 1
+            self._livewire_request_point = None
 
             # If Manual Mode (Shift/Ctrl): No snapping, just exact mouse pos
             if interaction_mode in (MODE_MOUSE_ASSIST, MODE_AUTO_PATH) and self.cached_edges is not None:
@@ -1399,16 +1703,19 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # 2. Tracing: Prediction Logic
             if interaction_mode == MODE_FREEHAND:
                 # MANUAL MODE PREVIEW: Literal straight line
+                self._livewire_request_point = None
                 smoothed_preview = [current_point]
             else:
-                # Mouse-led assist: one nearby, direction-compatible snap
-                # point.  This never replaces the user's segment with a
-                # global route and never invokes SAM per mouse event.
-                smoothed_preview = [
-                    self.angle_constrained_snap(current_point)
-                    if self.cached_edges is not None
-                    else current_point
-                ]
+                # The expensive tree was built once at the accepted anchor;
+                # this cursor path is only a predecessor traceback. While a
+                # new tree is still building, a direct/local-snap segment is
+                # shown immediately and replaced in place when ready.
+                self._present_livewire_cursor_preview(
+                    current_point,
+                    global_mode=(interaction_mode == MODE_AUTO_PATH),
+                )
+                self.last_input_point = current_point
+                return
 
             self.preview_path = smoothed_preview
             self.preview_is_global = False
@@ -1950,6 +2257,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             else:
                 self.cached_cost = None
             self.cache_dirty = False
+            if self.is_tracing and self.path_points:
+                self._request_livewire_tree(force=True)
 
         except Exception as e:
             print(f"Edge cache error: {e}")
@@ -1957,6 +2266,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def map_to_pixel(self, map_point):
         """Convert map coordinates to pixel coordinates."""
+        px, py = self.map_to_pixel_float(map_point)
+        return int(px), int(py)
+
+    def map_to_pixel_float(self, map_point):
+        """Convert map coordinates without losing sub-pixel cursor motion."""
         if self.cache_transform is None:
             raise ValueError("Edge cache is not initialized.")
 
@@ -1964,7 +2278,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         t = self.cache_transform
         px = (raster_point.x() - t['x_min']) / t['px_w']
         py = (t['y_max'] - raster_point.y()) / t['px_h']
-        return int(px), int(py)
+        return float(px), float(py)
 
     def pixel_to_map(self, px, py):
         """Convert pixel coordinates to map coordinates."""
@@ -2232,6 +2546,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._cancel_proposal_task()
         self._proposal_generation += 1
         self._proposal_request_point = None
+        self._cancel_livewire_task()
+        self._livewire_generation += 1
+        self._livewire_tree = None
+        self._livewire_anchor_pixel = None
+        self._livewire_request_point = None
         self.checkpoints = []
         self.start_point = None
         self.last_map_point = None

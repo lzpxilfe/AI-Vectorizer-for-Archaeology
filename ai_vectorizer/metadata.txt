@@ -5,13 +5,14 @@
 name=ArchaeoTrace
 qgisMinimumVersion=3.22
 description=Local-first contour tracing for historical maps with optional AI assistance and experimental DEM reconstruction.
-version=0.1.5
+version=0.1.6
 author=lzpxilfe(balguljang2)
 email=your-email@example.com
 
 about=ArchaeoTrace helps users digitize elevation contours from scanned historical maps and review locally generated terrain hypotheses.
 
     Features:
+    - Real-time direction-aware Live-Wire tracing with a literal 0-100% assist blend
     - Manual and edge-guided tracing with Freehand, Canny, LSD, and HED
     - Optional point-prompt tracing with MobileSAM and SAM (ViT-B)
     - Elevation attributes and optional spot-height capture

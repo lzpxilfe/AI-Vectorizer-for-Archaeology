@@ -29,6 +29,28 @@ ArchaeoTrace의 목표는 서버나 유료 서비스에 사용자 자료를 보�
 - 유효한 소형 입력이 DEM과 hillshade 두 파일을 만들고 QGIS 프로젝트에 로드됩니다.
 - UI 스레드가 긴 처리 동안 응답 상태를 유지합니다.
 
+## M0.5 — Human-led direction-aware Live-Wire
+
+상태: `0.1.6` 구현 및 QGIS 3.40.5 실기동 검증
+
+완료:
+
+- 기준점을 클릭할 때만 384×384 제한 창의 단일 출발점 최단경로 트리를 백그라운드에서 생성
+- 커서 이동 때는 목표별 A* 재계산 없이 predecessor 역추적만 수행
+- 영상 구조 텐서의 접선 방향 비용으로 글자 교차와 평행한 인접 등고선 이동을 억제
+- 선까지의 거리 비용으로 짧은 인쇄·스캔 단절을 연결하고, 최대 우회율과 제한 창으로 장거리 이탈을 차단
+- 진행 방향 쪽으로 탐색 창을 치우쳐 이전 선분을 거슬러 가는 경로를 줄임
+- `0%` 정확한 커서, 중간값 좌표 혼합, `100%` 완전 보조 경로인 단일 슬라이더 계약
+- 초록색 미리보기와 클릭 결과를 동일하게 유지하고 Canny Auto Path의 OpenCV 의존성 제거
+- QGIS 3.40.5 / Python 3.12 / CPU / OpenCV 없음 환경에서 기준점 트리 약 183ms, 커서 경로 조회 1ms 미만 확인
+
+다음 모델 경계:
+
+- SAM/HED를 기본값으로 교체하지 않습니다. 둘 다 일반 물체·경계 모델이라 숫자, 기호, 도로선도 강하게 반응합니다.
+- 실제 모델 교체는 고지도 크롭과 수작업 등고선 중심선으로 학습한 compact U-Net 계열을 우선 검토합니다.
+- 학습 증강에는 글자·기호 가림, 짧은 선 단절, 얼룩, 스캔 밝기 변화를 포함하고 clDice 같은 위상 보존 손실을 비교합니다.
+- 모델 출력도 최종 선을 독단적으로 만들지 않고 Live-Wire의 선 확률 비용으로만 결합합니다.
+
 ## M1 — Local model benchmark before replacement
 
 상태: M1.2 EfficientSAM-Ti ONNX 격리 경로까지 구현, 실데이터 구축·기존 PyTorch SAM adapter 대기
@@ -114,3 +136,5 @@ ArchaeoTrace의 목표는 서버나 유료 서비스에 사용자 자료를 보�
 - [QGIS background tasks](https://docs.qgis.org/3.44/en/docs/pyqgis_developer_cookbook/tasks.html)
 - [EfficientSAM official repository](https://github.com/yformer/EfficientSAM)
 - [EfficientSAM CVPR 2024 paper](https://openaccess.thecvf.com/content/CVPR2024/html/Xiong_EfficientSAM_Leveraged_Masked_Image_Pretraining_for_Efficient_Segment_Anything_CVPR_2024_paper.html)
+- [Intelligent Scissors / Live Wire](https://pubmed.ncbi.nlm.nih.gov/10782619/)
+- [clDice topology-preserving loss](https://openaccess.thecvf.com/content/CVPR2021/html/Shit_clDice_-_A_Novel_Topology-Preserving_Loss_Function_for_Tubular_Structure_CVPR_2021_paper.html)

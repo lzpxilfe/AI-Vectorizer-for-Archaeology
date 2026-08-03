@@ -43,6 +43,7 @@ from qgis.PyQt.QtCore import Qt, QVariant, QSettings, QStandardPaths
 from qgis.PyQt.QtGui import QColor
 
 from ..core.dependencies import get_cv2_error_text, get_opencv_install_command, is_cv2_available
+from ..core.livewire import is_livewire_available
 from ..core.raster_utils import compute_resampled_dimensions, read_raster_bands
 from ..config import (
     DEFAULT_CRS_AUTHID,
@@ -574,16 +575,16 @@ class AIVectorizerDock(QDockWidget):
             self._tr(
                 (
                     "각 추적 방식의 역할:\n"
-                    "• Canny: 마우스 주도 국소 보조 (Auto Path에서만 A*)\n"
-                    "• LSD: 선분 보조 A*\n"
+                    "• Canny: 방향 인식 Live-Wire (기준점당 1회 계산)\n"
+                    "• LSD: 선분 지도를 이용한 Live-Wire\n"
                     f"• HED: 학습된 엣지 지도 (~{self._hed_size_hint_mb()}MB)\n"
                     f"• MobileSAM: 프롬프트 마스크 + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB)\n"
                     f"• SAM: ViT-B 프롬프트 마스크 + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB)"
                 ),
                 (
                     "Tracing-mode roles:\n"
-                    "• Canny: mouse-led local assist (A* only in Auto Path)\n"
-                    "• LSD: line-segment-assisted A*\n"
+                    "• Canny: direction-aware Live-Wire (one tree per anchor)\n"
+                    "• LSD: Live-Wire over line-segment evidence\n"
                     f"• HED: learned edge map (~{self._hed_size_hint_mb()}MB)\n"
                     f"• MobileSAM: prompt mask + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB)\n"
                     f"• SAM: ViT-B prompt mask + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB)"
@@ -592,8 +593,8 @@ class AIVectorizerDock(QDockWidget):
         )
         self.model_combo.setToolTip(
             self._tr(
-                "Canny: 엣지 비용지도\nLSD: 선분 보조\nHED: 학습된 엣지 지도\nMobileSAM: 프롬프트 마스크\nSAM: ViT-B 프롬프트 마스크",
-                "Canny: edge cost map\n"
+                "Canny: 방향 인식 Live-Wire\nLSD: 선분 보조\nHED: 학습된 엣지 지도\nMobileSAM: 프롬프트 마스크\nSAM: ViT-B 프롬프트 마스크",
+                "Canny: direction-aware Live-Wire\n"
                 "LSD: line-segment assistance\n"
                 "HED: learned edge map\n"
                 "MobileSAM: prompt mask\n"
@@ -619,11 +620,11 @@ class AIVectorizerDock(QDockWidget):
         self.install_cmd.setText(self._install_command_for_model())
         self.freehand_check.setText(self._tr("✏️ 프리핸드 (AI 비활성)", "✏️ Freehand (AI Off)"))
         self.freehand_check.setToolTip(self._tr("체크: AI 없이 순수 마우스 추적", "Checked: pure mouse tracing without AI"))
-        self.edge_strength_label.setText(self._tr("국소 보조 강도:", "Local Assist Strength:"))
+        self.edge_strength_label.setText(self._tr("AI 개입 강도:", "AI Assist Strength:"))
         self.freedom_slider.setToolTip(
             self._tr(
-                "0%: 커서 그대로\n100%: 가까운 엣지 최대 보조 (여전히 커서 주도)\nAuto Path/SAM은 별도 제안 모드",
-                "0%: exact cursor\n100%: strongest nearby-edge assist (still cursor-led)\nAuto Path/SAM is a separate proposal mode",
+                "0%: 커서 그대로\n1~99%: 커서 경로와 Live-Wire를 실제 비율로 혼합\n100%: 방향 인식 경로 전체 적용\nSAM은 Auto Path에서만 사용",
+                "0%: exact cursor\n1-99%: literal geometry blend between cursor and Live-Wire\n100%: full direction-aware route\nSAM is used only in Auto Path",
             )
         )
         if self.trace_btn.isChecked():
@@ -687,8 +688,8 @@ class AIVectorizerDock(QDockWidget):
         self.auto_path_check.setText("AI Proposal / Auto Path (Experimental)")
         self.auto_path_check.setToolTip(
             self._tr(
-                "커서를 잠시 멈추면 실제 A*/SAM 전체 경로를 미리 보여줍니다. 표시된 경로를 클릭하면 채택됩니다. 계산 전에 클릭한 경우에는 같은 위치를 한 번 더 클릭하세요.",
-                "Shows the actual whole-segment A*/SAM proposal after the cursor pauses; click the visible proposal to accept it. If you click before it is calculated, click the same target once more. The default is mouse-led local assistance.",
+                "Canny/LSD/HED에서는 커서를 따라 즉시 표시되는 전체 Live-Wire 경로를 클릭 한 번으로 채택합니다. SAM은 커서를 잠시 멈춘 뒤 표시되며 같은 위치를 다시 클릭해 채택합니다.",
+                "Canny/LSD/HED show the full Live-Wire route immediately and accept it with one click. SAM appears after a short pause and is accepted by clicking the same target again.",
             )
         )
         self.sam_download_btn.setText(self._download_button_text())
@@ -867,7 +868,7 @@ class AIVectorizerDock(QDockWidget):
             freehand = self.freehand_check.isChecked()
             auto_path = self.auto_path_check.isChecked() and not freehand
             model_idx = self.model_combo.currentIndex()
-            if self._is_sam_model(model_idx) and auto_path:
+            if self._is_sam_model(model_idx) and auto_path and edge_weight > 0.0:
                 self.init_sam_engine()
             else:
                 # Do not just drop the reference: a previously loaded SAM
@@ -877,17 +878,30 @@ class AIVectorizerDock(QDockWidget):
             use_sam = (
                 not freehand
                 and auto_path
+                and edge_weight > 0.0
                 and self._is_sam_model(model_idx)
                 and self.sam_engine is not None
                 and self.sam_engine.is_ready
             )
-            edge_method = SAM_ASSIST_EDGE_METHOD if use_sam else EDGE_METHOD_BY_MODEL.get(model_idx, DEFAULT_EDGE_METHOD)
+            if edge_weight <= 0.0:
+                edge_method = DEFAULT_EDGE_METHOD
+            else:
+                edge_method = (
+                    SAM_ASSIST_EDGE_METHOD
+                    if use_sam
+                    else EDGE_METHOD_BY_MODEL.get(model_idx, DEFAULT_EDGE_METHOD)
+                )
 
             needs_cv2 = (
                 not freehand
+                and edge_weight > 0.0
                 and (
                     model_idx in (MODEL_IDX_LSD, MODEL_IDX_HED)
-                    or auto_path
+                    or (
+                        auto_path
+                        and edge_weight > 0.0
+                        and self._is_sam_model(model_idx)
+                    )
                 )
             )
             if needs_cv2 and not is_cv2_available():
@@ -895,7 +909,7 @@ class AIVectorizerDock(QDockWidget):
                 self.trace_btn.setChecked(False)
                 return
 
-            if not freehand and model_idx == MODEL_IDX_HED:
+            if not freehand and edge_weight > 0.0 and model_idx == MODEL_IDX_HED:
                 from ..core.edge_detector import EdgeDetector
                 hed_status = EdgeDetector.get_hed_runtime_status(force_refresh=True)
                 if not hed_status.get("ok"):
@@ -910,7 +924,12 @@ class AIVectorizerDock(QDockWidget):
                     self.trace_btn.setChecked(False)
                     return
 
-            if auto_path and self._is_sam_model(model_idx) and not use_sam:
+            if (
+                auto_path
+                and edge_weight > 0.0
+                and self._is_sam_model(model_idx)
+                and not use_sam
+            ):
                 QMessageBox.warning(
                     self,
                     self._tr("경고", "Warning"),
@@ -941,7 +960,9 @@ class AIVectorizerDock(QDockWidget):
             self.iface.mapCanvas().setMapTool(self.active_tool)
             self.active_tool.deactivated.connect(self.on_tool_deactivated)
 
-            if freehand:
+            if not freehand and edge_weight <= 0.0:
+                mode_name = self._tr("정확한 커서 (AI 0%)", "Exact Cursor (AI 0%)")
+            elif freehand:
                 mode_name = self._tr("프리핸드", "Freehand")
             elif self._is_sam_model(model_idx) and not use_sam:
                 mode_name = self._tr(
@@ -964,24 +985,19 @@ class AIVectorizerDock(QDockWidget):
         self._set_model_aux_visibility()
         self._release_sam_engine()
         if index == MODEL_IDX_CANNY and not is_cv2_available():
-            if self.auto_path_check.isChecked():
+            if not is_livewire_available():
                 self._set_sam_status(
                     self._tr(
-                        "✅ NumPy Human Assist 사용 가능; Auto Path에는 OpenCV가 필요합니다",
-                        "✅ NumPy Human Assist is available; Auto Path requires OpenCV",
+                        "⚠️ NumPy 국소 보조만 사용 가능; 빠른 Live-Wire에는 SciPy가 필요합니다",
+                        "⚠️ NumPy local assist is available; fast Live-Wire requires SciPy",
                     ),
                     "warning",
-                )
-                self._set_model_aux_visibility(show_install=True)
-                self._set_install_hint(
-                    self._tr("📦 OpenCV 설치 (복사 가능):", "📦 Install OpenCV (copy this):"),
-                    get_opencv_install_command(),
                 )
                 return
             self._set_sam_status(
                 self._tr(
-                    "✅ NumPy 기반 Human Assist 활성화 (OpenCV 선택 사항)",
-                    "✅ NumPy Human Assist active (OpenCV optional)",
+                    "✅ 방향 인식 Live-Wire 사용 가능 (OpenCV 불필요)",
+                    "✅ Direction-aware Live-Wire ready (OpenCV not required)",
                 ),
                 "info",
             )
@@ -1496,8 +1512,8 @@ class AIVectorizerDock(QDockWidget):
 <h3>🤖 Tracing Modes</h3>
 <table border='1' cellpadding='5'>
 <tr><th>Mode</th><th>Role</th><th>Requirements</th></tr>
-<tr><td>🔧 Canny</td><td>Mouse-led local assist; optional A* proposal</td><td>NumPy by default, OpenCV for A*</td></tr>
-<tr><td>📐 LSD</td><td>Line-segment-assisted A* tracing</td><td>OpenCV</td></tr>
+<tr><td>🔧 Canny</td><td>Mouse-led, direction-aware Live-Wire</td><td>NumPy + SciPy; OpenCV optional</td></tr>
+<tr><td>📐 LSD</td><td>Live-Wire over line-segment evidence</td><td>OpenCV + SciPy</td></tr>
 <tr><td>🧠 HED</td><td>Learned edge-map assistance</td><td>OpenCV + ~{self._hed_size_hint_mb()}MB model</td></tr>
 <tr><td>🎯 MobileSAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + mobile_sam + ~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB weights</td></tr>
 <tr><td>🧩 SAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + segment_anything + ~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB checkpoint</td></tr>
@@ -1516,8 +1532,8 @@ class AIVectorizerDock(QDockWidget):
 <h3>💡 Tips</h3>
 <ul>
 <li>Zoom in until contour lines are clearly visible for better snapping.</li>
-<li>The local assist slider is literal: 0% follows the cursor exactly; 100% is the strongest nearby-edge nudge while remaining cursor-led.</li>
-<li>Auto Path / SAM is a separate proposal mode and must be enabled explicitly.</li>
+<li>The assist slider is literal: 0% is the exact cursor, intermediate values blend geometry, and 100% uses the full Live-Wire route.</li>
+<li>The green line is the exact path that one click will accept. Auto Path is required only for SAM proposals.</li>
 <li>If SAM/HED is unavailable, start with Canny or LSD first.</li>
 <li>Use <b>Check Selected SAM Model</b> before downloading to see if an update is needed.</li>
 <li><b>SAM Status Report</b> queries remote model metadata (internet access) before creating a shareable JSON report.</li>
@@ -1543,8 +1559,8 @@ class AIVectorizerDock(QDockWidget):
 <h3>🤖 추적 방식</h3>
 <table border='1' cellpadding='5'>
 <tr><th>방식</th><th>역할</th><th>필요 항목</th></tr>
-<tr><td>🔧 Canny</td><td>마우스 주도 국소 보조, 선택적 A* 제안</td><td>기본 NumPy, A*에는 OpenCV</td></tr>
-<tr><td>📐 LSD</td><td>선분 보조 A* 추적</td><td>OpenCV</td></tr>
+<tr><td>🔧 Canny</td><td>마우스 주도 방향 인식 Live-Wire</td><td>NumPy + SciPy, OpenCV 선택</td></tr>
+<tr><td>📐 LSD</td><td>선분 지도를 이용한 Live-Wire</td><td>OpenCV + SciPy</td></tr>
 <tr><td>🧠 HED</td><td>학습된 엣지 지도 보조</td><td>OpenCV 및 약 {self._hed_size_hint_mb()}MB 모델</td></tr>
 <tr><td>🎯 MobileSAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + mobile_sam 및 약 {self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB 가중치</td></tr>
 <tr><td>🧩 SAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + segment_anything 및 약 {self._sam_size_hint_mb(MODEL_IDX_SAM)}MB 체크포인트</td></tr>
@@ -1563,8 +1579,8 @@ class AIVectorizerDock(QDockWidget):
 <h3>💡 팁</h3>
 <ul>
 <li>등고선이 명확히 보일 정도로 확대하면 스냅 품질이 좋아집니다.</li>
-<li>국소 보조 슬라이더는 실제 강도입니다. 0%는 커서를 그대로 따르고, 100%는 커서 주도 상태에서 가까운 엣지를 가장 강하게 보조합니다.</li>
-<li>Auto Path / SAM은 별도 제안 모드이며 명시적으로 켜야 합니다.</li>
+<li>AI 개입 슬라이더는 실제 비율입니다. 0%는 정확한 커서, 중간값은 경로 혼합, 100%는 Live-Wire 전체 경로입니다.</li>
+<li>초록색 선이 클릭 한 번으로 채택될 정확한 경로입니다. Auto Path는 SAM 제안에만 필요합니다.</li>
 <li>SAM/HED가 준비되지 않았다면 Canny/LSD부터 시작하세요.</li>
 <li>다운로드 전에 <b>선택 SAM 모델 최신 확인</b> 버튼으로 업데이트 필요 여부를 확인하세요.</li>
 <li><b>SAM 상태 리포트</b>는 원격 모델 메타데이터를 조회(인터넷 사용)한 뒤 공유용 JSON 리포트를 생성합니다.</li>
