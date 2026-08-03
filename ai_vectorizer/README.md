@@ -159,7 +159,7 @@ are migrated automatically on first use.
 - ArchaeoTrace is a local-first QGIS plugin for tracing elevation contours on historical maps and building reviewable terrain hypotheses.
 - The plugin metadata version is `0.1.5`; this update makes Human-led Assist the responsive default and keeps SAM weights outside the plugin directory.
 - `Freehand` needs no external model or OpenCV, but uses NumPy from the QGIS Python environment.
-- `Canny / LSD / HED / SAM` tracing requires `OpenCV` inside the QGIS Python environment.
+- Default mouse-led `Canny` Human Assist uses a NumPy local-edge fallback when OpenCV is absent; LSD/HED/SAM still require OpenCV.
 - `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
 - EfficientSAM-Ti ONNX is benchmark-only and is not a product default or a UI option.
 - The DEM workflow requires saved elevation contours in a projected metre CRS; its output is a reviewable hypothesis, not an archaeological ground truth.

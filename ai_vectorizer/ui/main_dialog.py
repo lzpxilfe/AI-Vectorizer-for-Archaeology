@@ -875,7 +875,14 @@ class AIVectorizerDock(QDockWidget):
             )
             edge_method = SAM_ASSIST_EDGE_METHOD if use_sam else EDGE_METHOD_BY_MODEL.get(model_idx, DEFAULT_EDGE_METHOD)
 
-            if not freehand and not is_cv2_available():
+            needs_cv2 = (
+                not freehand
+                and (
+                    model_idx in (MODEL_IDX_LSD, MODEL_IDX_HED)
+                    or auto_path
+                )
+            )
+            if needs_cv2 and not is_cv2_available():
                 self._show_opencv_warning(self._tr("AI 트레이싱", "AI tracing"))
                 self.trace_btn.setChecked(False)
                 return
@@ -948,6 +955,30 @@ class AIVectorizerDock(QDockWidget):
     def on_model_changed(self, index):
         self._set_model_aux_visibility()
         self._release_sam_engine()
+        if index == MODEL_IDX_CANNY and not is_cv2_available():
+            if self.auto_path_check.isChecked():
+                self._set_sam_status(
+                    self._tr(
+                        "✅ NumPy Human Assist 사용 가능; Auto Path에는 OpenCV가 필요합니다",
+                        "✅ NumPy Human Assist is available; Auto Path requires OpenCV",
+                    ),
+                    "warning",
+                )
+                self._set_model_aux_visibility(show_install=True)
+                self._set_install_hint(
+                    self._tr("📦 OpenCV 설치 (복사 가능):", "📦 Install OpenCV (copy this):"),
+                    get_opencv_install_command(),
+                )
+                return
+            self._set_sam_status(
+                self._tr(
+                    "✅ NumPy 기반 Human Assist 활성화 (OpenCV 선택 사항)",
+                    "✅ NumPy Human Assist active (OpenCV optional)",
+                ),
+                "info",
+            )
+            self.sam_status.setToolTip("")
+            return
         if index in (MODEL_IDX_CANNY, MODEL_IDX_LSD):
             if is_cv2_available():
                 self._set_sam_status(self._tr("✅ OpenCV 로드됨", "✅ OpenCV loaded"), "info")

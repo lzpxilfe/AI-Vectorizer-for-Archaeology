@@ -284,7 +284,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.spot_height_layer = None
 
         self.cv2 = get_cv2()
-        if not self.freehand or self.use_sam:
+        # Default Canny Human Assist has a NumPy edge fallback and should not
+        # require a separate OpenCV install. SAM, LSD, and HED still need cv2.
+        needs_cv2 = self.use_sam or self.edge_method in (
+            EdgeDetector.METHOD_LSD,
+            EdgeDetector.METHOD_HED,
+        )
+        if needs_cv2:
             self.cv2 = require_cv2("OpenCV tracing")
 
         # Edge detector
@@ -1548,7 +1554,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # Mouse-led tracing only needs the binary edge mask.  Distance
             # transforms are reserved for explicit Auto Path mode, where A*
             # actually consumes the cost map.
-            if self.auto_path:
+            if self.auto_path and self.cv2 is not None:
                 self.cached_cost = self.edge_detector.get_edge_cost_map(
                     self.cached_edges,
                     self.edge_weight,

@@ -110,14 +110,44 @@ class EdgeDetector:
     @staticmethod
     def _prepare_input_images(image: np.ndarray):
         """Normalize raster input into gray + BGR variants for detectors."""
-        cv2 = require_cv2("OpenCV edge detection")
+        cv2 = get_cv2()
         if len(image.shape) == 3:
             rgb = np.ascontiguousarray(image[..., :3])
-            gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-            color_bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+            if cv2 is not None:
+                gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+                color_bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+            else:
+                rgb_float = rgb.astype(np.float32, copy=False)
+                gray = np.tensordot(
+                    rgb_float,
+                    np.array([0.299, 0.587, 0.114], dtype=np.float32),
+                    axes=([-1], [0]),
+                )
+                gray = np.clip(gray, 0, 255).astype(np.uint8)
+                color_bgr = np.ascontiguousarray(rgb[..., ::-1])
         else:
-            gray = np.ascontiguousarray(image)
-            color_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+            gray = np.asarray(image)
+            if gray.dtype != np.uint8:
+                gray_float = gray.astype(np.float32, copy=False)
+                finite = np.isfinite(gray_float)
+                if not finite.any():
+                    gray = np.zeros(gray_float.shape, dtype=np.uint8)
+                else:
+                    low = float(np.nanmin(gray_float[finite]))
+                    high = float(np.nanmax(gray_float[finite]))
+                    if high <= low:
+                        gray = np.zeros(gray_float.shape, dtype=np.uint8)
+                    else:
+                        gray = np.clip(
+                            (gray_float - low) * (255.0 / (high - low)),
+                            0,
+                            255,
+                        ).astype(np.uint8)
+            gray = np.ascontiguousarray(gray)
+            if cv2 is not None:
+                color_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+            else:
+                color_bgr = np.repeat(gray[..., None], 3, axis=2)
 
         return gray, color_bgr
 
@@ -143,7 +173,12 @@ class EdgeDetector:
         self.cv2 = None
         self.lsd = None
 
-        if method in (self.METHOD_CANNY, self.METHOD_LSD, self.METHOD_HED):
+        # The default Canny-style Human Assist must remain usable in a clean
+        # QGIS Python environment. LSD and HED still require OpenCV, while
+        # Canny can use the small NumPy fallback below when cv2 is absent.
+        if method == self.METHOD_CANNY:
+            self.cv2 = get_cv2()
+        elif method in (self.METHOD_LSD, self.METHOD_HED):
             self.cv2 = self._require_cv2_runtime(f"{method.upper()} edge detection")
 
         # LSD detector instance
@@ -318,7 +353,10 @@ class EdgeDetector:
         high_threshold=DEFAULT_CANNY_HIGH_THRESHOLD,
     ) -> np.ndarray:
         """Canny + Adaptive threshold method."""
-        cv2 = self.cv2 or self._require_cv2_runtime("Canny edge detection")
+        if self.cv2 is None:
+            return self._detect_numpy_edges(gray, low_threshold, high_threshold)
+
+        cv2 = self.cv2
         # Adaptive threshold for dark lines
         dark_mask = cv2.adaptiveThreshold(
             gray,
@@ -341,6 +379,40 @@ class EdgeDetector:
         combined = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, kernel)
 
         return combined
+
+    @classmethod
+    def _detect_numpy_edges(
+        cls,
+        gray: np.ndarray,
+        low_threshold=DEFAULT_CANNY_LOW_THRESHOLD,
+        high_threshold=DEFAULT_CANNY_HIGH_THRESHOLD,
+    ) -> np.ndarray:
+        """Detect local intensity edges without requiring OpenCV.
+
+        This deliberately stays small and conservative: it is a fallback for
+        the default mouse-led assist, not a replacement for LSD/HED/SAM.
+        ``np.gradient`` is sufficient to create a nearby attraction mask and
+        avoids installing a large package just to start tracing.
+        """
+        values = np.asarray(gray, dtype=np.float32)
+        if values.ndim != 2 or min(values.shape) < 2:
+            return np.zeros(values.shape, dtype=np.uint8)
+
+        gradient_y, gradient_x = np.gradient(values)
+        magnitude = np.hypot(gradient_x, gradient_y)
+        finite = magnitude[np.isfinite(magnitude) & (magnitude > 0)]
+        if finite.size == 0:
+            return np.zeros(values.shape, dtype=np.uint8)
+
+        percentile_threshold = float(np.percentile(finite, 65.0))
+        threshold = max(
+            2.0,
+            min(
+                float(high_threshold),
+                max(float(low_threshold) * 0.25, percentile_threshold),
+            ),
+        )
+        return (magnitude >= threshold).astype(np.uint8) * cls.EDGE_MAX_VALUE
 
     def _detect_lsd(self, gray: np.ndarray) -> np.ndarray:
         """
