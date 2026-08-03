@@ -681,7 +681,10 @@ class AIVectorizerDock(QDockWidget):
 
         self.auto_path_check.setText("AI Proposal / Auto Path (Experimental)")
         self.auto_path_check.setToolTip(
-            "Experimental whole-segment A*/SAM route preview. The default is mouse-led local assistance."
+            self._tr(
+                "커서를 잠시 멈추면 실제 A*/SAM 전체 경로를 미리 보여줍니다. 같은 위치를 다시 클릭하면 채택됩니다. 기본 모드는 사람 주도 보조입니다.",
+                "Shows the actual whole-segment A*/SAM proposal after the cursor pauses; click the same target again to accept it. The default is mouse-led local assistance.",
+            )
         )
         self.sam_download_btn.setText(self._download_button_text())
 

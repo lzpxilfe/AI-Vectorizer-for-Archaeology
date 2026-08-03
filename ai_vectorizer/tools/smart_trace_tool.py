@@ -75,6 +75,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     CACHE_MIN_DIMENSION = 10
     CACHE_MAX_BANDS_FOR_RGB = 3
     CACHE_DEBOUNCE_MS = 150
+    PROPOSAL_DEBOUNCE_MS = 180
+    PROPOSAL_ACCEPT_TOLERANCE_PIXELS = 12
 
     PATH_MOVE_COST_STRAIGHT = 1.0
     PATH_MOVE_COST_DIAGONAL = 1.41421356237
@@ -109,6 +111,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     PREVIEW_BAND_COLOR = (0, 180, 0, 180)
     PREVIEW_BAND_WIDTH = 8
     PREVIEW_BAND_LINE_STYLE = Qt.DashLine
+    PROPOSAL_BAND_COLOR = (255, 180, 0, 240)
+    PROPOSAL_BAND_WIDTH = 8
+    PROPOSAL_BAND_LINE_STYLE = Qt.SolidLine
     CONFIRM_BAND_COLOR = (255, 50, 50, 255)
     CONFIRM_BAND_WIDTH = 3
     START_MARKER_COLOR = (255, 255, 0, 255)
@@ -163,6 +168,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # A preview can contain pixel-to-map points from the previous extent.
         # Never commit that stale preview after a zoom or pan.
         self.preview_path = []
+        self.preview_is_global = False
+        self.preview_target = None
+        self._proposal_timer.stop()
+        self._proposal_generation += 1
+        self._proposal_request_point = None
         self.preview_band.reset(QgsWkbTypes.LineGeometry)
         self.last_sample_pos = None
         self._edge_cache_timer.start()
@@ -222,6 +232,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # Path tracking
         self.path_points = []
         self.preview_path = []  # For hovering preview
+        self.preview_is_global = False
+        self.preview_target = None
         self.is_tracing = False
         self.start_point = None
         self.last_map_point = None
@@ -313,6 +325,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._edge_cache_timer.setInterval(self.CACHE_DEBOUNCE_MS)
         self._edge_cache_timer.timeout.connect(self.update_edge_cache)
         self._extent_cache_listener_connected = False
+
+        # Auto Path/SAM proposals are debounced so the expensive route is
+        # calculated after the cursor pauses, not for every mouse event.
+        self._proposal_timer = QTimer(self.canvas)
+        self._proposal_timer.setSingleShot(True)
+        self._proposal_timer.setInterval(self.PROPOSAL_DEBOUNCE_MS)
+        self._proposal_timer.timeout.connect(self._update_auto_path_preview)
+        self._proposal_request_point = None
+        self._proposal_generation = 0
 
         # CRS transforms
         self.to_raster_transform = QgsCoordinateTransform(
@@ -799,6 +820,126 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         except Exception:
             return []
 
+    def _render_preview(self):
+        """Render the exact candidate segment without committing it."""
+        self.preview_band.reset(QgsWkbTypes.LineGeometry)
+        if self.preview_is_global:
+            self.preview_band.setColor(QColor(*self.PROPOSAL_BAND_COLOR))
+            self.preview_band.setWidth(self.PROPOSAL_BAND_WIDTH)
+            self.preview_band.setLineStyle(self.PROPOSAL_BAND_LINE_STYLE)
+        else:
+            self.preview_band.setColor(QColor(*self.PREVIEW_BAND_COLOR))
+            self.preview_band.setWidth(self.PREVIEW_BAND_WIDTH)
+            self.preview_band.setLineStyle(self.PREVIEW_BAND_LINE_STYLE)
+
+        if not self.preview_path:
+            return
+        if self.path_points:
+            self.preview_band.addPoint(self.path_points[-1])
+        for point in self.preview_path:
+            self.preview_band.addPoint(point)
+
+    def _clear_preview(self, stop_timer=True):
+        """Discard an uncommitted candidate segment."""
+        if stop_timer:
+            self._proposal_timer.stop()
+        self._proposal_generation += 1
+        self._proposal_request_point = None
+        self.preview_path = []
+        self.preview_is_global = False
+        self.preview_target = None
+        self._render_preview()
+
+    def _schedule_auto_path_preview(self, point):
+        """Debounce an actual A*/SAM proposal until the cursor pauses."""
+        if not self.auto_path or not self.is_tracing or not self.path_points:
+            return
+
+        self._proposal_generation += 1
+        self._proposal_request_point = QgsPointXY(point)
+        self.preview_path = [
+            self.angle_constrained_snap(point)
+            if self.cached_edges is not None
+            else point
+        ]
+        self.preview_is_global = False
+        self.preview_target = None
+        self._render_preview()
+        self._proposal_timer.start()
+
+    def _set_auto_path_preview(self, target_point):
+        """Calculate and display one complete route proposal."""
+        proposed_path = self.find_optimal_path(target_point)
+        if len(proposed_path) > 2:
+            proposed_path = self.smooth_bezier(proposed_path, closed=False)
+
+        if proposed_path and proposed_path[0] == self.path_points[-1]:
+            proposed_path = proposed_path[1:]
+        if not proposed_path:
+            proposed_path = [QgsPointXY(target_point)]
+
+        self.preview_path = list(proposed_path)
+        self.preview_is_global = True
+        self.preview_target = QgsPointXY(target_point)
+        self._render_preview()
+
+    def _update_auto_path_preview(self):
+        """Update the candidate after the debounced cursor pause."""
+        request_point = self._proposal_request_point
+        generation = self._proposal_generation
+        if (
+            request_point is None
+            or not self.is_tracing
+            or not self.auto_path
+            or not self.path_points
+        ):
+            return
+
+        self._set_auto_path_preview(request_point)
+        if generation != self._proposal_generation:
+            return
+
+    def _proposal_target_matches(self, point):
+        if not self.preview_is_global or self.preview_target is None:
+            return False
+        distance = math.hypot(
+            point.x() - self.preview_target.x(),
+            point.y() - self.preview_target.y(),
+        )
+        return distance <= (
+            self.canvas.mapUnitsPerPixel() * self.PROPOSAL_ACCEPT_TOLERANCE_PIXELS
+        )
+
+    def _accept_or_prepare_auto_path(self, point):
+        """Accept a visible proposal, or show one for the first click."""
+        if self._proposal_target_matches(point):
+            self._proposal_timer.stop()
+            self._proposal_generation += 1
+            self._proposal_request_point = None
+            accepted = list(self.preview_path)
+            if accepted and accepted[0] == self.path_points[-1]:
+                accepted = accepted[1:]
+            self.path_points.extend(accepted or [QgsPointXY(point)])
+            self.preview_path = []
+            self.preview_is_global = False
+            self.preview_target = None
+            self._render_preview()
+            return True
+
+        self._proposal_timer.stop()
+        self._proposal_generation += 1
+        self._proposal_request_point = None
+        self._set_auto_path_preview(point)
+        self._push_message(
+            self._tr(
+                "경로 제안을 표시했습니다. 같은 위치를 다시 클릭하면 채택됩니다.",
+                "Proposal shown. Click the same target again to accept it.",
+            ),
+            Qgis.Info,
+            3,
+        )
+        return False
+
     def canvasPressEvent(self, event):
         if event.button() == Qt.RightButton:
             # Right click = Finish Line (Enter)
@@ -865,6 +1006,24 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.confirm_band.addPoint(place_point)
             self.preview_band.reset(QgsWkbTypes.LineGeometry)
         else:
+            # Preserve the existing double-click spot-height gesture before
+            # Auto Path's two-click proposal acceptance can intercept it.
+            if self.is_near_start(point) and len(self.path_points) == 1:
+                elevation = self.ask_elevation()
+                if elevation is None:
+                    return
+                if self.create_spot_height(self.start_point, elevation):
+                    self.reset_tracing()
+                return
+
+            auto_path_accepted = False
+            if self.auto_path:
+                # First click shows the complete proposal. A second click on
+                # the same target is the explicit human acceptance gesture.
+                if not self._accept_or_prepare_auto_path(point):
+                    return
+                auto_path_accepted = True
+
             # Check if closing polygon (near start)
             if self.is_near_start(point):
                 # SPECIAL CASE: Double Click on Start Point = Spot Height
@@ -879,10 +1038,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 # Normal Polygon Close.  Only the deliberate Auto Path mode
                 # may invent a route for the closing segment; the default
                 # mouse-led mode closes directly to the user's start point.
-                if self.auto_path:
+                if self.auto_path and not auto_path_accepted:
                     closing_path = self.find_optimal_path(self.start_point)
                     if len(closing_path) > 2:
                         closing_path = self.smooth_bezier(closing_path, closed=False)
+                elif self.auto_path:
+                    closing_path = []
                 else:
                     closing_path = [self.start_point]
 
@@ -901,19 +1062,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     self.reset_tracing()
                 return
 
-            # ADD CHECKPOINT: Save current position as checkpoint.  Auto Path
-            # is an explicit proposal now: calculate it once on click instead
-            # of running A*/SAM continuously while the cursor hovers.
-            if self.auto_path:
-                proposed_path = self.find_optimal_path(point)
-                if len(proposed_path) > 2:
-                    proposed_path = self.smooth_bezier(proposed_path, closed=False)
-                if len(proposed_path) > 1:
-                    if proposed_path[0] == self.path_points[-1]:
-                        proposed_path = proposed_path[1:]
-                    self.path_points.extend(proposed_path)
-                else:
-                    self.path_points.append(point)
+            # ADD CHECKPOINT: only the visible, explicitly accepted proposal
+            # or the human-led preview becomes part of the confirmed path.
+            if auto_path_accepted:
+                # The accepted proposal was already appended above.
                 self.preview_path = []
             elif self.preview_path:
                 # Commit SMOOTHED AI path (WYSIWYG)
@@ -995,8 +1147,20 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.last_sample_pos = event.pos()
 
         if event.buttons() & Qt.LeftButton:
+            if interaction_mode == MODE_AUTO_PATH:
+                # Auto Path is proposal-driven: dragging never silently
+                # commits an A*/SAM route. The visible candidate is accepted
+                # with a second click at its target.
+                self.last_input_point = current_point
+                self._schedule_auto_path_preview(current_point)
+                return
+
             # DRAGGING: Manual Draw (Mouse Following + Gentle Snap)
             self.preview_path = []
+            self.preview_is_global = False
+            self.preview_target = None
+            self._proposal_timer.stop()
+            self._proposal_generation += 1
 
             # If Manual Mode (Shift/Ctrl): No snapping, just exact mouse pos
             if interaction_mode in (MODE_MOUSE_ASSIST, MODE_AUTO_PATH) and self.cached_edges is not None:
@@ -1031,13 +1195,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 # MANUAL MODE PREVIEW: Literal straight line
                 smoothed_preview = [current_point]
             elif uses_global_path_search(interaction_mode):
-                # Keep hover feedback cheap. The expensive A*/SAM proposal is
-                # calculated only when the user clicks to accept a segment.
-                smoothed_preview = [
-                    self.angle_constrained_snap(current_point)
-                    if self.cached_edges is not None
-                    else current_point
-                ]
+                # Show a cheap cursor-led line immediately, then replace it
+                # with the actual A*/SAM proposal after the cursor pauses.
+                self.last_input_point = current_point
+                self._schedule_auto_path_preview(current_point)
+                return
             else:
                 # Mouse-led assist: one nearby, direction-compatible snap
                 # point.  This never replaces the user's segment with a
@@ -1049,17 +1211,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 ]
 
             self.preview_path = smoothed_preview
+            self.preview_is_global = False
+            self.preview_target = None
             # Advance the throttle anchor after each accepted preview.  The
             # old hover branch kept measuring from the last committed point,
             # which made it effectively run on every mouse event.
             self.last_input_point = current_point
 
             # Draw preview (Green line)
-            self.preview_band.reset(QgsWkbTypes.LineGeometry)
-            if self.path_points:
-                self.preview_band.addPoint(self.path_points[-1])
-            for pt in smoothed_preview:
-                self.preview_band.addPoint(pt)
+            self._render_preview()
 
     def angle_constrained_snap(self, map_point):
         """
@@ -1838,6 +1998,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.is_tracing = False
         self.path_points = []
         self.preview_path = []
+        self.preview_is_global = False
+        self.preview_target = None
+        self._proposal_timer.stop()
+        self._proposal_generation += 1
+        self._proposal_request_point = None
         self.checkpoints = []
         self.start_point = None
         self.last_map_point = None
@@ -1866,6 +2031,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def deactivate(self):
         """Called when tool is deactivated."""
         self._edge_cache_timer.stop()
+        self._proposal_timer.stop()
         self._set_extent_cache_listener(False)
 
         # RESTORE UNDO ACTION
