@@ -1391,7 +1391,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if not layer:
             return False
 
-        if layer.isReadOnly():
+        if layer.readOnly():
             self._push_message(
                 self._tr("Spot Height 레이어가 읽기 전용입니다.", "Spot Height layer is read-only."),
                 Qgis.Critical,
@@ -1563,7 +1563,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if len(self.path_points) < 2 or not self.vector_layer:
             return False
 
-        if self.vector_layer.isReadOnly():
+        if self.vector_layer.readOnly():
             self._push_message(
                 self._tr("출력 레이어가 읽기 전용입니다.", "Output layer is read-only."),
                 Qgis.Critical,
