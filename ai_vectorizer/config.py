@@ -50,8 +50,8 @@ MODE_NAME_BY_MODEL = {
 
 MODEL_MENU_LABELS = {
     MODEL_IDX_CANNY: {
-        "ko": "🔧 OpenCV Canny (기본)",
-        "en": "🔧 OpenCV Canny (Default)",
+        "ko": "🔧 Canny / NumPy Human Assist (기본)",
+        "en": "🔧 Canny / NumPy Human Assist (Default)",
     },
     MODEL_IDX_LSD: {
         "ko": "📐 LSD 선분검출 (빠름)",
