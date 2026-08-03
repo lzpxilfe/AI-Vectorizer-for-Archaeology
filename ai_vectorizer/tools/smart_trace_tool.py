@@ -60,12 +60,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     SAMPLE_INTERVAL_PIXELS = 3
     AUTO_PATH_SAMPLE_INTERVAL_PIXELS = 12
 
-    EDGE_BLEND_FACTOR = 0.3
+    EDGE_BLEND_FACTOR = 0.22
+    MAX_EDGE_BLEND = 0.25
     EDGE_PIXEL_THRESHOLD = 128
 
     ANGLE_CONSTRAINED_SNAP_RADIUS = 6
+    LOCAL_EDGE_SEARCH_RADIUS_PIXELS = 7
+    MAX_EDGE_ATTRACTION_PIXELS = 4
     GENTLE_SNAP_RADIUS = 5
-    MAX_TURN_ANGLE_DEGREES = 60
+    MAX_TURN_ANGLE_DEGREES = 40
 
     ENDPOINT_SNAP_TOLERANCE_PIXELS = 10
     CLOSE_TOLERANCE_BASE_PIXELS = 20
@@ -111,9 +114,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     PREVIEW_BAND_COLOR = (0, 180, 0, 180)
     PREVIEW_BAND_WIDTH = 8
     PREVIEW_BAND_LINE_STYLE = Qt.DashLine
-    PROPOSAL_BAND_COLOR = (255, 180, 0, 240)
+    # Keep every uncommitted suggestion in the same visual language. The
+    # distinction is interaction state, not another competing line color.
+    PROPOSAL_BAND_COLOR = (0, 180, 0, 180)
     PROPOSAL_BAND_WIDTH = 8
-    PROPOSAL_BAND_LINE_STYLE = Qt.SolidLine
+    PROPOSAL_BAND_LINE_STYLE = Qt.DashLine
     CONFIRM_BAND_COLOR = (255, 50, 50, 255)
     CONFIRM_BAND_WIDTH = 3
     START_MARKER_COLOR = (255, 255, 0, 255)
@@ -1238,9 +1243,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if px < 0 or py < 0 or px >= w or py >= h:
                 return map_point
 
-            # Search the small neighborhood with NumPy instead of a Python
-            # double loop. This runs on every accepted cursor sample.
-            snap_radius = max(self.ANGLE_CONSTRAINED_SNAP_RADIUS, self.snap_radius)
+            # Search a deliberately small neighborhood with NumPy instead of
+            # a Python double loop. A nearby edge attracts the cursor; a
+            # farther edge is ignored so the suggestion cannot jump across
+            # unrelated map detail.
+            snap_radius = min(
+                max(self.ANGLE_CONSTRAINED_SNAP_RADIUS, self.snap_radius),
+                self.LOCAL_EDGE_SEARCH_RADIUS_PIXELS,
+            )
             x_min = max(0, px - snap_radius)
             x_max = min(w, px + snap_radius + 1)
             y_min = max(0, py - snap_radius)
@@ -1255,7 +1265,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             candidate_x = edge_pixels[:, 1] + x_min
             delta_x = candidate_x - px
             delta_y = candidate_y - py
-            distances = np.abs(delta_x) + np.abs(delta_y)
+            distances = np.hypot(delta_x, delta_y)
+            nearby = distances <= self.MAX_EDGE_ATTRACTION_PIXELS
+            if not np.any(nearby):
+                return map_point
+            candidate_x = candidate_x[nearby]
+            candidate_y = candidate_y[nearby]
+            distances = distances[nearby]
 
             # Approximate direction continuity in cache pixels. The old
             # implementation transformed every candidate back to map space;
@@ -1292,9 +1308,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             )
             # Keep the cursor authoritative; the slider controls only the
             # strength of the local nudge and never permits a route jump.
+            proximity = max(
+                0.0,
+                1.0 - float(distances[best_index]) / (self.MAX_EDGE_ATTRACTION_PIXELS + 1.0),
+            )
             blend = min(
-                0.45,
-                max(0.0, self.EDGE_BLEND_FACTOR * (0.25 + self.edge_weight)),
+                self.MAX_EDGE_BLEND,
+                max(
+                    0.0,
+                    self.EDGE_BLEND_FACTOR
+                    * (0.25 + self.edge_weight)
+                    * proximity,
+                ),
             )
             result_x = map_point.x() * (1 - blend) + edge_point.x() * blend
             result_y = map_point.y() * (1 - blend) + edge_point.y() * blend
