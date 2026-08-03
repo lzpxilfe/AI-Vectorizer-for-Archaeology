@@ -33,12 +33,13 @@ from qgis.core import (
     QgsVectorFileWriter,
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
+    QgsApplication,
     QgsSymbol,
     QgsSingleSymbolRenderer,
     Qgis,
 )
 from qgis.gui import QgsMapLayerComboBox
-from qgis.PyQt.QtCore import Qt, QVariant, QSettings
+from qgis.PyQt.QtCore import Qt, QVariant, QSettings, QStandardPaths
 from qgis.PyQt.QtGui import QColor
 
 from ..core.dependencies import get_cv2_error_text, get_opencv_install_command, is_cv2_available
@@ -94,8 +95,8 @@ class AIVectorizerDock(QDockWidget):
         self.active_tool = None
         self.output_layer = None
         self.dem_dialog = None
-        self.sam_engines = {}
         self.sam_engine = None
+        self.sam_engine_key = None
         self.current_language = self._load_language()
 
         main_widget = QWidget()
@@ -272,21 +273,50 @@ class AIVectorizerDock(QDockWidget):
         from ..core.sam_engine import SAMEngine
         return SAMEngine
 
+    @staticmethod
+    def _sam_models_dir():
+        """Return a model directory that survives plugin ZIP upgrades."""
+        settings_dir = QgsApplication.qgisSettingsDirPath()
+        if not settings_dir:
+            settings_dir = os.path.join(
+                QStandardPaths.writableLocation(QStandardPaths.AppDataLocation),
+                "QGIS",
+                "QGIS3",
+                "profiles",
+                "default",
+            )
+        return os.path.join(
+            settings_dir,
+            "ai_vectorizer",
+            "models",
+        )
+
     def _get_or_create_sam_engine(self, model_idx=None):
         spec = self._sam_engine_spec(model_idx)
         if spec is None:
-            self.sam_engine = None
+            self._release_sam_engine()
             return None
 
         SAMEngine = self._import_sam_engine()
         cache_key = (spec["backend"], spec["model_type"])
-        if cache_key not in self.sam_engines:
-            self.sam_engines[cache_key] = SAMEngine(
+        if self.sam_engine is None or self.sam_engine_key != cache_key:
+            self._release_sam_engine()
+            self.sam_engine = SAMEngine(
                 backend=spec["backend"],
                 model_type=spec["model_type"],
+                models_dir=self._sam_models_dir(),
             )
-        self.sam_engine = self.sam_engines[cache_key]
+            self.sam_engine_key = cache_key
         return self.sam_engine
+
+    def _release_sam_engine(self):
+        engine = self.sam_engine
+        self.sam_engine = None
+        self.sam_engine_key = None
+        if engine is not None:
+            unload = getattr(engine, "unload_model", None)
+            if unload is not None:
+                unload()
 
     def _canvas_extent_in_layer_crs(self, layer):
         extent = self.iface.mapCanvas().extent()
@@ -315,6 +345,7 @@ class AIVectorizerDock(QDockWidget):
             except Exception as exc:
                 self._log_nonfatal_ui_error("Failed to unset active tool", exc)
         self.active_tool = None
+        self._release_sam_engine()
         self._set_idle_ui()
 
     def closeEvent(self, event):
@@ -430,6 +461,7 @@ class AIVectorizerDock(QDockWidget):
         step3_layout.addWidget(self.freehand_check)
 
         self.auto_path_check = QCheckBox()
+        self.auto_path_check.toggled.connect(self._on_auto_path_toggled)
         step3_layout.addWidget(self.auto_path_check)
 
         edge_layout = QHBoxLayout()
@@ -647,9 +679,9 @@ class AIVectorizerDock(QDockWidget):
         self.help_btn.setText(self._tr("❓ 도움말", "❓ Help"))
         self.help_btn.setToolTip(self._tr("사용법과 문제해결 안내", "Usage guide and troubleshooting"))
 
-        self.auto_path_check.setText("Auto Path (AI chooses the route)")
+        self.auto_path_check.setText("AI Proposal / Auto Path (Experimental)")
         self.auto_path_check.setToolTip(
-            "Legacy whole-segment A*/SAM route preview. The default is mouse-led local assistance."
+            "Experimental whole-segment A*/SAM route preview. The default is mouse-led local assistance."
         )
         self.sam_download_btn.setText(self._download_button_text())
 
@@ -893,6 +925,11 @@ class AIVectorizerDock(QDockWidget):
 
             if freehand:
                 mode_name = self._tr("프리핸드", "Freehand")
+            elif self._is_sam_model(model_idx) and not use_sam:
+                mode_name = self._tr(
+                    "사람 주도 보조 (Canny)",
+                    "Human-led Assist (Canny)",
+                )
             else:
                 mode_name = self._sam_display_name(model_idx) if use_sam else self._mode_name(model_idx)
             self._set_tracing_state(mode_name)
@@ -907,7 +944,7 @@ class AIVectorizerDock(QDockWidget):
 
     def on_model_changed(self, index):
         self._set_model_aux_visibility()
-        self.sam_engine = None
+        self._release_sam_engine()
         if index in (MODEL_IDX_CANNY, MODEL_IDX_LSD):
             if is_cv2_available():
                 self._set_sam_status(self._tr("✅ OpenCV 로드됨", "✅ OpenCV loaded"), "info")
@@ -923,13 +960,25 @@ class AIVectorizerDock(QDockWidget):
         elif index == MODEL_IDX_HED:
             self.check_hed_status()
         elif self._is_sam_model(index):
-            self._set_model_aux_visibility(show_check=True, show_report=True, show_download=True)
-            self.sam_download_btn.setText(self._download_button_text(index))
-            self.install_cmd.setText(self._install_command_for_model(index))
-            self._set_sam_status(
-                "SAM is optional in mouse-led assist; enable Auto Path to load it.",
-                "info",
-            )
+            if self.auto_path_check.isChecked():
+                self._set_model_aux_visibility(show_check=True, show_report=True, show_download=True)
+                self.sam_download_btn.setText(self._download_button_text(index))
+                self.install_cmd.setText(self._install_command_for_model(index))
+                self._set_sam_status(
+                    "SAM is enabled only for explicit Auto Path mode.",
+                    "info",
+                )
+            else:
+                self._set_model_aux_visibility()
+                self._set_sam_status(
+                    "Human-led Canny assist is active; SAM installation is not needed.",
+                    "info",
+                )
+
+    def _on_auto_path_toggled(self, _checked):
+        """Refresh model guidance when the expensive route mode is toggled."""
+        if hasattr(self, "model_combo"):
+            self.on_model_changed(self.model_combo.currentIndex())
 
     def check_hed_status(self):
         from ..core.edge_detector import EdgeDetector

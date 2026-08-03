@@ -5,7 +5,9 @@ Unified SAM engine for MobileSAM and Meta Segment Anything backends.
 
 import importlib.util
 import json
+import gc
 import os
+import shutil
 import tempfile
 
 import numpy as np
@@ -71,7 +73,14 @@ class SAMEngine:
         },
     }
 
-    def __init__(self, backend=SAM_BACKEND_MOBILE, model_type=None, device=None):
+    def __init__(
+        self,
+        backend=SAM_BACKEND_MOBILE,
+        model_type=None,
+        device=None,
+        models_dir=None,
+        legacy_models_dir=None,
+    ):
         """
         Initialize a SAM backend.
 
@@ -79,6 +88,8 @@ class SAMEngine:
             backend (str): SAM backend key.
             model_type (str): model family key (e.g. vit_t or vit_b).
             device (str): 'cuda' or 'cpu'. Auto-detect if None.
+            models_dir (str|os.PathLike): persistent user model directory.
+            legacy_models_dir (str|os.PathLike): old plugin-local directory.
         """
         self.backend = backend
         self.model_type = model_type or self.default_model_type_for_backend(backend)
@@ -87,10 +98,17 @@ class SAMEngine:
         self.model_spec = self._resolve_model_spec(self.backend, self.model_type)
         self.display_name = self.display_name_for_backend(self.backend, self.model_type)
 
-        models_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
-        self.weights_path = os.path.join(models_dir, self.model_spec["weights_filename"])
+        package_models_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
+        self.models_dir = os.path.abspath(os.fspath(models_dir or package_models_dir))
+        self.legacy_models_dir = os.path.abspath(
+            os.fspath(legacy_models_dir or package_models_dir)
+        )
+        self.weights_path = os.path.join(
+            self.models_dir,
+            self.model_spec["weights_filename"],
+        )
         self.weights_meta_path = os.path.join(
-            models_dir,
+            self.models_dir,
             f"{os.path.splitext(self.model_spec['weights_filename'])[0]}.meta.json",
         )
 
@@ -146,9 +164,54 @@ class SAMEngine:
         return cls._resolve_model_spec(backend, resolved_model_type).get("size_hint_mb")
 
     def _ensure_models_dir(self):
-        models_dir = os.path.dirname(self.weights_path)
-        if not os.path.exists(models_dir):
-            os.makedirs(models_dir)
+        os.makedirs(self.models_dir, exist_ok=True)
+
+    def _legacy_weight_path(self):
+        return os.path.join(
+            self.legacy_models_dir,
+            self.model_spec["weights_filename"],
+        )
+
+    def _migrate_legacy_weights(self):
+        """Copy an old plugin-local weight into persistent storage once."""
+        if os.path.exists(self.weights_path):
+            return False
+
+        legacy_path = self._legacy_weight_path()
+        if (
+            os.path.abspath(legacy_path) == os.path.abspath(self.weights_path)
+            or not os.path.isfile(legacy_path)
+        ):
+            return False
+
+        temp_path = None
+        try:
+            self._ensure_models_dir()
+            fd, temp_path = tempfile.mkstemp(
+                prefix=f"{os.path.basename(self.weights_path)}.",
+                suffix=".migration",
+                dir=self.models_dir,
+            )
+            os.close(fd)
+            shutil.copyfile(legacy_path, temp_path)
+            if os.path.getsize(temp_path) != os.path.getsize(legacy_path):
+                raise RuntimeError("Legacy SAM weight migration was incomplete.")
+            os.replace(temp_path, self.weights_path)
+            temp_path = None
+
+            legacy_meta = os.path.splitext(legacy_path)[0] + ".meta.json"
+            if os.path.isfile(legacy_meta) and not os.path.exists(self.weights_meta_path):
+                shutil.copy2(legacy_meta, self.weights_meta_path)
+            return True
+        except Exception as exc:
+            print(f"Failed to migrate legacy SAM weights: {exc}")
+            return False
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
 
     @staticmethod
     def _import_requests():
@@ -228,6 +291,7 @@ class SAMEngine:
 
     def get_local_weights_info(self):
         """Get local weights presence and metadata."""
+        self._migrate_legacy_weights()
         exists = os.path.exists(self.weights_path)
         size = os.path.getsize(self.weights_path) if exists else None
         meta = self._read_local_meta()
@@ -334,6 +398,7 @@ class SAMEngine:
         """Load the selected SAM backend from the local checkpoint file."""
         self.predictor = None
         self.is_ready = False
+        self._migrate_legacy_weights()
 
         if not self.is_backend_available(self.backend):
             return False, f"{self.display_name} library not installed."
@@ -357,6 +422,19 @@ class SAMEngine:
             return True, "Model loaded successfully."
         except Exception as exc:
             return False, f"Error loading model: {str(exc)}"
+
+    def unload_model(self):
+        """Release the active predictor so model switching does not stack RAM."""
+        self.predictor = None
+        self.is_ready = False
+        try:
+            import torch
+
+            if self.device == "cuda" and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+        gc.collect()
 
     def download_weights(self):
         """Download the selected SAM backend weights."""

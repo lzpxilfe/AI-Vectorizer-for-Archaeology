@@ -4,7 +4,7 @@
 
 ![QGIS release metadata 3.22+](https://img.shields.io/badge/QGIS_release_metadata-3.22%2B-3c8c3c.svg)
 ![Source Python 3.10+](https://img.shields.io/badge/source_Python-3.10%2B-3776ab.svg)
-![Metadata 0.1.4](https://img.shields.io/badge/metadata-0.1.4-f28c28.svg)
+![Metadata 0.1.5](https://img.shields.io/badge/metadata-0.1.5-f28c28.svg)
 ![Development M1.2](https://img.shields.io/badge/development-M1.2-5b5bd6.svg)
 ![Local first](https://img.shields.io/badge/processing-local--first-2f855a.svg)
 ![License GPLv2](https://img.shields.io/badge/license-GPLv2-d64541.svg)
@@ -96,8 +96,12 @@ macOS QGIS.app 예시:
 
 - `HED` definition: `<QGIS_PROFILE>/python/plugins/ai_vectorizer/core/models/hed_deploy.prototxt`
 - `HED` weights: `<QGIS_PROFILE>/python/plugins/ai_vectorizer/core/models/hed_pretrained_bsds.caffemodel`
-- `MobileSAM`: `<QGIS_PROFILE>/python/plugins/ai_vectorizer/models/mobile_sam.pt`
-- `SAM (ViT-B)`: `<QGIS_PROFILE>/python/plugins/ai_vectorizer/models/sam_vit_b_01ec64.pth`
+- `MobileSAM`: `<QGIS_PROFILE>/ai_vectorizer/models/mobile_sam.pt`
+- `SAM (ViT-B)`: `<QGIS_PROFILE>/ai_vectorizer/models/sam_vit_b_01ec64.pth`
+
+SAM weights are stored outside the plugin directory so reinstalling or upgrading
+the ZIP does not require downloading them again. Existing plugin-local weights
+are migrated automatically on first use.
 
 </details>
 
@@ -218,7 +222,7 @@ worker는 sample×method마다 새 프로세스로 실행되고 실제 provider,
 ## 🇬🇧 English Summary
 
 - ArchaeoTrace is a local-first QGIS plugin for tracing elevation contours on historical maps and building reviewable terrain hypotheses.
-- The plugin metadata version is `0.1.4`; no matching GitHub release artifact is currently published. The development source additionally contains the experimental linear-TIN DEM/hillshade workflow and the M1.2 reproducible benchmark.
+- The plugin metadata version is `0.1.5`; this update makes Human-led Assist the responsive default and keeps SAM weights outside the plugin directory.
 - `Freehand` needs no external model or OpenCV, but uses NumPy from the QGIS Python environment.
 - `Canny / LSD / HED / SAM` tracing requires `OpenCV` inside the QGIS Python environment.
 - `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
@@ -238,7 +242,7 @@ worker는 sample×method마다 새 프로세스로 실행되고 실제 provider,
   title = {ArchaeoTrace: AI-assisted contour digitizing QGIS plugin for historical maps},
   year = {2026},
   url = {https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology},
-  version = {0.1.4}
+  version = {0.1.5}
 }
 ```
 

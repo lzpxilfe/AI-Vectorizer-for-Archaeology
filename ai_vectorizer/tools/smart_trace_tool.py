@@ -26,6 +26,7 @@ from ..core.raster_utils import compute_resampled_dimensions, read_raster_bands
 from ..core.interaction_policy import (
     MODE_AUTO_PATH,
     MODE_FREEHAND,
+    MODE_MOUSE_ASSIST,
     resolve_interaction_mode,
     uses_global_path_search,
 )
@@ -299,6 +300,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.cached_rgb_image = None
         self.sam_image_ready = False
         self.sam_warning_emitted = False
+        self.cache_dirty = True
 
         self._edge_cache_timer = QTimer(self.canvas)
         self._edge_cache_timer.setSingleShot(True)
@@ -385,6 +387,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.cached_rgb_image = None
         self.sam_image_ready = False
         self.sam_warning_emitted = False
+        self.cache_dirty = True
 
     @staticmethod
     def _provider_result_ok(result):
@@ -892,8 +895,21 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     self.reset_tracing()
                 return
 
-            # ADD CHECKPOINT: Save current position as checkpoint
-            if self.preview_path:
+            # ADD CHECKPOINT: Save current position as checkpoint.  Auto Path
+            # is an explicit proposal now: calculate it once on click instead
+            # of running A*/SAM continuously while the cursor hovers.
+            if self.auto_path:
+                proposed_path = self.find_optimal_path(point)
+                if len(proposed_path) > 2:
+                    proposed_path = self.smooth_bezier(proposed_path, closed=False)
+                if len(proposed_path) > 1:
+                    if proposed_path[0] == self.path_points[-1]:
+                        proposed_path = proposed_path[1:]
+                    self.path_points.extend(proposed_path)
+                else:
+                    self.path_points.append(point)
+                self.preview_path = []
+            elif self.preview_path:
                 # Commit SMOOTHED AI path (WYSIWYG)
                 # preview_path is already smoothed in canvasMoveEvent
                 self.path_points.extend(self.preview_path)
@@ -925,7 +941,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # the first segment.  Local snapping below is enough to tame detector
         # jitter without delaying the user's input.
         self.last_hover_pos = current_point
-        ai_target_point = current_point
 
         # 1. NOT TRACING: Check for Snap-to-Resume
         if not self.is_tracing:
@@ -978,7 +993,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.preview_path = []
 
             # If Manual Mode (Shift/Ctrl): No snapping, just exact mouse pos
-            if interaction_mode == MODE_AUTO_PATH and self.cached_edges is not None:
+            if interaction_mode in (MODE_MOUSE_ASSIST, MODE_AUTO_PATH) and self.cached_edges is not None:
                 final_point = self.angle_constrained_snap(current_point)
             else:
                 final_point = current_point
@@ -1010,15 +1025,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 # MANUAL MODE PREVIEW: Literal straight line
                 smoothed_preview = [current_point]
             elif uses_global_path_search(interaction_mode):
-                # AI Auto-Path Preview (Bunting Style)
-                # Calculate A* path from last point to mouse
-                ai_path = self.find_optimal_path(ai_target_point)
-
-                # Apply Smoothing to Preview
-                if len(ai_path) > 2:
-                    smoothed_preview = self.smooth_bezier(ai_path, closed=False)
-                else:
-                    smoothed_preview = ai_path
+                # Keep hover feedback cheap. The expensive A*/SAM proposal is
+                # calculated only when the user clicks to accept a segment.
+                smoothed_preview = [
+                    self.angle_constrained_snap(current_point)
+                    if self.cached_edges is not None
+                    else current_point
+                ]
             else:
                 # Mouse-led assist: one nearby, direction-compatible snap
                 # point.  This never replaces the user's segment with a
@@ -1058,55 +1071,67 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if px < 0 or py < 0 or px >= w or py >= h:
                 return map_point
 
-            # 1. Check if we have history to determine direction
-            has_history = len(self.path_points) >= 2
-            last_angle = 0
-            if has_history:
-                p1 = self.path_points[-2]
-                p2 = self.path_points[-1]
-                last_angle = math.atan2(p2.y() - p1.y(), p2.x() - p1.x())
-
-            # 2. Search for nearby edge pixels
+            # Search the small neighborhood with NumPy instead of a Python
+            # double loop. This runs on every accepted cursor sample.
             snap_radius = max(self.ANGLE_CONSTRAINED_SNAP_RADIUS, self.snap_radius)
-            best_dist = snap_radius + 1
-            best_px, best_py = px, py
-            found = False
+            x_min = max(0, px - snap_radius)
+            x_max = min(w, px + snap_radius + 1)
+            y_min = max(0, py - snap_radius)
+            y_max = min(h, py + snap_radius + 1)
+            edge_pixels = np.argwhere(
+                self.cached_edges[y_min:y_max, x_min:x_max] > self.EDGE_PIXEL_THRESHOLD
+            )
+            if edge_pixels.size == 0:
+                return map_point
 
-            for dy in range(-snap_radius, snap_radius + 1):
-                for dx in range(-snap_radius, snap_radius + 1):
-                    nx, ny = int(px + dx), int(py + dy)
-                    if 0 <= nx < w and 0 <= ny < h:
-                        if self.cached_edges[ny, nx] > self.EDGE_PIXEL_THRESHOLD:
-                            # 3. Angle Filter: Check if this point causes sharp turn
-                            if has_history:
-                                edge_pt = self.pixel_to_map(nx, ny)
-                                last_pt = self.path_points[-1]
-                                new_angle = math.atan2(edge_pt.y() - last_pt.y(), edge_pt.x() - last_pt.x())
-                                angle_diff = abs(new_angle - last_angle)
-                                while angle_diff > math.pi:
-                                    angle_diff -= 2*math.pi
-                                while angle_diff < -math.pi:
-                                    angle_diff += 2*math.pi
+            candidate_y = edge_pixels[:, 0] + y_min
+            candidate_x = edge_pixels[:, 1] + x_min
+            delta_x = candidate_x - px
+            delta_y = candidate_y - py
+            distances = np.abs(delta_x) + np.abs(delta_y)
 
-                                # If turn is sharper than 60 degrees, ignore this edge (it's noise/hairline)
-                                if abs(angle_diff) > math.radians(self.MAX_TURN_ANGLE_DEGREES):
-                                    continue
+            # Approximate direction continuity in cache pixels. The old
+            # implementation transformed every candidate back to map space;
+            # the local pixel approximation is both faster and stable enough
+            # for a small attraction radius.
+            if len(self.path_points) >= 2:
+                previous_px, previous_py = self.map_to_pixel(self.path_points[-2])
+                last_px, last_py = self.map_to_pixel(self.path_points[-1])
+                last_angle = math.atan2(
+                    last_py - previous_py,
+                    last_px - previous_px,
+                )
+                new_angles = np.arctan2(
+                    candidate_y - last_py,
+                    candidate_x - last_px,
+                )
+                angle_diff = np.abs(
+                    np.arctan2(
+                        np.sin(new_angles - last_angle),
+                        np.cos(new_angles - last_angle),
+                    )
+                )
+                allowed = angle_diff <= math.radians(self.MAX_TURN_ANGLE_DEGREES)
+                if not np.any(allowed):
+                    return map_point
+                candidate_x = candidate_x[allowed]
+                candidate_y = candidate_y[allowed]
+                distances = distances[allowed]
 
-                            dist = abs(dx) + abs(dy)
-                            if dist < best_dist:
-                                best_dist = dist
-                                best_px, best_py = nx, ny
-                                found = True
-
-            if found:
-                edge_point = self.pixel_to_map(best_px, best_py)
-                # Gentle blend: 30% edge, 70% mouse
-                blend = self.EDGE_BLEND_FACTOR
-                result_x = map_point.x() * (1 - blend) + edge_point.x() * blend
-                result_y = map_point.y() * (1 - blend) + edge_point.y() * blend
-                return QgsPointXY(result_x, result_y)
-
-            return map_point
+            best_index = int(np.argmin(distances))
+            edge_point = self.pixel_to_map(
+                int(candidate_x[best_index]),
+                int(candidate_y[best_index]),
+            )
+            # Keep the cursor authoritative; the slider controls only the
+            # strength of the local nudge and never permits a route jump.
+            blend = min(
+                0.45,
+                max(0.0, self.EDGE_BLEND_FACTOR * (0.25 + self.edge_weight)),
+            )
+            result_x = map_point.x() * (1 - blend) + edge_point.x() * blend
+            result_y = map_point.y() * (1 - blend) + edge_point.y() * blend
+            return QgsPointXY(result_x, result_y)
 
         except Exception:
             return map_point
@@ -1447,6 +1472,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def update_edge_cache(self):
         """Cache edge detection for current view."""
         self._edge_cache_timer.stop()
+        if not self.cache_dirty and self.cached_edges is not None:
+            return
         try:
             if self.edge_detector is None:
                 self._clear_edge_cache()
@@ -1528,6 +1555,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 )
             else:
                 self.cached_cost = None
+            self.cache_dirty = False
 
         except Exception as e:
             print(f"Edge cache error: {e}")
