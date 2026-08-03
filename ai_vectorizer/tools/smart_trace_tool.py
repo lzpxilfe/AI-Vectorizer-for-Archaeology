@@ -1018,8 +1018,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
             auto_path_accepted = False
             if self.auto_path:
-                # First click shows the complete proposal. A second click on
-                # the same target is the explicit human acceptance gesture.
+                # A visible complete proposal is accepted by clicking its
+                # target. If the route is not ready yet, this click only
+                # displays it and the next click becomes the acceptance.
                 if not self._accept_or_prepare_auto_path(point):
                     return
                 auto_path_accepted = True
