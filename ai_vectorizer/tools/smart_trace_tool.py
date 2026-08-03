@@ -14,7 +14,7 @@ from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
 from qgis.core import (
     QgsWkbTypes, QgsProject, QgsPointXY, QgsGeometry,
     QgsFeature, QgsCoordinateTransform,
-    QgsVectorLayer, QgsField, Qgis
+    QgsVectorLayer, QgsField, QgsApplication, QgsTask, Qgis
 )
 from qgis.PyQt.QtCore import Qt, QVariant, QTimer, pyqtSignal
 from qgis.PyQt.QtGui import QColor
@@ -53,12 +53,59 @@ from ..config import (
 )
 
 
+class _AStarPreviewTask(QgsTask):
+    """Run the QGIS-free A* kernel without blocking canvas interaction."""
+
+    def __init__(
+        self,
+        *,
+        cost_map,
+        start_pixel,
+        target_pixel,
+        target_xy,
+        generation,
+        config,
+        callback,
+    ):
+        super().__init__("ArchaeoTrace live path preview", QgsTask.CanCancel)
+        self.cost_map = cost_map
+        self.start_pixel = tuple(start_pixel)
+        self.target_pixel = tuple(target_pixel)
+        self.target_xy = tuple(target_xy)
+        self.generation = int(generation)
+        self.config = config
+        self.callback = callback
+        self.trace_result = None
+        self.error = None
+
+    def run(self):
+        if self.isCanceled():
+            return False
+        try:
+            self.trace_result = find_path(
+                self.cost_map,
+                self.start_pixel,
+                self.target_pixel,
+                allow_partial=True,
+                config=self.config,
+            )
+            return not self.isCanceled()
+        except Exception as exc:
+            self.error = exc
+            return False
+
+    def finished(self, result):
+        # QgsTask invokes finished() on the main thread, where QGIS geometry
+        # and rubber-band updates are safe.
+        self.callback(self, bool(result), self.trace_result, self.error)
+
+
 class SmartTraceTool(QgsMapToolEmitPoint):
     deactivated = pyqtSignal()
     SNAP_RADIUS_BASE = 15
     SNAP_RADIUS_EDGE_WEIGHT_FACTOR = 0.7
     SAMPLE_INTERVAL_PIXELS = 3
-    AUTO_PATH_SAMPLE_INTERVAL_PIXELS = 12
+    PREVIEW_INTERVAL_PIXELS = 1
 
     EDGE_BLEND_FACTOR = 0.35
     MAX_EDGE_BLEND = 0.35
@@ -78,7 +125,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     CACHE_MIN_DIMENSION = 10
     CACHE_MAX_BANDS_FOR_RGB = 3
     CACHE_DEBOUNCE_MS = 150
-    PROPOSAL_DEBOUNCE_MS = 180
+    PROPOSAL_DEBOUNCE_MS = 110
     PROPOSAL_ACCEPT_TOLERANCE_PIXELS = 12
 
     PATH_MOVE_COST_STRAIGHT = 1.0
@@ -190,10 +237,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.preview_is_global = False
         self.preview_target = None
         self._proposal_timer.stop()
+        self._cancel_proposal_task()
         self._proposal_generation += 1
         self._proposal_request_point = None
         self.preview_band.reset(QgsWkbTypes.LineGeometry)
         self.last_sample_pos = None
+        self.last_preview_pos = None
         self._edge_cache_timer.start()
 
     def _set_undo_enabled(self, enabled):
@@ -261,9 +310,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.start_point = None
         self.last_map_point = None
         self.last_input_point = None
+        self.last_preview_pos = None
 
         # RubberBands for visualization
         self.preview_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
+        self._preview_style_is_global = None
         self._configure_band(
             self.preview_band,
             self.PREVIEW_BAND_COLOR,
@@ -357,6 +408,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._proposal_timer.timeout.connect(self._update_auto_path_preview)
         self._proposal_request_point = None
         self._proposal_generation = 0
+        self._proposal_task = None
 
         # CRS transforms
         self.to_raster_transform = QgsCoordinateTransform(
@@ -778,8 +830,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             config=self._sam_trace_config(),
         )
 
-    def _run_a_star_path(self, cost_map, start_px, start_py, end_px, end_py, allow_partial=True):
-        config = TraceConfig(
+    def _a_star_trace_config(self):
+        return TraceConfig(
             straight_move_cost=self.PATH_MOVE_COST_STRAIGHT,
             diagonal_move_cost=self.PATH_MOVE_COST_DIAGONAL,
             max_iterations_base=self.PATH_MAX_ITER_BASE,
@@ -791,12 +843,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             validate_accessed_costs=False,
             neighbors=tuple(self.A_STAR_NEIGHBORS),
         )
+
+    def _run_a_star_path(self, cost_map, start_px, start_py, end_px, end_py, allow_partial=True):
         result = find_path(
             cost_map,
             (start_px, start_py),
             (end_px, end_py),
             allow_partial=allow_partial,
-            config=config,
+            config=self._a_star_trace_config(),
         )
         return list(result.path), result.used_partial
 
@@ -846,26 +900,41 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def _render_preview(self):
         """Render the exact candidate segment without committing it."""
         self.preview_band.reset(QgsWkbTypes.LineGeometry)
-        if self.preview_is_global:
-            self.preview_band.setColor(QColor(*self.PROPOSAL_BAND_COLOR))
-            self.preview_band.setWidth(self.PROPOSAL_BAND_WIDTH)
-            self.preview_band.setLineStyle(self.PROPOSAL_BAND_LINE_STYLE)
-        else:
-            self.preview_band.setColor(QColor(*self.PREVIEW_BAND_COLOR))
-            self.preview_band.setWidth(self.PREVIEW_BAND_WIDTH)
-            self.preview_band.setLineStyle(self.PREVIEW_BAND_LINE_STYLE)
+        if self._preview_style_is_global != self.preview_is_global:
+            if self.preview_is_global:
+                self.preview_band.setColor(QColor(*self.PROPOSAL_BAND_COLOR))
+                self.preview_band.setWidth(self.PROPOSAL_BAND_WIDTH)
+                self.preview_band.setLineStyle(self.PROPOSAL_BAND_LINE_STYLE)
+            else:
+                self.preview_band.setColor(QColor(*self.PREVIEW_BAND_COLOR))
+                self.preview_band.setWidth(self.PREVIEW_BAND_WIDTH)
+                self.preview_band.setLineStyle(self.PREVIEW_BAND_LINE_STYLE)
+            self._preview_style_is_global = self.preview_is_global
 
         if not self.preview_path:
             return
+
+        render_points = []
         if self.path_points:
-            self.preview_band.addPoint(self.path_points[-1])
-        for point in self.preview_path:
-            self.preview_band.addPoint(point)
+            render_points.append(self.path_points[-1])
+        render_points.extend(self.preview_path)
+        if len(render_points) < 2:
+            return
+
+        # One C++ geometry update is considerably cheaper than crossing the
+        # Python/QGIS boundary once for every route vertex. Long A*/SAM
+        # previews used to become visible only after thousands of addPoint
+        # calls had completed.
+        self.preview_band.setToGeometry(
+            QgsGeometry.fromPolylineXY(render_points),
+            None,
+        )
 
     def _clear_preview(self, stop_timer=True):
         """Discard an uncommitted candidate segment."""
         if stop_timer:
             self._proposal_timer.stop()
+            self._cancel_proposal_task()
         self._proposal_generation += 1
         self._proposal_request_point = None
         self.preview_path = []
@@ -890,9 +959,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._render_preview()
         self._proposal_timer.start()
 
-    def _set_auto_path_preview(self, target_point):
-        """Calculate and display one complete route proposal."""
-        proposed_path = self.find_optimal_path(target_point)
+    def _cancel_proposal_task(self):
+        task = self._proposal_task
+        self._proposal_task = None
+        if task is not None:
+            try:
+                task.cancel()
+            except RuntimeError:
+                pass
+
+    def _present_auto_path_preview(self, proposed_path, target_point):
+        """Display one completed proposal on the QGIS main thread."""
+        proposed_path = list(proposed_path or [])
         if len(proposed_path) > 2:
             proposed_path = self.smooth_bezier(proposed_path, closed=False)
 
@@ -906,6 +984,83 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.preview_target = QgsPointXY(target_point)
         self._render_preview()
 
+    def _set_auto_path_preview(self, target_point):
+        """Calculate and display one complete route proposal synchronously."""
+        self._present_auto_path_preview(
+            self.find_optimal_path(target_point),
+            target_point,
+        )
+
+    def _start_background_a_star_preview(self, target_point, generation):
+        """Start one coalesced A* preview task using only immutable data."""
+        if self._proposal_task is not None or self.cached_cost is None:
+            return False
+
+        try:
+            start_px, start_py = self.map_to_pixel(self.path_points[-1])
+            target_px, target_py = self.map_to_pixel(target_point)
+        except Exception:
+            return False
+
+        task = _AStarPreviewTask(
+            cost_map=self.cached_cost,
+            start_pixel=(start_px, start_py),
+            target_pixel=(target_px, target_py),
+            target_xy=(target_point.x(), target_point.y()),
+            generation=generation,
+            config=self._a_star_trace_config(),
+            callback=self._on_background_a_star_finished,
+        )
+        self._proposal_task = task
+        QgsApplication.taskManager().addTask(task)
+        return True
+
+    def _on_background_a_star_finished(self, task, succeeded, trace_result, error):
+        """Publish a current result and immediately coalesce a stale one."""
+        if self._proposal_task is not task:
+            return
+        self._proposal_task = None
+
+        result_is_current = (
+            succeeded
+            and trace_result is not None
+            and task.generation == self._proposal_generation
+            and self.is_tracing
+            and self.auto_path
+            and bool(self.path_points)
+        )
+        if result_is_current:
+            if trace_result.used_partial:
+                self._push_message(
+                    self._tr(
+                        "경로 탐색 시간이 초과되어 단순화된 경로를 사용했습니다. (확대해서 시도해보세요)",
+                        "Pathfinding timeout - simplified path used (Try zooming in)",
+                    ),
+                    Qgis.Warning,
+                    self.PATH_TIMEOUT_MESSAGE_SECONDS,
+                )
+            target_point = QgsPointXY(*task.target_xy)
+            self._present_auto_path_preview(
+                self._pixel_path_to_map(trace_result.path),
+                target_point,
+            )
+            return
+
+        if error is not None:
+            print(f"Background path preview failed: {error}")
+
+        # The cursor may have moved while this task was running. Start exactly
+        # one new task for the newest request instead of queueing every mouse
+        # event and allowing old results to overwrite the current preview.
+        if (
+            self._proposal_request_point is not None
+            and self.is_tracing
+            and self.auto_path
+            and self.path_points
+            and task.generation != self._proposal_generation
+        ):
+            self._update_auto_path_preview()
+
     def _update_auto_path_preview(self):
         """Update the candidate after the debounced cursor pause."""
         request_point = self._proposal_request_point
@@ -918,9 +1073,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         ):
             return
 
-        self._set_auto_path_preview(request_point)
-        if generation != self._proposal_generation:
+        # SAM prediction remains a model-specific synchronous path for now.
+        # Ordinary edge/A* search is QGIS-free and safe to run as a task,
+        # keeping the live cursor line and map canvas responsive.
+        if not self.use_sam and self.cached_cost is not None:
+            self._start_background_a_star_preview(request_point, generation)
             return
+
+        self._set_auto_path_preview(request_point)
 
     def _proposal_target_matches(self, point):
         if not self.preview_is_global or self.preview_target is None:
@@ -937,6 +1097,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """Accept a visible proposal, or show one for the first click."""
         if self._proposal_target_matches(point):
             self._proposal_timer.stop()
+            self._cancel_proposal_task()
             self._proposal_generation += 1
             self._proposal_request_point = None
             accepted = list(self.preview_path)
@@ -950,6 +1111,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return True
 
         self._proposal_timer.stop()
+        self._cancel_proposal_task()
         self._proposal_generation += 1
         self._proposal_request_point = None
         self._set_auto_path_preview(point)
@@ -1009,6 +1171,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.last_map_point = place_point
             self.last_input_point = place_point
             self.last_hover_pos = None
+            self.last_preview_pos = event.pos()
             self.path_points = [place_point]
             self.checkpoints = [0]  # Start point is first checkpoint
             self.last_sample_pos = event.pos()
@@ -1154,30 +1317,39 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             manual_override=bool(is_manual_mode),
         )
 
-        # Throttle by screen distance, not map distance.  This stays stable
-        # when the user zooms during a trace and avoids over-sampling at a
-        # different scale.
-        if self.last_sample_pos is None:
-            self.last_sample_pos = event.pos()
-        sample_pixels = (
-            self.AUTO_PATH_SAMPLE_INTERVAL_PIXELS
-            if uses_global_path_search(interaction_mode)
-            else self.SAMPLE_INTERVAL_PIXELS
-        )
-        screen_dx = event.pos().x() - self.last_sample_pos.x()
-        screen_dy = event.pos().y() - self.last_sample_pos.y()
-        if screen_dx * screen_dx + screen_dy * screen_dy < sample_pixels * sample_pixels:
-            return
-        self.last_sample_pos = event.pos()
+        is_dragging = bool(event.buttons() & Qt.LeftButton)
 
-        if event.buttons() & Qt.LeftButton:
-            if interaction_mode == MODE_AUTO_PATH:
-                # Auto Path is proposal-driven: dragging never silently
-                # commits an A*/SAM route. The visible candidate is accepted
-                # with a second click at its target.
-                self.last_input_point = current_point
-                self._schedule_auto_path_preview(current_point)
+        # Preview motion and committed drag sampling are separate concerns.
+        # The old Auto Path branch throttled the visible green cursor line to
+        # one update per 12 screen pixels, which made it visibly trail behind
+        # the mouse before any AI work even began.
+        if uses_global_path_search(interaction_mode):
+            if self.last_preview_pos is not None:
+                preview_dx = event.pos().x() - self.last_preview_pos.x()
+                preview_dy = event.pos().y() - self.last_preview_pos.y()
+                if (
+                    preview_dx * preview_dx + preview_dy * preview_dy
+                    < self.PREVIEW_INTERVAL_PIXELS * self.PREVIEW_INTERVAL_PIXELS
+                ):
+                    return
+            self.last_preview_pos = event.pos()
+            self.last_input_point = current_point
+            self._schedule_auto_path_preview(current_point)
+            return
+
+        if is_dragging:
+            # Committed freehand/local-assist points remain lightly sampled so
+            # long traces do not accumulate one vertex per OS mouse event.
+            if self.last_sample_pos is None:
+                self.last_sample_pos = event.pos()
+            screen_dx = event.pos().x() - self.last_sample_pos.x()
+            screen_dy = event.pos().y() - self.last_sample_pos.y()
+            if (
+                screen_dx * screen_dx + screen_dy * screen_dy
+                < self.SAMPLE_INTERVAL_PIXELS * self.SAMPLE_INTERVAL_PIXELS
+            ):
                 return
+            self.last_sample_pos = event.pos()
 
             # DRAGGING: Manual Draw (Mouse Following + Gentle Snap)
             self.preview_path = []
@@ -1200,6 +1372,16 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         else:
             # HOVERING (Not Dragging)
 
+            if self.last_preview_pos is not None:
+                preview_dx = event.pos().x() - self.last_preview_pos.x()
+                preview_dy = event.pos().y() - self.last_preview_pos.y()
+                if (
+                    preview_dx * preview_dx + preview_dy * preview_dy
+                    < self.PREVIEW_INTERVAL_PIXELS * self.PREVIEW_INTERVAL_PIXELS
+                ):
+                    return
+            self.last_preview_pos = event.pos()
+
             # 1. Not Tracing yet? Check for Resume Snap
             if not self.path_points:
                 snap_pt, snap_fid, is_start = self.snap_to_existing_endpoint(current_point)
@@ -1218,12 +1400,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if interaction_mode == MODE_FREEHAND:
                 # MANUAL MODE PREVIEW: Literal straight line
                 smoothed_preview = [current_point]
-            elif uses_global_path_search(interaction_mode):
-                # Show a cheap cursor-led line immediately, then replace it
-                # with the actual A*/SAM proposal after the cursor pauses.
-                self.last_input_point = current_point
-                self._schedule_auto_path_preview(current_point)
-                return
             else:
                 # Mouse-led assist: one nearby, direction-compatible snap
                 # point.  This never replaces the user's segment with a
@@ -2053,6 +2229,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.preview_is_global = False
         self.preview_target = None
         self._proposal_timer.stop()
+        self._cancel_proposal_task()
         self._proposal_generation += 1
         self._proposal_request_point = None
         self.checkpoints = []
@@ -2061,6 +2238,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.last_input_point = None
         self.last_hover_pos = None  # Reset stabilizer
         self.last_sample_pos = None
+        self.last_preview_pos = None
         self.resume_feature_id = None
         self.resume_at_start = False
         self.preview_band.reset(QgsWkbTypes.LineGeometry)
