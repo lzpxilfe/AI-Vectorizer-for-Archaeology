@@ -862,7 +862,10 @@ class AIVectorizerDock(QDockWidget):
             if self._is_sam_model(model_idx) and auto_path:
                 self.init_sam_engine()
             else:
-                self.sam_engine = None
+                # Do not just drop the reference: a previously loaded SAM
+                # predictor can keep hundreds of MB alive after switching
+                # back to the default human-led mode or Freehand.
+                self._release_sam_engine()
             use_sam = (
                 not freehand
                 and auto_path
