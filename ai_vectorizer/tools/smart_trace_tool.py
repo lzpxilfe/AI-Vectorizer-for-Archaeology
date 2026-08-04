@@ -52,6 +52,7 @@ from ..core.trace_kernel import (
     smooth_pixel_path,
 )
 from ..config import (
+    DEFAULT_EDGE_METHOD,
     DEFAULT_OUTPUT_LAYER_NAME,
     DEFAULT_SPOT_LAYER_NAME,
     FIELD_ELEVATION,
@@ -188,7 +189,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     PROPOSAL_DEBOUNCE_MS = 110
     PROPOSAL_ACCEPT_TOLERANCE_PIXELS = 12
 
-    LIVEWIRE_WINDOW_PIXELS = 384
+    # 320px retained the same real-map route as 384px while cutting the
+    # anchor-tree build by roughly 28% in QGIS 3.40.5. Directional bias still
+    # leaves about 218px of forward look-ahead for ordinary cursor segments.
+    LIVEWIRE_WINDOW_PIXELS = 320
     LIVEWIRE_TARGET_SNAP_PIXELS = 6
     LIVEWIRE_SMOOTH_WINDOW_SIZE = 5
 
@@ -333,7 +337,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             print(f"Failed to {action_name} undo action: {exc}")
 
     def __init__(self, canvas, raster_layer, vector_layer, model_type=0,
-                 sam_engine=None, edge_weight=0.5, freehand=False, edge_method='canny',
+                 sam_engine=None, edge_weight=0.5, freehand=False, edge_method=DEFAULT_EDGE_METHOD,
                  iface=None, language="ko", auto_path=False):
         self.canvas = canvas
         super().__init__(self.canvas)
@@ -435,8 +439,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.spot_height_layer = None
 
         self.cv2 = get_cv2()
-        # Default Canny Human Assist has a NumPy edge fallback and should not
-        # require a separate OpenCV install. SAM, LSD, and HED still need cv2.
+        # Ink Centerline and Legacy Canny do not require a separate OpenCV
+        # install. SAM, LSD, and HED still need cv2.
         needs_cv2 = self.use_sam or (
             self.edge_weight > 0.0
             and self.edge_method in (

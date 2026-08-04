@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Edge Detection Module - Multiple detection methods for historical maps
-Supports: Canny+Adaptive, LSD Line Detector, HED (Holistically-Nested Edge Detection)
+Line Evidence Module - Multiple detection methods for historical maps
+Supports: Ink Centerline, Canny+Adaptive, LSD, and HED
 """
 
 import numpy as np
@@ -14,12 +14,23 @@ import urllib.request
 from .dependencies import build_missing_cv2_message, get_cv2, is_cv2_available, require_cv2
 
 try:
+    from scipy import ndimage as _scipy_ndimage
+except Exception:
+    _scipy_ndimage = None
+
+try:
+    from skimage.filters import threshold_otsu as _skimage_threshold_otsu
+except Exception:
+    _skimage_threshold_otsu = None
+
+try:
     from skimage.morphology import skeletonize as _skimage_skeletonize
 except Exception:
     _skimage_skeletonize = None
 
 
 class EdgeDetector:
+    METHOD_INK = 'ink'
     METHOD_CANNY = 'canny'
     METHOD_LSD = 'lsd'
     METHOD_HED = 'hed'
@@ -29,6 +40,17 @@ class EdgeDetector:
 
     DEFAULT_CANNY_LOW_THRESHOLD = 30
     DEFAULT_CANNY_HIGH_THRESHOLD = 100
+
+    # A black top-hat isolates narrow dark ink from slowly varying paper and
+    # scan shading. The binary response is then reduced to one centerline,
+    # avoiding the paired outlines produced by gradient edge detectors.
+    # 15px still isolates ordinary 1-3px map strokes while preserving a
+    # centerline when QGIS zoom/resampling expands a stroke to roughly 11px.
+    INK_BACKGROUND_SIZE = 15
+    INK_RESPONSE_PERCENTILE = 99.0
+    INK_MIN_NORMALIZED_RESPONSE = 0.04
+    INK_MIN_COMPONENT_SIZE = 5
+
     CANNY_ADAPTIVE_BLOCK_SIZE = 21
     CANNY_ADAPTIVE_C = 10
     CANNY_BLUR_KERNEL = (3, 3)
@@ -167,19 +189,18 @@ class EdgeDetector:
     def _require_cv2_runtime(cls, feature_name):
         return require_cv2(feature_name)
 
-    def __init__(self, method=METHOD_CANNY):
+    def __init__(self, method=METHOD_INK):
         """
         Args:
-            method: 'canny', 'lsd', or 'hed'
+            method: 'ink', 'canny', 'lsd', or 'hed'
         """
         self.method = method
         self.hed_net = None
         self.cv2 = None
         self.lsd = None
 
-        # The default Canny-style Human Assist must remain usable in a clean
-        # QGIS Python environment. LSD and HED still require OpenCV, while
-        # Canny can use the small NumPy fallback below when cv2 is absent.
+        # Ink Centerline never needs OpenCV. Legacy Canny also remains usable
+        # in a clean QGIS Python environment through its NumPy fallback.
         if method == self.METHOD_CANNY:
             self.cv2 = get_cv2()
         elif method in (self.METHOD_LSD, self.METHOD_HED):
@@ -329,26 +350,125 @@ class EdgeDetector:
         """
         gray, color = self._prepare_input_images(image)
 
-        if self.method == self.METHOD_LSD:
+        if self.method == self.METHOD_INK:
+            edges = self._detect_ink_centerline(gray, low_threshold, high_threshold)
+        elif self.method == self.METHOD_LSD:
             edges = self._detect_lsd(gray)
         elif self.method == self.METHOD_HED:
             edges = self._detect_hed(color, gray)
         else:
             edges = self._detect_canny(gray, low_threshold, high_threshold)
 
-        # SKELETONIZATION: Ensure edges are 1px wide
-        # This prevents "walking inside the edge" and reduces jitter
-        try:
-            # Normalize to binary (0 or 1)
-            binary = edges > self.EDGE_PRESENCE_THRESHOLD
-
-            # Convert back to uint8 (0 or 255)
-            skeleton = self.thin_binary_mask(binary)
-            edges = (skeleton * self.EDGE_MAX_VALUE).astype(np.uint8)
-        except Exception as e:
-            print(f"Skeletonize error: {e}")
+        # Ink Centerline already returns a one-pixel line. Other detectors
+        # keep the shared thinning pass for backward-compatible output.
+        if self.method != self.METHOD_INK:
+            try:
+                binary = edges > self.EDGE_PRESENCE_THRESHOLD
+                skeleton = self.thin_binary_mask(binary)
+                edges = (skeleton * self.EDGE_MAX_VALUE).astype(np.uint8)
+            except Exception as e:
+                print(f"Skeletonize error: {e}")
 
         return edges
+
+    @classmethod
+    def _detect_ink_centerline(
+        cls,
+        gray: np.ndarray,
+        low_threshold=DEFAULT_CANNY_LOW_THRESHOLD,
+        high_threshold=DEFAULT_CANNY_HIGH_THRESHOLD,
+    ) -> np.ndarray:
+        """Extract a single centerline from locally dark map ink.
+
+        Historical scans commonly contain uneven paper tone, faded strokes,
+        text, and symbols. A grayscale black top-hat removes slow background
+        variation without turning both sides of every stroke into competing
+        edges. Small isolated responses are discarded before skeletonization.
+
+        SciPy and scikit-image ship in the supported runtime. If either core
+        operation is unavailable, the dependency-light NumPy edge detector is
+        retained as a safe compatibility fallback.
+        """
+        values = np.asarray(gray, dtype=np.float32)
+        if values.ndim != 2 or min(values.shape) < 2:
+            return np.zeros(values.shape, dtype=np.uint8)
+        if _scipy_ndimage is None:
+            fallback = cls._detect_numpy_edges(gray, low_threshold, high_threshold)
+            centerline = cls.thin_binary_mask(
+                fallback > cls.EDGE_PRESENCE_THRESHOLD,
+            )
+            return centerline.astype(np.uint8) * cls.EDGE_MAX_VALUE
+
+        finite = np.isfinite(values)
+        if not finite.any():
+            return np.zeros(values.shape, dtype=np.uint8)
+        if not finite.all():
+            fill_value = float(np.median(values[finite]))
+            values = np.where(finite, values, fill_value)
+
+        value_min = float(values.min())
+        value_max = float(values.max())
+        if value_max <= value_min:
+            return np.zeros(values.shape, dtype=np.uint8)
+        values = (values - value_min) / (value_max - value_min)
+
+        background = _scipy_ndimage.grey_closing(
+            values,
+            size=(cls.INK_BACKGROUND_SIZE, cls.INK_BACKGROUND_SIZE),
+            mode="nearest",
+        )
+        response = np.maximum(background - values, 0.0)
+        positive = response[response > 0]
+        if positive.size == 0:
+            return np.zeros(values.shape, dtype=np.uint8)
+
+        scale = max(
+            float(np.percentile(positive, cls.INK_RESPONSE_PERCENTILE)),
+            np.finfo(np.float32).eps,
+        )
+        normalized = np.clip(response / scale, 0.0, 1.0)
+        candidate = cls._remove_small_ink_components(
+            normalized >= cls.INK_MIN_NORMALIZED_RESPONSE,
+        )
+        normalized_positive = normalized[candidate]
+        if normalized_positive.size == 0:
+            return np.zeros(values.shape, dtype=np.uint8)
+
+        if _skimage_threshold_otsu is not None and normalized_positive.size > 1:
+            try:
+                threshold = float(_skimage_threshold_otsu(normalized_positive))
+            except (TypeError, ValueError):
+                threshold = cls.INK_MIN_NORMALIZED_RESPONSE
+        else:
+            threshold = float(np.percentile(normalized_positive, 50.0))
+        threshold = max(cls.INK_MIN_NORMALIZED_RESPONSE, threshold)
+        # Otsu returns the sole sample value for a perfectly uniform stroke.
+        # Step just below the observed maximum so that such a line is kept.
+        response_max = float(normalized_positive.max())
+        threshold = min(
+            threshold,
+            float(np.nextafter(response_max, -np.inf)),
+        )
+        mask = cls._remove_small_ink_components(
+            candidate & (normalized >= threshold),
+        )
+
+        centerline = cls.thin_binary_mask(mask)
+        return centerline.astype(np.uint8) * cls.EDGE_MAX_VALUE
+
+    @classmethod
+    def _remove_small_ink_components(cls, mask: np.ndarray) -> np.ndarray:
+        """Remove isolated scan speckles without a version-sensitive API."""
+        labels, component_count = _scipy_ndimage.label(
+            np.asarray(mask, dtype=bool),
+            structure=np.ones((3, 3), dtype=np.uint8),
+        )
+        if not component_count:
+            return np.zeros(labels.shape, dtype=bool)
+        sizes = np.bincount(labels.ravel())
+        keep = sizes >= cls.INK_MIN_COMPONENT_SIZE
+        keep[0] = False
+        return keep[labels]
 
     def _detect_canny(
         self,

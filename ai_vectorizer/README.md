@@ -4,26 +4,26 @@
 
 ![QGIS release metadata 3.22+](https://img.shields.io/badge/QGIS_release_metadata-3.22%2B-3c8c3c.svg)
 ![Source Python 3.10+](https://img.shields.io/badge/source_Python-3.10%2B-3776ab.svg)
-![Metadata 0.1.6](https://img.shields.io/badge/metadata-0.1.6-f28c28.svg)
+![Metadata 0.1.7](https://img.shields.io/badge/metadata-0.1.7-f28c28.svg)
 ![Development M1.2](https://img.shields.io/badge/development-M1.2-5b5bd6.svg)
 ![Local first](https://img.shields.io/badge/processing-local--first-2f855a.svg)
 ![License GPLv2](https://img.shields.io/badge/license-GPLv2-d64541.svg)
 
 ## 🚧 Current Source Status
 
-- 현재 플러그인 metadata 버전은 `0.1.6`입니다.
+- 현재 플러그인 metadata 버전은 `0.1.7`입니다.
 - QGIS `3.22+`와 Python `3.10+`를 대상으로 하며 QGIS 3.40.5 / Python 3.12에서 실기동 검증했습니다.
-- UI 추적 방식은 `Freehand`, `Canny`, `LSD`, `HED`, `MobileSAM`, `SAM (ViT-B)`입니다.
+- UI 추적 방식은 기본 `Ink Centerline`과 `Freehand`, `LSD`, `HED`, `MobileSAM`, `SAM (ViT-B)`, `Legacy Canny`입니다.
 - EfficientSAM-Ti ONNX는 비교용 benchmark 전용이며 UI 모델이나 제품 기본값이 아닙니다.
 - 지도와 추적 처리는 로컬에서 수행되며, 네트워크는 사용자가 다운로드·업데이트 확인·SAM 상태 리포트 같은 모델 관리 작업을 시작할 때만 필요합니다. SAM 상태 리포트도 원격 모델 정보를 조회합니다.
 
 ## 🎯 What You Can Do
 
 - ✏️ `Freehand` 모드로 순수 수동 디지타이징
-- 🧲 기준점마다 한 번 계산하고 커서 이동 때 즉시 조회하는 방향 인식 Live-Wire
+- 🖋️ 검은 지도 획을 한 픽셀 중심선으로 만든 뒤 기준점마다 한 번 계산하는 방향 인식 Live-Wire
 - 🎚️ `0%` 정확한 커서부터 `100%` 완전 보조 경로까지 실제 좌표 비율로 혼합
 - 👁️ 클릭 한 번으로 채택될 정확한 경로를 같은 초록색 선으로 실시간 표시
-- 👁️ `Canny`/`LSD`/`HED` 엣지 미리보기와 SAM 계열의 인터랙티브 초록색 경로 미리보기
+- 👁️ `Ink Centerline`/`LSD`/`HED`/`Legacy Canny` 검출 미리보기와 SAM 계열의 인터랙티브 초록색 경로 미리보기
 - ⛰️ 등고선 고도값 입력 및 `Spot Heights` 포인트 저장
 - 🏔️ 고도 등고선을 선형 TIN `DEM`/`hillshade` GeoTIFF로 변환
 - 📄 `Check Selected SAM Model` / `SAM Status Report`로 모델 상태 점검
@@ -34,11 +34,12 @@
 | UI option | 역할 | 필요한 런타임 | 상태 |
 | --- | --- | --- | --- |
 | `✏️ Freehand` | 사용자가 직접 선을 입력 | 없음 | 항상 사용 가능 |
-| `🔧 Canny` | 짧은 끊김을 잇고 진행 방향을 유지하는 실시간 Live-Wire | `NumPy` + `SciPy`, `OpenCV` 선택 | 기본 방식 |
+| `🖋 Ink Centerline` | 검은 획의 단일 중심선과 방향 인식 Live-Wire | `NumPy` + `SciPy` + `scikit-image`, OpenCV 불필요 | 기본 방식 |
 | `📐 LSD` | 선분 검출 결과를 방향 인식 Live-Wire에 결합 | `OpenCV` + `SciPy` | OpenCV 4/5 지원 |
 | `🧠 HED` | 학습된 엣지 지도로 추적 보조 | `OpenCV` + 약 `56MB` 모델 | UI에서 다운로드 가능 |
 | `🎯 MobileSAM` | point-prompt mask와 edge/A*를 결합 | `OpenCV` + `PyTorch` + `MobileSAM` + 약 `39MB` weights | 선택 설치 |
 | `🧩 SAM (ViT-B)` | point-prompt mask와 edge/A*를 결합 | `OpenCV` + `PyTorch` + `segment_anything` + 약 `358MB` checkpoint | 선택 설치 |
+| `🔧 Legacy Canny` | 기존 그래디언트 경계 검출과 Live-Wire | `NumPy`, `OpenCV` 선택 | 호환용 |
 
 > `0%`는 엣지 감지와 모델 실행을 건너뛰고 커서를 그대로 사용합니다. `1~99%`는 같은 완전 보조 경로와 커서 경로를 좌표 비율로 혼합하고, `100%`는 방향 인식 Live-Wire 전체 경로입니다. 탐색 창은 최근 기준점 주변으로 제한되어 인접 등고선이나 글자로 멀리 도망가지 않습니다. 실제 고지도 기준 데이터셋이 마련되기 전까지 모델 간 정확도 순위는 주장하지 않습니다.
 
@@ -58,11 +59,11 @@
 아래 패키지는 시스템 Python이 아니라 QGIS가 사용하는 Python에 설치해야 합니다.
 
 ```bash
-# LSD / HED / edge preview (Canny Live-Wire에는 OpenCV 불필요)
+# LSD / HED / SAM용 OpenCV (Ink Centerline과 Legacy Canny에는 불필요)
 <QGIS_PYTHON> -m pip install opencv-python-headless
 
-# Direction-aware Live-Wire and better thinning quality
-<QGIS_PYTHON> -m pip install scikit-image
+# 기본 Ink Centerline과 방향 인식 Live-Wire
+<QGIS_PYTHON> -m pip install scipy scikit-image
 
 # Optional: MobileSAM/SAM download and update checks
 <QGIS_PYTHON> -m pip install requests
@@ -114,7 +115,7 @@ are migrated automatically on first use.
 1. 래스터 지도를 선택합니다.
 2. 출력 라인 레이어를 새로 만들거나 기존 SHP를 고릅니다.
 3. 원하는 모델을 선택합니다.
-4. `Canny`/`LSD`/`HED`는 `Preview AI-Detected Edges`로 확인합니다. MobileSAM/SAM은 트레이싱을 시작한 뒤 초록색 경로 미리보기를 확인합니다.
+4. `Ink Centerline`/`LSD`/`HED`/`Legacy Canny`는 `Trace Preview`로 확인합니다. MobileSAM/SAM은 트레이싱을 시작한 뒤 초록색 경로 미리보기를 확인합니다.
 5. 클릭/드래그로 등고선을 추적합니다.
 6. `Enter` 또는 우클릭으로 저장합니다.
 7. 시작점 근처를 다시 클릭하면 폐합 후 고도값을 입력할 수 있습니다.
@@ -159,11 +160,11 @@ are migrated automatically on first use.
 ## 🇬🇧 English Summary
 
 - ArchaeoTrace is a local-first QGIS plugin for tracing elevation contours on historical maps and building reviewable terrain hypotheses.
-- The plugin metadata version is `0.1.6`; this update replaces per-target A* with an anchor-rooted, direction-aware Live-Wire tree.
+- The plugin metadata version is `0.1.7`; this update makes Ink Centerline the default detector and keeps Canny as an explicit legacy option.
 - Cursor movement performs only a predecessor lookup after one asynchronous tree build per accepted anchor; the green line is the exact one-click result.
 - Assist is literal from 0% (exact cursor, no model work), through coordinate blending, to 100% (the full Live-Wire route).
 - `Freehand` needs no external model or OpenCV, but uses NumPy from the QGIS Python environment.
-- Default `Canny` uses NumPy edge evidence plus SciPy Live-Wire without OpenCV; a local NumPy snap remains the fallback if SciPy is absent.
+- Default `Ink Centerline` converts locally dark map strokes to single-pixel centerlines, then uses a 320px direction-aware SciPy Live-Wire without OpenCV. A local NumPy snap remains the fallback if SciPy is absent.
 - `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
 - EfficientSAM-Ti ONNX is benchmark-only and is not a product default or a UI option.
 - The DEM workflow requires saved elevation contours in a projected metre CRS; its output is a reviewable hypothesis, not an archaeological ground truth.
@@ -176,7 +177,7 @@ are migrated automatically on first use.
   title = {ArchaeoTrace: AI-assisted contour digitizing QGIS plugin for historical maps},
   year = {2026},
   url = {https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology},
-  version = {0.1.6}
+  version = {0.1.7}
 }
 ```
 

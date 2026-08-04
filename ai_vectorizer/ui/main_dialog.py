@@ -58,8 +58,9 @@ from ..config import (
     MOBILE_SAM_INSTALL_COMMAND,
     MODE_NAME_BY_MODEL,
     MODEL_MENU_LABELS,
-    MODEL_IDX_CANNY,
+    MODEL_IDX_INK,
     MODEL_IDX_HED,
+    MODEL_IDX_LEGACY_CANNY,
     MODEL_IDX_LSD,
     MODEL_IDX_MOBILE_SAM,
     MODEL_IDX_SAM,
@@ -129,7 +130,14 @@ class AIVectorizerDock(QDockWidget):
     def _model_items(self):
         return [
             MODEL_MENU_LABELS[idx][self.current_language]
-            for idx in (MODEL_IDX_CANNY, MODEL_IDX_LSD, MODEL_IDX_HED, MODEL_IDX_MOBILE_SAM, MODEL_IDX_SAM)
+            for idx in (
+                MODEL_IDX_INK,
+                MODEL_IDX_LSD,
+                MODEL_IDX_HED,
+                MODEL_IDX_MOBILE_SAM,
+                MODEL_IDX_SAM,
+                MODEL_IDX_LEGACY_CANNY,
+            )
         ]
 
     def _mode_name(self, idx):
@@ -575,30 +583,33 @@ class AIVectorizerDock(QDockWidget):
             self._tr(
                 (
                     "각 추적 방식의 역할:\n"
-                    "• Canny: 방향 인식 Live-Wire (기준점당 1회 계산)\n"
+                    "• Ink Centerline: 검은 획의 단일 중심선 + 방향 인식 Live-Wire\n"
                     "• LSD: 선분 지도를 이용한 Live-Wire\n"
                     f"• HED: 학습된 엣지 지도 (~{self._hed_size_hint_mb()}MB)\n"
                     f"• MobileSAM: 프롬프트 마스크 + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB)\n"
-                    f"• SAM: ViT-B 프롬프트 마스크 + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB)"
+                    f"• SAM: ViT-B 프롬프트 마스크 + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB)\n"
+                    "• Legacy Canny: 기존 경계 검출 호환 모드"
                 ),
                 (
                     "Tracing-mode roles:\n"
-                    "• Canny: direction-aware Live-Wire (one tree per anchor)\n"
+                    "• Ink Centerline: single dark-stroke centerline + direction-aware Live-Wire\n"
                     "• LSD: Live-Wire over line-segment evidence\n"
                     f"• HED: learned edge map (~{self._hed_size_hint_mb()}MB)\n"
                     f"• MobileSAM: prompt mask + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB)\n"
-                    f"• SAM: ViT-B prompt mask + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB)"
+                    f"• SAM: ViT-B prompt mask + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB)\n"
+                    "• Legacy Canny: compatibility edge detector"
                 ),
             )
         )
         self.model_combo.setToolTip(
             self._tr(
-                "Canny: 방향 인식 Live-Wire\nLSD: 선분 보조\nHED: 학습된 엣지 지도\nMobileSAM: 프롬프트 마스크\nSAM: ViT-B 프롬프트 마스크",
-                "Canny: direction-aware Live-Wire\n"
+                "Ink Centerline: 검은 획 단일 중심선\nLSD: 선분 보조\nHED: 학습된 엣지 지도\nMobileSAM: 프롬프트 마스크\nSAM: ViT-B 프롬프트 마스크\nLegacy Canny: 기존 경계 검출",
+                "Ink Centerline: single dark-stroke centerline\n"
                 "LSD: line-segment assistance\n"
                 "HED: learned edge map\n"
                 "MobileSAM: prompt mask\n"
-                "SAM: ViT-B prompt mask",
+                "SAM: ViT-B prompt mask\n"
+                "Legacy Canny: compatibility edge detector",
             )
         )
         self.sam_check_btn.setText(self._tr("🔎 선택 SAM 모델 최신 확인", "🔎 Check Selected SAM Model"))
@@ -678,8 +689,8 @@ class AIVectorizerDock(QDockWidget):
         self.preview_edge_btn.setText(self._tr("👁️ 추적 미리보기", "👁️ Trace Preview"))
         self.preview_edge_btn.setToolTip(
             self._tr(
-                "Canny/LSD/HED 모드에서는 감지된 엣지를\n임시 래스터 레이어로 표시합니다.\nSAM 모드에서는 지도에서 대화형 초록색 미리보기를 사용합니다.",
-                "Canny/LSD/HED modes show detected edges\nas a temporary raster layer.\nSAM modes use the interactive green preview on the map.",
+                "Ink/LSD/HED/Legacy Canny 모드에서는 감지된 중심선·엣지를\n임시 래스터 레이어로 표시합니다.\nSAM 모드에서는 지도에서 대화형 초록색 미리보기를 사용합니다.",
+                "Ink/LSD/HED/Legacy Canny modes show detected line evidence\nas a temporary raster layer.\nSAM modes use the interactive green preview on the map.",
             )
         )
         self.help_btn.setText(self._tr("❓ 도움말", "❓ Help"))
@@ -688,8 +699,8 @@ class AIVectorizerDock(QDockWidget):
         self.auto_path_check.setText("AI Proposal / Auto Path (Experimental)")
         self.auto_path_check.setToolTip(
             self._tr(
-                "Canny/LSD/HED에서는 커서를 따라 즉시 표시되는 전체 Live-Wire 경로를 클릭 한 번으로 채택합니다. SAM은 커서를 잠시 멈춘 뒤 표시되며 같은 위치를 다시 클릭해 채택합니다.",
-                "Canny/LSD/HED show the full Live-Wire route immediately and accept it with one click. SAM appears after a short pause and is accepted by clicking the same target again.",
+                "Ink/LSD/HED/Legacy Canny에서는 커서를 따라 표시되는 전체 Live-Wire 경로를 클릭 한 번으로 채택합니다. SAM은 커서를 잠시 멈춘 뒤 표시되며 같은 위치를 다시 클릭해 채택합니다.",
+                "Ink/LSD/HED/Legacy Canny show the full Live-Wire route and accept it with one click. SAM appears after a short pause and is accepted by clicking the same target again.",
             )
         )
         self.sam_download_btn.setText(self._download_button_text())
@@ -966,8 +977,8 @@ class AIVectorizerDock(QDockWidget):
                 mode_name = self._tr("프리핸드", "Freehand")
             elif self._is_sam_model(model_idx) and not use_sam:
                 mode_name = self._tr(
-                    "사람 주도 보조 (Canny)",
-                    "Human-led Assist (Canny)",
+                    "사람 주도 보조 (Ink Centerline)",
+                    "Human-led Assist (Ink Centerline)",
                 )
             else:
                 mode_name = self._sam_display_name(model_idx) if use_sam else self._mode_name(model_idx)
@@ -984,26 +995,27 @@ class AIVectorizerDock(QDockWidget):
     def on_model_changed(self, index):
         self._set_model_aux_visibility()
         self._release_sam_engine()
-        if index == MODEL_IDX_CANNY and not is_cv2_available():
+        if index in (MODEL_IDX_INK, MODEL_IDX_LEGACY_CANNY):
             if not is_livewire_available():
                 self._set_sam_status(
                     self._tr(
-                        "⚠️ NumPy 국소 보조만 사용 가능; 빠른 Live-Wire에는 SciPy가 필요합니다",
-                        "⚠️ NumPy local assist is available; fast Live-Wire requires SciPy",
+                        "⚠️ NumPy 국소 보조만 사용 가능; 중심선·빠른 Live-Wire에는 SciPy가 필요합니다",
+                        "⚠️ NumPy local assist only; centerlines and fast Live-Wire require SciPy",
                     ),
                     "warning",
                 )
                 return
+            detector_name = self._mode_name(index)
             self._set_sam_status(
                 self._tr(
-                    "✅ 방향 인식 Live-Wire 사용 가능 (OpenCV 불필요)",
-                    "✅ Direction-aware Live-Wire ready (OpenCV not required)",
-                ),
+                    "✅ {name} + 방향 인식 Live-Wire 사용 가능 (OpenCV 불필요)",
+                    "✅ {name} + direction-aware Live-Wire ready (OpenCV not required)",
+                ).format(name=detector_name),
                 "info",
             )
             self.sam_status.setToolTip("")
             return
-        if index in (MODEL_IDX_CANNY, MODEL_IDX_LSD):
+        if index == MODEL_IDX_LSD:
             if is_cv2_available():
                 self._set_sam_status(self._tr("✅ OpenCV 로드됨", "✅ OpenCV loaded"), "info")
                 self.sam_status.setToolTip("")
@@ -1029,7 +1041,7 @@ class AIVectorizerDock(QDockWidget):
             else:
                 self._set_model_aux_visibility()
                 self._set_sam_status(
-                    "Human-led Canny assist is active; SAM installation is not needed.",
+                    "Human-led Ink Centerline assist is active; SAM installation is not needed.",
                     "info",
                 )
 
@@ -1426,7 +1438,7 @@ class AIVectorizerDock(QDockWidget):
 
         edge_method = EDGE_METHOD_BY_MODEL.get(model_idx, DEFAULT_EDGE_METHOD)
 
-        if not is_cv2_available():
+        if edge_method in ("lsd", "hed") and not is_cv2_available():
             self._show_opencv_warning(self._tr("엣지 미리보기", "edge preview"))
             return
 
@@ -1505,18 +1517,19 @@ class AIVectorizerDock(QDockWidget):
 <ol>
 <li><b>Select Raster Map</b> - choose a scanned map with contour lines.</li>
 <li><b>Create SHP Output</b> - create a new line SHP or pick an existing line layer.</li>
-<li><b>Choose Tracing Mode</b> - select Canny/LSD/HED/MobileSAM/SAM for the map and installed runtime.</li>
+<li><b>Choose Tracing Mode</b> - start with Ink Centerline, or select LSD/HED/MobileSAM/SAM/Legacy Canny for the map and runtime.</li>
 <li><b>Start Tracing</b> - click along contours and save the result.</li>
 </ol>
 
 <h3>🤖 Tracing Modes</h3>
 <table border='1' cellpadding='5'>
 <tr><th>Mode</th><th>Role</th><th>Requirements</th></tr>
-<tr><td>🔧 Canny</td><td>Mouse-led, direction-aware Live-Wire</td><td>NumPy + SciPy; OpenCV optional</td></tr>
+<tr><td>🖋 Ink Centerline</td><td>Single dark-stroke centerline with mouse-led Live-Wire</td><td>NumPy + SciPy + scikit-image; no OpenCV</td></tr>
 <tr><td>📐 LSD</td><td>Live-Wire over line-segment evidence</td><td>OpenCV + SciPy</td></tr>
 <tr><td>🧠 HED</td><td>Learned edge-map assistance</td><td>OpenCV + ~{self._hed_size_hint_mb()}MB model</td></tr>
 <tr><td>🎯 MobileSAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + mobile_sam + ~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB weights</td></tr>
 <tr><td>🧩 SAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + segment_anything + ~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB checkpoint</td></tr>
+<tr><td>🔧 Legacy Canny</td><td>Compatibility gradient-edge mode</td><td>NumPy; OpenCV optional</td></tr>
 </table>
 <p>Accuracy rankings are intentionally omitted until the historical-map benchmark dataset is complete.</p>
 
@@ -1534,7 +1547,7 @@ class AIVectorizerDock(QDockWidget):
 <li>Zoom in until contour lines are clearly visible for better snapping.</li>
 <li>The assist slider is literal: 0% is the exact cursor, intermediate values blend geometry, and 100% uses the full Live-Wire route.</li>
 <li>The green line is the exact path that one click will accept. Auto Path is required only for SAM proposals.</li>
-<li>If SAM/HED is unavailable, start with Canny or LSD first.</li>
+<li>If SAM/HED is unavailable, start with Ink Centerline.</li>
 <li>Use <b>Check Selected SAM Model</b> before downloading to see if an update is needed.</li>
 <li><b>SAM Status Report</b> queries remote model metadata (internet access) before creating a shareable JSON report.</li>
 </ul>
@@ -1552,18 +1565,19 @@ class AIVectorizerDock(QDockWidget):
 <ol>
 <li><b>래스터 지도 선택</b> - 등고선이 있는 스캔 지도를 선택합니다.</li>
 <li><b>SHP 출력 설정</b> - 새 라인 SHP를 만들거나 기존 라인 레이어를 선택합니다.</li>
-<li><b>추적 방식 선택</b> - 지도와 설치된 런타임에 맞춰 Canny/LSD/HED/MobileSAM/SAM을 선택합니다.</li>
+<li><b>추적 방식 선택</b> - 기본 Ink Centerline으로 시작하거나 지도와 런타임에 맞춰 LSD/HED/MobileSAM/SAM/Legacy Canny를 선택합니다.</li>
 <li><b>트레이싱 시작</b> - 등고선을 따라 클릭하며 추적한 뒤 저장합니다.</li>
 </ol>
 
 <h3>🤖 추적 방식</h3>
 <table border='1' cellpadding='5'>
 <tr><th>방식</th><th>역할</th><th>필요 항목</th></tr>
-<tr><td>🔧 Canny</td><td>마우스 주도 방향 인식 Live-Wire</td><td>NumPy + SciPy, OpenCV 선택</td></tr>
+<tr><td>🖋 Ink Centerline</td><td>검은 획의 단일 중심선과 마우스 주도 Live-Wire</td><td>NumPy + SciPy + scikit-image, OpenCV 불필요</td></tr>
 <tr><td>📐 LSD</td><td>선분 지도를 이용한 Live-Wire</td><td>OpenCV + SciPy</td></tr>
 <tr><td>🧠 HED</td><td>학습된 엣지 지도 보조</td><td>OpenCV 및 약 {self._hed_size_hint_mb()}MB 모델</td></tr>
 <tr><td>🎯 MobileSAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + mobile_sam 및 약 {self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB 가중치</td></tr>
 <tr><td>🧩 SAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + segment_anything 및 약 {self._sam_size_hint_mb(MODEL_IDX_SAM)}MB 체크포인트</td></tr>
+<tr><td>🔧 Legacy Canny</td><td>기존 그래디언트 경계 검출 호환 모드</td><td>NumPy, OpenCV 선택</td></tr>
 </table>
 <p>실제 고지도 benchmark 데이터셋이 완성되기 전까지 정확도 순위는 표시하지 않습니다.</p>
 
@@ -1581,7 +1595,7 @@ class AIVectorizerDock(QDockWidget):
 <li>등고선이 명확히 보일 정도로 확대하면 스냅 품질이 좋아집니다.</li>
 <li>AI 개입 슬라이더는 실제 비율입니다. 0%는 정확한 커서, 중간값은 경로 혼합, 100%는 Live-Wire 전체 경로입니다.</li>
 <li>초록색 선이 클릭 한 번으로 채택될 정확한 경로입니다. Auto Path는 SAM 제안에만 필요합니다.</li>
-<li>SAM/HED가 준비되지 않았다면 Canny/LSD부터 시작하세요.</li>
+<li>SAM/HED가 준비되지 않았다면 Ink Centerline부터 시작하세요.</li>
 <li>다운로드 전에 <b>선택 SAM 모델 최신 확인</b> 버튼으로 업데이트 필요 여부를 확인하세요.</li>
 <li><b>SAM 상태 리포트</b>는 원격 모델 메타데이터를 조회(인터넷 사용)한 뒤 공유용 JSON 리포트를 생성합니다.</li>
 </ul>
