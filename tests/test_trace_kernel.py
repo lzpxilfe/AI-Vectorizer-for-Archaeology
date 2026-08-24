@@ -54,6 +54,15 @@ class TraceKernelTests(unittest.TestCase):
         self.assertTrue(any(y != 1 for _x, y in result.path[:-1]))
         self.assertLess(result.total_cost, 20.0)
 
+    def test_accumulated_path_cost_overflow_is_rejected(self):
+        with self.assertRaisesRegex(TraceInputError, "accumulated path cost overflowed"):
+            find_path(
+                [[1.0, 1.7e308, 1.7e308]],
+                (0, 0),
+                (2, 0),
+                allow_partial=False,
+            )
+
     def test_shape_backed_cost_map_and_coordinate_clamping(self):
         result = find_path(ShapeBackedMap([[1, 1], [1, 1]]), (-12.2, -4), (99, 88))
 
@@ -108,6 +117,36 @@ class TraceKernelTests(unittest.TestCase):
         self.assertFalse(result.used_partial)
         self.assertEqual(result.path, ())
         self.assertIsNone(result.total_cost)
+
+    def test_stale_heap_entries_do_not_consume_iteration_budget(self):
+        # This weighted map queues two nodes first through expensive routes and
+        # later through cheaper ones.  The target needs nine real expansions;
+        # the historical implementation re-expanded the stale entries and hit
+        # the limit before reaching it.
+        costs = [
+            [2.0, 1.0, 5.0],
+            [1.0, 1.0, 1.0],
+            [1.0, 2.0, 20.0],
+        ]
+        config = TraceConfig(
+            max_iterations_base=9,
+            max_iterations_distance_factor=0,
+            max_width=3,
+            max_height=3,
+            max_cells=9,
+        )
+
+        result = find_path(
+            costs,
+            (0, 0),
+            (2, 2),
+            allow_partial=False,
+            config=config,
+        )
+
+        self.assertTrue(result.reached_target)
+        self.assertEqual(result.iterations, 9)
+        self.assertEqual(result.endpoint, (2, 2))
 
     def test_smoothing_matches_historical_centered_window(self):
         points = [(0, 0), (1, 2), (2, 4), (3, 6), (4, 8), (5, 10)]

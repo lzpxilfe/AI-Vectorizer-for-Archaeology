@@ -6,6 +6,7 @@ Dockable panel with guided workflow and tooltips
 
 import os
 import json
+import shutil
 import tempfile
 import traceback
 from datetime import datetime, timezone
@@ -39,12 +40,24 @@ from qgis.core import (
     Qgis,
 )
 from qgis.gui import QgsMapLayerComboBox
-from qgis.PyQt.QtCore import Qt, QVariant, QSettings, QStandardPaths
+from qgis.PyQt.QtCore import Qt, QSettings, QStandardPaths, QTimer
+try:
+    from qgis.PyQt.QtCore import QVariant
+except ImportError:  # PyQt6/QGIS 4
+    QVariant = None
+try:
+    from qgis.PyQt.QtCore import QMetaType
+except ImportError:
+    QMetaType = None
 from qgis.PyQt.QtGui import QColor
 
 from ..core.dependencies import get_cv2_error_text, get_opencv_install_command, is_cv2_available
 from ..core.livewire import is_livewire_available
 from ..core.raster_utils import compute_resampled_dimensions, read_raster_bands
+from ..core.dem_pipeline import (
+    layer_file_path as _layer_file_path,
+    project_layers_using_path as _project_layers_using_path,
+)
 from ..config import (
     DEFAULT_CRS_AUTHID,
     DEFAULT_EDGE_METHOD,
@@ -86,20 +99,168 @@ LANG_KO = "ko"
 LANG_EN = "en"
 
 
+def _qt_value(legacy_name, scope_name):
+    legacy = getattr(Qt, legacy_name, None)
+    if legacy is not None:
+        return legacy
+    return getattr(getattr(Qt, scope_name), legacy_name)
+
+
+def _message_box_button(name):
+    legacy = getattr(QMessageBox, name, None)
+    if legacy is not None:
+        return legacy
+    return getattr(QMessageBox.StandardButton, name)
+
+
+def _map_layer_filter(name):
+    legacy = getattr(QgsMapLayerProxyModel, name, None)
+    if legacy is not None:
+        return legacy
+    scoped = getattr(QgsMapLayerProxyModel, "Filter", None)
+    if scoped is not None and hasattr(scoped, name):
+        return getattr(scoped, name)
+    return getattr(Qgis.LayerFilter, name)
+
+
+def _field_type(name):
+    # Prefer the QGIS 4-compatible API while retaining QGIS 3.22 fallback.
+    for owner in (getattr(QMetaType, "Type", None), QVariant):
+        if owner is not None and hasattr(owner, name):
+            return getattr(owner, name)
+    raise RuntimeError(f"Qt field type is unavailable: {name}")
+
+
+def _standard_location(name):
+    legacy = getattr(QStandardPaths, name, None)
+    if legacy is not None:
+        return legacy
+    return getattr(QStandardPaths.StandardLocation, name)
+
+
+def _writer_no_error():
+    legacy = getattr(QgsVectorFileWriter, "NoError", None)
+    if legacy is not None:
+        return legacy
+    return QgsVectorFileWriter.WriterError.NoError
+
+
+def _write_vector_layer(layer, path, crs):
+    modern = getattr(QgsVectorFileWriter, "writeAsVectorFormatV3", None)
+    if modern is not None:
+        options = QgsVectorFileWriter.SaveVectorOptions()
+        options.driverName = "ESRI Shapefile"
+        options.fileEncoding = DEFAULT_VECTOR_FILE_ENCODING
+        return modern(
+            layer,
+            path,
+            QgsProject.instance().transformContext(),
+            options,
+        )
+    return QgsVectorFileWriter.writeAsVectorFormat(
+        layer,
+        path,
+        DEFAULT_VECTOR_FILE_ENCODING,
+        crs,
+        "ESRI Shapefile",
+    )
+
+
+def _exec_dialog(dialog):
+    execute = getattr(dialog, "exec", None)
+    if execute is None:
+        execute = dialog.exec_
+    return execute()
+
+
+class _TemporaryPreviewStore:
+    """Tie private preview files to their corresponding project layers."""
+
+    def __init__(self, project):
+        self._project = project
+        self._directories = {}
+        self._connected = True
+        project.layerRemoved.connect(self._on_layer_removed)
+
+    def track(self, layer, temporary_directory):
+        layer_id = layer.id()
+        previous = self._directories.pop(layer_id, None)
+        if previous is not None:
+            self._cleanup_directory(previous)
+        self._directories[layer_id] = temporary_directory
+
+    @staticmethod
+    def _cleanup_directory(temporary_directory):
+        try:
+            temporary_directory.cleanup()
+        except OSError as exc:
+            # A provider on Windows may release its final handle one event
+            # later. cleanup() has already detached TemporaryDirectory's own
+            # finalizer, so explicitly retry after pending deletions run.
+            print(f"Failed to remove edge-preview files: {exc}")
+            path = temporary_directory.name
+            QTimer.singleShot(
+                0,
+                lambda: _TemporaryPreviewStore._retry_directory_cleanup(path),
+            )
+
+    @staticmethod
+    def _retry_directory_cleanup(path):
+        try:
+            shutil.rmtree(path)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            print(f"Failed to remove edge-preview files after retry: {exc}")
+
+    def _on_layer_removed(self, layer_id):
+        temporary_directory = self._directories.pop(str(layer_id), None)
+        if temporary_directory is not None:
+            self._cleanup_directory(temporary_directory)
+
+    def clear(self):
+        for layer_id in tuple(self._directories):
+            try:
+                if self._project.mapLayer(layer_id) is not None:
+                    self._project.removeMapLayer(layer_id)
+            except RuntimeError:
+                pass
+            # layerRemoved is synchronous, but retain this fallback for a
+            # project which is already shutting down.
+            temporary_directory = self._directories.pop(layer_id, None)
+            if temporary_directory is not None:
+                self._cleanup_directory(temporary_directory)
+
+    def shutdown(self):
+        self.clear()
+        if not self._connected:
+            return
+        try:
+            self._project.layerRemoved.disconnect(self._on_layer_removed)
+        except (RuntimeError, TypeError):
+            pass
+        self._connected = False
+
+
 class AIVectorizerDock(QDockWidget):
     """Dockable panel for ArchaeoTrace plugin."""
 
     def __init__(self, iface, parent=None):
         super().__init__(PLUGIN_NAME, parent)
         self.iface = iface
-        self.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
+        self.setAllowedAreas(
+            _qt_value("LeftDockWidgetArea", "DockWidgetArea")
+            | _qt_value("RightDockWidgetArea", "DockWidgetArea")
+        )
 
         self.active_tool = None
         self.output_layer = None
         self.dem_dialog = None
         self.sam_engine = None
         self.sam_engine_key = None
+        self._preview_store = _TemporaryPreviewStore(QgsProject.instance())
         self.current_language = self._load_language()
+        self._configure_hed_storage()
 
         main_widget = QWidget()
         self.layout = QVBoxLayout()
@@ -126,6 +287,17 @@ class AIVectorizerDock(QDockWidget):
     @staticmethod
     def _log_nonfatal_ui_error(context, exc):
         print(f"{context}: {exc}")
+
+    @staticmethod
+    def _same_layer(first, second):
+        if first is second:
+            return True
+        if first is None or second is None:
+            return False
+        try:
+            return first.id() == second.id()
+        except RuntimeError:
+            return False
 
     def _model_items(self):
         return [
@@ -174,7 +346,30 @@ class AIVectorizerDock(QDockWidget):
         )
         self._set_trace_button_active()
 
+    def _set_trace_configuration_enabled(self, enabled):
+        """Keep the active map tool and the dock's visible model in sync."""
+
+        for widget in (
+            self.lang_combo,
+            self.layer_combo,
+            self.shp_path,
+            self.browse_btn,
+            self.create_shp_btn,
+            self.vector_combo,
+            self.model_combo,
+            self.sam_check_btn,
+            self.sam_report_btn,
+            self.sam_download_btn,
+            self.freehand_check,
+            self.auto_path_check,
+            self.freedom_slider,
+            self.preview_edge_btn,
+        ):
+            widget.setEnabled(enabled)
+        self._update_dem_button_for_tracing(not enabled)
+
     def _set_idle_ui(self, prompt=False):
+        self._set_trace_configuration_enabled(True)
         self._set_trace_button_idle()
         self._set_ready_state(prompt=prompt)
 
@@ -288,7 +483,7 @@ class AIVectorizerDock(QDockWidget):
         settings_dir = QgsApplication.qgisSettingsDirPath()
         if not settings_dir:
             settings_dir = os.path.join(
-                QStandardPaths.writableLocation(QStandardPaths.AppDataLocation),
+                QStandardPaths.writableLocation(_standard_location("AppDataLocation")),
                 "QGIS",
                 "QGIS3",
                 "profiles",
@@ -299,6 +494,13 @@ class AIVectorizerDock(QDockWidget):
             "ai_vectorizer",
             "models",
         )
+
+    @classmethod
+    def _configure_hed_storage(cls):
+        """Keep HED assets beside SAM weights so ZIP upgrades preserve them."""
+        from ..core.edge_detector import EdgeDetector
+
+        EdgeDetector.configure_hed_storage(cls._sam_models_dir())
 
     def _get_or_create_sam_engine(self, model_idx=None):
         spec = self._sam_engine_spec(model_idx)
@@ -341,6 +543,10 @@ class AIVectorizerDock(QDockWidget):
         return transform.transformBoundingBox(extent)
 
     def cleanup(self, permanent=False):
+        if permanent:
+            self._preview_store.shutdown()
+        else:
+            self._preview_store.clear()
         if self.dem_dialog:
             try:
                 self.dem_dialog.shutdown(permanent=permanent)
@@ -388,7 +594,8 @@ class AIVectorizerDock(QDockWidget):
         self.step1_desc.setStyleSheet("color: gray; font-size: 10px;")
         step1_layout.addWidget(self.step1_desc)
         self.layer_combo = QgsMapLayerComboBox()
-        self.layer_combo.setFilters(QgsMapLayerProxyModel.RasterLayer)
+        self.layer_combo.setFilters(_map_layer_filter("RasterLayer"))
+        self.layer_combo.layerChanged.connect(self.on_raster_layer_selected)
         step1_layout.addWidget(self.layer_combo)
         self.step1_group.setLayout(step1_layout)
         self.layout.addWidget(self.step1_group)
@@ -415,7 +622,7 @@ class AIVectorizerDock(QDockWidget):
         self.existing_layer_label = QLabel()
         step2_layout.addWidget(self.existing_layer_label)
         self.vector_combo = QgsMapLayerComboBox()
-        self.vector_combo.setFilters(QgsMapLayerProxyModel.LineLayer)
+        self.vector_combo.setFilters(_map_layer_filter("LineLayer"))
         self.vector_combo.layerChanged.connect(self.on_layer_selected)
         step2_layout.addWidget(self.vector_combo)
         self.step2_group.setLayout(step2_layout)
@@ -476,7 +683,7 @@ class AIVectorizerDock(QDockWidget):
         edge_layout = QHBoxLayout()
         self.edge_strength_label = QLabel()
         edge_layout.addWidget(self.edge_strength_label)
-        self.freedom_slider = QSlider(Qt.Horizontal)
+        self.freedom_slider = QSlider(_qt_value("Horizontal", "Orientation"))
         self.freedom_slider.setMinimum(0)
         self.freedom_slider.setMaximum(100)
         self.freedom_slider.setValue(DEFAULT_FREEDOM_SLIDER_VALUE)
@@ -542,6 +749,7 @@ class AIVectorizerDock(QDockWidget):
 
         self.apply_language()
         self.on_model_changed(self.model_combo.currentIndex())
+        self.on_layer_selected(self.vector_combo.currentLayer())
 
     def apply_language(self):
         current_idx = self.model_combo.currentIndex()
@@ -612,18 +820,18 @@ class AIVectorizerDock(QDockWidget):
                 "Legacy Canny: compatibility edge detector",
             )
         )
-        self.sam_check_btn.setText(self._tr("🔎 선택 SAM 모델 최신 확인", "🔎 Check Selected SAM Model"))
+        self.sam_check_btn.setText(self._tr("🔎 선택 SAM 모델 검증", "🔎 Verify Selected SAM Model"))
         self.sam_check_btn.setToolTip(
             self._tr(
-                "현재 선택된 SAM 계열 모델의 원격 메타데이터(ETag/크기)와 비교합니다",
-                "Compare the selected SAM-family model against remote metadata (ETag/size)",
+                "현재 선택된 SAM 계열 모델을 고정된 크기와 SHA-256 정체성으로 검증합니다",
+                "Verify the selected SAM-family model against its pinned size and SHA-256 identity",
             )
         )
         self.sam_report_btn.setText(self._tr("📄 SAM 상태 리포트", "📄 SAM Status Report"))
         self.sam_report_btn.setToolTip(
             self._tr(
-                "선택 모델의 원격 메타데이터를 조회한 뒤(인터넷 사용)\nSAM 환경/버전/모델 상태를 JSON으로 저장하고 클립보드에 복사합니다",
-                "Query remote metadata for the selected model (uses the internet),\nthen export SAM environment/version/model status as JSON and copy it to the clipboard",
+                "선택 모델의 고정된 파일 정체성을 검증한 뒤\nSAM 환경/버전/모델 상태를 JSON으로 저장하고 클립보드에 복사합니다",
+                "Verify the selected model's pinned file identity,\nthen export SAM environment/version/model status as JSON and copy it to the clipboard",
             )
         )
         self.sam_download_btn.setToolTip(self._tr("인터넷 연결 필요. 최초 1회만 다운로드", "Internet required. Download once on first use"))
@@ -671,18 +879,25 @@ class AIVectorizerDock(QDockWidget):
         self.controls_label.setText(
             self._tr(
                 "• 드래그: 선 그리기 / 클릭: 체크포인트\n"
-                "• Ctrl+Z: 마지막 체크포인트로 되돌리기\n"
+                "• 그리는 중 Ctrl+Z: 마지막 체크포인트로 되돌리기\n"
+                "• 저장 후 Ctrl+Z: QGIS 편집 작업 되돌리기\n"
                 "• Esc: 현재 그리기 취소 / Del: 전체 취소\n"
                 "• 시작점 클릭: 폴리곤 닫기 → 해발값\n"
                 "• 우클릭/Enter: 저장",
                 "• Drag: draw line / Click: checkpoint\n"
-                "• Ctrl+Z: undo to last checkpoint\n"
+                "• While tracing Ctrl+Z: undo to last checkpoint\n"
+                "• After save Ctrl+Z: undo the QGIS edit command\n"
                 "• Esc: cancel current trace / Del: cancel all\n"
                 "• Click start point: close polygon -> elevation\n"
                 "• Right click / Enter: save",
             )
         )
-        self.controls_label.setToolTip(self._tr("클릭으로 체크포인트 저장\n실수하면 Ctrl+Z로 되돌림", "Click to place checkpoints\nUse Ctrl+Z to undo"))
+        self.controls_label.setToolTip(
+            self._tr(
+                "클릭으로 체크포인트 저장\n그리는 중에는 체크포인트, 저장 후에는 QGIS 작업을 Ctrl+Z로 되돌립니다",
+                "Click to place checkpoints\nCtrl+Z undoes a checkpoint while tracing and the QGIS edit after saving",
+            )
+        )
 
         self.debug_box.setTitle(self._tr("🔧 디버그 및 도움말", "🔧 Debug & Help"))
         self.debug_box.setToolTip(self._tr("문제 해결을 위한 도구들", "Tools for troubleshooting"))
@@ -754,6 +969,23 @@ class AIVectorizerDock(QDockWidget):
             QMessageBox.warning(self, self._tr("경고", "Warning"), self._tr("파일 경로를 지정해주세요.", "Please specify an output file path."))
             return
 
+        loaded_layers = _project_layers_using_path(path)
+        if loaded_layers:
+            layer_names = "\n".join(
+                f"• {layer.name()}" for layer in loaded_layers
+            )
+            QMessageBox.warning(
+                self,
+                self._tr("출력 레이어 사용 중", "Output Layer Is Loaded"),
+                self._tr(
+                    "로드된 Shapefile을 덮어쓰면 저장하지 않은 편집이 "
+                    "손실될 수 있습니다. 먼저 다음 레이어를 QGIS에서 제거하세요:\n{layers}",
+                    "Overwriting a loaded Shapefile can lose uncommitted edits. "
+                    "Remove these layers from QGIS first:\n{layers}",
+                ).format(layers=layer_names),
+            )
+            return
+
         if os.path.exists(path):
             answer = QMessageBox.question(
                 self,
@@ -762,28 +994,25 @@ class AIVectorizerDock(QDockWidget):
                     "기존 Shapefile을 덮어쓸까요?\n{path}",
                     "Overwrite the existing Shapefile?\n{path}",
                 ).format(path=path),
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
+                _message_box_button("Yes") | _message_box_button("No"),
+                _message_box_button("No"),
             )
-            if answer != QMessageBox.Yes:
+            if answer != _message_box_button("Yes"):
                 return
 
         raster = self.layer_combo.currentLayer()
         crs = raster.crs() if raster else QgsCoordinateReferenceSystem(DEFAULT_CRS_AUTHID)
-        fields = [QgsField(FIELD_ID, QVariant.Int), QgsField(FIELD_ELEVATION, QVariant.Double)]
+        fields = [
+            QgsField(FIELD_ID, _field_type("Int")),
+            QgsField(FIELD_ELEVATION, _field_type("Double")),
+        ]
 
         layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", DEFAULT_OUTPUT_LAYER_NAME, "memory")
         layer.dataProvider().addAttributes(fields)
         layer.updateFields()
-        error = QgsVectorFileWriter.writeAsVectorFormat(
-            layer,
-            path,
-            DEFAULT_VECTOR_FILE_ENCODING,
-            crs,
-            "ESRI Shapefile",
-        )
+        error = _write_vector_layer(layer, path, crs)
 
-        if error[0] == QgsVectorFileWriter.NoError:
+        if error[0] == _writer_no_error():
             name = os.path.basename(path).replace(".shp", "")
             self.output_layer = QgsVectorLayer(path, name, "ogr")
             symbol = QgsSymbol.defaultSymbol(self.output_layer.geometryType())
@@ -806,6 +1035,11 @@ class AIVectorizerDock(QDockWidget):
             )
 
     def on_layer_selected(self, layer):
+        if self.active_tool is not None:
+            active_layer = getattr(self.active_tool, "vector_layer", None)
+            if self._same_layer(layer, active_layer):
+                return
+            self.iface.mapCanvas().unsetMapTool(self.active_tool)
         self.output_layer = layer
         self.trace_btn.setEnabled(bool(layer))
         self._update_dem_button_for_tracing(self.trace_btn.isChecked())
@@ -813,6 +1047,15 @@ class AIVectorizerDock(QDockWidget):
             self.enable_tracing()
         elif not self.trace_btn.isChecked():
             self._set_status_label(self._tr("SHP 파일을 먼저 생성하세요", "Create or select an SHP layer first"))
+
+    def on_raster_layer_selected(self, layer):
+        """Stop a session if its raster is removed or replaced externally."""
+
+        if self.active_tool is None:
+            return
+        active_layer = getattr(self.active_tool, "raster_layer", None)
+        if not self._same_layer(layer, active_layer):
+            self.iface.mapCanvas().unsetMapTool(self.active_tool)
 
     def enable_tracing(self):
         self.trace_btn.setEnabled(True)
@@ -872,6 +1115,45 @@ class AIVectorizerDock(QDockWidget):
             raster = self.layer_combo.currentLayer()
             if not raster:
                 QMessageBox.warning(self, self._tr("경고", "Warning"), self._tr("래스터 지도를 선택하세요.", "Please select a raster map."))
+                self.trace_btn.setChecked(False)
+                return
+
+            output_layer = self.vector_combo.currentLayer()
+            if output_layer is None:
+                QMessageBox.warning(
+                    self,
+                    self._tr("경고", "Warning"),
+                    self._tr("출력 라인 레이어를 선택하세요.", "Select an output line layer."),
+                )
+                self.trace_btn.setChecked(False)
+                return
+            self.output_layer = output_layer
+
+            from ..tools.smart_trace_tool import SmartTraceTool
+
+            unsupported_reason = SmartTraceTool.unsupported_output_reason(output_layer)
+            if unsupported_reason:
+                QMessageBox.warning(
+                    self,
+                    self._tr("지원되지 않는 출력 레이어", "Unsupported Output Layer"),
+                    self._tr(
+                        "ArchaeoTrace는 현재 2D 라인 레이어만 안전하게 편집합니다. "
+                        "Z/M 값은 고도 필드로 변환한 2D 레이어를 선택하세요.",
+                        "ArchaeoTrace currently edits only 2D line layers safely. "
+                        "Choose a 2D layer with elevation stored in a field instead of Z/M values.",
+                    ),
+                )
+                self.trace_btn.setChecked(False)
+                return
+            if output_layer.readOnly():
+                QMessageBox.warning(
+                    self,
+                    self._tr("읽기 전용 출력", "Read-only Output"),
+                    self._tr(
+                        "선택한 출력 레이어는 읽기 전용입니다.",
+                        "The selected output layer is read-only.",
+                    ),
+                )
                 self.trace_btn.setChecked(False)
                 return
 
@@ -954,22 +1236,45 @@ class AIVectorizerDock(QDockWidget):
                 self.trace_btn.setChecked(False)
                 return
 
-            from ..tools.smart_trace_tool import SmartTraceTool
-            self.active_tool = SmartTraceTool(
-                self.iface.mapCanvas(),
-                raster,
-                self.output_layer,
-                model_type=model_idx,
-                edge_weight=edge_weight,
-                freehand=freehand,
-                sam_engine=self.sam_engine if use_sam else None,
-                edge_method=edge_method,
-                iface=self.iface,
-                language=self.current_language,
-                auto_path=auto_path,
-            )
-            self.iface.mapCanvas().setMapTool(self.active_tool)
-            self.active_tool.deactivated.connect(self.on_tool_deactivated)
+            tool = None
+            try:
+                tool = SmartTraceTool(
+                    self.iface.mapCanvas(),
+                    raster,
+                    output_layer,
+                    model_type=model_idx,
+                    edge_weight=edge_weight,
+                    freehand=freehand,
+                    sam_engine=self.sam_engine if use_sam else None,
+                    edge_method=edge_method,
+                    iface=self.iface,
+                    language=self.current_language,
+                    auto_path=auto_path,
+                )
+                tool.deactivated.connect(self.on_tool_deactivated)
+                self.active_tool = tool
+                self.iface.mapCanvas().setMapTool(tool)
+            except Exception as exc:
+                if tool is not None:
+                    try:
+                        self.iface.mapCanvas().unsetMapTool(tool)
+                    except Exception:
+                        pass
+                    # QgsMapTool is parented to the canvas. Dropping this
+                    # Python reference alone would retain the failed tool,
+                    # its rubber bands, and its timers until QGIS exits.
+                    tool.dispose()
+                    tool.deleteLater()
+                self.active_tool = None
+                QMessageBox.critical(
+                    self,
+                    self._tr("트레이싱 시작 실패", "Could Not Start Tracing"),
+                    str(exc),
+                )
+                self.trace_btn.setChecked(False)
+                return
+
+            self._set_trace_configuration_enabled(False)
 
             if not freehand and edge_weight <= 0.0:
                 mode_name = self._tr("정확한 커서 (AI 0%)", "Exact Cursor (AI 0%)")
@@ -989,28 +1294,68 @@ class AIVectorizerDock(QDockWidget):
             self._set_idle_ui()
 
     def on_tool_deactivated(self):
-        self._set_idle_ui()
+        tool = self.sender()
+        if (
+            tool is not None
+            and self.active_tool is not None
+            and tool is not self.active_tool
+        ):
+            # Do not let a delayed signal from an older tool reset a newer
+            # session, but still release the canvas-owned stale tool.
+            tool.dispose()
+            tool.deleteLater()
+            return
         self.active_tool = None
+        self._set_idle_ui()
+        if tool is not None:
+            # QgsMapTool's QObject parent is the canvas, so it otherwise
+            # survives every start/stop cycle until the canvas is destroyed.
+            tool.dispose()
+            tool.deleteLater()
 
     def on_model_changed(self, index):
         self._set_model_aux_visibility()
         self._release_sam_engine()
-        if index in (MODEL_IDX_INK, MODEL_IDX_LEGACY_CANNY):
+        if index == MODEL_IDX_INK:
+            from ..core.edge_detector import EdgeDetector
+
+            ink_status = EdgeDetector.get_ink_runtime_status()
+            background = ink_status.get("background_backend", "unknown")
+            thinning = ink_status.get("thinning_backend", "unknown")
+            backend_text = f"{background} / {thinning}"
             if not is_livewire_available():
                 self._set_sam_status(
                     self._tr(
-                        "⚠️ NumPy 국소 보조만 사용 가능; 중심선·빠른 Live-Wire에는 SciPy가 필요합니다",
-                        "⚠️ NumPy local assist only; centerlines and fast Live-Wire require SciPy",
+                        "✅ Ink 중심선 준비됨 ({backend}); Live-Wire 없이 국소 보조 사용",
+                        "✅ Ink centerline ready ({backend}); local assist is used without Live-Wire",
+                    ).format(backend=backend_text),
+                    "warning",
+                )
+                return
+            self._set_sam_status(
+                self._tr(
+                    "✅ Ink 중심선 ({backend}) + 방향 인식 Live-Wire 준비됨",
+                    "✅ Ink centerline ({backend}) + direction-aware Live-Wire ready",
+                ).format(backend=backend_text),
+                "info",
+            )
+            self.sam_status.setToolTip("")
+            return
+        if index == MODEL_IDX_LEGACY_CANNY:
+            if not is_livewire_available():
+                self._set_sam_status(
+                    self._tr(
+                        "⚠️ Legacy Canny는 사용 가능하며 Live-Wire 대신 국소 보조를 사용합니다",
+                        "⚠️ Legacy Canny is available with local assist instead of Live-Wire",
                     ),
                     "warning",
                 )
                 return
-            detector_name = self._mode_name(index)
             self._set_sam_status(
                 self._tr(
-                    "✅ {name} + 방향 인식 Live-Wire 사용 가능 (OpenCV 불필요)",
-                    "✅ {name} + direction-aware Live-Wire ready (OpenCV not required)",
-                ).format(name=detector_name),
+                    "✅ Legacy Canny + 방향 인식 Live-Wire 준비됨",
+                    "✅ Legacy Canny + direction-aware Live-Wire ready",
+                ),
                 "info",
             )
             self.sam_status.setToolTip("")
@@ -1111,8 +1456,8 @@ class AIVectorizerDock(QDockWidget):
             if is_cv2_available():
                 self._set_sam_status(
                     self._tr(
-                        "✅ {name} 로드됨 (최신 확인 가능)",
-                        "✅ {name} loaded (update check available)",
+                        "✅ {name} 로드됨 (고정 모델 검증 가능)",
+                        "✅ {name} loaded (pinned-model verification available)",
                     ).format(name=self._sam_display_name(model_idx)),
                     "info",
                 )
@@ -1201,54 +1546,54 @@ class AIVectorizerDock(QDockWidget):
         self._get_or_create_sam_engine(model_idx)
 
         self.sam_check_btn.setEnabled(False)
-        self._set_sam_status(self._tr("🔎 최신 모델 확인 중...", "🔎 Checking latest model..."))
+        self._set_sam_status(self._tr("🔎 고정 모델 검증 중...", "🔎 Verifying pinned model..."))
         self.iface.mainWindow().repaint()
 
         info = self.sam_engine.check_weights_update()
         self.sam_check_btn.setEnabled(True)
 
         if not info.get("ok"):
-            self._set_sam_status(self._tr("❌ 최신 확인 실패", "❌ Latest check failed"), "error")
+            self._set_sam_status(self._tr("❌ 모델 검증 실패", "❌ Model verification failed"), "error")
             if show_message:
                 QMessageBox.warning(
                     self,
                     self._tr("경고", "Warning"),
                     self._tr(
-                        "최신 모델 확인에 실패했습니다.\n인터넷 연결을 확인하세요.",
-                        "Failed to check latest model.\nPlease check your internet connection.",
+                        "모델 파일이 없고 설정된 다운로드 소스도 확인할 수 없습니다.\n인터넷 연결을 확인하세요.",
+                        "The model file is missing and its configured download source could not be reached.\nCheck your internet connection.",
                     ),
                 )
             return
 
         status = info.get("status")
-        local = info.get("local", {})
-        remote = info.get("remote", {})
+        local = info.get("local") or {}
+        remote = info.get("remote") or {}
         local_size = self._format_size(local.get("size"))
         remote_size = self._format_size(remote.get("content_length"))
 
         if status == "not_installed":
             self._set_sam_status(
                 self._tr(
-                    f"⚠️ {self._sam_display_name(model_idx)} 없음 (원격 {remote_size})",
-                    f"⚠️ {self._sam_display_name(model_idx)} not installed (remote {remote_size})",
+                    f"⚠️ {self._sam_display_name(model_idx)} 없음 (다운로드 소스 {remote_size})",
+                    f"⚠️ {self._sam_display_name(model_idx)} not installed (download source {remote_size})",
                 ),
                 "warning",
             )
             self.sam_download_btn.setText(self._download_button_text(model_idx))
             return
 
-        if status == "update_available":
+        if status in ("invalid", "update_available"):
             self._set_sam_status(
                 self._tr(
-                    f"⬆️ {self._sam_display_name(model_idx)} 업데이트 가능 (로컬 {local_size} → 원격 {remote_size})",
-                    f"⬆️ {self._sam_display_name(model_idx)} update available (local {local_size} -> remote {remote_size})",
+                    f"❌ {self._sam_display_name(model_idx)} 고정 파일 검증 실패 (로컬 {local_size})",
+                    f"❌ {self._sam_display_name(model_idx)} failed pinned-file verification (local {local_size})",
                 ),
-                "warning",
+                "error",
             )
             self.sam_download_btn.setText(
                 self._tr(
-                    f"⬆️ {self._sam_display_name(model_idx)} 업데이트",
-                    f"⬆️ Update {self._sam_display_name(model_idx)}",
+                    f"⬇️ {self._sam_display_name(model_idx)} 다시 다운로드",
+                    f"⬇️ Re-download {self._sam_display_name(model_idx)}",
                 )
             )
             if show_message:
@@ -1256,8 +1601,8 @@ class AIVectorizerDock(QDockWidget):
                     self,
                     self._tr("완료", "Done"),
                     self._tr(
-                        "새 {name} 모델이 있습니다.\n'업데이트' 버튼으로 바로 받을 수 있습니다.",
-                        "A newer {name} model is available.\nUse the update button to download it.",
+                        "로컬 {name} 파일이 고정된 크기/SHA-256 정체성과 일치하지 않습니다.\n재다운로드하세요.",
+                        "The local {name} file does not match its pinned size/SHA-256 identity.\nRe-download it.",
                     ).format(
                         name=self._sam_display_name(model_idx),
                     ),
@@ -1267,8 +1612,8 @@ class AIVectorizerDock(QDockWidget):
         if status == "up_to_date":
             self._set_sam_status(
                 self._tr(
-                    f"✅ {self._sam_display_name(model_idx)} 최신 상태 (로컬 {local_size})",
-                    f"✅ {self._sam_display_name(model_idx)} is up to date (local {local_size})",
+                    f"✅ {self._sam_display_name(model_idx)} 고정 정체성 검증 완료 (로컬 {local_size})",
+                    f"✅ {self._sam_display_name(model_idx)} matches its pinned identity (local {local_size})",
                 ),
                 "info",
             )
@@ -1282,8 +1627,8 @@ class AIVectorizerDock(QDockWidget):
 
         self._set_sam_status(
             self._tr(
-                "ℹ️ 버전 비교 정보 부족 (필요 시 재다운로드 가능)",
-                "ℹ️ Not enough metadata to compare versions (re-download available)",
+                "ℹ️ 고정 모델 검증 상태 불명 (필요 시 재다운로드 가능)",
+                "ℹ️ Pinned-model verification status is unavailable (re-download available)",
             ),
         )
         self.sam_download_btn.setText(
@@ -1339,9 +1684,31 @@ class AIVectorizerDock(QDockWidget):
                 "update_check": update_info,
             }
 
-            out_path = os.path.join(tempfile.gettempdir(), SAM_REPORT_FILENAME)
-            with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(report, f, ensure_ascii=False, indent=2)
+            report_stem = os.path.splitext(SAM_REPORT_FILENAME)[0]
+            descriptor, out_path = tempfile.mkstemp(
+                prefix=f"{report_stem}-",
+                suffix=".json",
+            )
+            try:
+                with os.fdopen(
+                    descriptor,
+                    "w",
+                    encoding="utf-8",
+                    closefd=True,
+                ) as f:
+                    descriptor = None
+                    json.dump(report, f, ensure_ascii=False, indent=2)
+                    f.write("\n")
+                    f.flush()
+                    os.fsync(f.fileno())
+            except Exception:
+                if descriptor is not None:
+                    os.close(descriptor)
+                try:
+                    os.remove(out_path)
+                except OSError:
+                    pass
+                raise
 
             QApplication.clipboard().setText(json.dumps(report, ensure_ascii=False, indent=2))
 
@@ -1412,7 +1779,6 @@ class AIVectorizerDock(QDockWidget):
         self.sam_download_btn.setEnabled(True)
 
     def preview_edges(self):
-        import tempfile
         import numpy as np
         from osgeo import gdal
 
@@ -1442,6 +1808,8 @@ class AIVectorizerDock(QDockWidget):
             self._show_opencv_warning(self._tr("엣지 미리보기", "edge preview"))
             return
 
+        preview_directory = None
+        dataset = None
         try:
             from ..core.edge_detector import EdgeDetector
 
@@ -1477,18 +1845,35 @@ class AIVectorizerDock(QDockWidget):
             image = np.stack(bands[:3], axis=-1) if len(bands) >= 3 else bands[0]
             edges = EdgeDetector(method=edge_method).detect_edges(image)
 
-            temp_path = os.path.join(tempfile.gettempdir(), f"edge_preview_{edge_method}.tif")
-            ds = gdal.GetDriverByName("GTiff").Create(temp_path, out_w, out_h, 1, gdal.GDT_Byte)
-            ds.SetGeoTransform([read_ext.xMinimum(), read_ext.width() / out_w, 0, read_ext.yMaximum(), 0, -read_ext.height() / out_h])
-            ds.SetProjection(raster.crs().toWkt())
-            ds.GetRasterBand(1).WriteArray(edges)
-            ds = None
+            preview_directory = tempfile.TemporaryDirectory(
+                prefix="archaeotrace-edge-preview-"
+            )
+            temp_path = os.path.join(preview_directory.name, "preview.tif")
+            driver = gdal.GetDriverByName("GTiff")
+            if driver is None:
+                raise RuntimeError("GDAL GeoTIFF driver is unavailable.")
+            dataset = driver.Create(
+                temp_path,
+                out_w,
+                out_h,
+                1,
+                gdal.GDT_Byte,
+            )
+            if dataset is None:
+                raise RuntimeError("GDAL could not create the preview raster.")
+            dataset.SetGeoTransform([read_ext.xMinimum(), read_ext.width() / out_w, 0, read_ext.yMaximum(), 0, -read_ext.height() / out_h])
+            dataset.SetProjection(raster.crs().toWkt())
+            dataset.GetRasterBand(1).WriteArray(edges)
+            dataset.FlushCache()
+            dataset = None
 
             from qgis.core import QgsRasterLayer
             layer_name = self._tr("엣지 미리보기", "Edge Preview") + f" ({edge_method.upper()})"
             edge_layer = QgsRasterLayer(temp_path, layer_name)
             if edge_layer.isValid():
                 QgsProject.instance().addMapLayer(edge_layer)
+                self._preview_store.track(edge_layer, preview_directory)
+                preview_directory = None
                 QMessageBox.information(
                     self,
                     self._tr("완료", "Done"),
@@ -1508,6 +1893,10 @@ class AIVectorizerDock(QDockWidget):
                     "Edge detection failed:\n{err}",
                 ).format(err=str(e)),
             )
+        finally:
+            dataset = None
+            if preview_directory is not None:
+                _TemporaryPreviewStore._cleanup_directory(preview_directory)
 
     def _help_text(self):
         if self.current_language == LANG_EN:
@@ -1524,9 +1913,9 @@ class AIVectorizerDock(QDockWidget):
 <h3>🤖 Tracing Modes</h3>
 <table border='1' cellpadding='5'>
 <tr><th>Mode</th><th>Role</th><th>Requirements</th></tr>
-<tr><td>🖋 Ink Centerline</td><td>Single dark-stroke centerline with mouse-led Live-Wire</td><td>NumPy + SciPy + scikit-image; no OpenCV</td></tr>
+<tr><td>🖋 Ink Centerline</td><td>Single dark-stroke centerline; local snap or optional Live-Wire</td><td>QGIS NumPy; SciPy/scikit-image optional; no OpenCV</td></tr>
 <tr><td>📐 LSD</td><td>Live-Wire over line-segment evidence</td><td>OpenCV + SciPy</td></tr>
-<tr><td>🧠 HED</td><td>Learned edge-map assistance</td><td>OpenCV + ~{self._hed_size_hint_mb()}MB model</td></tr>
+<tr><td>🧠 HED</td><td>Learned edge-map assistance</td><td>OpenCV 4.8–4.11 + ~{self._hed_size_hint_mb()}MB model</td></tr>
 <tr><td>🎯 MobileSAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + mobile_sam + ~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB weights</td></tr>
 <tr><td>🧩 SAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + segment_anything + ~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB checkpoint</td></tr>
 <tr><td>🔧 Legacy Canny</td><td>Compatibility gradient-edge mode</td><td>NumPy; OpenCV optional</td></tr>
@@ -1538,7 +1927,7 @@ class AIVectorizerDock(QDockWidget):
 <li><b>Left Click</b>: place/confirm points while tracing.</li>
 <li><b>Right Click / Enter</b>: save current line.</li>
 <li><b>Esc / Delete</b>: cancel current trace.</li>
-<li><b>Ctrl+Z</b>: undo back to checkpoint.</li>
+<li><b>Ctrl+Z</b>: undo a checkpoint while tracing; after save, undo the complete QGIS edit command.</li>
 <li><b>Click near start point</b>: close loop and enter elevation.</li>
 </ul>
 
@@ -1548,8 +1937,8 @@ class AIVectorizerDock(QDockWidget):
 <li>The assist slider is literal: 0% is the exact cursor, intermediate values blend geometry, and 100% uses the full Live-Wire route.</li>
 <li>The green line is the exact path that one click will accept. Auto Path is required only for SAM proposals.</li>
 <li>If SAM/HED is unavailable, start with Ink Centerline.</li>
-<li>Use <b>Check Selected SAM Model</b> before downloading to see if an update is needed.</li>
-<li><b>SAM Status Report</b> queries remote model metadata (internet access) before creating a shareable JSON report.</li>
+<li>Use <b>Verify Selected SAM Model</b> to check the local file against its pinned size and SHA-256 identity.</li>
+<li><b>SAM Status Report</b> performs the same integrity check before creating a shareable JSON report; internet is used only when the model is missing.</li>
 </ul>
 
 <h3>⚠️ Troubleshooting</h3>
@@ -1572,9 +1961,9 @@ class AIVectorizerDock(QDockWidget):
 <h3>🤖 추적 방식</h3>
 <table border='1' cellpadding='5'>
 <tr><th>방식</th><th>역할</th><th>필요 항목</th></tr>
-<tr><td>🖋 Ink Centerline</td><td>검은 획의 단일 중심선과 마우스 주도 Live-Wire</td><td>NumPy + SciPy + scikit-image, OpenCV 불필요</td></tr>
+<tr><td>🖋 Ink Centerline</td><td>검은 획의 단일 중심선, 국소 스냅 또는 선택적 Live-Wire</td><td>QGIS NumPy, SciPy/scikit-image 선택, OpenCV 불필요</td></tr>
 <tr><td>📐 LSD</td><td>선분 지도를 이용한 Live-Wire</td><td>OpenCV + SciPy</td></tr>
-<tr><td>🧠 HED</td><td>학습된 엣지 지도 보조</td><td>OpenCV 및 약 {self._hed_size_hint_mb()}MB 모델</td></tr>
+<tr><td>🧠 HED</td><td>학습된 엣지 지도 보조</td><td>OpenCV 4.8–4.11 및 약 {self._hed_size_hint_mb()}MB 모델</td></tr>
 <tr><td>🎯 MobileSAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + mobile_sam 및 약 {self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB 가중치</td></tr>
 <tr><td>🧩 SAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + segment_anything 및 약 {self._sam_size_hint_mb(MODEL_IDX_SAM)}MB 체크포인트</td></tr>
 <tr><td>🔧 Legacy Canny</td><td>기존 그래디언트 경계 검출 호환 모드</td><td>NumPy, OpenCV 선택</td></tr>
@@ -1586,7 +1975,7 @@ class AIVectorizerDock(QDockWidget):
 <li><b>좌클릭</b>: 점 배치/확정</li>
 <li><b>우클릭 / Enter</b>: 현재 선 저장</li>
 <li><b>Esc / Delete</b>: 현재 그리기 취소</li>
-<li><b>Ctrl+Z</b>: 체크포인트로 되돌리기</li>
+<li><b>Ctrl+Z</b>: 그리는 중에는 체크포인트, 저장 후에는 전체 QGIS 편집 명령 되돌리기</li>
 <li><b>시작점 근처 클릭</b>: 닫힌 루프 생성 후 해발값 입력</li>
 </ul>
 
@@ -1596,8 +1985,8 @@ class AIVectorizerDock(QDockWidget):
 <li>AI 개입 슬라이더는 실제 비율입니다. 0%는 정확한 커서, 중간값은 경로 혼합, 100%는 Live-Wire 전체 경로입니다.</li>
 <li>초록색 선이 클릭 한 번으로 채택될 정확한 경로입니다. Auto Path는 SAM 제안에만 필요합니다.</li>
 <li>SAM/HED가 준비되지 않았다면 Ink Centerline부터 시작하세요.</li>
-<li>다운로드 전에 <b>선택 SAM 모델 최신 확인</b> 버튼으로 업데이트 필요 여부를 확인하세요.</li>
-<li><b>SAM 상태 리포트</b>는 원격 모델 메타데이터를 조회(인터넷 사용)한 뒤 공유용 JSON 리포트를 생성합니다.</li>
+<li><b>선택 SAM 모델 검증</b> 버튼으로 로컬 파일이 고정된 크기와 SHA-256 정체성에 맞는지 확인하세요.</li>
+<li><b>SAM 상태 리포트</b>는 같은 무결성 검증 후 공유용 JSON을 생성하며, 모델이 없을 때만 인터넷을 사용합니다.</li>
 </ul>
 
 <h3>⚠️ 문제 해결</h3>
@@ -1611,10 +2000,10 @@ class AIVectorizerDock(QDockWidget):
     def show_help(self):
         msg = QMessageBox(self)
         msg.setWindowTitle(self._tr(f"{PLUGIN_NAME} 도움말", f"{PLUGIN_NAME} Help"))
-        msg.setTextFormat(Qt.RichText)
+        msg.setTextFormat(_qt_value("RichText", "TextFormat"))
         msg.setText(self._help_text())
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec_()
+        msg.setStandardButtons(_message_box_button("Ok"))
+        _exec_dialog(msg)
 
 
 # Keep old name for compatibility

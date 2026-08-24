@@ -501,6 +501,8 @@ class EfficientSAMOnnxTests(unittest.TestCase):
             engine.encode(_FakeArray((2, 3, 3), _FAKE_FLOAT32))
         with self.assertRaisesRegex(EfficientSAMOnnxInputError, "HWC shape"):
             engine.encode(_FakeArray((2, 3), _FAKE_UINT8))
+        with self.assertRaisesRegex(EfficientSAMOnnxInputError, "must not exceed 1024x1024"):
+            engine.encode(_FakeArray((1, 1025, 3), _FAKE_UINT8))
 
         encoding = engine.encode(_FakeArray((2, 3, 3), _FAKE_UINT8))
         with self.assertRaisesRegex(EfficientSAMOnnxInputError, "1..6"):

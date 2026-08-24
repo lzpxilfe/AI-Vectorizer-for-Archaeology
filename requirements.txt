@@ -1,7 +1,11 @@
-opencv-python>=4.8.0
+# Full Ink/Live-Wire runtime for source checkouts and reproducible tests.
+# The QGIS ZIP can use its bundled NumPy fallback without SciPy/scikit-image.
+# Install requirements-opencv.txt only when LSD, HED, or SAM is needed.
 numpy>=1.24.0
 scipy>=1.10.0
 scikit-image>=0.21.0
-mobile-sam>=1.0.0
-torch>=2.0.0
-torchvision>=0.15.0
+# Security floor for scikit-image's image reader. Pillow 10.4.0 is the last
+# Python 3.8 line and has no fully patched release; optional source stacks are
+# therefore intentionally Python 3.10+ even though the default ZIP retains
+# QGIS 3.22 / Python 3.8 source compatibility.
+Pillow>=12.3.0

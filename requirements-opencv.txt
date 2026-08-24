@@ -1,0 +1,7 @@
+-r requirements.txt
+
+# The headless build avoids installing a second Qt runtime into QGIS. This
+# OpenCV range is covered across the release's QGIS 3/4 images and retains the
+# Caffe importer used by HED. It does not pin QGIS' own NumPy ABI: inspect pip's
+# plan before changing packages in a shared QGIS Python installation.
+opencv-python-headless>=4.8,<4.12

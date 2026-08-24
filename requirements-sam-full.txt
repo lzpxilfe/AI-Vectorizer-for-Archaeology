@@ -1,0 +1,4 @@
+-r requirements-sam-common.txt
+
+# Segment Anything is installed from an immutable upstream commit.
+segment-anything @ git+https://github.com/facebookresearch/segment-anything.git@dca509fe793f601edb92606367a655c15ac00fdf

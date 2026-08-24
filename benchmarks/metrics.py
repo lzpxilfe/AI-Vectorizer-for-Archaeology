@@ -187,7 +187,12 @@ def compute_metrics(
         reference_branch_zones,
         primary,
     )
-    unmatched_branch_zones = len(prediction_branch_zones) - matched_branch_zones
+    unmatched_prediction_branch_zones = (
+        len(prediction_branch_zones) - matched_branch_zones
+    )
+    unmatched_reference_branch_zones = (
+        len(reference_branch_zones) - matched_branch_zones
+    )
 
     connectivity = _connectivity_summary(
         paths,
@@ -214,7 +219,12 @@ def compute_metrics(
             "prediction": prediction_topology,
             "reference": reference_topology,
             "matched_prediction_branch_zones": matched_branch_zones,
-            "unmatched_prediction_branch_zones": unmatched_branch_zones,
+            "unmatched_prediction_branch_zones": (
+                unmatched_prediction_branch_zones
+            ),
+            "unmatched_reference_branch_zones": (
+                unmatched_reference_branch_zones
+            ),
             "branch_match_tolerance": primary,
         },
         "connectivity": connectivity,

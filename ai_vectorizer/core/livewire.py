@@ -9,7 +9,7 @@ geometry and performance can be tested outside QGIS.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import importlib.util
+from functools import lru_cache
 import math
 from typing import Callable, Iterable, Optional, Sequence, Tuple
 
@@ -18,6 +18,7 @@ import numpy as np
 
 Pixel = Tuple[int, int]
 FloatPixel = Tuple[float, float]
+MAX_LIVEWIRE_WINDOW_SIZE = 1_024
 
 
 class LiveWireUnavailable(RuntimeError):
@@ -49,10 +50,48 @@ class LiveWireConfig:
     min_direct_distance_for_detour_check: float = 8.0
 
     def validate(self) -> "LiveWireConfig":
-        if self.max_window_size < 32:
-            raise ValueError("max_window_size must be at least 32 pixels")
+        if (
+            isinstance(self.max_window_size, bool)
+            or not isinstance(self.max_window_size, int)
+            or not 32 <= self.max_window_size <= MAX_LIVEWIRE_WINDOW_SIZE
+        ):
+            raise ValueError(
+                "max_window_size must be an integer between 32 and "
+                f"{MAX_LIVEWIRE_WINDOW_SIZE} pixels"
+            )
+        if (
+            isinstance(self.target_snap_radius, bool)
+            or not isinstance(self.target_snap_radius, int)
+        ):
+            raise ValueError("target_snap_radius must be a non-negative integer")
+        finite_values = (
+            self.forward_window_bias,
+            self.edge_threshold,
+            self.edge_sigma,
+            self.local_background_sigma,
+            self.gradient_sigma,
+            self.tensor_sigma,
+            self.line_cost_weight,
+            self.direction_cost_weight,
+            self.heading_cost_weight,
+            self.heading_decay_pixels,
+            self.target_snap_penalty,
+            self.max_detour_ratio,
+            self.min_direct_distance_for_detour_check,
+        )
+        try:
+            all_finite = all(
+                not isinstance(value, bool) and math.isfinite(value)
+                for value in finite_values
+            )
+        except TypeError:
+            all_finite = False
+        if not all_finite:
+            raise ValueError("Live-Wire tuning values must be finite numbers")
         if not 0.0 <= self.forward_window_bias <= 0.4:
             raise ValueError("forward_window_bias must be between 0 and 0.4")
+        if self.edge_threshold < 0:
+            raise ValueError("edge_threshold cannot be negative")
         if self.edge_sigma <= 0:
             raise ValueError("edge_sigma must be positive")
         if self.local_background_sigma <= 0:
@@ -71,6 +110,8 @@ class LiveWireConfig:
             raise ValueError("target snapping values cannot be negative")
         if self.max_detour_ratio < 1.0:
             raise ValueError("max_detour_ratio must be at least 1")
+        if self.min_direct_distance_for_detour_check < 0:
+            raise ValueError("min_direct_distance_for_detour_check cannot be negative")
         return self
 
 
@@ -190,10 +231,27 @@ class LiveWireTree:
         return int(indices.ravel()[flat_best])
 
 
-def is_livewire_available() -> bool:
-    """Return whether SciPy can provide the compiled graph operations."""
+def _import_livewire_runtime():
+    from scipy import ndimage, sparse
+    from scipy.sparse.csgraph import dijkstra
 
-    return importlib.util.find_spec("scipy") is not None
+    return ndimage, sparse, dijkstra
+
+
+@lru_cache(maxsize=1)
+def _get_livewire_runtime():
+    """Import the complete optional runtime once, including permanent errors."""
+    try:
+        return _import_livewire_runtime(), None
+    except Exception as exc:  # pragma: no cover - exact failure is environment-specific
+        return None, f"{type(exc).__name__}: {exc}"
+
+
+def is_livewire_available() -> bool:
+    """Return whether all required SciPy graph operations can be imported."""
+
+    runtime, _error = _get_livewire_runtime()
+    return runtime is not None
 
 
 def build_livewire_tree(
@@ -220,6 +278,11 @@ def build_livewire_tree(
         raise ValueError("edges must be a 2D array")
     if min(edge_array.shape) < 2:
         raise ValueError("edges must be at least 2x2")
+    if max(edge_array.shape) > MAX_LIVEWIRE_WINDOW_SIZE:
+        raise ValueError(
+            "edge image dimensions must not exceed "
+            f"{MAX_LIVEWIRE_WINDOW_SIZE}x{MAX_LIVEWIRE_WINDOW_SIZE}"
+        )
 
     root_x = int(round(float(root[0])))
     root_y = int(round(float(root[1])))
@@ -227,17 +290,15 @@ def build_livewire_tree(
     if not (0 <= root_x < width and 0 <= root_y < height):
         raise ValueError("root is outside the edge image")
 
-    if not is_livewire_available():
+    runtime, import_error = _get_livewire_runtime()
+    if runtime is None:
         raise LiveWireUnavailable(
-            "Direction-aware Live-Wire requires SciPy; local snapping remains available."
+            "Direction-aware Live-Wire requires a working SciPy runtime; "
+            f"local snapping remains available. ({import_error})"
         )
 
     _raise_if_cancelled(cancel_check)
-    try:
-        from scipy import ndimage, sparse
-        from scipy.sparse.csgraph import dijkstra
-    except Exception as exc:  # pragma: no cover - environment-specific import failure
-        raise LiveWireUnavailable(str(exc)) from exc
+    ndimage, sparse, dijkstra = runtime
 
     normalized_incoming = _normalize_direction(incoming_direction)
     if normalized_incoming is None:
@@ -336,7 +397,11 @@ def blend_path_with_cursor(
 
 def _to_grayscale(image: np.ndarray, expected_shape: Tuple[int, int]) -> np.ndarray:
     values = np.asarray(image)
-    if values.ndim == 3 and values.shape[:2] == expected_shape:
+    if (
+        values.ndim == 3
+        and values.shape[:2] == expected_shape
+        and values.shape[2] >= 3
+    ):
         rgb = values[..., :3].astype(np.float32, copy=False)
         gray = (
             rgb[..., 0] * np.float32(0.299)
@@ -356,6 +421,10 @@ def _to_grayscale(image: np.ndarray, expected_shape: Tuple[int, int]) -> np.ndar
     if high <= low + 1e-6:
         return np.zeros(expected_shape, dtype=np.float32)
     normalized = (gray - low) / (high - low)
+    # A single corrupt pixel must not poison Gaussian filters across the
+    # complete crop.  Bright background is the conservative replacement: it
+    # does not invent a dark line for the assisted path to follow.
+    normalized = np.where(finite, normalized, 1.0)
     return np.ascontiguousarray(np.clip(normalized, 0.0, 1.0), dtype=np.float32)
 
 
@@ -573,7 +642,13 @@ def _normalize_direction(direction):
 
 
 def _clamp_strength(strength: float) -> float:
-    return max(0.0, min(1.0, float(strength)))
+    try:
+        value = float(strength)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("strength must be a finite number") from exc
+    if not math.isfinite(value):
+        raise ValueError("strength must be a finite number")
+    return max(0.0, min(1.0, value))
 
 
 def _deduplicate_points(points: Iterable[Sequence[float]]) -> list[FloatPixel]:

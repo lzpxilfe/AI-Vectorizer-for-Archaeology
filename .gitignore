@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
 
 # QGIS
 .qgis2/
@@ -15,6 +19,7 @@ __pycache__/
 174 청양.jpg
 *.png
 !icon.png
+!ai_vectorizer/**/*.png
 !benchmarks/data/**/*.png
 ai_vectorizer/models/
 ai_vectorizer/models/*.pt

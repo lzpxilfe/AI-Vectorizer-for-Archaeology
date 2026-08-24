@@ -7,9 +7,57 @@ ArchaeoTrace의 목표는 서버나 유료 서비스에 사용자 자료를 보�
 핵심 원칙:
 
 - 로컬 실행과 오프라인 재실행을 우선합니다.
-- AI 결과를 최종 정답으로 저장하지 않고, 사용자가 검수할 수 있는 확률 가이드로 사용합니다.
+- AI 결과를 최종 정답으로 저장하지 않고, 사용자가 검수할 수 있는 비보정 보조 신호로 사용합니다.
 - 입력, 모델, 파라미터, CRS, 출력을 기록해 결과를 재현할 수 있게 합니다.
 - 자동화 단계마다 고고학적 해석과 표고의 불확실성을 노출합니다.
+
+현재 `0.1.5` 후보에서 추적 추론과 지도 데이터는 로컬에 머뭅니다. 모델 다운로드는
+네트워크를 사용하고, SAM 상태 확인은 유효한 로컬 checkpoint가 없을 때만 고정된
+source의 availability를 조회합니다. 유효한 로컬 checkpoint는 오프라인에서 크기와
+SHA-256을 확인합니다.
+등고선/표고점 저장과 실험적 TIN DEM은 구현되어 있고, 위상 QA, 입력·모델 해시
+sidecar, 불확실성/NoData 산출은 M3의 미구현 목표입니다.
+
+## Current scope and priority
+
+ArchaeoTrace는 기능 수를 늘리기보다 다음 고고학 작업의 수직 흐름을 완성합니다.
+
+`로컬/오프라인 추적 → 등고선 고도 의미 부여 → 위상 검수 → DEM/hillshade → 불확실성·재현 기록`
+
+제품 우선순위:
+
+1. **배포 신뢰성** — 공식 QGIS 저장소의 stable 릴리스, 결정적 ZIP, 실제 QGIS
+   3/4 호환성, 안전한 편집 버퍼·Undo, 모델 무결성을 먼저 보장합니다.
+2. **측정 가능한 사용자 도움** — 합법적으로 재배포 가능한 실제 고지도 crop에서
+   수동 QGIS와 공개적으로 실행할 수 있는 도구를 같은 조건으로 사용해 시간, 클릭,
+   수정, 잘못된 분기, 끊김과 최종 DEM 오류를 함께 측정합니다.
+3. **고고학 QA** — 일반 벡터화 서비스가 끝나는 지점에서 등고선 교차, 중복,
+   자체 교차, 고도 간격 이상, 결측 구간을 찾아 수정 대상으로 돌려줍니다.
+4. **재현 가능한 지형 산출물** — 입력·모델·파라미터·CRS·레이어 해시와 DEM
+   검증 결과를 산출물에 결속하고, 낮은 데이터 밀도와 외삽 영역을 불확실성으로
+   분리합니다.
+
+범용 polygon·건물·도로 자동완성이나 필수 cloud inference는 위 네 단계가 검증되기
+전에는 우선순위에 넣지 않습니다. 기능·구현 경계는
+[`docs/FEATURES_AND_ARCHITECTURE.md`](docs/FEATURES_AND_ARCHITECTURE.md), 개발 원칙과
+Gate A–E는 [`docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md`](docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md),
+`0.1.5`의 검증 결과와 남은 release blocker는
+[`docs/RELEASE_READINESS_0.1.5.md`](docs/RELEASE_READINESS_0.1.5.md)에 분리합니다.
+
+## Release and community-readiness gate
+
+`0.1.5`는 새 모델을 추가하는 기능 릴리스가 아니라 데이터 무결성, 모델 공급망,
+QGIS 편집 수명주기, Python/QGIS 호환성, 재현 패키징을 닫는 stable 후보입니다.
+다음 릴리스의 진입 조건은 다음과 같습니다.
+
+- 동일 소스가 Linux/Windows에서 같은 ZIP SHA-256을 생성합니다.
+- 빌드된 ZIP 자체가 QGIS 3/4에서 import와 편집 회귀를 통과합니다.
+- RC는 `experimental=True`를 유지하고, stable 전환 PR에서 `False`로 바꾼
+  바로 그 ZIP이 전체 원격 CI를 다시 통과한 뒤 공식 저장소에 올립니다.
+- 기본 Ink/Freehand는 추가 pip 없이 동작하고 선택 모델 실패가 기본 흐름을
+  망가뜨리지 않습니다.
+- 실제 고지도 benchmark의 데이터 라이선스, 기준선 검수 절차와 비교 protocol을
+  먼저 고정합니다.
 
 ## M0 — Contours to DEM vertical slice
 
@@ -31,7 +79,9 @@ ArchaeoTrace의 목표는 서버나 유료 서비스에 사용자 자료를 보�
 
 ## M0.5 — Human-led Ink Centerline + direction-aware Live-Wire
 
-상태: `0.1.7` 구현 및 QGIS 3.40.5 실기동 검증
+상태: `0.1.5` 유지·검증 (2026-08-23 macOS QGIS 3.44.8 offscreen API/runtime
+회귀 20건 통과; QGIS 3.22/3.44/4.2 빌드 ZIP 원격 CI는 구성됐으나 이 worktree의
+실행 결과는 아직 없음)
 
 완료:
 
@@ -43,7 +93,8 @@ ArchaeoTrace의 목표는 서버나 유료 서비스에 사용자 자료를 보�
 - 진행 방향 쪽으로 탐색 창을 치우쳐 이전 선분을 거슬러 가는 경로를 줄임
 - `0%` 정확한 커서, 중간값 좌표 혼합, `100%` 완전 보조 경로인 단일 슬라이더 계약
 - 초록색 미리보기와 클릭 결과를 동일하게 유지하고 Ink/Legacy Canny의 OpenCV 의존성 제거
-- QGIS 3.40.5 / Python 3.12 / CPU / OpenCV 없음 환경에서 실제 TIFF 캐시 약 116ms, 320px 기준점 트리 약 120ms, 커서 경로 조회 1ms 미만 확인
+- 제한 창과 predecessor 재사용의 성능 수치는 fixture, hardware, commit, 반복
+  분포를 담은 재현 보고서를 만들기 전에는 제품 성능 근거로 사용하지 않음
 - Legacy Canny는 비교·호환용 선택지로 보존하고 Ink Centerline을 기본값으로 전환
 
 다음 모델 경계:
@@ -51,7 +102,7 @@ ArchaeoTrace의 목표는 서버나 유료 서비스에 사용자 자료를 보�
 - SAM/HED를 기본값으로 교체하지 않습니다. 둘 다 일반 물체·경계 모델이라 숫자, 기호, 도로선도 강하게 반응합니다.
 - 실제 모델 교체는 고지도 크롭과 수작업 등고선 중심선으로 학습한 compact U-Net 계열을 우선 검토합니다.
 - 학습 증강에는 글자·기호 가림, 짧은 선 단절, 얼룩, 스캔 밝기 변화를 포함하고 clDice 같은 위상 보존 손실을 비교합니다.
-- 모델 출력도 최종 선을 독단적으로 만들지 않고 Live-Wire의 선 확률 비용으로만 결합합니다.
+- 모델 출력도 최종 선을 독단적으로 만들지 않고 Live-Wire의 비보정 guide cost로만 결합합니다.
 
 ## M1 — Local model benchmark before replacement
 
@@ -61,7 +112,7 @@ ArchaeoTrace의 목표는 서버나 유료 서비스에 사용자 자료를 보�
 
 - SHA-256·출처·라이선스·CPU/fallback/timing을 강제하는 데이터셋 매니페스트
 - 모든 방법을 최종 ordered centerline으로 정규화하는 교환 형식
-- tolerance F1, exact centerline Dice, 양방향 거리, 단절·분기·연결성 지표
+- tolerance F1, exact centerline Dice, 양방향 거리, 단절·연결성 및 과잉/누락 분기를 분리한 topology 지표
 - strict JSON, sample CSV, summary CSV, 세대별 hash commit과 합성 smoke fixture
 - 동일 CPU/platform/thread 조건, 반복 출력 결정성, 실패 실행의 시간·RAM까지 포함하는 적격성 검사
 - EfficientSAM-Ti split ONNX의 고정 commit/hash 및 CPU adapter 계약
@@ -69,7 +120,8 @@ ArchaeoTrace의 목표는 서버나 유료 서비스에 사용자 자료를 보�
 - 제품과 동일한 `EdgeDetector → cost map → trace kernel → ordered centerline` Canny/LSD worker
 - sample×method별 fresh process, 1 CPU thread, OpenCL 차단, 반복 해시·시간·RSS 직접 기록
 - worker의 입력·설정·소스·반복 출력 해시와 artifact 메타데이터를 대조한 뒤 검증된 manifest를 no-replace 원자 게시하는 `benchmarks generate` 흐름
-- OpenCV 4/5 LSD 반환 배열 호환과 실제 OpenCV 5 합성 end-to-end smoke 검증
+- 실제 OpenCV 4 통합 회귀와 OpenCV 5 반환 배열 모양의 합성 계약 테스트
+  (OpenCV 5 runtime 자체는 `0.1.5` 지원·검증 범위가 아님)
 - 고정 commit·크기·SHA-256을 코드 계약으로 둔 EfficientSAM-Ti split ONNX model store
 - 명시적 fetch만 네트워크를 사용하고 실행은 content-addressed cache를 매번 재검증하는 offline 경계
 - encoder/decoder별 CPUExecutionProvider·단일 thread·sequential/graph-opt 설정과 OpenCV 상태를 실제 readback으로 attest하는 split adapter
@@ -101,7 +153,7 @@ ArchaeoTrace의 목표는 서버나 유료 서비스에 사용자 자료를 보�
 범위:
 
 - Apache-2.0 EfficientSAM-Ti encoder/decoder ONNX를 기본 CPU 런타임 후보로 사용합니다.
-- 클릭/시드 → SAM 관심 영역 확률 → 색·엣지·방향 비용 → 세선화/그래프 → A* 또는 최단 경로 순서로 결합합니다.
+- 클릭/시드 → SAM의 비보정 관심 영역 score → 색·엣지·방향 guide cost → 세선화/그래프 → A* 또는 최단 경로 순서로 결합합니다.
 - SAM 마스크는 최종 폴리곤/라인으로 바로 변환하지 않고 현재 A* 추적의 soft prior로만 사용합니다.
 - 최초 한 번만 모델을 다운로드하고, 고정 URL·SHA-256 검증·임시 파일 후 원자적 이동을 사용합니다. 설치 후에는 오프라인으로 작동해야 합니다.
 
@@ -127,7 +179,7 @@ ArchaeoTrace의 목표는 서버나 유료 서비스에 사용자 자료를 보�
 
 ## Deliberate non-goals
 
-- 초기 단계에서 클라우드 업로드 필수화, 계정/결제, 사용량 과금은 범위에 넣지 않습니다.
+- 초기 단계에서 cloud upload나 원격 inference를 필수화하지 않습니다.
 - SAM 마스크를 고고학적 정답이나 최종 벡터로 취급하지 않습니다.
 - 검증 없이 지도 바깥으로 지형을 임의 외삽하지 않습니다.
 

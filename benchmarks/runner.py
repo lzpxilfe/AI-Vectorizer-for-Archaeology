@@ -32,7 +32,7 @@ from .metrics import compute_metrics
 
 
 REPORT_SCHEMA_VERSION = "archaeotrace-contour-benchmark-report/1"
-HARNESS_VERSION = "0.1.0"
+HARNESS_VERSION = "0.1.1"
 REPORT_JSON_NAME = "benchmark_report.json"
 SAMPLE_CSV_NAME = "benchmark_samples.csv"
 SUMMARY_CSV_NAME = "benchmark_summary.csv"
@@ -557,6 +557,9 @@ def _aggregate_method(
             "unmatched_prediction_branch_zones": sum(
                 record["unmatched_prediction_branch_zones"] for record in topology
             ),
+            "unmatched_reference_branch_zones": sum(
+                record["unmatched_reference_branch_zones"] for record in topology
+            ),
             "macro_coverage_ratio": _mean(record["coverage_ratio"] for record in connectivity),
             "macro_longest_fragment_ratio": _mean(
                 record["longest_fragment_ratio"] for record in connectivity
@@ -742,7 +745,8 @@ def _sample_csv_rows(report: dict[str, Any]) -> tuple[list[str], list[dict[str, 
         "actual_backend", "fallback_reason", "error", "width", "height",
         *REQUIRED_STRATA, "cldice", "symmetric_mean_px", "symmetric_p95_px",
         "prediction_components", "reference_components", "breaks", "fragment_excess",
-        "missed_paths", "unmatched_prediction_branch_zones", "coverage_ratio",
+        "missed_paths", "unmatched_prediction_branch_zones",
+        "unmatched_reference_branch_zones", "coverage_ratio",
         "longest_fragment_ratio", "wall_ns_median", "prompt_wall_ns_median",
         "prompt_wall_ns_p95", "image_load_wall_ns",
         "estimated_image_first_prompt_wall_ns",
@@ -795,6 +799,7 @@ def _sample_csv_rows(report: dict[str, Any]) -> tuple[list[str], list[dict[str, 
                         "fragment_excess": connectivity["fragment_excess"],
                         "missed_paths": connectivity["missed_paths"],
                         "unmatched_prediction_branch_zones": topology["unmatched_prediction_branch_zones"],
+                        "unmatched_reference_branch_zones": topology["unmatched_reference_branch_zones"],
                         "coverage_ratio": connectivity["coverage_ratio"],
                         "longest_fragment_ratio": connectivity["longest_fragment_ratio"],
                     }
@@ -818,6 +823,7 @@ def _summary_csv_rows(report: dict[str, Any]) -> tuple[list[str], list[dict[str,
         "completed_micro_recall", "completed_micro_f1", "completed_macro_cldice",
         "macro_symmetric_mean_px", "macro_symmetric_p95_px", "breaks",
         "fragment_excess", "missed_paths", "unmatched_prediction_branch_zones",
+        "unmatched_reference_branch_zones",
         "macro_coverage_ratio", "macro_longest_fragment_ratio",
         "case_wall_ns_median", "case_wall_ns_p95", "estimated_dataset_pass_ns",
         "case_prompt_wall_ns_median", "case_prompt_wall_ns_p95",

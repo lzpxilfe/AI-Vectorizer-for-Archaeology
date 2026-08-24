@@ -338,7 +338,8 @@ class BenchmarkGenerationTests(unittest.TestCase):
             for method_id in METHOD_IDS:
                 prediction = reloaded.samples[0].predictions[method_id]
                 self.assertEqual(prediction.execution.status, "ok")
-                self.assertTrue(prediction.artifact_path.is_relative_to(output.resolve()))
+                relative_artifact = prediction.artifact_path.relative_to(output.resolve())
+                self.assertFalse(relative_artifact.is_absolute())
                 self.assertEqual(_sha256(prediction.artifact_path), prediction.artifact_sha256)
 
             pids = (output / "worker-pids.log").read_text(encoding="utf-8").splitlines()
@@ -491,6 +492,23 @@ class BenchmarkGenerationTests(unittest.TestCase):
                 generate_benchmark_dataset(template_path, output, threads=2)
 
             self.assertFalse(output.exists())
+
+    def test_rejects_excessive_warmup_count_before_creating_output_parent(self):
+        with tempfile.TemporaryDirectory() as folder:
+            template_path = _make_worker_template(folder)
+            output = Path(folder) / "absent-warmup" / "generated"
+
+            with self.assertRaisesRegex(
+                GenerationError,
+                "warmup_runs must be between 1 and 100",
+            ):
+                generate_benchmark_dataset(
+                    template_path,
+                    output,
+                    warmup_runs=101,
+                )
+
+            self.assertFalse(output.parent.exists())
 
     def test_rejects_nonpositive_timeout_before_creating_output_parent(self):
         with tempfile.TemporaryDirectory() as folder:

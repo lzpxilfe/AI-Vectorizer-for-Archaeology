@@ -20,6 +20,7 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
 )
 from qgis.core import (
+    Qgis,
     QgsFieldProxyModel,
     QgsMapLayerProxyModel,
     QgsProject,
@@ -28,12 +29,16 @@ from qgis.core import (
 from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
 
 from ..config import FIELD_ELEVATION
-from ..core.dem_pipeline import DemInputError, DemPipelineRunner, build_dem_request
+from ..core.dem_pipeline import (
+    DemInputError,
+    DemPipelineRunner,
+    build_dem_request,
+    loaded_project_paths,
+)
 from ..core.dem_spec import (
     DemSpecificationError,
     default_hillshade_path,
     estimate_grid,
-    paths_refer_to_same_file,
     suggest_pixel_size,
 )
 
@@ -41,13 +46,30 @@ from ..core.dem_spec import (
 LANG_EN = "en"
 
 
-def _proxy_filter(owner, legacy_name, modern_name):
+def _proxy_filter(owner, legacy_name, modern_name, qgis_enum_name):
     """Return a QGIS proxy enum across unscoped/scoped enum releases."""
 
     legacy = getattr(owner, legacy_name, None)
     if legacy is not None:
         return legacy
-    return getattr(owner.Filter, modern_name)
+    scoped = getattr(owner, "Filter", None)
+    if scoped is not None and hasattr(scoped, modern_name):
+        return getattr(scoped, modern_name)
+    return getattr(getattr(Qgis, qgis_enum_name), modern_name)
+
+
+def _qt_value(legacy_name, scope_name):
+    legacy = getattr(Qt, legacy_name, None)
+    if legacy is not None:
+        return legacy
+    return getattr(getattr(Qt, scope_name), legacy_name)
+
+
+def _message_box_button(name):
+    legacy = getattr(QMessageBox, name, None)
+    if legacy is not None:
+        return legacy
+    return getattr(QMessageBox.StandardButton, name)
 
 
 class DemBuildDialog(QDialog):
@@ -80,7 +102,7 @@ class DemBuildDialog(QDialog):
 
     def _setup_ui(self):
         self.setMinimumWidth(560)
-        self.setWindowModality(Qt.WindowModal)
+        self.setWindowModality(_qt_value("WindowModal", "WindowModality"))
 
         root = QVBoxLayout(self)
         self.intro_label = QLabel()
@@ -92,21 +114,21 @@ class DemBuildDialog(QDialog):
 
         self.contour_combo = QgsMapLayerComboBox()
         self.contour_combo.setFilters(
-            _proxy_filter(QgsMapLayerProxyModel, "LineLayer", "LineLayer")
+            _proxy_filter(QgsMapLayerProxyModel, "LineLayer", "LineLayer", "LayerFilter")
         )
         self.contour_label = QLabel()
         input_form.addRow(self.contour_label, self.contour_combo)
 
         self.contour_field = QgsFieldComboBox()
         self.contour_field.setFilters(
-            _proxy_filter(QgsFieldProxyModel, "Numeric", "Numeric")
+            _proxy_filter(QgsFieldProxyModel, "Numeric", "Numeric", "FieldFilter")
         )
         self.contour_field_label = QLabel()
         input_form.addRow(self.contour_field_label, self.contour_field)
 
         self.spot_combo = QgsMapLayerComboBox()
         self.spot_combo.setFilters(
-            _proxy_filter(QgsMapLayerProxyModel, "PointLayer", "PointLayer")
+            _proxy_filter(QgsMapLayerProxyModel, "PointLayer", "PointLayer", "LayerFilter")
         )
         self.spot_combo.setAllowEmptyLayer(True)
         self.spot_label = QLabel()
@@ -114,7 +136,7 @@ class DemBuildDialog(QDialog):
 
         self.spot_field = QgsFieldComboBox()
         self.spot_field.setFilters(
-            _proxy_filter(QgsFieldProxyModel, "Numeric", "Numeric")
+            _proxy_filter(QgsFieldProxyModel, "Numeric", "Numeric", "FieldFilter")
         )
         self.spot_field_label = QLabel()
         input_form.addRow(self.spot_field_label, self.spot_field)
@@ -391,7 +413,9 @@ class DemBuildDialog(QDialog):
             for path in (request.dem_path, request.hillshade_path)
             if os.path.exists(path)
         ]
-        loaded = self._loaded_output_paths(existing)
+        loaded = self._loaded_output_paths(
+            (request.dem_path, request.hillshade_path)
+        )
         if loaded:
             QMessageBox.warning(
                 self,
@@ -410,10 +434,10 @@ class DemBuildDialog(QDialog):
                     "다음 파일을 덮어쓸까요?\n{paths}",
                     "Overwrite these files?\n{paths}",
                 ).format(paths="\n".join(existing)),
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
+                _message_box_button("Yes") | _message_box_button("No"),
+                _message_box_button("No"),
             )
-            if answer != QMessageBox.Yes:
+            if answer != _message_box_button("Yes"):
                 return
 
         self.dem_path.setText(request.dem_path)
@@ -447,15 +471,7 @@ class DemBuildDialog(QDialog):
 
     @staticmethod
     def _loaded_output_paths(paths):
-        loaded = []
-        for layer in QgsProject.instance().mapLayers().values():
-            source = str(layer.source() or "").split("|", 1)[0]
-            if not source:
-                continue
-            for target in paths:
-                if paths_refer_to_same_file(source, target) and target not in loaded:
-                    loaded.append(target)
-        return loaded
+        return loaded_project_paths(paths)
 
     def _on_stage_changed(self, stage):
         if stage == "dem":

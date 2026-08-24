@@ -6,10 +6,17 @@ from __future__ import annotations
 import argparse
 import configparser
 import hashlib
+import io
+import os
+import re
 import shutil
+import stat
 import sys
+import tempfile
+import time
 import zipfile
 from pathlib import Path
+from typing import Optional, Sequence
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,13 +38,34 @@ TOP_LEVEL_ITEMS = (
 IGNORED_NAMES = {"__pycache__", ".DS_Store"}
 IGNORED_SUFFIXES = {".pyc", ".pyo"}
 IGNORED_WEIGHT_SUFFIXES = {".pt", ".pth", ".onnx", ".ckpt", ".bin", ".caffemodel"}
+IGNORED_MODEL_TEMP_SUFFIXES = {".download", ".migration", ".rollback", ".tmp"}
+IGNORED_MODEL_NAME_SUFFIXES = {".meta.json"}
+IGNORED_HED_TEMP_PREFIXES = {"hed_prototxt_", "hed_weights_"}
+PROHIBITED_NATIVE_SUFFIXES = {".dll", ".dylib", ".exe", ".pyd", ".so"}
+VERSION_PATTERN = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:[A-Za-z0-9._-]+)?")
+DEFAULT_SOURCE_DATE_EPOCH = 315532800  # 1980-01-01, the earliest ZIP timestamp.
+MAX_SOURCE_DATE_EPOCH = 4354819198  # 2107-12-31 23:59:58 UTC.
+# The public QGIS publishing requirements say packages should not exceed a
+# decimal 20 MB. The repository backend currently has a looser 25,000,000-byte
+# hard cap; enforcing the published 20 MB guideline satisfies both gates.
+MAX_UPLOAD_BYTES = 20_000_000
+ZIP_FILE_MODE = 0o100644
+ZIP_COMPRESSION = zipfile.ZIP_STORED
 
 
 def load_version() -> str:
-    parser = configparser.ConfigParser(interpolation=None)
+    # Match the official QGIS plugin repository parser. In particular, this
+    # forces malformed interpolation tokens (such as an unescaped ``%``) in
+    # any metadata value to fail the release build instead of the upload.
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
     with (PLUGIN_DIR / "metadata.txt").open("r", encoding="utf-8") as handle:
         parser.read_file(handle)
-    return parser["general"]["version"].strip()
+    metadata = dict(parser.items("general"))
+    version = metadata["version"].strip()
+    if VERSION_PATTERN.fullmatch(version) is None:
+        raise ValueError(f"Invalid plugin metadata version: {version!r}")
+    return version
 
 
 def release_dir(version: str) -> Path:
@@ -52,29 +80,92 @@ def should_skip(path: Path) -> bool:
     if path.name in IGNORED_NAMES or path.suffix in IGNORED_SUFFIXES:
         return True
 
-    if path.suffix.lower() in IGNORED_WEIGHT_SUFFIXES and path.parent.name == "models":
-        return True
+    in_models_directory = any(parent.name == "models" for parent in path.parents)
+    if in_models_directory:
+        suffix = path.suffix.lower()
+        if suffix in IGNORED_WEIGHT_SUFFIXES | IGNORED_MODEL_TEMP_SUFFIXES:
+            return True
+        if any(
+            path.name.endswith(name_suffix)
+            for name_suffix in IGNORED_MODEL_NAME_SUFFIXES
+        ):
+            return True
+        if any(path.name.startswith(prefix) for prefix in IGNORED_HED_TEMP_PREFIXES):
+            return True
 
     return False
 
 
+def assert_publishable_file(path: Path, relative_path: Path) -> None:
+    """Reject hidden residue and native binaries forbidden by QGIS policy."""
+    if any(part.startswith(".") for part in relative_path.parts):
+        raise ValueError(f"Hidden files are not allowed in the plugin package: {path}")
+    lower_name = path.name.lower()
+    if path.suffix.lower() in PROHIBITED_NATIVE_SUFFIXES or ".so." in lower_name:
+        raise ValueError(f"Native binaries are not allowed in the plugin package: {path}")
+
+
+def is_link_like(path: Path) -> bool:
+    """Return whether *path* is a symlink or Windows reparse-point directory."""
+    if path.is_symlink():
+        return True
+
+    is_junction = getattr(path, "is_junction", None)
+    if callable(is_junction):
+        try:
+            if is_junction():
+                return True
+        except OSError:
+            return True
+
+    try:
+        attributes = getattr(path.lstat(), "st_file_attributes", 0)
+    except OSError:
+        return False
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return bool(attributes & reparse_flag)
+
+
+def assert_safe_source_path(path: Path, source_root: Path) -> None:
+    """Reject link-like paths and paths that resolve outside the source root."""
+    if is_link_like(path):
+        raise ValueError(
+            f"Plugin source symlinks are not allowed (including junctions/reparse points): {path}"
+        )
+    try:
+        resolved = path.resolve(strict=True)
+        resolved.relative_to(source_root)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"Plugin source path escapes the source tree: {path}") from exc
+
+
 def iter_source_files() -> list[tuple[Path, Path]]:
+    if is_link_like(PLUGIN_DIR):
+        raise ValueError(
+            "Plugin source symlinks are not allowed "
+            f"(including junctions/reparse points): {PLUGIN_DIR}"
+        )
+    source_root = PLUGIN_DIR.resolve(strict=True)
     files: list[tuple[Path, Path]] = []
     for item_name in TOP_LEVEL_ITEMS:
         src = PLUGIN_DIR / item_name
         if not src.exists():
             raise FileNotFoundError(f"Missing required plugin item: {src}")
+        assert_safe_source_path(src, source_root)
         if src.is_file():
             files.append((src, Path(item_name)))
             continue
         for child in sorted(src.rglob("*")):
+            assert_safe_source_path(child, source_root)
             if child.is_dir():
                 continue
-            if any(should_skip(parent) for parent in child.relative_to(PLUGIN_DIR).parents):
+            relative_child = child.relative_to(PLUGIN_DIR)
+            if any(should_skip(parent) for parent in relative_child.parents):
                 continue
             if should_skip(child):
                 continue
-            files.append((child, child.relative_to(PLUGIN_DIR)))
+            assert_publishable_file(child, relative_child)
+            files.append((child, relative_child))
     return sorted(files, key=lambda pair: pair[1].as_posix())
 
 
@@ -101,6 +192,11 @@ def source_manifest() -> dict[str, str]:
 
 def build_release_tree(version: str) -> Path:
     target_dir = release_dir(version)
+    if os.path.lexists(target_dir) and is_link_like(target_dir):
+        raise ValueError(
+            "Release directory symlinks are not allowed "
+            f"(including junctions/reparse points): {target_dir}"
+        )
     if target_dir.exists():
         shutil.rmtree(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -113,26 +209,107 @@ def build_release_tree(version: str) -> Path:
     return target_dir
 
 
+def source_date_epoch() -> int:
+    raw_value = os.environ.get("SOURCE_DATE_EPOCH")
+    if raw_value is None:
+        return DEFAULT_SOURCE_DATE_EPOCH
+    try:
+        value = int(raw_value)
+    except ValueError as error:
+        raise ValueError("SOURCE_DATE_EPOCH must be an integer") from error
+    if value < DEFAULT_SOURCE_DATE_EPOCH:
+        raise ValueError("SOURCE_DATE_EPOCH predates the ZIP timestamp range")
+    if value > MAX_SOURCE_DATE_EPOCH:
+        raise ValueError("SOURCE_DATE_EPOCH exceeds the ZIP timestamp range")
+    return value
+
+
+def build_release_zip_bytes() -> bytes:
+    timestamp = time.gmtime(source_date_epoch())[:6]
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(
+        buffer,
+        "w",
+        compression=ZIP_COMPRESSION,
+    ) as archive:
+        for src_path, rel_path in iter_source_files():
+            archive_name = (Path(PLUGIN_DIR_NAME) / rel_path).as_posix()
+            info = zipfile.ZipInfo(archive_name, date_time=timestamp)
+            info.create_system = 3
+            info.compress_type = ZIP_COMPRESSION
+            info.external_attr = ZIP_FILE_MODE << 16
+            archive.writestr(
+                info,
+                src_path.read_bytes(),
+                compress_type=ZIP_COMPRESSION,
+            )
+    return buffer.getvalue()
+
+
 def build_release_zip(version: str) -> Path:
     DIST_DIR.mkdir(parents=True, exist_ok=True)
     target_zip = zip_path(version)
-    if target_zip.exists():
-        target_zip.unlink()
+    payload = build_release_zip_bytes()
+    if len(payload) > MAX_UPLOAD_BYTES:
+        raise ValueError(
+            f"Release ZIP exceeds the {MAX_UPLOAD_BYTES // 1_000_000} MB "
+            "QGIS repository package upload limit"
+        )
 
-    with zipfile.ZipFile(target_zip, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for src_path, rel_path in iter_source_files():
-            archive.write(src_path, arcname=(Path(PLUGIN_DIR_NAME) / rel_path).as_posix())
+    descriptor = None
+    temporary_path = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{target_zip.name}.",
+            suffix=".tmp",
+            dir=DIST_DIR,
+        )
+        temporary_path = Path(temporary_name)
+        try:
+            os.fchmod(descriptor, 0o644)
+        except (AttributeError, OSError):
+            pass
+        with os.fdopen(descriptor, "wb") as handle:
+            descriptor = None
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, target_zip)
+        temporary_path = None
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink()
+            except FileNotFoundError:
+                pass
 
     return target_zip
 
 
 def release_manifest(version: str) -> dict[str, str]:
     target_dir = release_dir(version)
+    if is_link_like(target_dir):
+        raise ValueError(
+            "Release directory symlinks are not allowed "
+            f"(including junctions/reparse points): {target_dir}"
+        )
     if not target_dir.exists():
         raise FileNotFoundError(f"Release directory does not exist: {target_dir}")
 
+    release_root = target_dir.resolve(strict=True)
     manifest: dict[str, str] = {}
     for path in sorted(target_dir.rglob("*")):
+        if is_link_like(path):
+            raise ValueError(
+                "Release tree symlinks are not allowed "
+                f"(including junctions/reparse points): {path}"
+            )
+        try:
+            path.resolve(strict=True).relative_to(release_root)
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"Release path escapes the release tree: {path}") from exc
         if path.is_dir():
             continue
         if should_skip(path):
@@ -187,6 +364,18 @@ def run_check(version: str) -> int:
 
     try:
         problems.extend(compare_manifests("release zip", expected, zip_manifest(version)))
+        archive_size = zip_path(version).stat().st_size
+        if archive_size > MAX_UPLOAD_BYTES:
+            problems.append(
+                f"release zip: exceeds the {MAX_UPLOAD_BYTES // 1_000_000} MB "
+                "QGIS repository package upload limit"
+            )
+        expected_zip_hash = bytes_hash(build_release_zip_bytes())
+        actual_zip_hash = file_hash(zip_path(version))
+        if actual_zip_hash != expected_zip_hash:
+            problems.append(
+                "release zip: archive bytes are not the deterministic source build"
+            )
     except Exception as exc:
         problems.append(str(exc))
 
@@ -204,10 +393,11 @@ def run_build(version: str) -> int:
     target_zip = build_release_zip(version)
     print(f"Built release directory: {target_dir}")
     print(f"Built release zip: {target_zip}")
+    print(f"Release zip SHA-256: {file_hash(target_zip)}")
     return 0
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build or verify the packaged ArchaeoTrace release artifacts.",
     )
@@ -216,11 +406,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Verify that the generated release directory and zip match the root source tree.",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    args = parse_args(argv)
     version = load_version()
     if args.check:
         return run_check(version)

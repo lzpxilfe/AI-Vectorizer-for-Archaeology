@@ -1,0 +1,24 @@
+# Keep source bytes stable across Linux, macOS, and Windows release builders.
+* text=auto eol=lf
+*.bat text eol=crlf
+
+# Binary assets and optional model formats must never pass through text filters.
+*.bin binary
+*.caffemodel binary
+*.ckpt binary
+*.gif binary
+*.jpeg binary
+*.jpg binary
+*.npy binary
+*.onnx binary
+*.pgm binary
+*.png binary
+*.pt binary
+*.pth binary
+*.tif binary
+*.tiff binary
+*.zip binary
+
+# This pinned third-party Caffe descriptor is verified byte-for-byte. Preserve
+# its upstream whitespace and line endings instead of applying text filters.
+ai_vectorizer/core/models/hed_deploy.prototxt binary

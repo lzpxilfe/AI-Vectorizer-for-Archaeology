@@ -110,6 +110,14 @@ def test_livewire_window_bounds_wandering_and_falls_back_outside():
     assert tree.trace((260, 150)) == [(150.0, 150.0), (260.0, 150.0)]
 
 
+def test_input_dimensions_are_bounded_before_feature_allocations():
+    image = np.zeros((2, 1025), dtype=np.uint8)
+    edges = np.zeros_like(image)
+
+    with pytest.raises(ValueError, match="must not exceed 1024x1024"):
+        build_livewire_tree(image, edges, (1, 1))
+
+
 def test_blend_strength_is_a_true_geometry_continuum():
     assisted = [(0, 0), (5, 5), (10, 0)]
     assert blend_path_with_cursor(assisted, (0, 0), (10, 0), 0.0) == [
@@ -141,3 +149,39 @@ def test_invalid_root_is_rejected_before_graph_build():
     edges = np.zeros_like(image)
     with pytest.raises(ValueError, match="outside"):
         build_livewire_tree(image, edges, (-1, 4))
+
+
+@pytest.mark.parametrize(
+    "config",
+    (
+        LiveWireConfig(edge_sigma=float("nan")),
+        LiveWireConfig(line_cost_weight=float("nan")),
+        LiveWireConfig(max_window_size=32.5),
+        LiveWireConfig(max_window_size=2048),
+    ),
+)
+def test_invalid_or_unbounded_configuration_is_rejected(config):
+    with pytest.raises(ValueError):
+        config.validate()
+
+
+def test_nonfinite_image_pixel_does_not_poison_the_shortest_path_tree():
+    image = np.arange(64 * 64, dtype=np.float32).reshape(64, 64)
+    image[32, 32] = np.nan
+    edges = np.zeros((64, 64), dtype=np.uint8)
+    edges[32, :] = 255
+
+    tree = build_livewire_tree(image, edges, (10, 32))
+
+    assert np.isfinite(tree.distances).all()
+    assert len(tree.trace((52, 32))) > 2
+
+
+def test_nonfinite_strength_is_rejected():
+    with pytest.raises(ValueError, match="strength must be a finite number"):
+        blend_path_with_cursor(
+            [(0, 0), (1, 1), (2, 0)],
+            (0, 0),
+            (2, 0),
+            float("nan"),
+        )

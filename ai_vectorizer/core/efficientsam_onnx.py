@@ -17,6 +17,7 @@ from typing import Any, Dict, Mapping, Tuple
 
 CPU_EXECUTION_PROVIDER = "CPUExecutionProvider"
 MAX_POINT_PROMPTS = 6
+MAX_IMAGE_DIMENSION = 1_024
 
 
 class EfficientSAMOnnxError(RuntimeError):
@@ -367,6 +368,15 @@ class EfficientSAMOnnxEngine:
         height, width, _channels = image_shape
         if isinstance(height, bool) or isinstance(width, bool) or height < 1 or width < 1:
             raise EfficientSAMOnnxInputError("rgb_u8 height and width must be positive")
+        if height > MAX_IMAGE_DIMENSION or width > MAX_IMAGE_DIMENSION:
+            raise EfficientSAMOnnxInputError(
+                "rgb_u8 dimensions must not exceed {}x{}; got {}x{}".format(
+                    MAX_IMAGE_DIMENSION,
+                    MAX_IMAGE_DIMENSION,
+                    width,
+                    height,
+                )
+            )
         if getattr(image, "dtype", None) != self._np.uint8:
             raise EfficientSAMOnnxInputError(
                 "rgb_u8 must have uint8 dtype; got {!r}".format(

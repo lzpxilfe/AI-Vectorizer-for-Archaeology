@@ -87,21 +87,40 @@ class InkCenterlineTests(unittest.TestCase):
         center = float(np.median(np.argwhere(active)[..., 1]))
         self.assertAlmostEqual(center, 47.0, delta=1.0)
 
-    def test_missing_scipy_falls_back_without_crashing(self):
-        image = np.zeros((48, 48), dtype=np.uint8)
-        image[:, 24:] = 220
+    def test_missing_optional_dependencies_still_produces_one_centerline(self):
+        image = np.full((64, 64), 235, dtype=np.uint8)
+        image[8:56, 30:35] = 25
 
-        with (
-            patch.object(edge_detector_module, "_scipy_ndimage", None),
-            patch.object(edge_detector_module, "get_cv2", return_value=None),
-        ):
-            detector = edge_detector_module.EdgeDetector(
-                method=edge_detector_module.EdgeDetector.METHOD_INK,
-            )
-            edges = detector.detect_edges(image)
+        with patch.object(edge_detector_module, "_scipy_ndimage", None):
+            with patch.object(
+                edge_detector_module,
+                "_skimage_threshold_otsu",
+                None,
+            ):
+                with patch.object(
+                    edge_detector_module,
+                    "_skimage_skeletonize",
+                    None,
+                ):
+                    with patch.object(
+                        edge_detector_module,
+                        "get_cv2",
+                        return_value=None,
+                    ):
+                        detector = edge_detector_module.EdgeDetector(
+                            method=edge_detector_module.EdgeDetector.METHOD_INK,
+                        )
+                        edges = detector.detect_edges(image)
+                        status = detector.get_ink_runtime_status()
 
-        self.assertEqual(edges.shape, image.shape)
-        self.assertGreater(int(np.count_nonzero(edges)), 0)
+        active = edges > 0
+        self.assertEqual(active.shape, image.shape)
+        self.assertGreater(int(active.sum()), 35)
+        self.assertLess(int(active.sum()), 65)
+        self.assertLessEqual(int(active[12:52].sum(axis=1).max()), 1)
+        self.assertEqual(status["reason"], "numpy_fallback")
+        self.assertEqual(status["background_backend"], "numpy")
+        self.assertEqual(status["thinning_backend"], "numpy")
 
     def test_rgb_input_is_normalized_without_cv2(self):
         image = np.zeros((32, 32, 3), dtype=np.uint8)

@@ -178,10 +178,13 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 summary_rows = list(csv.DictReader(handle))
 
         self.assertEqual(parsed["schema_version"], "archaeotrace-contour-benchmark-report/1")
+        self.assertEqual(parsed["harness"]["version"], "0.1.1")
         self.assertEqual(len(sample_rows), 3)
         self.assertEqual(len(summary_rows), 3)
         self.assertIn("f1_t3", sample_rows[0])
+        self.assertIn("unmatched_reference_branch_zones", sample_rows[0])
         self.assertIn("prompt_wall_ns_median", sample_rows[0])
+        self.assertIn("unmatched_reference_branch_zones", summary_rows[0])
         self.assertIn("estimated_warm_prompt_pass_ns", summary_rows[0])
 
     def test_cli_validate_and_evaluate_smoke(self):

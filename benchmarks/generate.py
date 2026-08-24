@@ -890,8 +890,12 @@ def _validate_parameters(
     threads: int,
     timeout_seconds: float,
 ) -> None:
-    if isinstance(warmup_runs, bool) or not isinstance(warmup_runs, int) or warmup_runs < 1:
-        raise GenerationError("warmup_runs must be a positive integer.")
+    if (
+        isinstance(warmup_runs, bool)
+        or not isinstance(warmup_runs, int)
+        or not 1 <= warmup_runs <= 100
+    ):
+        raise GenerationError("warmup_runs must be between 1 and 100.")
     if (
         isinstance(measurement_runs, bool)
         or not isinstance(measurement_runs, int)

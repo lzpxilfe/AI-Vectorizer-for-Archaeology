@@ -14,11 +14,19 @@ from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
 from qgis.core import (
     QgsWkbTypes, QgsProject, QgsPointXY, QgsGeometry,
     QgsFeature, QgsCoordinateTransform,
-    QgsVectorLayer, QgsField, QgsApplication, QgsTask, Qgis
+    QgsVectorLayer, QgsField, QgsFieldConstraints, QgsApplication, QgsTask,
+    QgsVectorLayerUtils, Qgis
 )
-from qgis.PyQt.QtCore import Qt, QVariant, QTimer, pyqtSignal
+from qgis.PyQt.QtCore import Qt, QTimer
+try:
+    from qgis.PyQt.QtCore import QVariant
+except ImportError:  # PyQt6/QGIS 4
+    QVariant = None
+try:
+    from qgis.PyQt.QtCore import QMetaType
+except ImportError:
+    QMetaType = None
 from qgis.PyQt.QtGui import QColor
-from qgis.PyQt.QtWidgets import QAction
 
 from ..core.dependencies import get_cv2, require_cv2
 from ..core.edge_detector import EdgeDetector
@@ -33,6 +41,7 @@ from ..core.interaction_policy import (
 from ..core.livewire import (
     LiveWireCancelled,
     LiveWireConfig,
+    LiveWireUnavailable,
     blend_path_with_cursor,
     build_livewire_tree,
     is_livewire_available,
@@ -61,6 +70,67 @@ from ..config import (
 )
 
 
+def _qt_value(legacy_name, scope_name):
+    legacy = getattr(Qt, legacy_name, None)
+    if legacy is not None:
+        return legacy
+    return getattr(getattr(Qt, scope_name), legacy_name)
+
+
+def _geometry_type(legacy_name, modern_name):
+    legacy = getattr(QgsWkbTypes, legacy_name, None)
+    if legacy is not None:
+        return legacy
+    return getattr(Qgis.GeometryType, modern_name)
+
+
+def _message_level(name):
+    legacy = getattr(Qgis, name, None)
+    if legacy is not None:
+        return legacy
+    return getattr(Qgis.MessageLevel, name)
+
+
+def _task_can_cancel():
+    legacy = getattr(QgsTask, "CanCancel", None)
+    if legacy is not None:
+        return legacy
+    scoped = getattr(QgsTask, "Flag", None)
+    if scoped is not None and hasattr(scoped, "CanCancel"):
+        return scoped.CanCancel
+    return Qgis.TaskFlag.CanCancel
+
+
+def _field_type(name):
+    # Prefer the QGIS 4-compatible API while retaining QGIS 3.22 fallback.
+    for owner in (getattr(QMetaType, "Type", None), QVariant):
+        if owner is not None and hasattr(owner, name):
+            return getattr(owner, name)
+    raise RuntimeError(f"Qt field type is unavailable: {name}")
+
+
+def _constraint_strength(name):
+    legacy = getattr(QgsFieldConstraints, name, None)
+    if legacy is not None:
+        return legacy
+    return getattr(QgsFieldConstraints.ConstraintStrength, name)
+
+
+def _rubber_band_icon(name):
+    legacy = getattr(QgsRubberBand, name, None)
+    if legacy is not None:
+        return legacy
+    return getattr(QgsRubberBand.IconType, name)
+
+
+LINE_GEOMETRY = _geometry_type("LineGeometry", "Line")
+POINT_GEOMETRY = _geometry_type("PointGeometry", "Point")
+MESSAGE_INFO = _message_level("Info")
+MESSAGE_WARNING = _message_level("Warning")
+MESSAGE_CRITICAL = _message_level("Critical")
+HARD_CONSTRAINT = _constraint_strength("ConstraintStrengthHard")
+
+
 class _AStarPreviewTask(QgsTask):
     """Run the QGIS-free A* kernel without blocking canvas interaction."""
 
@@ -75,7 +145,7 @@ class _AStarPreviewTask(QgsTask):
         config,
         callback,
     ):
-        super().__init__("ArchaeoTrace live path preview", QgsTask.CanCancel)
+        super().__init__("ArchaeoTrace live path preview", _task_can_cancel())
         self.cost_map = cost_map
         self.start_pixel = tuple(start_pixel)
         self.target_pixel = tuple(target_pixel)
@@ -123,7 +193,7 @@ class _LiveWireTreeTask(QgsTask):
         config,
         callback,
     ):
-        super().__init__("ArchaeoTrace Live-Wire tree", QgsTask.CanCancel)
+        super().__init__("ArchaeoTrace Live-Wire tree", _task_can_cancel())
         self.image = image
         self.edges = edges
         self.anchor_pixel = tuple(anchor_pixel)
@@ -160,7 +230,6 @@ class _LiveWireTreeTask(QgsTask):
 
 
 class SmartTraceTool(QgsMapToolEmitPoint):
-    deactivated = pyqtSignal()
     SNAP_RADIUS_BASE = 15
     SNAP_RADIUS_EDGE_WEIGHT_FACTOR = 0.7
     SAMPLE_INTERVAL_PIXELS = 3
@@ -224,30 +293,29 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     CHAIKIN_Q_WEIGHT = 0.75
     CHAIKIN_R_WEIGHT = 0.25
 
-    UNDO_MESSAGE_SECONDS = 2
-    UNDO_ACTION_OBJECT_NAME = 'mActionUndo'
     PREVIEW_BAND_COLOR = (0, 180, 0, 180)
     PREVIEW_BAND_WIDTH = 8
-    PREVIEW_BAND_LINE_STYLE = Qt.DashLine
+    PREVIEW_BAND_LINE_STYLE = _qt_value("DashLine", "PenStyle")
     # Keep every uncommitted suggestion in the same visual language. The
     # distinction is interaction state, not another competing line color.
     PROPOSAL_BAND_COLOR = (0, 180, 0, 180)
     PROPOSAL_BAND_WIDTH = 8
-    PROPOSAL_BAND_LINE_STYLE = Qt.DashLine
+    PROPOSAL_BAND_LINE_STYLE = _qt_value("DashLine", "PenStyle")
     CONFIRM_BAND_COLOR = (255, 50, 50, 255)
     CONFIRM_BAND_WIDTH = 3
     START_MARKER_COLOR = (255, 255, 0, 255)
     START_MARKER_WIDTH = 12
-    START_MARKER_ICON = QgsRubberBand.ICON_CIRCLE
+    START_MARKER_ICON = _rubber_band_icon("ICON_CIRCLE")
     CLOSE_INDICATOR_COLOR = (0, 255, 255, 200)
     CLOSE_INDICATOR_WIDTH = 16
-    CLOSE_INDICATOR_ICON = QgsRubberBand.ICON_CIRCLE
+    CLOSE_INDICATOR_ICON = _rubber_band_icon("ICON_CIRCLE")
     CHECKPOINT_MARKER_COLOR = (50, 150, 255, 255)
     CHECKPOINT_MARKER_WIDTH = 10
-    CHECKPOINT_MARKER_ICON = QgsRubberBand.ICON_BOX
+    CHECKPOINT_MARKER_ICON = _rubber_band_icon("ICON_BOX")
     SNAP_MARKER_COLOR = (255, 0, 255, 200)
     SNAP_MARKER_WIDTH = 15
-    SNAP_MARKER_ICON = QgsRubberBand.ICON_X
+    SNAP_MARKER_ICON = _rubber_band_icon("ICON_X")
+    SPOT_LAYER_OWNERSHIP_PROPERTY = "ArchaeoTrace/ownedSpotHeightLayer"
     A_STAR_NEIGHBORS = [
         (-1, 0), (1, 0), (0, -1), (0, 1),
         (-1, -1), (-1, 1), (1, -1), (1, 1),
@@ -255,6 +323,19 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def _tr(self, ko_text, en_text):
         return en_text if getattr(self, "language", "ko") == "en" else ko_text
+
+    @staticmethod
+    def unsupported_output_reason(layer):
+        """Return why a layer cannot be edited without dimensional data loss."""
+
+        if layer is None:
+            return "missing"
+        if layer.geometryType() != LINE_GEOMETRY:
+            return "not_line"
+        wkb_type = layer.wkbType()
+        if QgsWkbTypes.hasZ(wkb_type) or QgsWkbTypes.hasM(wkb_type):
+            return "z_or_m"
+        return None
 
     def _needs_edge_cache(self):
         """Return whether this interaction actually needs raster edge data.
@@ -297,6 +378,123 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 self._extent_cache_listener_connected = False
             print(f"Extent cache listener update failed: {exc}")
 
+    def _set_coordinate_crs_listeners(self, enabled):
+        if enabled == getattr(self, "_coordinate_crs_listeners_connected", False):
+            return
+
+        connections = []
+        for owner, signal_name in (
+            (self.canvas, "destinationCrsChanged"),
+            (self.raster_layer, "crsChanged"),
+        ):
+            try:
+                signal = getattr(owner, signal_name, None)
+            except RuntimeError:
+                signal = None
+            if signal is not None:
+                connections.append((signal, self._on_cache_crs_changed))
+        try:
+            for signal, callback in connections:
+                if signal is None:
+                    continue
+                if enabled:
+                    signal.connect(callback)
+                else:
+                    signal.disconnect(callback)
+            self._coordinate_crs_listeners_connected = enabled
+        except (RuntimeError, TypeError) as exc:
+            if not enabled:
+                self._coordinate_crs_listeners_connected = False
+            print(f"CRS listener update failed: {exc}")
+
+    def _set_source_lifecycle_listeners(self, enabled):
+        if enabled == getattr(self, "_source_lifecycle_listeners_connected", False):
+            return
+
+        connections = []
+        for layer in (self.raster_layer, self.vector_layer):
+            for signal_name in ("dataSourceChanged", "willBeDeleted"):
+                try:
+                    signal = getattr(layer, signal_name, None)
+                except RuntimeError:
+                    signal = None
+                if signal is not None:
+                    connections.append(signal)
+        # A vector CRS reassignment changes the interpretation of every
+        # existing coordinate. Stop instead of silently extending a feature
+        # whose source semantics changed under an active trace.
+        try:
+            vector_crs_changed = getattr(self.vector_layer, "crsChanged", None)
+        except RuntimeError:
+            vector_crs_changed = None
+        if vector_crs_changed is not None:
+            connections.append(vector_crs_changed)
+
+        try:
+            for signal in connections:
+                if enabled:
+                    signal.connect(self._on_source_layer_invalidated)
+                else:
+                    signal.disconnect(self._on_source_layer_invalidated)
+            self._source_lifecycle_listeners_connected = enabled
+        except (RuntimeError, TypeError) as exc:
+            if not enabled:
+                self._source_lifecycle_listeners_connected = False
+            print(f"Layer lifecycle listener update failed: {exc}")
+
+    def _on_source_layer_invalidated(self, *_args):
+        """Stop before a replaced/deleted source can receive trace edits."""
+
+        try:
+            if self.canvas.mapTool() is self:
+                self.canvas.unsetMapTool(self)
+        except RuntimeError as exc:
+            print(f"Could not stop tracing after a layer change: {exc}")
+
+    def _refresh_crs_transforms(self):
+        canvas_crs = self.canvas.mapSettings().destinationCrs()
+        raster_crs = self.raster_layer.crs()
+        self.to_raster_transform = QgsCoordinateTransform(
+            canvas_crs,
+            raster_crs,
+            QgsProject.instance(),
+        )
+        self.to_map_transform = QgsCoordinateTransform(
+            raster_crs,
+            canvas_crs,
+            QgsProject.instance(),
+        )
+        self._transform_canvas_crs = canvas_crs
+        self._transform_raster_crs = raster_crs
+
+    def _ensure_crs_transforms_current(self):
+        canvas_crs = self.canvas.mapSettings().destinationCrs()
+        raster_crs = self.raster_layer.crs()
+        if (
+            canvas_crs != getattr(self, "_transform_canvas_crs", None)
+            or raster_crs != getattr(self, "_transform_raster_crs", None)
+        ):
+            self._refresh_crs_transforms()
+
+    def _on_cache_crs_changed(self, *_args):
+        """Discard coordinates/cache created under an obsolete CRS."""
+
+        self.reset_tracing()
+        try:
+            self._refresh_crs_transforms()
+        except RuntimeError as exc:
+            self._push_message(
+                self._tr(
+                    f"좌표계 변경을 적용하지 못했습니다: {exc}",
+                    f"Could not apply the CRS change: {exc}",
+                ),
+                MESSAGE_CRITICAL,
+            )
+            return
+        self._clear_edge_cache()
+        if self._needs_edge_cache():
+            self._edge_cache_timer.start()
+
     def _schedule_edge_cache_update(self):
         """Debounce expensive raster reads while the map is being zoomed."""
         self._clear_edge_cache()
@@ -309,32 +507,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._cancel_proposal_task()
         self._proposal_generation += 1
         self._proposal_request_point = None
-        self.preview_band.reset(QgsWkbTypes.LineGeometry)
+        self.preview_band.reset(LINE_GEOMETRY)
         self.last_sample_pos = None
         self.last_preview_pos = None
         self._edge_cache_timer.start()
-
-    def _set_undo_enabled(self, enabled):
-        if not self.iface:
-            return
-
-        try:
-            undo_action = self.iface.actionUndo()
-            if undo_action is not None:
-                undo_action.setEnabled(enabled)
-
-            main_window = self.iface.mainWindow()
-            fallback_action = None
-            if main_window is not None:
-                fallback_action = main_window.findChild(
-                    QAction,
-                    self.UNDO_ACTION_OBJECT_NAME,
-                )
-            if fallback_action is not None and fallback_action is not undo_action:
-                fallback_action.setEnabled(enabled)
-        except Exception as exc:
-            action_name = "enable" if enabled else "disable"
-            print(f"Failed to {action_name} undo action: {exc}")
 
     def __init__(self, canvas, raster_layer, vector_layer, model_type=0,
                  sam_engine=None, edge_weight=0.5, freehand=False, edge_method=DEFAULT_EDGE_METHOD,
@@ -346,6 +522,23 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         self.raster_layer = raster_layer
         self.vector_layer = vector_layer
+        if not self.vector_layer:
+            self.vector_layer = self.create_output_layer()
+        unsupported_reason = self.unsupported_output_reason(self.vector_layer)
+        if unsupported_reason:
+            raise ValueError(
+                "ArchaeoTrace requires a 2D line output layer; Z/M layers "
+                "cannot be edited without losing dimensional values."
+            )
+        # All user feature mutations must go through QGIS' edit buffer.  A
+        # direct provider write commits immediately for file-backed layers,
+        # bypassing both Undo and QGIS' normal save/discard confirmation.
+        if self.vector_layer.readOnly():
+            raise ValueError("ArchaeoTrace cannot edit a read-only output layer.")
+        if not self._ensure_edit_session(self.vector_layer):
+            raise RuntimeError(
+                "Could not start a QGIS edit session for the output layer."
+            )
         self.sam_engine = sam_engine
         self.model_type = model_type
         self.use_sam = (
@@ -382,7 +575,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.last_preview_pos = None
 
         # RubberBands for visualization
-        self.preview_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
+        self.preview_band = QgsRubberBand(self.canvas, LINE_GEOMETRY)
         self._preview_style_is_global = None
         self._configure_band(
             self.preview_band,
@@ -391,14 +584,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             line_style=self.PREVIEW_BAND_LINE_STYLE,
         )
 
-        self.confirm_band = QgsRubberBand(self.canvas, QgsWkbTypes.LineGeometry)
+        self.confirm_band = QgsRubberBand(self.canvas, LINE_GEOMETRY)
         self._configure_band(
             self.confirm_band,
             self.CONFIRM_BAND_COLOR,
             self.CONFIRM_BAND_WIDTH,
         )
 
-        self.start_marker = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
+        self.start_marker = QgsRubberBand(self.canvas, POINT_GEOMETRY)
         self._configure_band(
             self.start_marker,
             self.START_MARKER_COLOR,
@@ -406,7 +599,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             icon=self.START_MARKER_ICON,
         )
 
-        self.close_indicator = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
+        self.close_indicator = QgsRubberBand(self.canvas, POINT_GEOMETRY)
         self._configure_band(
             self.close_indicator,
             self.CLOSE_INDICATOR_COLOR,
@@ -415,7 +608,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         )
 
         # Checkpoint markers (blue diamonds)
-        self.checkpoint_markers = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
+        self.checkpoint_markers = QgsRubberBand(self.canvas, POINT_GEOMETRY)
         self._configure_band(
             self.checkpoint_markers,
             self.CHECKPOINT_MARKER_COLOR,
@@ -427,7 +620,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.checkpoints = []
 
         # Snap marker (for resuming drawing)
-        self.snap_marker = QgsRubberBand(self.canvas, QgsWkbTypes.PointGeometry)
+        self.snap_marker = QgsRubberBand(self.canvas, POINT_GEOMETRY)
         self._configure_band(
             self.snap_marker,
             self.SNAP_MARKER_COLOR,
@@ -466,15 +659,17 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.sam_warning_emitted = False
         self.cache_dirty = True
 
-        self._edge_cache_timer = QTimer(self.canvas)
+        self._edge_cache_timer = QTimer(self)
         self._edge_cache_timer.setSingleShot(True)
         self._edge_cache_timer.setInterval(self.CACHE_DEBOUNCE_MS)
         self._edge_cache_timer.timeout.connect(self.update_edge_cache)
         self._extent_cache_listener_connected = False
+        self._coordinate_crs_listeners_connected = False
+        self._source_lifecycle_listeners_connected = False
 
         # Auto Path/SAM proposals are debounced so the expensive route is
         # calculated after the cursor pauses, not for every mouse event.
-        self._proposal_timer = QTimer(self.canvas)
+        self._proposal_timer = QTimer(self)
         self._proposal_timer.setSingleShot(True)
         self._proposal_timer.setInterval(self.PROPOSAL_DEBOUNCE_MS)
         self._proposal_timer.timeout.connect(self._update_auto_path_preview)
@@ -490,18 +685,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._livewire_anchor_pixel = None
         self._livewire_request_point = None
         self._livewire_warning_emitted = False
+        self._livewire_disabled = False
+        self._livewire_failed_anchor = None
 
-        # CRS transforms
-        self.to_raster_transform = QgsCoordinateTransform(
-            self.canvas.mapSettings().destinationCrs(),
-            self.raster_layer.crs(),
-            QgsProject.instance()
-        )
-        self.to_map_transform = QgsCoordinateTransform(
-            self.raster_layer.crs(),
-            self.canvas.mapSettings().destinationCrs(),
-            QgsProject.instance()
-        )
+        # CRS transforms are refreshed if the canvas or raster CRS changes.
+        # Reusing transforms created for an earlier project CRS silently moves
+        # traces by hundreds of kilometres in otherwise valid projects.
+        self._transform_canvas_crs = None
+        self._transform_raster_crs = None
+        self._refresh_crs_transforms()
 
         # Resume/Merge State
         self.resume_feature_id = None
@@ -511,23 +703,25 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.last_hover_pos = None
         self.last_sample_pos = None
 
-        # Auto-create output layer if needed
-        if not self.vector_layer:
-            self.vector_layer = self.create_output_layer()
-
     def create_output_layer(self):
         crs = self.canvas.mapSettings().destinationCrs().authid()
         layer = QgsVectorLayer(f"LineString?crs={crs}", DEFAULT_OUTPUT_LAYER_NAME, "memory")
         pr = layer.dataProvider()
-        pr.addAttributes([QgsField(FIELD_ID, QVariant.Int)])
+        pr.addAttributes([QgsField(FIELD_ID, _field_type("Int"))])
         layer.updateFields()
         QgsProject.instance().addMapLayer(layer)
         return layer
 
     def get_or_create_spot_layer(self):
         """Get or create the Spot Heights (Point) layer."""
-        if self.spot_height_layer and not self.spot_height_layer.isValid():
-            self.spot_height_layer = None
+        if self.spot_height_layer is not None:
+            try:
+                if not self.spot_height_layer.isValid():
+                    self.spot_height_layer = None
+            except RuntimeError:
+                # QgsProject owns layers and deletes the C++ object when a
+                # user removes it, even while Python still has its wrapper.
+                self.spot_height_layer = None
 
         target_crs = (
             self.vector_layer.crs()
@@ -536,11 +730,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         )
 
         if self.spot_height_layer is None:
-            # Check if exists in project
+            # Reuse only a layer explicitly created by this plugin. A project
+            # can legitimately contain a user-owned layer with the same
+            # display name, which must never be mutated implicitly.
             for layer in QgsProject.instance().mapLayers().values():
+                ownership = layer.customProperty(
+                    self.SPOT_LAYER_OWNERSHIP_PROPERTY,
+                    False,
+                )
                 if (
-                    layer.name() == DEFAULT_SPOT_LAYER_NAME
-                    and layer.geometryType() == QgsWkbTypes.PointGeometry
+                    str(ownership).lower() in ("1", "true", "yes")
+                    and layer.isValid()
+                    and layer.geometryType() == POINT_GEOMETRY
                     and layer.crs() == target_crs
                 ):
                     self.spot_height_layer = layer
@@ -550,14 +751,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             crs = target_crs.authid()
             self.spot_height_layer = QgsVectorLayer(f"Point?crs={crs}", DEFAULT_SPOT_LAYER_NAME, "memory")
             pr = self.spot_height_layer.dataProvider()
-            pr.addAttributes([QgsField(FIELD_ELEVATION, QVariant.Double)])
+            pr.addAttributes([QgsField(FIELD_ELEVATION, _field_type("Double"))])
             self.spot_height_layer.updateFields()
+            self.spot_height_layer.setCustomProperty(
+                self.SPOT_LAYER_OWNERSHIP_PROPERTY,
+                True,
+            )
             QgsProject.instance().addMapLayer(self.spot_height_layer)
 
         return self.spot_height_layer
 
-    def _push_message(self, text, level=Qgis.Warning, duration=4):
-        if self.iface:
+    def _push_message(self, text, level=MESSAGE_WARNING, duration=4):
+        if getattr(self, "iface", None):
             self.iface.messageBar().pushMessage(PLUGIN_NAME, text, level, duration)
         else:
             print(text)
@@ -568,6 +773,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._livewire_tree = None
         self._livewire_anchor_pixel = None
         self._livewire_request_point = None
+        self._livewire_failed_anchor = None
         self.cached_edges = None
         self.cached_cost = None
         self.cache_extent = None
@@ -578,12 +784,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.cache_dirty = True
 
     @staticmethod
-    def _provider_result_ok(result):
-        if isinstance(result, tuple):
-            return bool(result[0])
-        return bool(result)
-
-    @staticmethod
     def _ensure_edit_session(layer):
         if layer.isEditable():
             return True
@@ -592,32 +792,106 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         except Exception:
             return False
 
-    def _ensure_field(self, layer, field_name, field_type):
+    @classmethod
+    def _run_edit_command(cls, layer, label, operation):
+        """Run one undoable edit-buffer mutation and roll it back on failure."""
+        if not cls._ensure_edit_session(layer):
+            return False
+
+        command_started = False
+        try:
+            if hasattr(layer, "beginEditCommand"):
+                layer.beginEditCommand(label)
+                command_started = True
+            ok = bool(operation())
+            if command_started:
+                if ok:
+                    layer.endEditCommand()
+                else:
+                    layer.destroyEditCommand()
+            return ok
+        except Exception:
+            if command_started:
+                try:
+                    layer.destroyEditCommand()
+                except Exception:
+                    pass
+            return False
+
+    def _existing_field_index(self, layer, field_name):
         fields = layer.fields()
         field_idx = fields.indexOf(field_name)
         if field_idx >= 0:
+            existing = fields.at(field_idx)
+            if field_name in (FIELD_ID, FIELD_ELEVATION) and not existing.isNumeric():
+                self._push_message(
+                    self._tr(
+                        f"필드 '{field_name}'은 숫자 형식이어야 합니다.",
+                        f"Field '{field_name}' must be numeric.",
+                    ),
+                    MESSAGE_CRITICAL,
+                )
+                return -1
+            return field_idx
+
+        return None
+
+    def _ensure_field_in_edit_buffer(self, layer, field_name, field_type):
+        """Return a field index, adding it inside an already-open command."""
+        field_idx = self._existing_field_index(layer, field_name)
+        if field_idx is not None:
             return field_idx
 
         field = QgsField(field_name, field_type)
-        if layer.isEditable():
-            ok = layer.addAttribute(field)
-        else:
-            ok = self._provider_result_ok(layer.dataProvider().addAttributes([field]))
-            if not ok and self._ensure_edit_session(layer):
-                ok = layer.addAttribute(field)
-
-        if not ok:
+        if not layer.addAttribute(field):
             self._push_message(
                 self._tr(
                     f"필드 '{field_name}' 추가에 실패했습니다.",
                     f"Failed to add field '{field_name}'.",
                 ),
-                Qgis.Critical,
+                MESSAGE_CRITICAL,
             )
             return -1
 
         layer.updateFields()
-        return layer.fields().indexOf(field_name)
+        field_idx = layer.fields().indexOf(field_name)
+        if field_idx < 0:
+            self._push_message(
+                self._tr(
+                    f"필드 '{field_name}'을 확인하지 못했습니다.",
+                    f"Could not resolve the added field '{field_name}'.",
+                ),
+                MESSAGE_CRITICAL,
+            )
+        return field_idx
+
+    def _ensure_field(self, layer, field_name, field_type):
+        """Ensure a field as one standalone QGIS edit command."""
+        field_idx = self._existing_field_index(layer, field_name)
+        if field_idx is not None:
+            return field_idx
+
+        result = {"index": -1}
+
+        def add_field():
+            result["index"] = self._ensure_field_in_edit_buffer(
+                layer,
+                field_name,
+                field_type,
+            )
+            return result["index"] >= 0
+
+        if not self._run_edit_command(
+            layer,
+            f"ArchaeoTrace add {field_name} field",
+            add_field,
+        ):
+            try:
+                layer.updateFields()
+            except Exception:
+                pass
+            return -1
+        return result["index"]
 
     def _next_feature_id_value(self, layer):
         id_idx = layer.fields().indexOf(FIELD_ID)
@@ -634,44 +908,161 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         return max_id + 1
 
     def _build_feature(self, layer, geometry, elevation=None):
-        feature = QgsFeature()
-        feature.setFields(layer.fields())
-        feature.setGeometry(geometry)
-
-        attrs = [None] * len(layer.fields())
-        id_idx = layer.fields().indexOf(FIELD_ID)
-        if id_idx >= 0:
-            attrs[id_idx] = self._next_feature_id_value(layer)
-
+        attrs = {}
         elev_idx = layer.fields().indexOf(FIELD_ELEVATION)
         if elev_idx >= 0 and elevation is not None:
             attrs[elev_idx] = float(elevation)
 
-        feature.setAttributes(attrs)
+        feature_geometry = QgsGeometry(geometry)
+        if (
+            QgsWkbTypes.isMultiType(layer.wkbType())
+            and not feature_geometry.isMultipart()
+        ):
+            feature_geometry.convertToMultiType()
+
+        # createFeature evaluates provider/layer default value clauses before
+        # applying our explicit values. Building a full [None, ...] row here
+        # would erase unrelated defaults and violate NOT NULL constraints.
+        feature = QgsVectorLayerUtils.createFeature(
+            layer,
+            feature_geometry,
+            attrs,
+        )
+
+        # Preserve a user/provider default on an existing field named "id".
+        # Only supply the plugin's sequential fallback when no default was
+        # evaluated and the field can actually store a numeric identifier.
+        id_idx = layer.fields().indexOf(FIELD_ID)
+        if (
+            id_idx >= 0
+            and layer.fields().at(id_idx).isNumeric()
+            and feature[id_idx] is None
+        ):
+            next_id = self._next_feature_id_value(layer)
+            if next_id is not None:
+                feature[id_idx] = next_id
         return feature
 
-    def _add_feature(self, layer, feature):
-        if layer.isEditable():
-            return bool(layer.addFeature(feature))
+    @staticmethod
+    def _hard_constraint_failures(layer, feature):
+        """Return hard field-constraint failures for a completed feature."""
 
-        ok = self._provider_result_ok(layer.dataProvider().addFeatures([feature]))
-        if not ok and self._ensure_edit_session(layer):
-            ok = bool(layer.addFeature(feature))
+        failures = []
+        for field_idx, field in enumerate(layer.fields()):
+            try:
+                valid, errors = QgsVectorLayerUtils.validateAttribute(
+                    layer,
+                    feature,
+                    field_idx,
+                    HARD_CONSTRAINT,
+                )
+            except (AttributeError, RuntimeError, TypeError) as exc:
+                failures.append((field.name(), [str(exc)]))
+                continue
+            if not valid:
+                failures.append((field.name(), list(errors or ())))
+        return failures
+
+    def _validate_feature_constraints(self, layer, feature):
+        failures = self._hard_constraint_failures(layer, feature)
+        if not failures:
+            return True
+
+        detail = "; ".join(
+            f"{field_name}: {', '.join(errors) or 'invalid value'}"
+            for field_name, errors in failures
+        )
+        self._push_message(
+            self._tr(
+                f"필수 필드 제약을 만족하지 못해 저장하지 않았습니다: {detail}",
+                f"The feature was not saved because required field constraints failed: {detail}",
+            ),
+            MESSAGE_CRITICAL,
+        )
+        return False
+
+    def _add_feature(self, layer, feature):
+        if not self._validate_feature_constraints(layer, feature):
+            return False
+        ok = self._run_edit_command(
+            layer,
+            "ArchaeoTrace add feature",
+            lambda: layer.addFeature(feature),
+        )
         if ok:
             layer.updateExtents()
         return ok
 
-    def _update_geometry(self, layer, feature_id, geometry):
-        if layer.isEditable():
-            return bool(layer.changeGeometry(feature_id, geometry))
-        ok = self._provider_result_ok(
-            layer.dataProvider().changeGeometryValues({feature_id: geometry})
+    def _add_geometry_feature(self, layer, geometry, elevation=None, label=None):
+        """Add an optional elevation field and feature as one Undo command."""
+
+        def add_to_edit_buffer():
+            if elevation is not None:
+                field_idx = self._ensure_field_in_edit_buffer(
+                    layer,
+                    FIELD_ELEVATION,
+                    _field_type("Double"),
+                )
+                if field_idx < 0:
+                    return False
+            feature = self._build_feature(layer, geometry, elevation)
+            if not self._validate_feature_constraints(layer, feature):
+                return False
+            return bool(layer.addFeature(feature))
+
+        ok = self._run_edit_command(
+            layer,
+            label or "ArchaeoTrace add feature",
+            add_to_edit_buffer,
         )
-        if not ok and self._ensure_edit_session(layer):
-            ok = bool(layer.changeGeometry(feature_id, geometry))
+        if ok:
+            layer.updateExtents()
+        else:
+            try:
+                layer.updateFields()
+            except Exception:
+                pass
         return ok
 
+    def _update_feature(self, layer, feature_id, geometry, attributes=None):
+        """Update geometry and attributes together, preserving edit semantics."""
+
+        attributes = dict(attributes or {})
+
+        ok = self._run_edit_command(
+            layer,
+            "ArchaeoTrace extend feature",
+            lambda: self._update_feature_in_edit_buffer(
+                layer,
+                feature_id,
+                geometry,
+                attributes,
+            ),
+        )
+        if ok:
+            layer.updateExtents()
+        return ok
+
+    def _update_feature_in_edit_buffer(self, layer, feature_id, geometry, attributes=None):
+        """Apply one feature update inside an already-open edit command."""
+        ok = bool(layer.changeGeometry(feature_id, geometry))
+        for field_idx, value in dict(attributes or {}).items():
+            ok = ok and bool(
+                layer.changeAttributeValue(feature_id, field_idx, value)
+            )
+        if not ok:
+            return False
+        feature = layer.getFeature(feature_id)
+        return feature.isValid() and self._validate_feature_constraints(
+            layer,
+            feature,
+        )
+
+    def _update_geometry(self, layer, feature_id, geometry):
+        return self._update_feature(layer, feature_id, geometry)
+
     def _canvas_extent_in_raster_crs(self):
+        self._ensure_crs_transforms_current()
         extent = self.canvas.extent()
         if self.canvas.mapSettings().destinationCrs() == self.raster_layer.crs():
             return extent
@@ -684,11 +1075,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     f"좌표계 변환 실패로 엣지 캐시를 만들지 못했습니다: {exc}",
                     f"Failed to transform extent for edge cache: {exc}",
                 ),
-                Qgis.Warning,
+                MESSAGE_WARNING,
             )
             return None
 
     def _map_point_to_raster(self, map_point):
+        self._ensure_crs_transforms_current()
         if self.canvas.mapSettings().destinationCrs() == self.raster_layer.crs():
             return QgsPointXY(map_point.x(), map_point.y())
 
@@ -696,6 +1088,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         return QgsPointXY(transformed.x(), transformed.y())
 
     def _raster_point_to_map(self, point):
+        self._ensure_crs_transforms_current()
         if self.canvas.mapSettings().destinationCrs() == self.raster_layer.crs():
             return QgsPointXY(point.x(), point.y())
 
@@ -804,7 +1197,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                         f"SAM 이미지 준비 실패: {exc}",
                         f"Failed to prepare SAM image: {exc}",
                     ),
-                    Qgis.Warning,
+                    MESSAGE_WARNING,
                 )
                 self.sam_warning_emitted = True
             return False
@@ -997,7 +1390,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def _request_livewire_tree(self, force=False):
         """Build one tree for the latest accepted point, if needed."""
         if (
-            self.freehand
+            self._livewire_disabled
+            or self.freehand
             or self.use_sam
             or self.edge_weight <= 0.0
             or self.cached_edges is None
@@ -1007,13 +1401,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return False
 
         if not is_livewire_available():
+            self._livewire_disabled = True
             if not self._livewire_warning_emitted:
                 self._push_message(
                     self._tr(
                         "SciPy가 없어 방향 인식 Live-Wire 대신 가까운 선 스냅을 사용합니다.",
                         "SciPy is unavailable; using nearby-edge snapping instead of Live-Wire.",
                     ),
-                    Qgis.Warning,
+                    MESSAGE_WARNING,
                     5,
                 )
                 self._livewire_warning_emitted = True
@@ -1021,6 +1416,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         anchor_pixel = self._current_livewire_anchor_pixel()
         if anchor_pixel is None:
+            return False
+        if not force and self._livewire_failed_anchor == anchor_pixel:
             return False
         if (
             not force
@@ -1070,6 +1467,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         )
         if is_current:
             self._livewire_tree = tree
+            self._livewire_failed_anchor = None
             request_point = self._livewire_request_point
             if request_point is not None and not self.use_sam:
                 self._present_livewire_cursor_preview(
@@ -1079,12 +1477,32 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 )
             return
 
+        if isinstance(error, LiveWireUnavailable):
+            self._livewire_disabled = True
+            if not self._livewire_warning_emitted:
+                self._push_message(
+                    self._tr(
+                        "SciPy Live-Wire를 시작할 수 없어 가까운 선 스냅을 사용합니다.",
+                        "SciPy Live-Wire could not start; using nearby-edge snapping.",
+                    ),
+                    MESSAGE_WARNING,
+                    5,
+                )
+                self._livewire_warning_emitted = True
+            return
+
         if error is not None:
+            self._livewire_failed_anchor = task.anchor_pixel
             print(f"Live-Wire tree build failed: {error}")
 
         # A drag or click may have advanced the accepted anchor while the old
         # tree was building. Coalesce that state into one fresh build.
-        if self.is_tracing and current_anchor is not None:
+        if (
+            error is None
+            and self.is_tracing
+            and current_anchor is not None
+            and current_anchor != task.anchor_pixel
+        ):
             self._request_livewire_tree(force=False)
 
     def _livewire_preview_path(self, target_point, request_tree=True):
@@ -1180,7 +1598,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def _render_preview(self):
         """Render the exact candidate segment without committing it."""
-        self.preview_band.reset(QgsWkbTypes.LineGeometry)
+        self.preview_band.reset(LINE_GEOMETRY)
         if self._preview_style_is_global != self.preview_is_global:
             if self.preview_is_global:
                 self.preview_band.setColor(QColor(*self.PROPOSAL_BAND_COLOR))
@@ -1337,7 +1755,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                         "경로 탐색 시간이 초과되어 단순화된 경로를 사용했습니다. (확대해서 시도해보세요)",
                         "Pathfinding timeout - simplified path used (Try zooming in)",
                     ),
-                    Qgis.Warning,
+                    MESSAGE_WARNING,
                     self.PATH_TIMEOUT_MESSAGE_SECONDS,
                 )
             target_point = QgsPointXY(*task.target_xy)
@@ -1421,13 +1839,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 "경로 제안을 표시했습니다. 같은 위치를 다시 클릭하면 채택됩니다.",
                 "Proposal shown. Click the same target again to accept it.",
             ),
-            Qgis.Info,
+            MESSAGE_INFO,
             3,
         )
         return False
 
     def canvasPressEvent(self, event):
-        if event.button() == Qt.RightButton:
+        if event.button() == _qt_value("RightButton", "MouseButton"):
             # Right click = Finish Line (Enter)
             if not self.is_tracing:
                 return
@@ -1448,7 +1866,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.reset_tracing()
             return
 
-        if event.button() != Qt.LeftButton:
+        if event.button() != _qt_value("LeftButton", "MouseButton"):
             return
 
         point = self.toMapCoordinates(event.pos())
@@ -1478,21 +1896,21 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.last_sample_pos = event.pos()
 
             # Show start marker
-            self.start_marker.reset(QgsWkbTypes.PointGeometry)
+            self.start_marker.reset(POINT_GEOMETRY)
             self.start_marker.addPoint(place_point)
-            self.snap_marker.reset(QgsWkbTypes.PointGeometry)  # Hide snap marker
+            self.snap_marker.reset(POINT_GEOMETRY)  # Hide snap marker
 
             # Reset checkpoint markers
-            self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
+            self.checkpoint_markers.reset(POINT_GEOMETRY)
 
             # Update edge cache
             if self._needs_edge_cache():
                 self.update_edge_cache()
                 self._request_livewire_tree(force=False)
 
-            self.confirm_band.reset(QgsWkbTypes.LineGeometry)
+            self.confirm_band.reset(LINE_GEOMETRY)
             self.confirm_band.addPoint(place_point)
-            self.preview_band.reset(QgsWkbTypes.LineGeometry)
+            self.preview_band.reset(LINE_GEOMETRY)
         else:
             # Preserve the existing double-click spot-height gesture before
             # Auto Path's two-click proposal acceptance can intercept it.
@@ -1597,7 +2015,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # 1. NOT TRACING: Check for Snap-to-Resume
         if not self.is_tracing:
             snapped, _, _ = self.snap_to_existing_endpoint(current_point)  # Use raw point for snapping (snappier)
-            self.snap_marker.reset(QgsWkbTypes.PointGeometry)
+            self.snap_marker.reset(POINT_GEOMETRY)
             if snapped:
                 self.snap_marker.addPoint(snapped)
             return
@@ -1606,10 +2024,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         # Check close indicator
         if self.is_near_start(current_point):
-            self.close_indicator.reset(QgsWkbTypes.PointGeometry)
+            self.close_indicator.reset(POINT_GEOMETRY)
             self.close_indicator.addPoint(self.start_point)
         else:
-            self.close_indicator.reset(QgsWkbTypes.PointGeometry)
+            self.close_indicator.reset(POINT_GEOMETRY)
 
         if self.last_map_point is None:
             self.last_map_point = current_point
@@ -1617,14 +2035,22 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return
 
         # MODE CHECK: Dragging vs Hovering
-        is_manual_mode = (event.modifiers() & (Qt.ShiftModifier | Qt.ControlModifier))
+        is_manual_mode = (
+            event.modifiers()
+            & (
+                _qt_value("ShiftModifier", "KeyboardModifier")
+                | _qt_value("ControlModifier", "KeyboardModifier")
+            )
+        )
         interaction_mode = resolve_interaction_mode(
             freehand=self.freehand,
             auto_path=self.auto_path,
             manual_override=bool(is_manual_mode),
         )
 
-        is_dragging = bool(event.buttons() & Qt.LeftButton)
+        is_dragging = bool(
+            event.buttons() & _qt_value("LeftButton", "MouseButton")
+        )
 
         # Preview motion and committed drag sampling are separate concerns.
         # The old Auto Path branch throttled the visible green cursor line to
@@ -1675,7 +2101,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.path_points.append(final_point)
             self.last_input_point = current_point
             self.last_map_point = current_point
-            self.preview_band.reset(QgsWkbTypes.LineGeometry)
+            self.preview_band.reset(LINE_GEOMETRY)
             self.confirm_band.addPoint(final_point)
         else:
             # HOVERING (Not Dragging)
@@ -1694,14 +2120,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if not self.path_points:
                 snap_pt, snap_fid, is_start = self.snap_to_existing_endpoint(current_point)
                 if snap_pt:
-                    self.snap_marker.reset(QgsWkbTypes.PointGeometry)
+                    self.snap_marker.reset(POINT_GEOMETRY)
                     self.snap_marker.addPoint(snap_pt)
                     if self.iface:
-                        self.iface.mapCanvas().setCursor(Qt.PointingHandCursor)
+                        self.iface.mapCanvas().setCursor(
+                            _qt_value("PointingHandCursor", "CursorShape")
+                        )
                 else:
-                    self.snap_marker.reset(QgsWkbTypes.PointGeometry)
+                    self.snap_marker.reset(POINT_GEOMETRY)
                     if self.iface:
-                        self.iface.mapCanvas().setCursor(Qt.CrossCursor)
+                        self.iface.mapCanvas().setCursor(
+                            _qt_value("CrossCursor", "CursorShape")
+                        )
                 return
 
             # 2. Tracing: Prediction Logic
@@ -1841,27 +2271,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts for undo and save."""
 
-        # GLOBAL UNDO BLOCKER:
-        # Prevent QGIS from consuming Ctrl+Z and deleting committed features
-        # CRITICAL: This must be handled BEFORE the is_tracing check to protect idle state
-        if (event.key() == Qt.Key_Z and event.modifiers() & Qt.ControlModifier) or event.key() == Qt.Key_Backspace:
+        is_checkpoint_undo = (
+            event.key() == _qt_value("Key_Z", "Key")
+            and event.modifiers() & _qt_value("ControlModifier", "KeyboardModifier")
+        ) or event.key() == _qt_value("Key_Backspace", "Key")
+        if is_checkpoint_undo:
             if self.is_tracing:
                 self.undo_to_checkpoint()
+                event.accept()
             else:
-                # Inform user that global undo is blocked here for safety
-                if self.iface:
-                    self.iface.messageBar().pushMessage(
-                        PLUGIN_NAME,
-                        self._tr(
-                            "완료된 선 보호를 위해 Undo가 비활성화되어 있습니다. 피처 삭제는 Delete 키를 사용하세요.",
-                            "Undo is disabled to protect finished lines. Use Delete key to remove features.",
-                        ),
-                        Qgis.Info,
-                        self.UNDO_MESSAGE_SECONDS,
-                    )
-
-            # CRITICAL: Always accept event to stop propagation
-            event.accept()
+                # Once a trace has been saved, leave Ctrl+Z/Backspace to QGIS
+                # so the layer's ordinary edit stack remains reachable.
+                event.ignore()
             return
 
         if not self.is_tracing:
@@ -1870,17 +2291,20 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # Esc: Remove last 10 points (quick undo)
 
         # Esc: Cancel entire line (Reset Tracing)
-        if event.key() == Qt.Key_Escape:
+        if event.key() == _qt_value("Key_Escape", "Key"):
             self.reset_tracing()
             return
 
         # Delete: Cancel entire line
-        if event.key() == Qt.Key_Delete:
+        if event.key() == _qt_value("Key_Delete", "Key"):
             self.reset_tracing()
             return
 
         # Enter: Save current line (Capture PREVIEW if exists)
-        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+        if event.key() in (
+            _qt_value("Key_Return", "Key"),
+            _qt_value("Key_Enter", "Key"),
+        ):
             if self.is_tracing:
                 # If there's a green preview line, DO NOT include it
                 # User request: "삐져나온 초록선이 거슬린다" -> Only save clicked points
@@ -1934,7 +2358,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                             "경로 탐색 시간이 초과되어 단순화된 경로를 사용했습니다. (확대해서 시도해보세요)",
                             "Pathfinding timeout - simplified path used (Try zooming in)",
                         ),
-                        Qgis.Warning,
+                        MESSAGE_WARNING,
                         self.PATH_TIMEOUT_MESSAGE_SECONDS,
                     )
                 else:
@@ -1976,7 +2400,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.last_map_point = self.path_points[-1]
 
         # Rebuild checkpoint markers
-        self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
+        self.checkpoint_markers.reset(POINT_GEOMETRY)
         for cp_idx in self.checkpoints[1:]:  # Skip start point
             if cp_idx < len(self.path_points):
                 self.checkpoint_markers.addPoint(self.path_points[cp_idx])
@@ -2002,7 +2426,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.checkpoints.pop()
 
         # Rebuild checkpoint markers
-        self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
+        self.checkpoint_markers.reset(POINT_GEOMETRY)
         for cp_idx in self.checkpoints[1:]:
             if cp_idx < len(self.path_points):
                 self.checkpoint_markers.addPoint(self.path_points[cp_idx])
@@ -2093,7 +2517,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 return None, None, False
 
             # Skip non-line geometries (e.g. Polygons) to prevent crash
-            if geom.type() != QgsWkbTypes.LineGeometry:
+            if geom.type() != LINE_GEOMETRY:
                 continue
 
             if geom.isMultipart():
@@ -2135,16 +2559,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if layer.readOnly():
             self._push_message(
                 self._tr("Spot Height 레이어가 읽기 전용입니다.", "Spot Height layer is read-only."),
-                Qgis.Critical,
+                MESSAGE_CRITICAL,
             )
             return False
 
-        elev_idx = self._ensure_field(layer, FIELD_ELEVATION, QVariant.Double)
-        if elev_idx < 0:
-            return False
-
-        feat = QgsFeature()
-        feat.setFields(layer.fields())
         try:
             geometry = self._map_geometry_to_layer(QgsGeometry.fromPointXY(point), layer)
         except Exception as exc:
@@ -2153,18 +2571,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     f"Spot Height 좌표계 변환에 실패했습니다: {exc}",
                     f"Failed to transform Spot Height coordinates: {exc}",
                 ),
-                Qgis.Critical,
+                MESSAGE_CRITICAL,
             )
             return False
-        feat.setGeometry(geometry)
-        attrs = [None] * len(layer.fields())
-        attrs[elev_idx] = float(elevation)
-        feat.setAttributes(attrs)
-
-        if not self._add_feature(layer, feat):
+        if not self._add_geometry_feature(
+            layer,
+            geometry,
+            elevation,
+            "ArchaeoTrace add spot height",
+        ):
             self._push_message(
                 self._tr("Spot Height 저장에 실패했습니다.", "Failed to save spot height."),
-                Qgis.Critical,
+                MESSAGE_CRITICAL,
             )
             return False
 
@@ -2317,7 +2735,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def redraw_confirmed_path(self):
         """Redraw the confirmed path."""
-        self.confirm_band.reset(QgsWkbTypes.LineGeometry)
+        self.confirm_band.reset(LINE_GEOMETRY)
         for pt in self.path_points:
             self.confirm_band.addPoint(pt)
 
@@ -2329,7 +2747,16 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if self.vector_layer.readOnly():
             self._push_message(
                 self._tr("출력 레이어가 읽기 전용입니다.", "Output layer is read-only."),
-                Qgis.Critical,
+                MESSAGE_CRITICAL,
+            )
+            return False
+        if self.unsupported_output_reason(self.vector_layer):
+            self._push_message(
+                self._tr(
+                    "Z/M 라인은 차원값 손실 위험 때문에 저장하지 않았습니다. 2D 라인 레이어를 사용하세요.",
+                    "The Z/M line was not saved because dimensional values could be lost. Use a 2D line layer.",
+                ),
+                MESSAGE_CRITICAL,
             )
             return False
 
@@ -2364,7 +2791,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                             f"기존 선의 좌표계 변환에 실패했습니다: {exc}",
                             f"Failed to transform the existing line: {exc}",
                         ),
-                        Qgis.Critical,
+                        MESSAGE_CRITICAL,
                     )
                     return False
                 existing_lines = None
@@ -2377,7 +2804,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                             "멀티파트 라인은 새 피처로 저장합니다.",
                             "Multipart lines are saved as a new feature.",
                         ),
-                        Qgis.Info,
+                        MESSAGE_INFO,
                     )
                 else:
                     existing_lines = existing_geom.asPolyline()
@@ -2417,20 +2844,44 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                                 f"병합한 선의 좌표계 변환에 실패했습니다: {exc}",
                                 f"Failed to transform the merged line: {exc}",
                             ),
-                            Qgis.Critical,
-                        )
-                        return False
-                    if not self._update_geometry(
-                        self.vector_layer,
-                        self.resume_feature_id,
-                        layer_geometry,
-                    ):
-                        self._push_message(
-                            self._tr("기존 선 갱신에 실패했습니다.", "Failed to update existing line."),
-                            Qgis.Critical,
+                            MESSAGE_CRITICAL,
                         )
                         return False
 
+                    def update_in_edit_buffer():
+                        attribute_changes = {}
+                        if elevation is not None:
+                            elev_idx = self._ensure_field_in_edit_buffer(
+                                self.vector_layer,
+                                FIELD_ELEVATION,
+                                _field_type("Double"),
+                            )
+                            if elev_idx < 0:
+                                return False
+                            attribute_changes[elev_idx] = float(elevation)
+                        return self._update_feature_in_edit_buffer(
+                            self.vector_layer,
+                            self.resume_feature_id,
+                            layer_geometry,
+                            attribute_changes,
+                        )
+
+                    if not self._run_edit_command(
+                        self.vector_layer,
+                        "ArchaeoTrace extend feature",
+                        update_in_edit_buffer,
+                    ):
+                        try:
+                            self.vector_layer.updateFields()
+                        except Exception:
+                            pass
+                        self._push_message(
+                            self._tr("기존 선 갱신에 실패했습니다.", "Failed to update existing line."),
+                            MESSAGE_CRITICAL,
+                        )
+                        return False
+
+                    self.vector_layer.updateExtents()
                     self.vector_layer.triggerRepaint()
                     self.resume_feature_id = None
                     self.resume_at_start = False
@@ -2444,7 +2895,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     f"등고선 좌표계 변환에 실패했습니다: {exc}",
                     f"Failed to transform contour coordinates: {exc}",
                 ),
-                Qgis.Critical,
+                MESSAGE_CRITICAL,
             )
             return False
         return self.save_geometry(layer_geometry, elevation)
@@ -2453,17 +2904,24 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """Helper to save a generic geometry to the layer."""
         if not self.vector_layer:
             return False
+        if self.unsupported_output_reason(self.vector_layer):
+            self._push_message(
+                self._tr(
+                    "2D 라인 출력 레이어만 지원합니다.",
+                    "Only 2D line output layers are supported.",
+                ),
+                MESSAGE_CRITICAL,
+            )
+            return False
 
-        if elevation is not None:
-            elev_idx = self._ensure_field(self.vector_layer, FIELD_ELEVATION, QVariant.Double)
-            if elev_idx < 0:
-                return False
-
-        feature = self._build_feature(self.vector_layer, geometry, elevation)
-        if not self._add_feature(self.vector_layer, feature):
+        if not self._add_geometry_feature(
+            self.vector_layer,
+            geometry,
+            elevation,
+        ):
             self._push_message(
                 self._tr("피처 저장에 실패했습니다.", "Failed to save feature."),
-                Qgis.Critical,
+                MESSAGE_CRITICAL,
             )
             return False
 
@@ -2555,6 +3013,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._livewire_tree = None
         self._livewire_anchor_pixel = None
         self._livewire_request_point = None
+        self._livewire_failed_anchor = None
         self.checkpoints = []
         self.start_point = None
         self.last_map_point = None
@@ -2564,23 +3023,61 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.last_preview_pos = None
         self.resume_feature_id = None
         self.resume_at_start = False
-        self.preview_band.reset(QgsWkbTypes.LineGeometry)
-        self.confirm_band.reset(QgsWkbTypes.LineGeometry)
-        self.start_marker.reset(QgsWkbTypes.PointGeometry)
-        self.close_indicator.reset(QgsWkbTypes.PointGeometry)
-        self.checkpoint_markers.reset(QgsWkbTypes.PointGeometry)
-        self.snap_marker.reset(QgsWkbTypes.PointGeometry)
+        self.preview_band.reset(LINE_GEOMETRY)
+        self.confirm_band.reset(LINE_GEOMETRY)
+        self.start_marker.reset(POINT_GEOMETRY)
+        self.close_indicator.reset(POINT_GEOMETRY)
+        self.checkpoint_markers.reset(POINT_GEOMETRY)
+        self.snap_marker.reset(POINT_GEOMETRY)
+
+    def dispose(self):
+        """Release canvas-owned graphics and asynchronous work permanently."""
+
+        if getattr(self, "_disposed", False):
+            return
+        self._disposed = True
+        self._edge_cache_timer.stop()
+        self._proposal_timer.stop()
+        self._set_extent_cache_listener(False)
+        self._set_coordinate_crs_listeners(False)
+        self._set_source_lifecycle_listeners(False)
+        try:
+            self.reset_tracing()
+        except RuntimeError:
+            # A source may already have been deleted while deactivating.
+            pass
+
+        # QgsRubberBand is a canvas scene item, not a QObject child of this
+        # map tool. Deleting the canvas-parented tool alone leaves every band
+        # in the scene until QGIS exits, so detach and drop them explicitly.
+        scene = self.canvas.scene()
+        for attribute_name in (
+            "preview_band",
+            "confirm_band",
+            "start_marker",
+            "close_indicator",
+            "checkpoint_markers",
+            "snap_marker",
+        ):
+            item = getattr(self, attribute_name, None)
+            if item is None:
+                continue
+            try:
+                scene.removeItem(item)
+            except RuntimeError:
+                pass
+            setattr(self, attribute_name, None)
 
     def activate(self):
         """Called when tool is activated."""
+        self._refresh_crs_transforms()
+        self._set_coordinate_crs_listeners(True)
+        self._set_source_lifecycle_listeners(True)
         if self._needs_edge_cache():
             self.update_edge_cache()
         else:
             self._clear_edge_cache()
         self._set_extent_cache_listener(True)
-
-        # NUCLEAR UNDO BLOCK: Disable QGIS Undo Action
-        self._set_undo_enabled(False)
 
         super().activate()
 
@@ -2589,10 +3086,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._edge_cache_timer.stop()
         self._proposal_timer.stop()
         self._set_extent_cache_listener(False)
-
-        # RESTORE UNDO ACTION
-        self._set_undo_enabled(True)
+        self._set_coordinate_crs_listeners(False)
+        self._set_source_lifecycle_listeners(False)
 
         self.reset_tracing()
         super().deactivate()
-        self.deactivated.emit()

@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a reproducible ArchaeoTrace failure without exposing sensitive map data.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve ArchaeoTrace. For vulnerabilities, data-loss paths, model-integrity bypasses, or unintended data disclosure, do not continue here; use SECURITY.md and email the maintainer privately.
+  - type: input
+    id: versions
+    attributes:
+      label: Environment
+      description: OS, QGIS version, Python version, and ArchaeoTrace version or commit.
+      placeholder: macOS 15, QGIS 3.44.8, Python 3.12, ArchaeoTrace 0.1.5
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Use a redistributable minimal fixture when possible.
+      placeholder: |
+        1. Load ...
+        2. Select ...
+        3. Click ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include whether edits, files, or model state changed.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs or status
+      description: SAM Status Report may contain working directories, QGIS/Python environment values, and model paths. Review and redact it before pasting.
+      render: text
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Data-safety checks
+      options:
+        - label: I removed credentials, usernames, local/network paths, and non-redistributable map data.
+          required: true
+        - label: This is not a private security or data-loss report that belongs under SECURITY.md.
+          required: true

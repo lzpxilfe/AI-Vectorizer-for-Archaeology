@@ -14,11 +14,11 @@ from dataclasses import dataclass
 import heapq
 import math
 import struct
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Sequence, Tuple
 
 
-Pixel = tuple[int, int]
-Point = tuple[float, float]
+Pixel = Tuple[int, int]
+Point = Tuple[float, float]
 
 
 PATH_MOVE_COST_STRAIGHT = 1.0
@@ -307,13 +307,26 @@ def _trace_path(
     minimum_remaining_distance = abs(target[0] - start[0]) + abs(target[1] - start[1])
 
     while frontier:
+        priority, current_x, current_y = heapq.heappop(frontier)
+        current = (current_x, current_y)
+
+        # A node can be queued more than once before its cheapest route is
+        # known.  Expanding an older entry again is both wasted work and, more
+        # importantly, used to consume the product iteration budget.  Large
+        # weighted edge maps could therefore hit the limit even though the
+        # target was reachable within the configured number of real
+        # expansions.
+        current_cost = cost_so_far[current]
+        current_heuristic = math.sqrt(
+            (target[0] - current_x) ** 2 + (target[1] - current_y) ** 2
+        )
+        if current != start and priority > current_cost + current_heuristic + 1e-12:
+            continue
+
         iterations += 1
         if iterations > max_iterations:
             limit_hit = True
             break
-
-        _priority, current_x, current_y = heapq.heappop(frontier)
-        current = (current_x, current_y)
 
         remaining_distance = abs(target[0] - current_x) + abs(target[1] - current_y)
         if remaining_distance < minimum_remaining_distance:
@@ -342,6 +355,10 @@ def _trace_path(
                 pixel_cost = float(cost_map[next_y, next_x])
             next_node = (next_x, next_y)
             new_cost = cost_so_far[current] + pixel_cost * movement_cost
+            if not math.isfinite(new_cost):
+                raise TraceInputError(
+                    "accumulated path cost overflowed; cost_map values are too large"
+                )
 
             if next_node not in cost_so_far or new_cost < cost_so_far[next_node]:
                 cost_so_far[next_node] = new_cost

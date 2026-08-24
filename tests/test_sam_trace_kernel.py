@@ -80,6 +80,17 @@ assert not any(name.split('.')[0] in blocked for name in loaded), sorted(loaded)
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
 
+    def test_configuration_rejects_unbounded_or_nonfinite_limits(self):
+        invalid_configs = (
+            {"max_dimension": 1025},
+            {"max_iterations_base": -1},
+            {"max_iterations_distance_factor": 1.5},
+            {"edge_pixel_threshold": float("nan")},
+        )
+        for values in invalid_configs:
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                SamTraceConfig(**values)
+
 
 @unittest.skipIf(np is None, "NumPy is an optional plugin runtime dependency")
 class SamMaskPostprocessTests(unittest.TestCase):
@@ -145,6 +156,20 @@ class SamMaskPostprocessTests(unittest.TestCase):
             )
         )
 
+    def test_dimension_limit_runs_before_opencv_allocation(self):
+        cv2 = FakeCV2()
+        config = SamTraceConfig(max_dimension=2)
+
+        with self.assertRaisesRegex(ValueError, "dimensions 2x3 exceed"):
+            postprocess_mask(
+                np.zeros((3, 2), dtype=np.float32),
+                cv2_module=cv2,
+                np_module=np,
+                config=config,
+            )
+
+        self.assertEqual(cv2.morphology_calls, [])
+
 
 @unittest.skipIf(np is None, "NumPy is an optional plugin runtime dependency")
 class SamCostMapTests(unittest.TestCase):
@@ -205,6 +230,13 @@ class SamEndpointAndTraceTests(unittest.TestCase):
         mask[1, 3] = True
 
         self.assertEqual(nearest_active_pixel(mask, 2, 2), (1, 1))
+
+    def test_nearest_active_radius_is_validated_and_bounded_by_mask(self):
+        mask = np.zeros((3, 3), dtype=bool)
+
+        self.assertIsNone(nearest_active_pixel(mask, 1, 1, max_radius=10**9))
+        with self.assertRaisesRegex(ValueError, "max_radius"):
+            nearest_active_pixel(mask, 1, 1, max_radius=-1)
 
     def test_trace_uses_truncated_prompts_skeleton_snaps_and_strict_api(self):
         mask = np.zeros((9, 9), dtype=bool)

@@ -290,6 +290,26 @@ print(benchmarks.worker.WORKER_REQUEST_SCHEMA_VERSION)
                 self.assertNotIn("artifact", prediction)
                 self.assertFalse(request.artifact_path.exists())
 
+    def test_artifact_that_appears_after_validation_is_not_overwritten(self):
+        with tempfile.TemporaryDirectory() as folder:
+            request_path, _payload = self._fixture(folder)
+            request = load_worker_request(request_path)
+            request.artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            sentinel = b"created-by-another-process"
+            request.artifact_path.write_bytes(sentinel)
+
+            result = run_worker(
+                request,
+                pipeline_loader=lambda _backend, _threads: FakePipeline(
+                    "canny-adaptive-v1"
+                ),
+            )
+
+            prediction = result["prediction"]
+            self.assertEqual(prediction["execution"]["status"], "failed")
+            self.assertNotIn("artifact", prediction)
+            self.assertEqual(request.artifact_path.read_bytes(), sentinel)
+
     def test_success_runtime_includes_source_file_hashes(self):
         with tempfile.TemporaryDirectory() as folder:
             request_path, _payload = self._fixture(folder)
@@ -553,6 +573,14 @@ print(benchmarks.worker.WORKER_REQUEST_SCHEMA_VERSION)
             payload["threads"] = 2
             request_path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(WorkerRequestError, "between 1 and 1"):
+                load_worker_request(request_path)
+
+    def test_request_size_limit_is_enforced(self):
+        with tempfile.TemporaryDirectory() as folder:
+            request_path = Path(folder) / "request.json"
+            request_path.write_bytes(b" " * (benchmark_worker.MAX_REQUEST_BYTES + 1))
+
+            with self.assertRaisesRegex(WorkerRequestError, "request exceeds"):
                 load_worker_request(request_path)
 
     def test_request_rejects_an_artifact_path_with_a_symlink_component(self):

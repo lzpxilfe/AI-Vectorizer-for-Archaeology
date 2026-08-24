@@ -1,15 +1,16 @@
 cff-version: 1.2.0
 message: "If you use this repository in research, teaching, or applied work, please cite it using the metadata below."
 type: software
-title: "AI-Vectorizer-for-Archaeology: AI를 활용한 구 지형도 등고선 값 디지타이징"
+title: "ArchaeoTrace: local-first contour tracing and terrain reconstruction for historical maps"
+version: 0.1.5
 authors:
   - family-names: Hwang
     given-names: Jinseo
 repository-code: "https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology"
 url: "https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology"
-date-released: 2026-07-10
 abstract: >
-  AI를 활용한 구 지형도 등고선 값 디지타이징
+  A QGIS plugin for human-reviewed tracing of elevation contours on historical
+  maps and experimental DEM and hillshade reconstruction from saved elevations.
 keywords:
   - archaeology
   - digital archaeology

@@ -128,6 +128,34 @@ class BenchmarkMetricsTests(unittest.TestCase):
         self.assertEqual(
             result["topology"]["unmatched_prediction_branch_zones"], 1
         )
+        self.assertEqual(
+            result["topology"]["unmatched_reference_branch_zones"], 0
+        )
+
+    def test_missing_reference_branch_is_an_unmatched_branch_zone(self):
+        reference_pixels = [
+            (3, column) for column in range(1, 6)
+        ] + [(2, 3), (1, 3)]
+        prediction_pixels = [(3, column) for column in range(1, 6)]
+        reference_path_xy = [(column, 3) for column in range(1, 6)]
+
+        result = compute_metrics(
+            mask(7, 7, prediction_pixels),
+            mask(7, 7, reference_pixels),
+            [(reference_path_xy, False)],
+            tolerances=(0,),
+            primary_tolerance=0,
+        )
+
+        self.assertEqual(result["topology"]["prediction"]["branch_zones"], 0)
+        self.assertEqual(result["topology"]["reference"]["branch_zones"], 1)
+        self.assertEqual(result["topology"]["matched_prediction_branch_zones"], 0)
+        self.assertEqual(
+            result["topology"]["unmatched_prediction_branch_zones"], 0
+        )
+        self.assertEqual(
+            result["topology"]["unmatched_reference_branch_zones"], 1
+        )
 
     def test_closed_path_partial_omission_is_one_cyclic_break(self):
         path_xy = (
@@ -269,6 +297,9 @@ class BenchmarkMetricsTests(unittest.TestCase):
         self.assertEqual(result["topology"]["matched_prediction_branch_zones"], 1)
         self.assertEqual(
             result["topology"]["unmatched_prediction_branch_zones"], 1
+        )
+        self.assertEqual(
+            result["topology"]["unmatched_reference_branch_zones"], 0
         )
 
     def test_large_identical_branch_zones_do_not_use_cartesian_pixel_pairs(self):

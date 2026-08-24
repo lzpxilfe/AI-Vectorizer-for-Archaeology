@@ -101,6 +101,14 @@ DEFAULT_VECTOR_FILE_ENCODING = "UTF-8"
 
 MAX_RASTER_BANDS_FOR_RGB = 3
 PREVIEW_EDGE_MAX_DIMENSION = 800
-MOBILE_SAM_INSTALL_COMMAND = "pip install torch torchvision git+https://github.com/ChaoningZhang/MobileSAM.git"
-SAM_INSTALL_COMMAND = "pip install torch torchvision git+https://github.com/facebookresearch/segment-anything.git"
+MOBILE_SAM_INSTALL_COMMAND = (
+    'pip install "opencv-python-headless>=4.8,<4.12" requests torch torchvision '
+    '"mobile-sam @ git+https://github.com/ChaoningZhang/MobileSAM.git@'
+    'f706ad9c4eb7f219c00d9050e46328518ffb65d2"'
+)
+SAM_INSTALL_COMMAND = (
+    'pip install "opencv-python-headless>=4.8,<4.12" requests torch torchvision '
+    '"segment-anything @ git+https://github.com/facebookresearch/segment-anything.git@'
+    'dca509fe793f601edb92606367a655c15ac00fdf"'
+)
 SAM_REPORT_FILENAME = "archaeotrace_sam_report.json"

@@ -7,7 +7,7 @@ silently change its model inputs.
 
 from __future__ import annotations
 
-from contextlib import closing
+from contextlib import contextmanager
 from dataclasses import dataclass
 import errno
 import hashlib
@@ -145,9 +145,31 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
         return None
 
 
+@contextmanager
+def _quietly_closing_response(response):
+    """Close transport resources without losing a completed verified read."""
+
+    try:
+        yield response
+    finally:
+        close = getattr(response, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                pass
+
+
 def _default_transport(request: urllib.request.Request, timeout: float):
     opener = urllib.request.build_opener(_NoRedirectHandler())
-    return opener.open(request, timeout=timeout)
+    try:
+        return opener.open(request, timeout=timeout)
+    except urllib.error.HTTPError as exc:
+        try:
+            exc.close()
+        except Exception:
+            pass
+        raise
 
 
 def _normal_root(cache_root) -> Path:
@@ -540,17 +562,28 @@ def _publish_no_replace(
         raise ModelCacheSafetyError("Model cache directory changed before publishing.")
 
     directory_descriptor = None
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_DIRECTORY", 0)
-    flags |= getattr(os, "O_NOFOLLOW", 0)
+    supports_link_dir_fd = os.link in getattr(os, "supports_dir_fd", set())
+    supports_unlink_dir_fd = os.unlink in getattr(os, "supports_dir_fd", set())
+    supports_open_dir_fd = os.open in getattr(os, "supports_dir_fd", set())
+    use_directory_descriptor = (
+        supports_link_dir_fd
+        and supports_unlink_dir_fd
+        and supports_open_dir_fd
+    )
     try:
-        directory_descriptor = os.open(destination.parent, flags)
-        opened_parent = os.fstat(directory_descriptor)
-        if not os.path.samestat(expected_parent, opened_parent):
-            raise ModelCacheSafetyError("Model cache directory changed while publishing.")
-
-        supports_link_dir_fd = os.link in getattr(os, "supports_dir_fd", set())
-        supports_unlink_dir_fd = os.unlink in getattr(os, "supports_dir_fd", set())
-        if supports_link_dir_fd and supports_unlink_dir_fd:
+        if use_directory_descriptor:
+            flags = (
+                os.O_RDONLY
+                | getattr(os, "O_CLOEXEC", 0)
+                | getattr(os, "O_DIRECTORY", 0)
+                | getattr(os, "O_NOFOLLOW", 0)
+            )
+            directory_descriptor = os.open(destination.parent, flags)
+            opened_parent = os.fstat(directory_descriptor)
+            if not os.path.samestat(expected_parent, opened_parent):
+                raise ModelCacheSafetyError(
+                    "Model cache directory changed while publishing."
+                )
             os.link(
                 temporary.name,
                 destination.name,
@@ -558,15 +591,32 @@ def _publish_no_replace(
                 dst_dir_fd=directory_descriptor,
                 follow_symlinks=False,
             )
-            os.unlink(temporary.name, dir_fd=directory_descriptor)
-        else:  # pragma: no cover - exercised on platforms without dir_fd support.
+            try:
+                os.unlink(temporary.name, dir_fd=directory_descriptor)
+            except OSError:
+                # Publication already succeeded. The caller verifies the new
+                # object, and its outer cleanup retries the stale temp name.
+                pass
+            if os.name == "posix":
+                os.fsync(directory_descriptor)
+        else:  # Exercised by Windows and platforms without dir_fd support.
             if not os.path.samestat(expected_parent, _safe_parent_stat(destination.parent)):
                 raise ModelCacheSafetyError("Model cache directory changed while publishing.")
-            os.link(temporary, destination, follow_symlinks=False)
-            os.unlink(temporary)
-
-        if os.name == "posix":
-            os.fsync(directory_descriptor)
+            try:
+                os.link(temporary, destination, follow_symlinks=False)
+            except TypeError:  # pragma: no cover - older platform API surface.
+                os.link(temporary, destination)
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
+            if not os.path.samestat(
+                expected_parent,
+                _safe_parent_stat(destination.parent),
+            ):
+                raise ModelCacheSafetyError(
+                    "Model cache directory changed while publishing."
+                )
     except FileExistsError:
         raise
     except OSError as exc:
@@ -594,7 +644,11 @@ def _download_artifact(
     )
     temporary = Path(temporary_name)
     try:
-        os.chmod(temporary, 0o600)
+        # mkstemp already creates mode 0600. If a platform exposes fchmod,
+        # reinforce that permission through the still-pinned descriptor rather
+        # than reopening the pathname after a possible local path swap.
+        if hasattr(os, "fchmod"):
+            os.fchmod(descriptor, 0o600)
         request = urllib.request.Request(
             artifact.url,
             headers={
@@ -617,7 +671,7 @@ def _download_artifact(
         total = 0
         with os.fdopen(descriptor, "wb") as output:
             descriptor = -1
-            with closing(response):
+            with _quietly_closing_response(response):
                 _validate_response(response, artifact)
                 while True:
                     if time.monotonic() > deadline:

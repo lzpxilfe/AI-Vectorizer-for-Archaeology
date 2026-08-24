@@ -8,14 +8,22 @@ import os
 from pathlib import Path
 import uuid
 
-from qgis.PyQt.QtCore import QObject, QTimer, pyqtSignal
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QObject, QTimer, QUrl, pyqtSignal
+try:
+    from qgis.PyQt.QtCore import QVariant
+except ImportError:  # PyQt6/QGIS 4
+    QVariant = None
+try:
+    from qgis.PyQt.QtCore import QMetaType
+except ImportError:  # QMetaType is only needed for the PyQt6 fallback.
+    QMetaType = None
 from qgis.core import (
     Qgis,
     QgsApplication,
     QgsProcessingAlgRunnerTask,
     QgsProcessingContext,
     QgsProcessingFeedback,
+    QgsProviderRegistry,
     QgsProject,
     QgsRasterLayer,
     QgsRectangle,
@@ -101,20 +109,72 @@ def _meter_unit():
 def _is_numeric_field(field) -> bool:
     if hasattr(field, "isNumeric"):
         return bool(field.isNumeric())
-    numeric_types = {
-        QVariant.Int,
-        QVariant.UInt,
-        QVariant.LongLong,
-        QVariant.ULongLong,
-        QVariant.Double,
-    }
+    numeric_types = set()
+    # QMetaType.Type is the non-deprecated API in QGIS 3.38+ and the only
+    # variant available with PyQt6/QGIS 4. Keep QVariant as the older fallback.
+    for owner in (getattr(QMetaType, "Type", None), QVariant):
+        if owner is None:
+            continue
+        for name in ("Int", "UInt", "LongLong", "ULongLong", "Double"):
+            value = getattr(owner, name, None)
+            if value is not None:
+                numeric_types.add(value)
     return field.type() in numeric_types
 
 
 def _layer_reference(layer) -> str:
-    if layer.providerType() == "memory":
-        return layer.id()
-    return layer.source() or layer.id()
+    # The Processing context is project-backed and the request retains every
+    # dependent layer.  A project layer id therefore refers to the exact
+    # selected layer (including joins/subsets), unlike a raw provider URI.
+    return layer.id()
+
+
+def layer_file_path(layer) -> str:
+    """Return a provider layer's decoded local filesystem path, if any."""
+
+    source = str(layer.source() or "")
+    if not source:
+        return ""
+
+    candidate = ""
+    try:
+        decoded = QgsProviderRegistry.instance().decodeUri(
+            layer.providerType(),
+            source,
+        )
+        candidate = str(decoded.get("path") or "")
+    except (AttributeError, RuntimeError, TypeError):
+        pass
+
+    if not candidate:
+        # OGR/GDAL provider options follow the local path after a pipe. This
+        # fallback also covers older/custom providers without decodeUri().
+        candidate = source.split("|", 1)[0]
+    if candidate.lower().startswith("file:"):
+        candidate = QUrl(candidate).toLocalFile()
+    return candidate
+
+
+def project_layers_using_path(path, project=None):
+    """Return loaded project layers referring to ``path`` canonically."""
+
+    project = project or QgsProject.instance()
+    matches = []
+    for layer in project.mapLayers().values():
+        source_path = layer_file_path(layer)
+        if source_path and paths_refer_to_same_file(source_path, path):
+            matches.append(layer)
+    return matches
+
+
+def loaded_project_paths(paths, project=None):
+    """Return unique target paths currently referenced by project layers."""
+
+    return [
+        path
+        for path in dict.fromkeys(paths)
+        if project_layers_using_path(path, project=project)
+    ]
 
 
 def inspect_elevation_layer(layer, field_name: str) -> ElevationStats:
@@ -474,7 +534,13 @@ class DemPipelineRunner(QObject):
         paths = list(primary_paths)
         for primary_path in primary_paths:
             if primary_path:
-                paths.extend((f"{primary_path}.aux.xml", f"{primary_path}.ovr"))
+                paths.extend(
+                    (
+                        f"{primary_path}.aux.xml",
+                        f"{primary_path}.ovr",
+                        f"{primary_path}.msk",
+                    )
+                )
         if self._raw_dem_path:
             raw = Path(self._raw_dem_path)
             paths.extend((f"{self._raw_dem_path}.prj", str(raw.with_suffix(".prj"))))
@@ -795,6 +861,19 @@ class DemPipelineRunner(QObject):
                 self._request.crs_authid,
                 expected_dimensions=self._dem_dimensions,
             )
+            # The dialog checks before starting, but a user can load an
+            # existing target while the asynchronous pipeline is running.
+            # Publication happens on the main thread, so this final check
+            # closes that race before either atomic replacement begins.
+            loaded_paths = loaded_project_paths(
+                (self._request.dem_path, self._request.hillshade_path)
+            )
+            if loaded_paths:
+                raise DemInputError(
+                    "Cannot publish terrain outputs while these files are "
+                    "loaded in QGIS. Remove their layers and run again:\n"
+                    + "\n".join(loaded_paths)
+                )
             self._publish_outputs(
                 (
                     (self._dem_work_path, self._request.dem_path),

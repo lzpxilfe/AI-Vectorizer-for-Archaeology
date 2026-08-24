@@ -6,9 +6,11 @@ from dataclasses import replace
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
+import urllib.error
 from unittest import mock
 
 from ai_vectorizer.core.efficientsam_spec import (
@@ -107,6 +109,12 @@ class FakeResponse:
     def close(self):
         self.closed = True
         self._stream.close()
+
+
+class CloseFailingResponse(FakeResponse):
+    def close(self):
+        super().close()
+        raise OSError("injected response cleanup failure")
 
 
 class FakeTransport:
@@ -282,6 +290,108 @@ class ModelStoreTests(unittest.TestCase):
 
                 self.assertFalse(_cache_path(folder, artifact).exists())
                 self.assert_no_partial_files(folder)
+
+    def test_response_cleanup_failure_does_not_discard_verified_download(self):
+        payload = b"model"
+        artifact = _artifact("encoder", payload)
+        spec = _bundle(artifact)
+
+        def response(request):
+            return CloseFailingResponse(payload, url=request.full_url)
+
+        with tempfile.TemporaryDirectory() as folder:
+            verified = fetch_bundle(
+                folder,
+                spec,
+                transport=FakeTransport({artifact.url: response}),
+            )
+
+            self.assertEqual(verified.read_bytes("encoder"), payload)
+            self.assert_no_partial_files(folder)
+
+    def test_default_transport_closes_http_error_response(self):
+        payload = b"model"
+        artifact = _artifact("encoder", payload)
+        spec = _bundle(artifact)
+        body = io.BytesIO(b"not found")
+        error = urllib.error.HTTPError(
+            artifact.url,
+            404,
+            "Not Found",
+            {},
+            body,
+        )
+
+        class FailingOpener:
+            def open(self, request, timeout):
+                del request, timeout
+                raise error
+
+        with tempfile.TemporaryDirectory() as folder:
+            with mock.patch.object(
+                model_store.urllib.request,
+                "build_opener",
+                return_value=FailingOpener(),
+            ):
+                with self.assertRaises(ModelDownloadError):
+                    fetch_bundle(folder, spec)
+
+        self.assertTrue(body.closed)
+
+    def test_temporary_unlink_error_does_not_hide_published_verified_object(self):
+        payload = b"model"
+        artifact = _artifact("encoder", payload)
+        spec = _bundle(artifact)
+        real_unlink = model_store.os.unlink
+        failed_once = False
+
+        def fail_first_partial_unlink(path, *args, **kwargs):
+            nonlocal failed_once
+            if not failed_once and str(path).endswith(".partial"):
+                failed_once = True
+                raise OSError("injected temporary cleanup failure")
+            return real_unlink(path, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as folder:
+            with mock.patch.object(
+                model_store.os,
+                "unlink",
+                side_effect=fail_first_partial_unlink,
+            ):
+                verified = fetch_bundle(
+                    folder,
+                    spec,
+                    transport=FakeTransport({artifact.url: payload}),
+                )
+
+            self.assertTrue(failed_once)
+            self.assertEqual(verified.read_bytes("encoder"), payload)
+            self.assert_no_partial_files(folder)
+
+    def test_publication_falls_back_without_opening_directory_on_no_dir_fd_platform(self):
+        with tempfile.TemporaryDirectory() as folder:
+            parent = Path(folder)
+            temporary = parent / ".model.partial"
+            destination = parent / "model"
+            temporary.write_bytes(b"verified bytes")
+            expected_parent = os.lstat(parent)
+
+            with mock.patch.object(model_store.os, "supports_dir_fd", set()):
+                with mock.patch.object(
+                    model_store.os,
+                    "open",
+                    side_effect=AssertionError(
+                        "fallback publication must not open a directory descriptor"
+                    ),
+                ):
+                    model_store._publish_no_replace(
+                        temporary,
+                        destination,
+                        expected_parent,
+                    )
+
+            self.assertFalse(temporary.exists())
+            self.assertEqual(destination.read_bytes(), b"verified bytes")
 
     def test_untrusted_response_metadata_is_rejected_before_publish(self):
         expected = b"fixed-model"

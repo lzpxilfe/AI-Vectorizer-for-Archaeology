@@ -21,11 +21,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Sequence, Tuple
 
 
-Pixel = tuple[int, int]
-Point = tuple[float, float]
+Pixel = Tuple[int, int]
+Point = Tuple[float, float]
 ThinBinaryMask = Callable[[Any], Any]
 
 
@@ -39,6 +39,7 @@ PRODUCT_NEIGHBORS: tuple[Pixel, ...] = (
     (1, -1),
     (1, 1),
 )
+MAX_SAM_TRACE_DIMENSION = 1_024
 
 
 @dataclass(frozen=True)
@@ -92,9 +93,21 @@ class SamTraceConfig:
         if (
             isinstance(self.max_dimension, bool)
             or not isinstance(self.max_dimension, int)
-            or self.max_dimension < 1
+            or not 1 <= self.max_dimension <= MAX_SAM_TRACE_DIMENSION
         ):
-            raise ValueError("max_dimension must be a positive integer")
+            raise ValueError(
+                "max_dimension must be an integer between 1 and "
+                f"{MAX_SAM_TRACE_DIMENSION}"
+            )
+        iteration_limits = (
+            self.max_iterations_base,
+            self.max_iterations_distance_factor,
+        )
+        if any(
+            isinstance(value, bool) or not isinstance(value, int) or value < 0
+            for value in iteration_limits
+        ):
+            raise ValueError("iteration limits must be non-negative integers")
         if (
             isinstance(self.smooth_window_size, bool)
             or not isinstance(self.smooth_window_size, int)
@@ -122,6 +135,16 @@ class SamTraceConfig:
             raise ValueError("SAM and movement costs must be finite and positive")
         if not math.isfinite(self.centerline_bonus) or self.centerline_bonus < 0.0:
             raise ValueError("centerline_bonus must be finite and non-negative")
+        try:
+            valid_edge_threshold = (
+                not isinstance(self.edge_pixel_threshold, bool)
+                and math.isfinite(self.edge_pixel_threshold)
+                and self.edge_pixel_threshold >= 0
+            )
+        except TypeError:
+            valid_edge_threshold = False
+        if not valid_edge_threshold:
+            raise ValueError("edge_pixel_threshold must be finite and non-negative")
 
 
 DEFAULT_CONFIG = SamTraceConfig()
@@ -179,6 +202,29 @@ def _trace_kernel(trace_kernel: Any | None) -> Any:
     return product_trace_kernel
 
 
+def _validate_mask_dimensions(
+    candidate: Any,
+    config: SamTraceConfig,
+    *,
+    label: str,
+) -> Tuple[int, int]:
+    shape = getattr(candidate, "shape", None)
+    if shape is None or len(shape) != 2:
+        raise ValueError(f"{label} must be a two-dimensional array")
+    try:
+        height, width = int(shape[0]), int(shape[1])
+    except (TypeError, ValueError, IndexError) as exc:
+        raise ValueError(f"{label} has invalid dimensions") from exc
+    if height < 1 or width < 1:
+        raise ValueError(f"{label} must not be empty")
+    if width > config.max_dimension or height > config.max_dimension:
+        raise ValueError(
+            f"{label} dimensions {width}x{height} exceed the "
+            f"{config.max_dimension}x{config.max_dimension} limit"
+        )
+    return height, width
+
+
 def postprocess_mask(
     mask: Any,
     *,
@@ -199,6 +245,7 @@ def postprocess_mask(
     candidate = np.asarray(mask)
     if candidate.ndim != 2:
         return None
+    _validate_mask_dimensions(candidate, config, label="mask")
     cv2 = _cv2(cv2_module)
 
     closed = cv2.morphologyEx(
@@ -235,6 +282,7 @@ def build_cost_map(
     candidate = np.asarray(mask)
     if candidate.ndim != 2:
         raise ValueError("mask must be a two-dimensional array")
+    _validate_mask_dimensions(candidate, config, label="mask")
     cv2 = _cv2(cv2_module)
 
     closed_mask = cv2.morphologyEx(
@@ -301,15 +349,20 @@ def nearest_active_pixel(
     shape = getattr(binary_mask, "shape", None)
     if shape is None or len(shape) != 2:
         raise ValueError("binary_mask must be a two-dimensional array")
-    height, width = int(shape[0]), int(shape[1])
-    if height < 1 or width < 1:
-        return None
+    height, width = _validate_mask_dimensions(binary_mask, config, label="binary_mask")
+    if max_radius is not None and (
+        isinstance(max_radius, bool)
+        or not isinstance(max_radius, int)
+        or max_radius < 0
+    ):
+        raise ValueError("max_radius must be a non-negative integer or None")
     px, py = _clamp_pixel(px, py, width, height)
     if binary_mask[py, px]:
         return (px, py)
 
     # ``or`` preserves the historical max_radius=0 behavior.
     radius_limit = max_radius or config.nearest_active_radius
+    radius_limit = min(radius_limit, max(width - 1, height - 1))
     best = None
     best_distance = None
     for radius in range(1, radius_limit + 1):

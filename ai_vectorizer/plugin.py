@@ -7,12 +7,22 @@ GNU General Public License v2
 """
 
 import os
-from qgis.PyQt.QtCore import QCoreApplication
+from qgis.PyQt.QtCore import QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
+try:
+    from qgis.PyQt.QtGui import QAction
+except ImportError:  # PyQt5
+    from qgis.PyQt.QtWidgets import QAction
 
 from .ui.main_dialog import AIVectorizerDialog
 from .config import PLUGIN_MENU, PLUGIN_NAME, PLUGIN_TOOLBAR_OBJECT_NAME
+
+
+def _left_dock_area():
+    legacy = getattr(Qt, "LeftDockWidgetArea", None)
+    if legacy is not None:
+        return legacy
+    return Qt.DockWidgetArea.LeftDockWidgetArea
 
 
 class AIVectorizer:
@@ -92,7 +102,15 @@ class AIVectorizer:
         """Remove the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
             self.iface.removePluginVectorMenu(self.menu, action)
+            if self.toolbar is not None:
+                self.toolbar.removeAction(action)
             self.iface.removeToolBarIcon(action)
+            try:
+                action.triggered.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            action.deleteLater()
+        self.actions.clear()
 
         if self.dialog is not None:
             try:
@@ -120,16 +138,19 @@ class AIVectorizer:
             self.dialog = None
 
         if self.toolbar is not None:
-            del self.toolbar
+            try:
+                self.iface.mainWindow().removeToolBar(self.toolbar)
+            except Exception as exc:
+                self._log_cleanup_warning("Toolbar removal failed", exc)
+            self.toolbar.deleteLater()
+            self.toolbar = None
 
     def run(self):
         """Open the main plugin as a docked panel on the left."""
-        from qgis.PyQt.QtCore import Qt
-
         if self.dialog is None:
             self.dialog = AIVectorizerDialog(self.iface, parent=self.iface.mainWindow())
             # Add as dock widget to left side
-            self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dialog)
+            self.iface.addDockWidget(_left_dock_area(), self.dialog)
 
         self.dialog.show()
         self.dialog.raise_()

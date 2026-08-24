@@ -1,0 +1,261 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pure-python:
+    name: Pure Python ${{ matrix.python }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Install test runtime
+        run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
+      - name: Run pure tests
+        run: python -m pytest -q
+
+  python38-compatibility:
+    name: Python 3.8 source compatibility (no PyPI dependencies)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.8"
+      - name: Compile every shipped and test module with Python 3.8
+        run: >-
+          python -m compileall -q
+          ai_vectorizer benchmarks scripts tests
+          package_plugin.py litmus_sam_status.py
+      - name: Run the dependency-free Python 3.8 contract suite
+        run: |
+          python - <<'PY'
+          import unittest
+
+          modules = [
+              "tests.test_release_tooling",
+              "tests.test_benchmark_efficientsam",
+              "tests.test_benchmark_evidence",
+              "tests.test_benchmark_generate",
+              "tests.test_benchmark_geometry",
+              "tests.test_benchmark_hardening",
+              "tests.test_benchmark_manifest",
+              "tests.test_benchmark_metrics",
+              "tests.test_benchmark_runner",
+              "tests.test_benchmark_worker",
+              "tests.test_config_models",
+              "tests.test_dem_spec",
+              "tests.test_efficientsam_onnx",
+              "tests.test_interaction_policy",
+              "tests.test_model_store",
+              "tests.test_trace_kernel",
+          ]
+          suite = unittest.defaultTestLoader.loadTestsFromNames(modules)
+          test_count = suite.countTestCases()
+          if test_count < 150:
+              raise SystemExit(
+                  f"Python 3.8 contract suite unexpectedly has only {test_count} tests"
+              )
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          if not result.wasSuccessful():
+              raise SystemExit(1)
+          PY
+
+  dependency-audit:
+    name: Dependency audit Python ${{ matrix.python }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install the pinned audit tool
+        run: python -m pip install --disable-pip-version-check pip-audit==2.10.1
+      - name: Verify immutable non-PyPI backend pins
+        run: >-
+          python -m unittest
+          tests.test_release_tooling.DependencyDeclarationTests.test_optional_sam_backends_are_split_and_commit_pinned
+          -v
+      - name: Resolve and strictly audit every versioned distribution graph
+        run: |
+          for requirement_file in \
+            requirements.txt \
+            requirements-opencv.txt \
+            requirements-dev.txt \
+            requirements-sam-common.txt
+          do
+            echo "Auditing $requirement_file"
+            python -m pip_audit \
+              --strict \
+              --progress-spinner off \
+              --timeout 30 \
+              --requirement "$requirement_file"
+          done
+
+  release_linux:
+    name: Reproducible release package (Linux)
+    runs-on: ubuntu-24.04
+    outputs:
+      zip_sha256: ${{ steps.reproducibility.outputs.zip_sha256 }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.10"
+      - name: Run release tooling tests
+        run: python -m unittest tests.test_release_tooling -v
+      - name: Build and verify release package
+        id: reproducibility
+        run: |
+          python scripts/package_release.py
+          python scripts/package_release.py --check
+          release_zip="$(python -c 'from scripts.package_release import load_version, zip_path; print(zip_path(load_version()))')"
+          first_sha="$(sha256sum "$release_zip" | cut -d ' ' -f 1)"
+          python scripts/package_release.py
+          second_sha="$(sha256sum "$release_zip" | cut -d ' ' -f 1)"
+          test "$first_sha" = "$second_sha"
+          echo "zip_sha256=$second_sha" >> "$GITHUB_OUTPUT"
+
+  release_windows:
+    name: Reproducible release package (Windows)
+    needs: release_linux
+    runs-on: windows-2022
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.10"
+      - name: Run release tooling tests, including a real junction
+        run: python -m unittest tests.test_release_tooling -v
+      - name: Build twice and compare Linux bytes
+        shell: pwsh
+        env:
+          LINUX_ZIP_SHA256: ${{ needs.release_linux.outputs.zip_sha256 }}
+        run: |
+          python scripts/package_release.py
+          python scripts/package_release.py --check
+          $releaseZip = (python -c 'from scripts.package_release import load_version, zip_path; print(zip_path(load_version()))').Trim()
+          $firstSha = (Get-FileHash -LiteralPath $releaseZip -Algorithm SHA256).Hash.ToLowerInvariant()
+          python scripts/package_release.py
+          $secondSha = (Get-FileHash -LiteralPath $releaseZip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($firstSha -ne $secondSha) {
+            throw "Repeated Windows builds differ: $firstSha != $secondSha"
+          }
+          $linuxSha = $env:LINUX_ZIP_SHA256
+          if ($secondSha -ne $linuxSha) {
+            throw "Windows and Linux release bytes differ: $secondSha != $linuxSha"
+          }
+
+  qgis-import:
+    name: QGIS ${{ matrix.qgis }} import smoke
+    needs: release_linux
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - qgis: "3.22.16"
+            image: qgis/qgis:3.22.16@sha256:6f1582ad40623f493994a140282278f02ec282d3c27fa0048a413c12f0cab442
+          - qgis: "3.44.13"
+            image: qgis/qgis:3.44.13@sha256:59e160b2ea3f881be039ed49936c42e75e8f336688951f22147676db743f4e47
+          - qgis: "4.2.1"
+            image: qgis/qgis:4.2.1@sha256:d2ea4b4eb1b0a46e3a59a7b8773a8fb418a3414df05277d0fcf62755cc8cb200
+    container:
+      image: ${{ matrix.image }}
+    env:
+      QGIS_PREFIX_PATH: /usr
+      QT_QPA_PLATFORM: offscreen
+      ARCHAEOTRACE_REQUIRE_QGIS: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      RELEASE_ZIP_SHA256: ${{ needs.release_linux.outputs.zip_sha256 }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Build and extract the release ZIP
+        run: |
+          python3 scripts/package_release.py
+          python3 scripts/package_release.py --check
+          release_zip="$(python3 -c 'from scripts.package_release import load_version, zip_path; print(zip_path(load_version()))')"
+          actual_sha="$(sha256sum "$release_zip" | cut -d ' ' -f 1)"
+          test "$actual_sha" = "$RELEASE_ZIP_SHA256"
+          release_root="$(mktemp -d)"
+          python3 - "$release_zip" "$release_root" <<'PY'
+          import configparser
+          import io
+          from pathlib import Path
+          import re
+          import sys
+          import zipfile
+
+          archive_path = Path(sys.argv[1])
+          release_root = Path(sys.argv[2])
+          with zipfile.ZipFile(archive_path) as archive:
+              metadata = archive.read("ai_vectorizer/metadata.txt").decode("utf-8")
+              parser = configparser.ConfigParser()
+              parser.optionxform = str
+              parser.read_file(io.StringIO(metadata))
+              parsed_metadata = dict(parser.items("general"))
+              version = parsed_metadata["version"]
+              assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version)
+              assert archive_path.name == f"ai_vectorizer-{version}.zip"
+              assert parsed_metadata["qgisMaximumVersion"] == "4.99"
+              archive.extractall(release_root)
+          PY
+          echo "ARCHAEOTRACE_RELEASE_ROOT=$release_root" >> "$GITHUB_ENV"
+      - name: Import packaged plugin entry point
+        run: >-
+          python3 scripts/qgis_import_smoke.py
+          --plugin-root "$ARCHAEOTRACE_RELEASE_ROOT"
+      - name: Run QGIS runtime safety tests
+        run: |
+          cd "$ARCHAEOTRACE_RELEASE_ROOT"
+          export PYTHONPATH="$GITHUB_WORKSPACE"
+          python3 - <<'PY'
+          import tests.test_qgis_runtime_safety as runtime_suite
+          if not runtime_suite.HAS_QGIS:
+              raise SystemExit("QGIS bindings/API imports were skipped in the QGIS job")
+          PY
+          python3 -m unittest tests.test_qgis_runtime_safety -v

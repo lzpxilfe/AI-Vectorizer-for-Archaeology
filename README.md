@@ -1,256 +1,183 @@
 # 🏛️ ArchaeoTrace
 
-로컬 컴퓨터에서 고지도 등고선을 벡터화하고, 검수한 고도선으로 DEM과 hillshade까지 만드는 QGIS 플러그인입니다.
+[English](README.en.md)
 
-![QGIS release metadata 3.22+](https://img.shields.io/badge/QGIS_release_metadata-3.22%2B-3c8c3c.svg)
-![Source Python 3.10+](https://img.shields.io/badge/source_Python-3.10%2B-3776ab.svg)
-![Metadata 0.1.7](https://img.shields.io/badge/metadata-0.1.7-f28c28.svg)
-![Development M1.2](https://img.shields.io/badge/development-M1.2-5b5bd6.svg)
+고지도 등고선을 사람이 검수하며 벡터화하고, 고도선과 표고점에서 DEM·hillshade까지
+만드는 로컬 우선 오픈소스 QGIS 플러그인입니다. 지도 자료를 외부 추론 서버에 보내지
+않고도 연구자와 현장 실무자가 전체 흐름을 확인하고 다시 실행할 수 있게 만드는 것이
+목표입니다.
+
+![QGIS target 3.22–4.99](https://img.shields.io/badge/QGIS_target-3.22%E2%80%934.99-3c8c3c.svg)
+![Source Python 3.8+](https://img.shields.io/badge/source_Python-3.8%2B-3776ab.svg)
+![Experimental](https://img.shields.io/badge/status-experimental-f28c28.svg)
 ![Local first](https://img.shields.io/badge/processing-local--first-2f855a.svg)
 ![License GPLv2](https://img.shields.io/badge/license-GPLv2-d64541.svg)
 
-## 🚧 Current Source Status
+## Current source status
 
-- 현재 플러그인 metadata 버전은 `0.1.7`입니다.
-- `0.1.4` 릴리스 metadata는 QGIS `3.22+`를 선언하지만, 현재 post-`0.1.4` 소스의 신규 모듈은 Python `3.10+`가 필요합니다. 자동화된 코어/benchmark 검증은 Python `3.12`에서 수행했습니다.
-- QGIS UI는 기본 `Ink Centerline`과 `Freehand`, `LSD`, `HED`, `MobileSAM`, `SAM (ViT-B)`, `Legacy Canny` 추적 및 고도 입력을 제공합니다.
-- 저장한 고도 등고선과 선택적 표고점으로 선형 TIN DEM 및 GDAL hillshade를 생성할 수 있습니다.
-- 개발용 M1.2 benchmark는 공식 EfficientSAM-Ti split ONNX를 고정 해시·CPU-only 조건에서 비교하지만, EfficientSAM은 아직 UI 모델이나 제품 기본값이 아닙니다.
-- 지도와 추적 처리는 로컬에서 수행됩니다. 네트워크는 사용자가 모델 다운로드·업데이트 확인·SAM 상태 리포트 같은 모델 관리 작업을 직접 실행할 때만 필요합니다. SAM 상태 리포트도 원격 모델 정보를 조회합니다.
+- plugin metadata는 `0.1.5` 공개 후보이며 `experimental=True`입니다.
+- [공식 QGIS plugin 저장소](https://plugins.qgis.org/plugins/ai_vectorizer/)의
+  `0.1.4` 다음 배포판을 `0.1.5`로 정리했습니다. Git
+  history의 `0.1.5–0.1.7`과 미공개 worktree의 `0.1.8`은 QGIS 저장소에 게시되지
+  않은 개발 metadata였으며 이력은 rewrite하지 않습니다.
+- metadata 대상은 QGIS `3.22–4.99`, source 계약은 Python `3.8+`입니다. 로컬에서는
+  Python 3.8/3.10/3.12와 macOS QGIS 3.44.8을 확인했습니다. QGIS 3.22/3.44/4.2
+  package matrix는 CI에 구성되어 있지만 이 후보의 원격 run은 아직 실행하지
+  않았습니다. 정확한 범위는
+  [`release-readiness 기록`](docs/RELEASE_READINESS_0.1.5.md)을 확인하세요.
+- 개발판 `0.1.6–0.1.8`을 source나 ZIP으로 직접 설치했다면 낮은 버전 번호가 자동
+  update로 인식되지 않을 수 있습니다. 기존 plugin을 제거한 뒤 검증된 `0.1.5` ZIP을
+  다시 설치하세요. QGIS profile의 검증된 model 파일은 plugin 밖에 보존됩니다.
 
-## 🎯 What You Can Do
+## Main features
 
-- ✏️ `Freehand` 모드로 순수 수동 디지타이징
-- 🖋️ 기본 `Ink Centerline`은 검은 지도 획을 한 픽셀 중심선으로 만든 뒤 방향 인식 Live-Wire와 결합
-- 🎚️ AI 개입 강도는 `0%`(정확한 커서)부터 `100%`(Live-Wire 전체 경로)까지 실제 좌표 비율로 혼합
-- 👁️ 초록색 선은 클릭 한 번으로 채택될 정확한 경로이며, `Auto Path`는 SAM 제안에만 필요
-- 👁️ `Ink Centerline`/`LSD`/`HED`/`Legacy Canny` 검출 미리보기와 SAM 계열의 인터랙티브 초록색 경로 미리보기
-- ⛰️ 등고선 고도값 입력 및 `Spot Heights` 포인트 저장
-- 🏔️ 고도 등고선을 선형 TIN `DEM`/`hillshade` GeoTIFF로 변환
-- 📄 `Check Selected SAM Model` / `SAM Status Report`로 모델 상태 점검
-- 🌏 한국어 / English UI 지원
+- ✏️ 추가 model 없이 직접 입력하는 `Freehand`
+- 🖋️ 검은 인쇄 획을 한 픽셀 중심선으로 만들고 제한된 Live-Wire와 결합하는 기본
+  `Ink Centerline`
+- 🎚️ `0%` 정확한 cursor부터 `100%` 전체 보조 경로까지 좌표를 실제로 혼합하는
+  assist slider
+- 📐 선택 가능한 `LSD`, `HED`, `MobileSAM`, `SAM (ViT-B)`, `Legacy Canny`
+- 👁️ 클릭했을 때 채택될 경로를 보여 주는 초록색 preview와 anchor 기반 교정
+- ↩️ QGIS edit buffer, constraint와 한 번의 Undo를 존중하는 새 선·기존 선 연장
+- ⛰️ contour elevation과 선택적 `Spot Heights` 저장
+- 🏔️ 저장된 입력에서 실험적 선형 TIN DEM과 GDAL hillshade 생성
+- 🌏 한국어·English UI
 
-## 🧠 Tracing Modes
+구현 완료·실험·미구현 기능의 정확한 경계와 module별 책임은
+[`Features and architecture`](docs/FEATURES_AND_ARCHITECTURE.md)에 있습니다.
 
-| UI option | 역할 | 필요한 런타임 | 상태 |
+## How it works
+
+```text
+Raster
+  → Ink/LSD/HED/Canny edge 또는 MobileSAM/SAM point mask
+  → bounded Live-Wire 또는 SAM용 strict A*
+  → 사용자가 확인하는 green preview와 anchors
+  → QGIS edit buffer + Undo
+  → elevation contour + optional spot height
+  → linear TIN DEM + hillshade
+```
+
+검출 결과나 mask는 최종 선이 아닙니다. 클릭으로 채택한 구간만 저장 후보가 되고,
+최종 확정은 QGIS의 `Save Layer Edits`에서 이루어집니다.
+
+## Tracing modes and dependencies
+
+| UI option | 역할 | 추가 runtime | 상태 |
 | --- | --- | --- | --- |
-| `✏️ Freehand` | 사용자가 직접 선을 입력 | 없음 | 항상 사용 가능 |
-| `🖋 Ink Centerline` | 검은 획의 단일 중심선과 방향 인식 Live-Wire | `NumPy` + `SciPy` + `scikit-image`, OpenCV 불필요 | 기본 방식 |
-| `📐 LSD` | 선분 검출 결과를 방향 인식 Live-Wire에 결합 | `OpenCV` + `SciPy` | OpenCV 4/5 지원 |
-| `🧠 HED` | 학습된 엣지 지도로 추적 보조 | `OpenCV` + 약 `56MB` 모델 | UI에서 다운로드 가능 |
-| `🎯 MobileSAM` | point-prompt mask와 edge/A*를 결합 | `OpenCV` + `PyTorch` + `MobileSAM` + 약 `39MB` weights | 선택 설치 |
-| `🧩 SAM (ViT-B)` | point-prompt mask와 edge/A*를 결합 | `OpenCV` + `PyTorch` + `segment_anything` + 약 `358MB` checkpoint | 선택 설치 |
-| `🔧 Legacy Canny` | 기존 그래디언트 경계 검출과 Live-Wire | `NumPy`, `OpenCV` 선택 | 호환용 |
+| `✏️ Freehand` | 사용자가 직접 선을 입력 | 추가 pip·model 없음 | baseline |
+| `🖋 Ink Centerline` | 검은 획 중심선 + bounded Live-Wire | 추가 pip 없음; SciPy는 선택 | default |
+| `📐 LSD` | OpenCV 선분 검출 + 공용 Live-Wire | OpenCV; SciPy는 선택 | optional |
+| `🧠 HED` | Caffe HED edge map + 공용 Live-Wire | OpenCV + 약 56.1 MiB model; SciPy는 선택 | optional |
+| `🎯 MobileSAM` | point mask + edge/skeleton/A* | OpenCV + PyTorch + backend + 약 38.8 MiB weights | optional |
+| `🧩 SAM (ViT-B)` | point mask + edge/skeleton/A* | OpenCV + PyTorch + backend + 약 357.7 MiB checkpoint | optional |
+| `🔧 Legacy Canny` | gradient edge + Live-Wire | OpenCV·SciPy는 선택 | compatibility |
 
-> `0%`는 엣지 감지와 모델 실행을 건너뛰고 커서 좌표를 그대로 사용합니다. `1~99%`는 같은 완전 보조 경로와 직선 커서 경로를 실제 좌표 비율로 혼합하고, `100%`는 방향 인식 Live-Wire 전체 경로를 적용합니다. 탐색은 최근 기준점 주변의 제한된 창에서만 이루어져 멀리 있는 글자나 인접 등고선으로 자유롭게 도망갈 수 없습니다. `Freehand`는 항상 순수 수동 입력입니다.
+QGIS Python의 NumPy는 plugin 공통 전제입니다. SciPy가 없으면 모든 non-SAM edge
+mode(Ink/LSD/HED/Canny)는 방향 인식 Live-Wire 대신 제한 범위의 NumPy nearby-edge
+snap으로 돌아갑니다. 탐색 범위를 제한해도
+글자·기호·인접선에서 오추적할 수 있으므로 초록색 경로를 확인하고 anchor나
+Freehand로 교정하세요. SAM의 `Auto Path`는 선택 기능이며 assist `0%`에서는 model과
+edge 계산을 생략합니다.
 
-## 📦 Installation
-
-### 1. Install the plugin
-
-1. QGIS에서 `Plugins > Manage and Install Plugins > Install from ZIP`을 엽니다.
-2. 배포 ZIP을 선택해 설치합니다.
-3. QGIS를 재시작한 뒤 `ArchaeoTrace`를 활성화합니다.
-
-### 2. Install only the dependencies you need
-
-아래 패키지는 시스템 Python이 아니라 QGIS가 사용하는 Python에 설치해야 합니다.
+OpenCV 선택 기능의 선언 범위는 `OpenCV 4.8–4.11`입니다.
 
 ```bash
-# LSD / HED / SAM용 OpenCV (Ink Centerline과 Legacy Canny에는 불필요)
-<QGIS_PYTHON> -m pip install opencv-python-headless
-
-# 기본 Ink Centerline과 방향 인식 Live-Wire
-<QGIS_PYTHON> -m pip install scipy scikit-image
-
-# Optional: MobileSAM/SAM download and update checks
-<QGIS_PYTHON> -m pip install requests
-
-# MobileSAM
-<QGIS_PYTHON> -m pip install torch torchvision git+https://github.com/ChaoningZhang/MobileSAM.git
-
-# SAM (ViT-B)
-<QGIS_PYTHON> -m pip install torch torchvision git+https://github.com/facebookresearch/segment-anything.git
+<QGIS_PYTHON> -m pip install "opencv-python-headless>=4.8,<4.12"
 ```
 
-macOS QGIS.app 예시:
+backend별 설치, model 크기·SHA-256, 수동 경로와 운영체제별 안내는 ZIP에 포함되는
+[`plugin user guide`](ai_vectorizer/README.md)를 확인하세요.
+
+## Quick start
+
+1. QGIS `Plugins > Manage and Install Plugins > Install from ZIP`에서 배포 ZIP을
+   설치하고 ArchaeoTrace를 활성화합니다.
+2. georeferenced raster와 2D line output layer를 선택합니다.
+3. 기본 `Ink Centerline` 또는 원하는 mode와 assist 강도를 고릅니다.
+4. edge mode는 `Trace Preview`로 확인합니다. SAM mode는 추적 중 interactive green
+   preview를 확인합니다.
+5. 클릭·드래그로 anchor를 정하고 `Enter` 또는 우클릭으로 edit buffer에 넣습니다.
+   시작점 근처에서 닫으면 elevation을 입력할 수 있습니다.
+6. `Save Layer Edits`로 contour를 저장한 뒤 `Step 4 > DEM 생성…`에서 pixel size와
+   output을 확인합니다.
+
+## Data, network and safety boundary
+
+- raster crop, vector geometry와 local inference 결과를 원격 inference 서버로 보내지
+  않으며 기본 telemetry가 없습니다.
+- network는 사용자가 HED/SAM model을 다운로드할 때 사용합니다. SAM Check/Status는
+  유효한 local checkpoint가 있으면 size와 SHA-256을 offline 확인하고, 파일이 없을
+  때만 고정 source의 availability를 조회합니다. EfficientSAM benchmark도 명시적인
+  `model fetch`만 network를 사용합니다.
+- `SAM Status Report`에는 현재 작업 경로, QGIS/Python 환경값과 model 경로가 포함될
+  수 있고 clipboard에도 복사됩니다. 다른 사람에게 보낼 때 내용을 먼저 확인하고
+  local path나 민감한 환경값을 지우세요.
+- model은 고정 URL, byte size와 SHA-256을 확인한 뒤 temporary file, `fsync`, atomic
+  publication과 rollback을 거칩니다. symlink인 저장 위치와 최종 파일은 거부합니다.
+- trace 결과는 QGIS edit buffer에 남아 있으며 사용자가 저장하기 전에는 원본
+  dataset에 commit되지 않습니다.
+
+보안 제보와 안전한 진단 공유 방법은 [`SECURITY.md`](SECURITY.md)에 있습니다.
+
+## Terrain limitations
+
+DEM 입력은 저장된 2D contour, 숫자형 finite elevation, 서로 다른 두 고도값, TIN을
+만들 수 있는 비공선 vertex와 미터 단위 projected CRS가 필요합니다. 결과는 기본
+2,500만 cell까지 제한되고 staged file을 검증한 뒤 DEM·hillshade 쌍으로 게시됩니다.
+
+선형 TIN은 입력 범위 밖과 희소하거나 잘못된 contour에 취약합니다. 현재 버전은
+topology QA, uncertainty/NoData layer와 provenance sidecar를 아직 만들지 않습니다.
+따라서 결과는 연구 결론을 자동 확정하는 지형 정답이 아니라 검토할 가설입니다.
+
+## Benchmark evidence
+
+`benchmarks/`는 최종 ordered centerline, 실행 환경, 입력·출력 SHA-256, 시간·RAM과
+topology 지표를 기록하는 개발자용 harness입니다. 현재 포함된 자료는 synthetic
+contract fixture뿐이며 실제 역사 지도 정확도나 다른 도구보다 낫다는 근거가 아닙니다.
+명령과 evidence 형식은 [`benchmarks/README.md`](benchmarks/README.md)를 참고하세요.
+
+## Repository guide
+
+| 문서·경로 | 내용 |
+| --- | --- |
+| [`ai_vectorizer/`](ai_vectorizer/) | QGIS plugin source와 ZIP 사용자 guide |
+| [`docs/FEATURES_AND_ARCHITECTURE.md`](docs/FEATURES_AND_ARCHITECTURE.md) | 실제 기능, 구현 흐름, 안전 경계와 module map |
+| [`ROADMAP.md`](ROADMAP.md) | 구현됨·다음 단계·의도적인 비목표 |
+| [`docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md`](docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md) | 오픈소스 원칙과 작업 gate |
+| [`docs/RELEASE_READINESS_0.1.5.md`](docs/RELEASE_READINESS_0.1.5.md) | 실행 검증, artifact identity와 잔여 위험 |
+| [`benchmarks/`](benchmarks/) | 격리 worker, manifest, 지표와 synthetic fixture |
+| [`tests/`](tests/) | pure core, packaging와 QGIS safety 회귀 |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | 개발 환경, test tier, 문서·data 기여 규칙 |
+| [`SECURITY.md`](SECURITY.md) | 취약점·data-loss 제보와 진단 redaction |
+
+## Version and release discipline
+
+`ai_vectorizer/metadata.txt`가 배포 버전의 source of truth입니다. 일상 개발은
+`Unreleased` changelog에서 진행하고 metadata 숫자는 release 준비가 시작될 때만 한
+번 바꿉니다. CI는 metadata, citation, 문서와 artifact 이름이 같은지 검사합니다.
+과거 Git commit과 tag는 지우거나 다시 쓰지 않습니다. 자세한 기록은
+[`CHANGELOG.md`](CHANGELOG.md)와 [`CONTRIBUTING.md`](CONTRIBUTING.md)에 있습니다.
+
+release tree를 직접 수정하지 말고 source에서 다시 만드세요.
 
 ```bash
-"/Applications/QGIS.app/Contents/MacOS/python3.12" -m pip install opencv-python-headless
+python3 scripts/package_release.py
+python3 scripts/package_release.py --check
 ```
 
-### 3. Download model weights in the plugin
+현재 감사에서는 commit, push, tag, GitHub Release나 QGIS upload를 수행하지
+않았습니다.
 
-- `HED`: `Step 3`에서 HED를 선택한 뒤 `Download HED`를 사용합니다.
-- `MobileSAM` / `SAM`: 모델을 선택하고 `Check Selected SAM Model`로 원격 상태를 확인한 뒤 해당 `Download` 버튼을 사용합니다.
-- MobileSAM/SAM 진단이 필요하면 `SAM Status Report`를 생성합니다. 이 작업은 원격 모델 정보도 조회합니다.
+## Contributing and citation
 
-<details>
-<summary>📥 Manual model paths</summary>
+bug report, 번역, 문서, 재배포 가능한 sample map과 code contribution을 환영합니다.
+실제 데이터는 출처·license·개인정보를 확인하고, 성능 표현에는 재현 절차와 실패
+사례를 함께 남겨 주세요. 시작 방법은 [`CONTRIBUTING.md`](CONTRIBUTING.md)에 있습니다.
 
-브라우저로 직접 받아야 하는 경우 아래 파일과 경로를 사용하면 됩니다.
+연구·교육·실무에서 사용했다면 저장소의 [`CITATION.cff`](CITATION.cff)를
+이용해 인용할 수 있습니다.
 
-- `HED` network definition: `https://raw.githubusercontent.com/s9xie/hed/master/examples/hed/deploy.prototxt`
-- `HED` weights: `https://vcl.ucsd.edu/hed/hed_pretrained_bsds.caffemodel`
-- `MobileSAM` weights: `https://github.com/ChaoningZhang/MobileSAM/raw/master/weights/mobile_sam.pt`
-- `SAM (ViT-B)` weights: `https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth`
+## License
 
-복사 경로:
-
-- `HED` definition: `<QGIS_PROFILE>/python/plugins/ai_vectorizer/core/models/hed_deploy.prototxt`
-- `HED` weights: `<QGIS_PROFILE>/python/plugins/ai_vectorizer/core/models/hed_pretrained_bsds.caffemodel`
-- `MobileSAM`: `<QGIS_PROFILE>/ai_vectorizer/models/mobile_sam.pt`
-- `SAM (ViT-B)`: `<QGIS_PROFILE>/ai_vectorizer/models/sam_vit_b_01ec64.pth`
-
-SAM weights are stored outside the plugin directory so reinstalling or upgrading
-the ZIP does not require downloading them again. Existing plugin-local weights
-are migrated automatically on first use.
-
-</details>
-
-## 🗺️ Quick Workflow
-
-1. 래스터 지도를 선택합니다.
-2. 출력 라인 레이어를 새로 만들거나 기존 SHP를 고릅니다.
-3. 원하는 모델을 선택합니다.
-4. `Ink Centerline`/`LSD`/`HED`/`Legacy Canny`는 `Trace Preview`로 확인합니다. MobileSAM/SAM은 트레이싱을 시작한 뒤 초록색 경로 미리보기를 확인합니다.
-5. 클릭/드래그로 등고선을 추적합니다.
-6. `Enter` 또는 우클릭으로 저장합니다.
-7. 시작점 근처를 다시 클릭하면 폐합 후 고도값을 입력할 수 있습니다.
-8. 편집을 저장한 뒤 `Step 4 > DEM 생성…`에서 격자 크기와 출력 경로를 확인합니다.
-
-## 🏔️ Terrain Reconstruction
-
-현재 개발 버전은 다음 수직 파이프라인을 제공합니다.
-
-`elevation` 등고선 + 선택적 표고점 → QGIS 선형 TIN 보간 → GeoTIFF DEM → GDAL hillshade
-
-실행 조건:
-
-- 등고선은 숫자형 고도 필드와 서로 다른 두 개 이상의 고도값을 가져야 합니다.
-- 입력 geometry는 비어 있지 않고 vertex를 포함해야 하며, 고도는 finite 숫자여야 합니다. TIN을 만들 수 있는 비공선 vertex가 합계 3개 이상 필요합니다.
-- 입력 레이어는 미터 단위의 투영 좌표계를 사용해야 합니다. 경위도 레이어는 먼저 지역에 맞는 CRS로 재투영하세요.
-- 편집 중인 내용은 먼저 저장해야 합니다.
-- 표고점은 선택 입력입니다. point geometry와 등고선과 동일한 CRS가 필요합니다. 임시 `Spot Heights`도 현재 세션에서 쓸 수 있지만, 재현을 위해 파일 레이어로 저장하는 것을 권장합니다.
-- QGIS Processing에서 `qgis:tininterpolation`, `gdal:translate`, `native:rasterlayerstatistics`, `gdal:hillshade` 알고리즘이 사용 가능해야 합니다.
-- 안전을 위해 출력은 기본 2,500만 셀까지 허용하고, 기존 파일은 확인 후에만 덮어씁니다.
-
-선형 TIN은 피처의 범위 밖을 신뢰성 있게 복원하지 못하며, 등고선 간격·누락·오표기가 결과에 그대로 반영됩니다. 생성물은 고고학적 사실의 자동 확정값이 아니라 검토할 수 있는 지형 가설입니다.
-
-중기 개발 계획과 합격 기준은 [`ROADMAP.md`](ROADMAP.md)에 기록합니다.
-
-## 🧪 Reproducible Contour Benchmark (developer)
-
-M1.2의 `benchmarks/` 하네스는 모델별 최종 ordered centerline을 같은 조건에서 평가합니다. 입력·기준선·예측 파일의 SHA-256, CPU 실행 여부, 실제 backend/fallback, 반복 시간과 peak RSS를 기록하고 JSON 및 CSV 보고서를 만듭니다. 각 실행은 불변 `runs/` 디렉터리에 저장되고 `benchmark_latest.json` 포인터 하나만 원자적으로 교체되므로 중단된 실행과 이전 CSV가 섞이지 않습니다.
-
-현재 포함된 자료는 합성 계약 fixture뿐입니다. 실제 고지도 데이터셋과 제품 MobileSAM/SAM adapter 비교가 완료되기 전에는 이 하네스로 기본 모델이나 정확도 순위를 결정할 수 없습니다.
-
-```bash
-python3 -m benchmarks validate benchmarks/data/synthetic-smoke/manifest.json
-python3 -m benchmarks evaluate benchmarks/data/synthetic-smoke/manifest.json \
-  --output work/benchmark-results
-```
-
-`SmartTraceTool`의 실제 A*와 평활화는 이제 QGIS 독립 공용 커널이며, Canny/LSD worker도 같은 `EdgeDetector → 비용지도 → 커널 → 최종 ordered centerline` 경로를 사용합니다. 실제 격리 smoke 실행은 다음처럼 만듭니다.
-
-```bash
-python3 -m venv work/benchmark-runtime
-work/benchmark-runtime/bin/python -m pip install \
-  'opencv-python-headless>=4.8.0' 'scikit-image>=0.21.0'
-work/benchmark-runtime/bin/python -m benchmarks generate \
-  benchmarks/data/runtime-template/manifest.json \
-  --output work/runtime-smoke \
-  --python-executable work/benchmark-runtime/bin/python
-python3 -m benchmarks evaluate work/runtime-smoke/manifest.json \
-  --output work/runtime-smoke-report --require-eligible
-```
-
-EfficientSAM-Ti는 아직 제품 기본 모델이 아니라 M1 비교 후보입니다. 공식 split ONNX 두 파일은 패키지에 넣지 않으며, 아래의 명시적 `fetch`에서만 네트워크를 사용합니다. `status`, `verify`, `generate`는 오프라인으로 content-addressed cache의 고정 크기와 SHA-256을 다시 확인합니다.
-
-```bash
-work/benchmark-runtime/bin/python -m pip install 'onnxruntime>=1.17.0'
-
-work/benchmark-runtime/bin/python -m benchmarks model fetch \
-  --model-cache work/model-cache
-work/benchmark-runtime/bin/python -m benchmarks model verify \
-  --model-cache work/model-cache
-
-work/benchmark-runtime/bin/python -m benchmarks generate \
-  benchmarks/data/efficientsam-runtime-template/manifest.json \
-  --output work/efficientsam-runtime-smoke \
-  --python-executable work/benchmark-runtime/bin/python \
-  --model-cache work/model-cache
-python3 -m benchmarks evaluate \
-  work/efficientsam-runtime-smoke/manifest.json \
-  --output work/efficientsam-runtime-report --require-eligible
-```
-
-worker는 sample×method마다 새 프로세스로 실행되고 실제 provider, 모델·패키지·thread 상태, 실행 소스 파일, 입력/설정/출력의 SHA-256, 반복 시간과 peak RSS를 직접 기록합니다. EfficientSAM 경로는 encoder/decoder의 ORT 설정과 OpenCV 상태를 실제 세션에서 다시 읽고, 동일 prompt의 의미 해시·float32 tensor 해시와 반복별 IoU/선택 index/logit·mask 해시를 첫 측정 산출물에 결속합니다. 생성기는 이 증거를 요청과 대조하고 로컬 model-cache 경로가 든 private IPC 파일을 제거한 뒤 기존 디렉터리를 교체하지 않는 원자적 게시만 허용합니다. 포함된 9×9/1024² 자료는 연결 상태만 확인하는 합성 smoke fixture이므로 Canny/LSD/SAM의 실제 고지도 성능 순위를 뜻하지 않습니다. 형식과 EfficientSAM-Ti ONNX 계약은 [`benchmarks/README.md`](benchmarks/README.md)와 [`benchmarks/ADAPTER_CONTRACT.md`](benchmarks/ADAPTER_CONTRACT.md)에 있습니다.
-
-## ⌨️ Shortcuts
-
-- `Ctrl+Z` / `Backspace`: 마지막 체크포인트로 되돌리기
-- `Esc` / `Delete`: 현재 트레이싱 취소
-- `Enter` / 우클릭: 현재 선 저장
-
-## 🧯 Troubleshooting
-
-- `ModuleNotFoundError: No module named 'cv2'`
-  QGIS Python에 `opencv-python-headless`가 설치되지 않은 상태입니다. 시스템 Python이 아니라 QGIS Python에 설치해야 합니다.
-- `HED model is invalid or failed to load`
-  손상된 모델일 수 있습니다. 플러그인 UI에서 다시 다운로드하세요.
-- MobileSAM/SAM 최신 확인 또는 다운로드가 실패함
-  네트워크 또는 `requests` 미설치 문제일 수 있습니다. 필요 시 수동 다운로드 경로를 사용하세요. HED 다운로드는 Python 표준 라이브러리를 사용하므로 `requests`와 무관합니다.
-- 엣지 미리보기에 아무것도 보이지 않음
-  래스터 범위 안으로 확대하고, 다른 모델로도 비교해보세요.
-- AI 기능이 당장 안 되는 환경임
-  `Freehand` 모드는 계속 사용할 수 있습니다.
-- DEM 실행 전 차단됨
-  등고선 편집을 저장하고, 숫자형 고도 필드·서로 다른 두 고도값·비공선 vertex·미터 단위 투영 CRS·Processing provider·출력 격자 크기를 확인하세요. 기존 출력이 QGIS에 로드되어 있다면 안전한 덮어쓰기를 위해 먼저 제거해야 합니다.
-
-## 🧭 Repository Map
-
-- `ai_vectorizer/`: QGIS 플러그인 UI, 추적 도구, DEM 파이프라인
-- `benchmarks/`: 격리 worker, checksummed manifest, 평가 지표와 합성 fixture
-- `tests/`: QGIS 비의존 코어·benchmark 계약 테스트
-- `ROADMAP.md`: 로컬 지형 복원 단계와 합격 기준
-
-## 📁 Release Packaging
-
-- 현재 배포 metadata는 `0.1.7`이며 패키징 스크립트가 소스·릴리스 폴더·ZIP의 파일 해시를 검증합니다.
-- 릴리스 폴더는 직접 수정하지 않고 루트 소스에서 다시 생성하는 흐름을 권장합니다.
-- 빌드: `python3 scripts/package_release.py`
-- 동기화 확인: `python3 scripts/package_release.py --check`
-
-## 🇬🇧 English Summary
-
-- ArchaeoTrace is a local-first QGIS plugin for tracing elevation contours on historical maps and building reviewable terrain hypotheses.
-- The plugin metadata version is `0.1.7`; this update makes Ink Centerline the default detector and keeps Canny as an explicit legacy option.
-- The green preview is the exact one-click result. Cursor movement only performs a predecessor lookup after one asynchronous tree build per anchor.
-- Assist is literal from 0% (exact cursor, no model work) through coordinate blending to 100% (full Live-Wire route).
-- `Freehand` needs no external model or OpenCV, but uses NumPy from the QGIS Python environment.
-- Default `Ink Centerline` converts locally dark map strokes to single-pixel centerlines, then uses a 320px direction-aware SciPy Live-Wire without OpenCV. A local NumPy snap remains the fallback if SciPy is absent.
-- `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
-- EfficientSAM-Ti ONNX is benchmark-only and is not a product default or a UI option.
-- The source-tree DEM workflow requires saved elevation contours in a projected metre CRS; its output is a reviewable hypothesis, not an archaeological ground truth.
-
-## 📚 Citation
-[![Cite this repository](https://img.shields.io/badge/Cite_this-repository-2ea44f?logo=github)](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology)
-[![Star this repository](https://img.shields.io/github/stars/lzpxilfe/AI-Vectorizer-for-Archaeology?style=social)](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology)
-
-인용 메타데이터는 [CITATION.cff](CITATION.cff)에 보관합니다.
-
-
-```bibtex
-@software{ArchaeoTrace2026,
-  author = {lzpxilfe},
-  title = {ArchaeoTrace: AI-assisted contour digitizing QGIS plugin for historical maps},
-  year = {2026},
-  url = {https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology},
-  version = {0.1.7}
-}
-```
-
-## 📄 License
-
-GNU General Public License v2.0
+GNU General Public License v2.0. [`LICENSE`](LICENSE)

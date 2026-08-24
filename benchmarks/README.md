@@ -34,7 +34,7 @@ keeps benchmark dependencies separate from QGIS's Python:
 ```bash
 python3 -m venv work/benchmark-runtime
 work/benchmark-runtime/bin/python -m pip install \
-  'opencv-python-headless>=4.8.0' 'scikit-image>=0.21.0'
+  'opencv-python-headless>=4.8,<4.12' 'scikit-image>=0.21.0'
 
 work/benchmark-runtime/bin/python -m benchmarks generate \
   benchmarks/data/runtime-template/manifest.json \
@@ -75,7 +75,7 @@ wrong lengths, wrong hashes, symlinks, and replacement of an existing object.
 ```bash
 python3 -m venv work/efficientsam-runtime
 work/efficientsam-runtime/bin/python -m pip install \
-  'onnxruntime>=1.17.0' 'opencv-python-headless>=4.8.0' \
+  'onnxruntime>=1.17.0' 'opencv-python-headless>=4.8,<4.12' \
   'scikit-image>=0.21.0'
 
 work/efficientsam-runtime/bin/python -m benchmarks model status \
@@ -202,7 +202,9 @@ again immediately before scoring.
 The primary score is macro `F1@3px`; JSON also records F1 at 1, 2, 3, and 5
 pixels. The evaluator reports exact centerline Dice, bidirectional exact
 Euclidean mean and nearest-rank p95 distances, connected components, endpoint
-and branch zones, ordered-path coverage, fragments, and internal breaks.
+and branch zones, unmatched predicted and reference branch zones,
+ordered-path coverage, fragments, and internal breaks. Reporting both sides
+distinguishes a spurious junction from a junction the tracer failed to recover.
 
 Both-empty traces score 1 for overlap but have null distance. A method failure
 has null metrics and reduces completion rate and failure-adjusted macro F1.

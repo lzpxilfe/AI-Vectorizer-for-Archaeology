@@ -338,7 +338,8 @@ def load_worker_request(path: str | Path) -> WorkerRequest:
 
     request_path = Path(path).resolve()
     try:
-        raw = request_path.read_bytes()
+        with request_path.open("rb") as handle:
+            raw = handle.read(MAX_REQUEST_BYTES + 1)
     except OSError as exc:
         raise WorkerRequestError(f"Could not read worker request: {exc}") from exc
     if len(raw) > MAX_REQUEST_BYTES:
@@ -854,6 +855,30 @@ def _atomic_write(path: Path, raw: bytes) -> None:
         raise
 
 
+def _atomic_write_no_replace(path: Path, raw: bytes) -> None:
+    """Atomically publish ``raw`` only when ``path`` is still absent."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+    )
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(raw)
+            handle.flush()
+            os.fsync(handle.fileno())
+        # Hard-linking a same-directory temporary file is atomic and fails if
+        # another process created the requested artifact after validation.
+        os.link(temporary_name, path)
+    finally:
+        try:
+            os.unlink(temporary_name)
+        except OSError:
+            pass
+
+
 def _discard_published_artifact(path: Path) -> None:
     """Remove an unclaimed output after publication verification fails."""
 
@@ -1227,7 +1252,23 @@ def run_worker(
 
     assert first_output is not None
     try:
-        _atomic_write(request.artifact_path, first_output)
+        _atomic_write_no_replace(request.artifact_path, first_output)
+    except Exception as exc:
+        return _failure_result(
+            request,
+            exc,
+            info=info,
+            actual_backend=info.actual_backend,
+            model_load_wall_ns=model_load_wall_ns,
+            image_decode_wall_ns=image_decode_wall_ns,
+            wall_samples=wall_samples,
+            cpu_samples=cpu_samples,
+            output_hashes=output_hashes,
+            warmup_wall_samples=warmup_wall_samples,
+            warmup_runs_completed=warmup_runs_completed,
+            prior_backend_failure=fallback_reason,
+        )
+    try:
         published_hash = _sha256_file(request.artifact_path)
     except Exception as exc:
         try:

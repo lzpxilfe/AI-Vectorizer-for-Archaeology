@@ -49,7 +49,7 @@ def is_cv2_available():
 def get_opencv_install_command():
     """Return a best-effort pip command for the current Python runtime."""
     executable = sys.executable or "python3"
-    return f'"{executable}" -m pip install opencv-python-headless'
+    return f'"{executable}" -m pip install "opencv-python-headless>=4.8,<4.12"'
 
 
 def build_missing_cv2_message(feature_name="This feature"):

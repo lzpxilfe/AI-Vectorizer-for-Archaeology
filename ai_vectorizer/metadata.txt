@@ -4,29 +4,46 @@
 [general]
 name=ArchaeoTrace
 qgisMinimumVersion=3.22
+qgisMaximumVersion=4.99
 description=Local-first contour tracing for historical maps with optional AI assistance and experimental DEM reconstruction.
-version=0.1.7
+version=0.1.5
 author=lzpxilfe(balguljang2)
-email=your-email@example.com
+email=lzpxilfe@gmail.com
 
 about=ArchaeoTrace helps users digitize elevation contours from scanned historical maps and review locally generated terrain hypotheses.
 
     Features:
-    - Ink Centerline default with a faster 320px direction-aware Live-Wire
-    - Literal 0-100% cursor/path coordinate blending and WYSIWYG green preview
+    - Ink Centerline default with a bounded 320px direction-aware Live-Wire
+    - Literal 0-100%% cursor/path coordinate blending; green preview shows the path accepted by the next click
     - Manual and guided tracing with Freehand, Ink, LSD, HED, and Legacy Canny
     - Optional point-prompt tracing with MobileSAM and SAM (ViT-B)
     - Elevation attributes and optional spot-height capture
     - Experimental linear-TIN DEM and hillshade generation from saved elevation data
     - Developer-only reproducible benchmarks; EfficientSAM is not a UI option or default model
 
-    Processing is local-first. Terrain outputs are reviewable hypotheses rather than archaeological ground truth.
+    External dependencies: default Ink and Freehand use NumPy supplied by QGIS.
+    SciPy and scikit-image are optional Ink optimizations. LSD, HED, and SAM
+    require OpenCV; MobileSAM and full SAM additionally require requests,
+    PyTorch, their pinned backend package, and separately downloaded weights.
+    Installation commands and platform notes are in the linked homepage README.
+    QGIS 3.22/Python 3.8 remains a source and no-pip contract target; optional
+    pip stacks require Python 3.10 or newer. See the release-readiness record
+    for the exact locally executed and configured-but-not-run QGIS matrix.
+
+    Processing is local-first and map data is not sent to a remote inference service.
+    Model downloads and missing-model source checks are user-initiated network actions.
+    Terrain outputs are reviewable hypotheses rather than archaeological ground truth.
 
 tracker=https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/issues
 repository=https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology
 # End of mandatory metadata
 
 # Recommended items:
+changelog=0.1.5
+    - Prepared QGIS 4 compatibility guards and a QGIS 3/4 packaged-plugin CI matrix.
+    - Kept Ink Centerline as the no-model default with a NumPy fallback.
+    - Hardened model downloads, edit-buffer undo, dependencies, and deterministic packaging.
+    - Added the experimental contour-to-DEM workflow and benchmark safeguards.
 hasProcessingProvider=no
 # Tags are comma separated with spaces allowed
 tags=AI, vectorization, contour, historical maps, archaeology, digitizing

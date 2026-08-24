@@ -1,0 +1,7 @@
+-r requirements-opencv.txt
+
+# Development dependencies require Python 3.10+. Python 3.8 is exercised by
+# the dependency-free compatibility suite and the real QGIS 3.22 image instead:
+# its last-resolvable Pillow/pytest dependency graph has no fully patched line.
+pytest>=9.0.3,<10
+coverage>=7.6.0,<8
