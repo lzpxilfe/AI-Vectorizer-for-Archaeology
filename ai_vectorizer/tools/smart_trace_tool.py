@@ -814,7 +814,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if command_started:
                 try:
                     layer.destroyEditCommand()
-                except Exception:
+                # Do not mask the edit-command failure.
+                except Exception:  # nosec B110
                     pass
             return False
 
@@ -888,7 +889,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         ):
             try:
                 layer.updateFields()
-            except Exception:
+            # Preserve the primary edit failure.
+            except Exception:  # nosec B110
                 pass
             return -1
         return result["index"]
@@ -1020,7 +1022,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         else:
             try:
                 layer.updateFields()
-            except Exception:
+            # Preserve the primary edit failure.
+            except Exception:  # nosec B110
                 pass
         return ok
 
@@ -2873,7 +2876,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     ):
                         try:
                             self.vector_layer.updateFields()
-                        except Exception:
+                        # Preserve the primary edit failure.
+                        except Exception:  # nosec B110
                             pass
                         self._push_message(
                             self._tr("기존 선 갱신에 실패했습니다.", "Failed to update existing line."),

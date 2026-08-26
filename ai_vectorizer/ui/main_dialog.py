@@ -1258,7 +1258,8 @@ class AIVectorizerDock(QDockWidget):
                 if tool is not None:
                     try:
                         self.iface.mapCanvas().unsetMapTool(tool)
-                    except Exception:
+                    # Retain the original tool setup failure.
+                    except Exception:  # nosec B110
                         pass
                     # QgsMapTool is parented to the canvas. Dropping this
                     # Python reference alone would retain the failed tool,

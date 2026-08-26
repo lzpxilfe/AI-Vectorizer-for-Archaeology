@@ -603,7 +603,8 @@ class SAMEngine:
         if callable(close):
             try:
                 close()
-            except Exception:
+            # A close failure must not hide the transfer result.
+            except Exception:  # nosec B110
                 pass
 
     @staticmethod
@@ -801,7 +802,8 @@ class SAMEngine:
 
             if self.device == "cuda" and torch.cuda.is_available():
                 torch.cuda.empty_cache()
-        except Exception:
+        # CUDA cache release is best-effort.
+        except Exception:  # nosec B110
             pass
         gc.collect()
 

@@ -156,7 +156,8 @@ def _quietly_closing_response(response):
         if callable(close):
             try:
                 close()
-            except Exception:
+            # Cleanup must not mask a verified read result.
+            except Exception:  # nosec B110
                 pass
 
 
@@ -167,7 +168,8 @@ def _default_transport(request: urllib.request.Request, timeout: float):
     except urllib.error.HTTPError as exc:
         try:
             exc.close()
-        except Exception:
+        # Preserve the original HTTP error.
+        except Exception:  # nosec B110
             pass
         raise
 

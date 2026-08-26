@@ -200,6 +200,14 @@ class ReleasePackagingTests(unittest.TestCase):
     def test_package_limit_matches_official_qgis_decimal_guideline(self):
         self.assertEqual(package_release.MAX_UPLOAD_BYTES, 20_000_000)
 
+    def test_security_baseline_is_explicitly_packaged_at_plugin_root(self):
+        self.assertIn(".secrets.baseline", package_release.TOP_LEVEL_ITEMS)
+        selected = {
+            relative.as_posix()
+            for _source, relative in package_release.iter_source_files()
+        }
+        self.assertIn(".secrets.baseline", selected)
+
     def test_zip_is_independent_of_source_mtime_and_has_normalized_metadata(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

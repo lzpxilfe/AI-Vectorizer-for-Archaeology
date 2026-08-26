@@ -101,7 +101,8 @@ def _raster_nodata_mask(block, array):
             return array == nodata_value
         except (TypeError, ValueError, OverflowError):
             pass
-        except Exception:
+        # Unsupported provider NoData APIs fall back safely.
+        except Exception:  # nosec B110
             pass
 
     has_nodata = False
@@ -271,7 +272,8 @@ def read_raster_bands(provider, extent, width, height, max_bands=3):
             continue
         try:
             block = provider.block(band_number, extent, width, height)
-        except Exception:
+        # A failed optional band is intentionally skipped.
+        except Exception:  # nosec B112
             continue
         band = raster_block_to_uint8(block, width, height, data_type=data_type)
         if band is not None:

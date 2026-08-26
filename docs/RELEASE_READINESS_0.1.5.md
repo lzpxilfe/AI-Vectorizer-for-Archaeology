@@ -30,9 +30,9 @@ rewrite하지 않는다.
 | 항목 | 값 |
 | --- | --- |
 | 파일 | `dist/ai_vectorizer-0.1.5.zip` |
-| SHA-256 | `d2925198dc2192bbb7eebe579bb48207c860179a94d4216df77e746d0451789a` |
-| 크기 | 1,464,897 bytes |
-| ZIP entries | 29 |
+| SHA-256 | `24f1def6acd63d483ea6bf7c20b944f56507ead52190667ec4f35562fca6c964` |
+| 크기 | 1,483,635 bytes |
+| ZIP entries | 30 |
 | 재빌드 | 같은 source에서 2회 byte-identical |
 | metadata | `0.1.5`, QGIS `3.22–4.99`, `experimental=True` |
 | 모델 weight/native binary | 포함하지 않음 |
@@ -40,6 +40,12 @@ rewrite하지 않는다.
 ZIP은 1980-01-01 timestamp, 정렬된 entry, 고정 파일 mode와 저장 압축을 사용한다.
 저장 압축은 zlib 구현 차이 없이 Linux/Windows 바이트 동일성을 만들기 위한 선택이다.
 업로드 상한은 QGIS 공개 지침의 decimal 20 MB를 적용한다.
+
+QGIS Plugins Website의 Bandit/detect-secrets preflight에 맞춰, 의도된 best-effort
+정리·fallback 지점은 각각의 Bandit suppression 사유를 코드에 남겼다. 모델 artifact의
+SHA-256과 upstream commit pin은 credential이 아니므로 검토한 `.secrets.baseline`에만
+등록했고, baseline은 release builder가 plugin root에 명시적으로 포함한다. 로컬 Bandit
+`B110,B112` 결과와 baseline을 적용한 detect-secrets 결과는 모두 0건이다.
 
 ## Confirmed findings fixed
 

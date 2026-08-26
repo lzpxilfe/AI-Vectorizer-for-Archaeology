@@ -11,6 +11,15 @@ metadata 버전을 올리지 않습니다.
 
 ## 0.1.5 — release candidate
 
+### Packaging security-scan remediation
+
+- QGIS Plugins Website의 Bandit `B110`/`B112` false-positive 대상인 best-effort
+  cleanup·fallback에 지점별 suppression 근거를 기록했습니다. 원래의 오류 보존 및
+  fallback 동작은 바꾸지 않습니다.
+- 모델 artifact SHA-256과 upstream commit pin 9개를 검토한
+  `ai_vectorizer/.secrets.baseline`에 등록하고, release ZIP에 포함했습니다. 이는
+  credential이 아니라 다운로드 무결성 검증 값입니다.
+
 `0.1.5`는 공식 QGIS plugin 저장소의 `0.1.4` 다음 공개 후보입니다. Git history의
 `0.1.5–0.1.7`과 미공개 worktree의 `0.1.8`은 QGIS 저장소에 게시되지 않은 개발
 metadata였습니다. 이력은 보존하고 그 변경을 하나의 `0.1.5` 후보로 정리했습니다.

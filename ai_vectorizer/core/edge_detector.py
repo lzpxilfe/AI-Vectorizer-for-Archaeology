@@ -55,7 +55,8 @@ def _quietly_closing_hed_response(response):
         if callable(close):
             try:
                 close()
-            except Exception:
+            # Cleanup must not mask a verified download result.
+            except Exception:  # nosec B110
                 pass
 
 
@@ -1252,7 +1253,8 @@ class EdgeDetector:
                 status = 0
             try:
                 exc.close()
-            except Exception:
+            # Preserve the original HTTP error.
+            except Exception:  # nosec B110
                 pass
             if 300 <= status < 400:
                 raise RuntimeError("HED asset redirects are not accepted.") from exc

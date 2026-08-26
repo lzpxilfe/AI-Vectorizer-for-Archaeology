@@ -28,6 +28,7 @@ TOP_LEVEL_ITEMS = (
     "plugin.py",
     "config.py",
     "metadata.txt",
+    ".secrets.baseline",
     "README.md",
     "LICENSE",
     "icon.png",
