@@ -11,7 +11,9 @@ ArchaeoTrace의 목표는 서버나 유료 서비스에 사용자 자료를 보�
 - 입력, 모델, 파라미터, CRS, 출력을 기록해 결과를 재현할 수 있게 합니다.
 - 자동화 단계마다 고고학적 해석과 표고의 불확실성을 노출합니다.
 
-현재 `0.1.5` 후보에서 추적 추론과 지도 데이터는 로컬에 머뭅니다. 모델 다운로드는
+공식 QGIS 저장소에는 experimental `0.1.5`가 공개되어 있고, 현재 `main`의
+후속 기능은 version 숫자를 유지한 `Unreleased` source입니다. 추적 추론과 지도
+데이터는 로컬에 머뭅니다. 모델 다운로드는
 네트워크를 사용하고, SAM 상태 확인은 유효한 로컬 checkpoint가 없을 때만 고정된
 source의 availability를 조회합니다. 유효한 로컬 checkpoint는 오프라인에서 크기와
 SHA-256을 확인합니다.
@@ -46,13 +48,14 @@ Gate A–E는 [`docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md`](docs/OPEN_SOURCE_DEVELOPM
 
 ## Release and community-readiness gate
 
-`0.1.5`는 새 모델을 추가하는 기능 릴리스가 아니라 데이터 무결성, 모델 공급망,
-QGIS 편집 수명주기, Python/QGIS 호환성, 재현 패키징을 닫는 stable 후보입니다.
-다음 릴리스의 진입 조건은 다음과 같습니다.
+공식 `0.1.5`는 새 모델을 기본으로 추가하지 않은 experimental release입니다.
+현재 `Unreleased`와 다음 release는 데이터 무결성, 모델 공급망, QGIS 편집
+수명주기, Python/QGIS 호환성, 재현 패키징을 닫아야 합니다. 진입 조건은
+다음과 같습니다.
 
 - 동일 소스가 Linux/Windows에서 같은 ZIP SHA-256을 생성합니다.
 - 빌드된 ZIP 자체가 QGIS 3/4에서 import와 편집 회귀를 통과합니다.
-- RC는 `experimental=True`를 유지하고, stable 전환 PR에서 `False`로 바꾼
+- 현재 source는 `experimental=True`를 유지하고, stable 전환 PR에서 `False`로 바꾼
   바로 그 ZIP이 전체 원격 CI를 다시 통과한 뒤 공식 저장소에 올립니다.
 - 기본 Ink/Freehand는 추가 pip 없이 동작하고 선택 모델 실패가 기본 흐름을
   망가뜨리지 않습니다.
@@ -79,9 +82,10 @@ QGIS 편집 수명주기, Python/QGIS 호환성, 재현 패키징을 닫는 stab
 
 ## M0.5 — Human-led Ink Centerline + direction-aware Live-Wire
 
-상태: `0.1.5` 유지·검증 (2026-08-23 macOS QGIS 3.44.8 offscreen API/runtime
-회귀 20건 통과; QGIS 3.22/3.44/4.2 빌드 ZIP 원격 CI는 구성됐으나 이 worktree의
-실행 결과는 아직 없음)
+상태: `Unreleased` source에서 metadata `0.1.5` 유지·검증 (macOS QGIS 3.44.8
+clean-profile 실제 map-tool 저장과 commit `30e18f6`의 QGIS
+3.22.16/3.44.13/4.2.1 원격 package/runtime-safety CI 통과; 공식 0.1.5 ZIP을
+소급한 검증은 아님)
 
 완료:
 
@@ -107,7 +111,7 @@ QGIS 편집 수명주기, Python/QGIS 호환성, 재현 패키징을 닫는 stab
 ## M1 — Local model benchmark before replacement
 
 상태: M1.3 Ink v1/v2/Recovery 독립 worker와 공개 8×6 dataset 계약 구현,
-재배포 가능 실데이터·독립 검수 대기
+USGS 실도엽 1장·crop 6개 staged, 나머지 7장과 독립 검수 대기
 
 완료:
 
@@ -151,8 +155,9 @@ QGIS 편집 수명주기, Python/QGIS 호환성, 재현 패키징을 닫는 stab
 
 ## M2 — EfficientSAM-guided hybrid line vectorizer
 
-상태: 첫 보수적 `Smart Recovery (Experimental)` 제품 경로 구현, 기본 승격 전
-locked holdout·clean-profile QGIS 검증 대기
+상태: 첫 보수적 `Smart Recovery (Experimental)` 제품 경로 구현 및 실제 QGIS
+EfficientSAM-Ti CPU inference·모델 없음/정상/손상 lifecycle smoke 통과, 기본 승격 전
+locked holdout 대기
 
 범위:
 

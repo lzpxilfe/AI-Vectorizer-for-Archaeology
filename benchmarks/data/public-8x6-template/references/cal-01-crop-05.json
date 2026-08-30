@@ -1,0 +1,31 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-scranton-railroad",
+      "closed": false,
+      "points": [
+        [4, 202],
+        [64, 202],
+        [128, 203],
+        [192, 203],
+        [256, 203],
+        [320, 204],
+        [384, 203],
+        [448, 204],
+        [507, 205]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop",
+    "target_description": "Scranton railroad centerline obscured by lettering and symbols",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

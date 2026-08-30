@@ -1,0 +1,39 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-road-among-parallel-contours",
+      "closed": false,
+      "points": [
+        [47, 5],
+        [72, 22],
+        [104, 51],
+        [145, 83],
+        [184, 93],
+        [228, 99],
+        [269, 107],
+        [295, 124],
+        [318, 151],
+        [331, 186],
+        [340, 225],
+        [350, 270],
+        [372, 300],
+        [407, 323],
+        [452, 338],
+        [486, 361],
+        [510, 375]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop",
+    "target_description": "dark road centerline surrounded by dense parallel contours",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

@@ -274,9 +274,10 @@ dataset and review protocol exist.
 ## Public 8-sheet / 48-crop plan
 
 [`data/public-8x6-template/dataset-plan.json`](data/public-8x6-template/dataset-plan.json)
-is a rights-safe plan, not a dataset download. It reserves eight independent
-source sheets and six ordered-reference crops per sheet, split at sheet level
-into four calibration and four frozen holdout sheets. Each split contains two
+is an incrementally materialized, rights-safe plan. It reserves eight
+independent source sheets and six ordered-reference crops per sheet, split at
+sheet level into four calibration and four frozen holdout sheets. Each split
+contains two
 `usgs_htmc` and two `korea_rights_cleared` sources. The eight fixed failure
 strata each occur three times per split (six times overall): clean dark curve,
 thick/scale variation, faded/broken line, coloured line, text/number crossing,
@@ -292,22 +293,40 @@ The companion
 [`public-dataset-plan-v1.schema.json`](schemas/public-dataset-plan-v1.schema.json)
 documents the JSON shape. `validate_public_dataset_plan()` additionally checks
 the distribution and leakage constraints JSON Schema cannot express. It never
-downloads anything. The checked-in template intentionally uses unresolved
-rights/assets and therefore reports `materialized=false` and
-`publication_ranking_eligible=false`.
+downloads anything. Calibration sheet `cal-01` is the first locally staged
+source: the official USGS HTMC East Denver, Colorado 1890 GeoTIFF, its local
+rights/provenance snapshot, six exact lossless source crops, prompt-v2 records,
+and ordered-reference drafts are all hash-bound in the plan. The reference
+drafts deliberately remain `unreviewed`/`pending`; the other seven source slots
+are unresolved. The whole plan therefore still reports `materialized=false`
+and `publication_ranking_eligible=false`.
+
+With Pillow installed, verify that every staged PNG is pixel-for-pixel equal
+to its declared GeoTIFF rectangle and that each draft reference runs from the
+recorded prompt start to end:
+
+```bash
+python3 -m benchmarks.public_assets benchmarks/data/public-8x6-template/dataset-plan.json
+```
+
+This pass is also offline. It is separate from the dependency-free structural
+validator so a clean QGIS installation does not need a TIFF codec merely to
+read the plan.
 
 Before a materialized plan is accepted, every source must have an open/public-
 domain rights status, publisher/date or sheet id, source and rights-statement
-URLs, a locally captured rights-text snapshot and hash, and a source-raster
-hash. Every crop must have source `x,y,width,height`, the matching explicit
-`source_tile_origin_xy=[x,y]`, hashed local image and ordered reference, a
-bounded prompt explicitly marked `schema_version=archaeotrace-trace-prompt/2`,
-and completed independent reviewer and adjudicator approval.
+URLs, a locally captured rights-text snapshot and hash, a source-raster hash,
+and a structured immutable `provenance_id` whose authority/namespace/value is
+globally unique across both splits. Every crop must have source
+`x,y,width,height`, the matching explicit `source_tile_origin_xy=[x,y]`, hashed
+local image and exactly one open, in-bounds ordered reference, a bounded prompt
+explicitly marked `schema_version=archaeotrace-trace-prompt/2`, and completed
+approval from named, distinct reviewer and adjudicator identities.
 Ink v2/Recovery worker evidence binds that origin together with the image hash
 so an identical PNG cannot silently move to a different normalization tile.
-Run the validator with `require_materialized=True` for
-that gate. Calibration can tune the provisional recovery thresholds; the
-frozen holdout cannot be used for tuning.
+Run both the asset verifier above and the structural validator with
+`require_materialized=True` for that gate. Calibration can tune the provisional
+recovery thresholds; the frozen holdout cannot be used for tuning.
 
 Do not fill a source slot with rights-unclear material or the restricted-
 distribution Library of Congress L851 collection. A public URL by itself is

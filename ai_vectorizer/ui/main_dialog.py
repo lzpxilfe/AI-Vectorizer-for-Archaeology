@@ -201,12 +201,13 @@ def _exec_dialog(dialog):
 
 
 class _RecoveryInstallTask(QgsTask):
-    """Fetch the pinned recovery bundle after one explicit button press."""
+    """Install or repair the pinned bundle after one explicit button press."""
 
-    def __init__(self, cache_root, callback):
+    def __init__(self, cache_root, callback, *, repair_corrupt=False):
         super().__init__("ArchaeoTrace install recovery model", _task_can_cancel())
         self.cache_root = cache_root
         self.callback = callback
+        self.repair_corrupt = bool(repair_corrupt)
         self.bundle = None
         self.error = None
 
@@ -216,16 +217,23 @@ class _RecoveryInstallTask(QgsTask):
         try:
             # This is the only Smart Recovery path allowed to open the
             # network. Inspection, tracing, and retry remain offline.
-            from ..core.model_store import ModelDownloadCancelled, fetch_bundle
+            from ..core.model_store import (
+                ModelDownloadCancelled,
+                fetch_bundle,
+                repair_bundle,
+            )
 
             try:
-                self.bundle = fetch_bundle(
+                install = repair_bundle if self.repair_corrupt else fetch_bundle
+                self.bundle = install(
                     self.cache_root,
                     cancel_check=self.isCanceled,
                 )
             except ModelDownloadCancelled:
                 return False
-            return not self.isCanceled()
+            # The verified store transaction is the commit point. A cancel
+            # flag arriving after it returns must not report a false failure.
+            return True
         except Exception as exc:
             self.error = exc
             return False
@@ -823,12 +831,12 @@ class AIVectorizerDock(QDockWidget):
             self._start_recovery_prepare(runtime_ready)
             return
         if status is None:
-            self.recovery_install_btn.setVisible(True)
+            self.recovery_install_btn.setVisible(False)
             self._set_recovery_state(
                 RECOVERY_STATE_INK_FALLBACK,
                 self._tr(
-                    f"모델 확인 실패; Ink 유지: {self._recovery_prepare_error}",
-                    f"Model inspection failed; Ink kept: {self._recovery_prepare_error}",
+                    f"모델 확인 실패; 설치를 중단하고 Ink 유지: {self._recovery_prepare_error}",
+                    f"Model inspection failed; installation disabled and Ink kept: {self._recovery_prepare_error}",
                 ),
             )
             return
@@ -838,7 +846,24 @@ class AIVectorizerDock(QDockWidget):
             self._recovery_model_status = None
             self._start_recovery_prepare(runtime_ready)
             return
-        self.recovery_install_btn.setVisible(not status.ready)
+        corrupt = any(
+            artifact.state == "corrupt" for artifact in status.artifacts
+        )
+        unsafe = any(
+            artifact.state == "unsafe" for artifact in status.artifacts
+        )
+        self.recovery_install_btn.setText(
+            self._tr(
+                "🧰 Repair Recovery Model",
+                "🧰 Repair Recovery Model",
+            )
+            if corrupt
+            else self._tr(
+                "⬇️ Install Recovery Model",
+                "⬇️ Install Recovery Model",
+            )
+        )
+        self.recovery_install_btn.setVisible(not status.ready and not unsafe)
         states = ", ".join(
             f"{artifact.spec.identifier}:{artifact.state}"
             for artifact in status.artifacts
@@ -857,6 +882,11 @@ class AIVectorizerDock(QDockWidget):
                     f"Recovery preparation failed; Ink kept: {self._recovery_prepare_error}",
                 )
                 if status.ready and self._recovery_prepare_error
+                else self._tr(
+                    f"안전하지 않은 모델 캐시 ({states}); 자동 변경을 거부하고 Ink만 사용",
+                    f"Unsafe model cache ({states}); automatic changes disabled, using Ink only",
+                )
+                if unsafe
                 else self._tr(
                     f"복구 모델 없음 ({states}); Ink만 사용",
                     f"Recovery model unavailable ({states}); using Ink only",
@@ -897,9 +927,33 @@ class AIVectorizerDock(QDockWidget):
             self.smart_recovery_check.setChecked(False)
 
     def install_recovery_model(self):
-        """Start the sole, explicit network action for Smart Recovery."""
+        """Start the sole, explicit install or corrupt-object repair action."""
 
         if self.recovery_install_task is not None:
+            return
+        status = self._recovery_model_status
+        repair_corrupt = bool(
+            status is not None
+            and any(
+                artifact.state == "corrupt"
+                for artifact in status.artifacts
+            )
+        )
+        unsafe = bool(
+            status is not None
+            and any(
+                artifact.state == "unsafe"
+                for artifact in status.artifacts
+            )
+        )
+        if unsafe:
+            self._set_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                self._tr(
+                    "안전하지 않은 모델 캐시는 자동 변경하지 않습니다. Ink를 유지합니다.",
+                    "Unsafe model cache is never changed automatically. Ink remains active.",
+                ),
+            )
             return
         self._cancel_recovery_prepare()
         self._release_recovery_engine()
@@ -908,17 +962,36 @@ class AIVectorizerDock(QDockWidget):
         task = _RecoveryInstallTask(
             self._sam_models_dir(),
             self._on_recovery_install_finished,
+            repair_corrupt=repair_corrupt,
         )
         self.recovery_install_task = task
         self.recovery_install_btn.setEnabled(False)
         self._set_recovery_state(
             RECOVERY_STATE_INK_FALLBACK,
             self._tr(
-                "복구 모델 설치 중; 완료 전까지 Ink 유지",
-                "Installing recovery model; Ink remains active",
+                "손상 모델을 격리·복구 중; 완료 전까지 Ink 유지"
+                if repair_corrupt
+                else "복구 모델 설치 중; 완료 전까지 Ink 유지",
+                "Quarantining and repairing the corrupt model; Ink remains active"
+                if repair_corrupt
+                else "Installing recovery model; Ink remains active",
             ),
         )
-        QgsApplication.taskManager().addTask(task)
+        try:
+            QgsApplication.taskManager().addTask(task)
+        except Exception as exc:
+            self.recovery_install_task = None
+            self.recovery_install_btn.setEnabled(True)
+            self._recovery_model_status = status
+            self._recovery_prepare_error = ""
+            self._set_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                self._tr(
+                    f"복구 설치 작업을 시작하지 못함; Ink 유지: {exc}",
+                    f"Could not start recovery installation; Ink kept: {exc}",
+                ),
+            )
+            self._refresh_recovery_availability()
 
     def _on_recovery_install_finished(self, task, succeeded, _bundle, error):
         if self.recovery_install_task is not task:
@@ -944,8 +1017,14 @@ class AIVectorizerDock(QDockWidget):
                 f"Installation failed; Ink kept: {error}",
             )
         )
-        self.recovery_install_btn.setVisible(True)
+        # A repair rollback restores the corrupt object by design. Reinspect
+        # off the UI thread before exposing another action so the next click
+        # remains Repair rather than degrading to a dead plain-install retry.
+        self._recovery_model_status = None
+        self._recovery_prepare_error = ""
+        self.recovery_install_btn.setVisible(False)
         self._set_recovery_state(RECOVERY_STATE_INK_FALLBACK, detail)
+        self._refresh_recovery_availability()
 
     def retry_current_segment(self):
         retry = getattr(self.active_tool, "retry_current_segment", None)
@@ -1387,7 +1466,7 @@ class AIVectorizerDock(QDockWidget):
             self._tr(
                 (
                     "각 추적 방식의 역할:\n"
-                    "• Ink Centerline: 검은 획의 단일 중심선 + 방향 인식 Live-Wire\n"
+                    "• Ink Centerline: 다중 스케일 검은색·유색 선 증거 + 방향 인식 Live-Wire\n"
                     "• LSD: 선분 지도를 이용한 Live-Wire\n"
                     f"• HED: 학습된 엣지 지도 (~{self._hed_size_hint_mb()}MB)\n"
                     f"• MobileSAM: 프롬프트 마스크 + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB)\n"
@@ -1396,7 +1475,7 @@ class AIVectorizerDock(QDockWidget):
                 ),
                 (
                     "Tracing-mode roles:\n"
-                    "• Ink Centerline: single dark-stroke centerline + direction-aware Live-Wire\n"
+                    "• Ink Centerline: multi-scale dark/coloured line evidence + direction-aware Live-Wire\n"
                     "• LSD: Live-Wire over line-segment evidence\n"
                     f"• HED: learned edge map (~{self._hed_size_hint_mb()}MB)\n"
                     f"• MobileSAM: prompt mask + edge/A* (~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB)\n"
@@ -1407,8 +1486,8 @@ class AIVectorizerDock(QDockWidget):
         )
         self.model_combo.setToolTip(
             self._tr(
-                "Ink Centerline: 검은 획 단일 중심선\nLSD: 선분 보조\nHED: 학습된 엣지 지도\nMobileSAM: 프롬프트 마스크\nSAM: ViT-B 프롬프트 마스크\nLegacy Canny: 기존 경계 검출",
-                "Ink Centerline: single dark-stroke centerline\n"
+                "Ink Centerline: 다중 스케일 검은색·유색 선 증거\nLSD: 선분 보조\nHED: 학습된 엣지 지도\nMobileSAM: 프롬프트 마스크\nSAM: ViT-B 프롬프트 마스크\nLegacy Canny: 기존 경계 검출",
+                "Ink Centerline: multi-scale dark/coloured line evidence\n"
                 "LSD: line-segment assistance\n"
                 "HED: learned edge map\n"
                 "MobileSAM: prompt mask\n"
@@ -2546,14 +2625,15 @@ class AIVectorizerDock(QDockWidget):
 <ol>
 <li><b>Select Raster Map</b> - choose a scanned map with contour lines.</li>
 <li><b>Create SHP Output</b> - create a new line SHP or pick an existing line layer.</li>
-<li><b>Choose Tracing Mode</b> - start with Ink Centerline, or select LSD/HED/MobileSAM/SAM/Legacy Canny for the map and runtime.</li>
+<li><b>Choose Tracing Mode</b> - start with Ink Centerline; enable Smart Recovery only when wanted. LSD/HED/MobileSAM/SAM/Legacy Canny remain under Advanced.</li>
 <li><b>Start Tracing</b> - click along contours and save the result.</li>
 </ol>
 
 <h3>🤖 Tracing Modes</h3>
 <table border='1' cellpadding='5'>
 <tr><th>Mode</th><th>Role</th><th>Requirements</th></tr>
-<tr><td>🖋 Ink Centerline</td><td>Single dark-stroke centerline; local snap or optional Live-Wire</td><td>QGIS NumPy; SciPy/scikit-image optional; no OpenCV</td></tr>
+<tr><td>🖋 Ink Centerline</td><td>Multi-scale dark/coloured line evidence with bounded Live-Wire</td><td>QGIS NumPy; SciPy/scikit-image optional; no model or OpenCV</td></tr>
+<tr><td>🛟 Smart Recovery</td><td>EfficientSAM corridor challenger only on uncertain Ink segments; default OFF and Ink-preserving on failure</td><td>ONNX Runtime + explicitly installed, fixed-hash ~39.4 MiB split model</td></tr>
 <tr><td>📐 LSD</td><td>Live-Wire over line-segment evidence</td><td>OpenCV + SciPy</td></tr>
 <tr><td>🧠 HED</td><td>Learned edge-map assistance</td><td>OpenCV 4.8–4.11 + ~{self._hed_size_hint_mb()}MB model</td></tr>
 <tr><td>🎯 MobileSAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + mobile_sam + ~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB weights</td></tr>
@@ -2576,6 +2656,7 @@ class AIVectorizerDock(QDockWidget):
 <li>Zoom in until contour lines are clearly visible for better snapping.</li>
 <li>The assist slider is literal: 0% is the exact cursor, intermediate values blend geometry, and 100% uses the full Live-Wire route.</li>
 <li>The green line is the exact path that one click will accept. Auto Path is required only for SAM proposals.</li>
+<li>Smart Recovery reports Ink, Recovering, Enhanced, or Ink fallback. It never auto-downloads its model.</li>
 <li>If SAM/HED is unavailable, start with Ink Centerline.</li>
 <li>Use <b>Verify Selected SAM Model</b> to check the local file against its pinned size and SHA-256 identity.</li>
 <li><b>SAM Status Report</b> performs the same integrity check before creating a shareable JSON report; internet is used only when the model is missing.</li>
@@ -2594,14 +2675,15 @@ class AIVectorizerDock(QDockWidget):
 <ol>
 <li><b>래스터 지도 선택</b> - 등고선이 있는 스캔 지도를 선택합니다.</li>
 <li><b>SHP 출력 설정</b> - 새 라인 SHP를 만들거나 기존 라인 레이어를 선택합니다.</li>
-<li><b>추적 방식 선택</b> - 기본 Ink Centerline으로 시작하거나 지도와 런타임에 맞춰 LSD/HED/MobileSAM/SAM/Legacy Canny를 선택합니다.</li>
+<li><b>추적 방식 선택</b> - 기본 Ink Centerline으로 시작하고 필요할 때만 Smart Recovery를 켭니다. LSD/HED/MobileSAM/SAM/Legacy Canny는 Advanced에 보존됩니다.</li>
 <li><b>트레이싱 시작</b> - 등고선을 따라 클릭하며 추적한 뒤 저장합니다.</li>
 </ol>
 
 <h3>🤖 추적 방식</h3>
 <table border='1' cellpadding='5'>
 <tr><th>방식</th><th>역할</th><th>필요 항목</th></tr>
-<tr><td>🖋 Ink Centerline</td><td>검은 획의 단일 중심선, 국소 스냅 또는 선택적 Live-Wire</td><td>QGIS NumPy, SciPy/scikit-image 선택, OpenCV 불필요</td></tr>
+<tr><td>🖋 Ink Centerline</td><td>다중 스케일 검은색·유색 선 증거와 제한된 Live-Wire</td><td>QGIS NumPy, SciPy/scikit-image 선택, model·OpenCV 불필요</td></tr>
+<tr><td>🛟 Smart Recovery</td><td>불확실한 Ink 구간에만 EfficientSAM corridor challenger 사용, 기본 OFF·실패 시 Ink 보존</td><td>ONNX Runtime과 명시적으로 설치한 고정-hash 약 39.4 MiB split model</td></tr>
 <tr><td>📐 LSD</td><td>선분 지도를 이용한 Live-Wire</td><td>OpenCV + SciPy</td></tr>
 <tr><td>🧠 HED</td><td>학습된 엣지 지도 보조</td><td>OpenCV 4.8–4.11 및 약 {self._hed_size_hint_mb()}MB 모델</td></tr>
 <tr><td>🎯 MobileSAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + mobile_sam 및 약 {self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB 가중치</td></tr>
@@ -2624,6 +2706,7 @@ class AIVectorizerDock(QDockWidget):
 <li>등고선이 명확히 보일 정도로 확대하면 스냅 품질이 좋아집니다.</li>
 <li>AI 개입 슬라이더는 실제 비율입니다. 0%는 정확한 커서, 중간값은 경로 혼합, 100%는 Live-Wire 전체 경로입니다.</li>
 <li>초록색 선이 클릭 한 번으로 채택될 정확한 경로입니다. Auto Path는 SAM 제안에만 필요합니다.</li>
+<li>Smart Recovery는 Ink, Recovering, Enhanced, Ink fallback 상태를 표시하며 model을 자동 download하지 않습니다.</li>
 <li>SAM/HED가 준비되지 않았다면 Ink Centerline부터 시작하세요.</li>
 <li><b>선택 SAM 모델 검증</b> 버튼으로 로컬 파일이 고정된 크기와 SHA-256 정체성에 맞는지 확인하세요.</li>
 <li><b>SAM 상태 리포트</b>는 같은 무결성 검증 후 공유용 JSON을 생성하며, 모델이 없을 때만 인터넷을 사용합니다.</li>

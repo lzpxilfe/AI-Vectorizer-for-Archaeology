@@ -1,7 +1,10 @@
 # Ink Centerline v2와 Smart Recovery
 
-이 문서는 `Unreleased` 개발 소스에 추가된 차세대 추적 경로를 설명합니다. 공개된
-`0.1.5` artifact와 metadata는 그대로 유지됩니다. 새 정확도 수치나 다른 서비스보다
+이 문서는 `Unreleased` 개발 소스에 추가된 차세대 추적 경로를 설명합니다. QGIS
+저장소에 2026-08-26 공개된 experimental `0.1.5` artifact와 metadata는 그대로
+유지됩니다. 공식 ZIP·repository-local 사전 후보·현재 source ZIP은
+[`RELEASE_READINESS_0.1.5.md`](RELEASE_READINESS_0.1.5.md)에서 분리합니다. 새 정확도
+수치나 다른 서비스보다
 우수하다는 주장은 공개 실지도 holdout이 완성되고 사전 정의된 gate를 통과하기 전에는
 하지 않습니다.
 
@@ -88,6 +91,11 @@ EfficientSAM 제품 adapter는 content-addressed encoder/decoder를 매번 크�
 UI thread를 막지 않습니다. 준비 중에는 Ink만 즉시 시작하며, 현재 task에 검증된
 engine이 도착한 뒤에만 Recovery를 활성화합니다. 모델 없음, 손상, dependency 부재,
 NaN·shape 오류, task 취소 또는 stale cache에서는 challenger를 채택하지 않습니다.
+손상된 regular content-addressed object는 사용자가 `Repair Recovery Model`을 누른
+경우에만 격리·재검증하고, 다운로드 실패나 취소에서는 미완료 파일의 손상본을 복원합니다.
+이미 hash 검증·게시된 replacement는 다른 process가 사용할 수 있으므로 되돌리지 않고,
+미완료 object만 원래 손상본으로 복원합니다. symlink·directory 같은 unsafe cache
+object와 Windows junction/reparse point에는 repair나 download를 실행하지 않습니다.
 
 ## Benchmark 계약
 
@@ -115,6 +123,12 @@ validator는 8개 독립 도엽, 도엽당 6개 crop, 4/4 calibration/holdout �
 8개 난이도 층, 원본·crop·권리 snapshot hash와 이중 주석 검수를 요구합니다. USGS
 퍼블릭 도메인 4개와 항목별 재배포 권리가 명확한 한국·한반도 지도 4개가 모두
 준비되기 전에는 `publication_ranking_eligible`을 `false`로 유지합니다.
+현재 `cal-01`에는 USGS HTMC의 East Denver, Colorado 1890 도엽과 공식 권리 근거,
+원본 GeoTIFF, 6개 무손실 PNG 및 prompt-v2·ordered-reference 초안을 실제로
+저장했습니다. PNG는 선언한 GeoTIFF 좌표와 픽셀 단위로 동일함을
+`python3 -m benchmarks.public_assets .../dataset-plan.json`으로 오프라인 검증합니다.
+다만 중심선은 독립 검수 전의 `draft_unreviewed` 자료이므로 dataset 전체
+`materialized`와 publication gate는 계속 false입니다.
 권리 범위가 제한된 Library of Congress L851 자료와 권리 근거가 불명확한 자료는
 source slot에 넣지 않습니다.
 

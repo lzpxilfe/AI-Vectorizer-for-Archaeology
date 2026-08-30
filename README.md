@@ -15,20 +15,29 @@
 
 ## Current source status
 
-- plugin metadata는 `0.1.5` 공개 후보이며 `experimental=True`입니다.
-- 현재 `main`의 새 추적 기능은 모두 `Unreleased`입니다. 개발 중 metadata, tag와 기존
-  `0.1.5` 릴리스 ZIP은 올리거나 다시 만들지 않습니다.
-- [공식 QGIS plugin 저장소](https://plugins.qgis.org/plugins/ai_vectorizer/)의
-  `0.1.4` 다음 배포판을 `0.1.5`로 정리했습니다. Git
-  history의 `0.1.5–0.1.7`과 미공개 worktree의 `0.1.8`은 QGIS 저장소에 게시되지
-  않은 개발 metadata였으며 이력은 rewrite하지 않습니다.
+- [공식 QGIS plugin 저장소](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.5/)에
+  experimental `0.1.5`가 2026-08-26 공개됐습니다. 현재 source도 version
+  숫자와 `experimental=True`를 그대로 유지합니다.
+- 공식 QGIS `0.1.5` ZIP은 1,483,635 bytes, SHA-256
+  `24f1def6acd63d483ea6bf7c20b944f56507ead52190667ec4f35562fca6c964`입니다.
+  repository의 `dist/ai_vectorizer-0.1.5.zip`은 그보다 이전
+  commit `89b9f20`에서 만든 로컬 후보(SHA-256 `d2925198…`)이며 공식
+  다운로드와 같은 artifact가 아닙니다.
+- 현재 `main`의 Ink v2·Smart Recovery와 후속 수정은 모두
+  `Unreleased`입니다. 개발 중 metadata 숫자나 기존 tag를 바꾸거나, 같은
+  version으로 QGIS artifact를 다시 게시하지 않습니다. Git history의
+  `0.1.5–0.1.7`과 미공개 worktree의 `0.1.8` 표시도 추가 QGIS 릴리스가
+  아니었으며 이력은 rewrite하지 않습니다.
 - metadata 대상은 QGIS `3.22–4.99`, source 계약은 Python `3.8+`입니다. 로컬에서는
-  Python 3.8/3.10/3.12와 macOS QGIS 3.44.8을 확인했습니다. QGIS 3.22/3.44/4.2
-  package matrix는 CI에 구성되어 있지만 이 후보의 원격 run은 아직 실행하지
-  않았습니다. 정확한 범위는
+  Python 3.8/3.10/3.12와 macOS QGIS 3.44.8을 확인했습니다. 후속
+  current-source commit `30e18f6`의 원격 CI에서는 QGIS
+  3.22.16/3.44.13/4.2.1 package import·runtime safety와 Linux/Windows 결정적 ZIP이
+  [green](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33339770178)이었습니다.
+  이 run은 공식 0.1.5 ZIP이나 현재 미커밋 worktree를 증명하지 않습니다. 정확한
+  artifact·commit 범위는
   [`release-readiness 기록`](docs/RELEASE_READINESS_0.1.5.md)을 확인하세요.
 - 개발판 `0.1.6–0.1.8`을 source나 ZIP으로 직접 설치했다면 낮은 버전 번호가 자동
-  update로 인식되지 않을 수 있습니다. 기존 plugin을 제거한 뒤 검증된 `0.1.5` ZIP을
+  update로 인식되지 않을 수 있습니다. 기존 plugin을 제거한 뒤 공식 `0.1.5` ZIP을
   다시 설치하세요. QGIS profile의 검증된 model 파일은 plugin 밖에 보존됩니다.
 
 ## Main features
@@ -119,7 +128,9 @@ backend별 설치, model 크기·SHA-256, 수동 경로와 운영체제별 안�
 - network는 사용자가 HED/SAM model 또는 Recovery model 설치를 직접 실행할 때만
   사용합니다. Recovery는 자동 다운로드하지 않으며, 설치 뒤에는 content-addressed
   cache의 크기·SHA-256과 ONNX session을 background task에서 준비합니다. 준비 중에는
-  Ink만 사용하며 Recovery 입력은 native Byte raster로 제한합니다. SAM Check/Status는
+  Ink만 사용하며 Recovery 입력은 native Byte raster로 제한합니다. 손상된 regular
+  cache object는 명시적인 `Repair Recovery Model`에서만 격리·재검증하고 unsafe
+  object는 자동 변경하지 않습니다. SAM Check/Status는
   유효한 local checkpoint가 있으면 size와 SHA-256을 offline 확인하고, 파일이 없을
   때만 고정 source의 availability를 조회합니다. EfficientSAM benchmark도 명시적인
   `model fetch`만 network를 사용합니다. 지도 crop과 사용자 geometry는 업로드하지
@@ -149,8 +160,9 @@ topology QA, uncertainty/NoData layer와 provenance sidecar를 아직 만들지 
 `benchmarks/`는 `ink-livewire-v1`, `ink-livewire-v2`,
 `efficientsam-ti-onnx-v1`, `ink-v2-effsam-recovery-v1`의 최종 ordered
 centerline, 실행 환경, 입력·출력 SHA-256, 시간·RAM과 topology 지표를 기록합니다.
-8개 도엽·48개 crop의 권리·주석·분할을 강제하는 공개 데이터셋 template은 있지만,
-실제 재배포 가능 원본과 독립 검수가 아직 채워지지 않았으므로
+8개 도엽·48개 crop의 권리·주석·분할을 강제하는 공개 데이터셋에서 첫 USGS HTMC
+도엽과 무손실 crop 6개를 실제로 staged했습니다. 나머지 7개 도엽과 모든 독립 검수가
+아직 채워지지 않았으므로
 `publication_ranking_eligible=false`입니다. 현재 자료는 실제 지도 정확도나 다른
 도구보다 낫다는 근거가 아닙니다. 명령과 evidence 형식은
 [`benchmarks/README.md`](benchmarks/README.md)를 참고하세요.
@@ -178,8 +190,9 @@ centerline, 실행 환경, 입력·출력 SHA-256, 시간·RAM과 topology 지�
 과거 Git commit과 tag는 지우거나 다시 쓰지 않습니다. 자세한 기록은
 [`CHANGELOG.md`](CHANGELOG.md)와 [`CONTRIBUTING.md`](CONTRIBUTING.md)에 있습니다.
 
-개발 중인 현재 source는 production 이름과 분리된 임시 ZIP으로 검증하세요. 이 명령은
-동결된 `dist/ai_vectorizer-0.1.5.zip`이나 `ai_vectorizer 0.1.5/`를 건드리지 않습니다.
+개발 중인 현재 source는 공개 artifact 이름과 분리된 임시 ZIP으로 검증하세요.
+이 명령은 repository에 보존된 로컬 `dist/ai_vectorizer-0.1.5.zip`이나
+`ai_vectorizer 0.1.5/`를 건드리지 않습니다.
 
 ```bash
 current_source_dir="$(mktemp -d)"
@@ -188,8 +201,10 @@ python3 scripts/package_release.py --output "$current_source_zip"
 python3 scripts/package_release.py --check --output "$current_source_zip"
 ```
 
-metadata에서 파생된 production ZIP은 기록된 동결 SHA-256과 현재 source build가 다르면
-기본 명령으로 덮어쓸 수 없습니다. 실제 release를 승인할 때만 metadata와 같은 버전을
+metadata에서 파생된 repository-local 후보 ZIP은 기록된 동결
+SHA-256과 현재 source build가 다르면 기본 명령으로 덮어쓸 수 없습니다. 이
+보호 해시는 공식 QGIS 다운로드의 identity가 아니니 두 artifact를 혼동하지
+마세요. 새 release를 승인할 때만 metadata와 같은 버전을
 `--approve-release-overwrite VERSION`에 명시해야 합니다.
 `Unreleased` 구현에서 새 tag, GitHub Release 또는 QGIS upload를 만들지 않습니다.
 

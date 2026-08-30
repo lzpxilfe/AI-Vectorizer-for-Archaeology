@@ -3,6 +3,7 @@ message: "If you use this repository in research, teaching, or applied work, ple
 type: software
 title: "ArchaeoTrace: local-first contour tracing and terrain reconstruction for historical maps"
 version: 0.1.5
+date-released: 2026-08-26
 authors:
   - family-names: Hwang
     given-names: Jinseo

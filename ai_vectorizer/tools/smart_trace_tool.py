@@ -1073,6 +1073,17 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._livewire_warning_emitted = False
         self._livewire_disabled = False
         self._livewire_failed_anchor = None
+        # A fast click can arrive while the immutable tree for the newest
+        # anchor is still being built.  Keep that explicit target pending
+        # instead of committing the temporary straight/local-snap preview.
+        # The task callback resolves it against the finished tree on QGIS'
+        # main thread, preserving both responsiveness and Ink semantics.
+        self._pending_livewire_accept_point = None
+        self._pending_livewire_auto_accept = False
+        # When a deferred click produces a weak Ink route, keep its explicit
+        # target pending until the matching Smart Recovery challenger has
+        # either produced the final visible route or failed closed to Ink.
+        self._pending_livewire_recovery_identity = None
 
         # Smart Recovery evaluates only an already-rendered Ink candidate.
         # Requests are coalesced so the ONNX session is never invoked by two
@@ -1248,6 +1259,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self._emit_recovery_state(RECOVERY_STATE_INK, detail)
 
     def _clear_edge_cache(self):
+        pending_livewire_click_was_cancelled = (
+            getattr(self, "_pending_livewire_accept_point", None) is not None
+        )
         ink_evidence_was_running = self._cancel_ink_evidence_task()
         recovery_was_running = self._cancel_recovery_task(clear_request=True)
         self._recovery_generation += 1
@@ -1261,6 +1275,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._livewire_anchor_pixel = None
         self._livewire_request_point = None
         self._livewire_failed_anchor = None
+        self._pending_livewire_accept_point = None
+        self._pending_livewire_auto_accept = False
+        self._pending_livewire_recovery_identity = None
         self.cached_edges = None
         self.cached_cost = None
         self.cached_ink_evidence = None
@@ -1276,6 +1293,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.sam_image_ready = False
         self.sam_warning_emitted = False
         self.cache_dirty = True
+        if pending_livewire_click_was_cancelled and getattr(self, "is_tracing", False):
+            self._push_message(
+                self._tr(
+                    "화면이나 원본이 바뀌어 대기 중이던 Ink 지점을 취소했습니다.",
+                    "The pending Ink point was cancelled because the view or source changed.",
+                ),
+                MESSAGE_WARNING,
+                3,
+            )
         if recovery_was_running and self.smart_recovery_requested:
             self._emit_recovery_state(
                 RECOVERY_STATE_INK_FALLBACK,
@@ -2027,6 +2053,172 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         QgsApplication.taskManager().addTask(task)
         return True
 
+    def _livewire_tree_is_ready(self):
+        """Return whether the current accepted anchor has a usable tree."""
+
+        anchor_pixel = self._current_livewire_anchor_pixel()
+        tree = self._livewire_tree
+        return bool(
+            anchor_pixel is not None
+            and tree is not None
+            and tree.root == anchor_pixel
+        )
+
+    def _defer_click_until_livewire_ready(self, point, *, auto_accept=True):
+        """Queue a fast click while its anchor tree/cache is still pending.
+
+        The cursor preview intentionally remains responsive while Ink evidence
+        and the predecessor tree are prepared in background tasks.  That
+        temporary preview is not an Ink result, however, and must not become a
+        long straight chord merely because the user clicks quickly.
+        """
+
+        if (
+            self.freehand
+            or self.use_sam
+            or self.edge_weight <= 0.0
+            or self.edge_method != EdgeDetector.METHOD_INK
+            or self._livewire_disabled
+            or not is_livewire_available()
+        ):
+            return False
+        if self._livewire_tree_is_ready():
+            return False
+
+        cache_is_pending = self._ink_evidence_task is not None
+        tree_requested = self._request_livewire_tree(force=False)
+        tree_is_pending = self._livewire_task is not None
+        if not (cache_is_pending or tree_requested or tree_is_pending):
+            # There is no asynchronous result capable of improving this
+            # click (for example, an out-of-cache target).  Preserve the
+            # established local-snap fallback instead of swallowing input.
+            return False
+
+        target = QgsPointXY(point)
+        self._livewire_request_point = target
+        self.preview_path = [target]
+        self.preview_is_global = bool(self.auto_path)
+        self.preview_target = target if self.auto_path else None
+        self._render_preview()
+        self._pending_livewire_accept_point = target
+        self._pending_livewire_auto_accept = bool(auto_accept)
+        self._pending_livewire_recovery_identity = None
+        if auto_accept:
+            detail = self._tr(
+                "Ink 경로를 준비하고 있습니다. 계산이 끝나면 이 지점을 확정합니다.",
+                "Preparing the Ink path; this point will be accepted when it is ready.",
+            )
+        else:
+            detail = self._tr(
+                "닫는 Ink 경로를 준비하고 있습니다. 표시되면 시작점을 다시 클릭하세요.",
+                "Preparing the closing Ink path; click the start again when it is ready.",
+            )
+        self._push_message(
+            detail,
+            MESSAGE_INFO,
+            2,
+        )
+        return True
+
+    def _take_pending_livewire_click(self):
+        """Clear and return the queued target plus its acceptance policy."""
+
+        point = self._pending_livewire_accept_point
+        auto_accept = bool(self._pending_livewire_auto_accept)
+        self._pending_livewire_accept_point = None
+        self._pending_livewire_auto_accept = False
+        self._pending_livewire_recovery_identity = None
+        return point, auto_accept
+
+    def _pending_livewire_matches_recovery(self, preview_identity):
+        """Return whether a recovery result owns the deferred click."""
+
+        return bool(
+            getattr(self, "_pending_livewire_accept_point", None) is not None
+            and getattr(self, "_pending_livewire_recovery_identity", None)
+            is not None
+            and preview_identity == self._pending_livewire_recovery_identity
+        )
+
+    def _finish_pending_livewire_recovery(self, preview_identity):
+        """Resolve a deferred click against its final visible route.
+
+        Ordinary clicks are committed only after the matching recovery result
+        has accepted a challenger or failed closed to the unchanged Ink
+        champion.  A closing click merely exposes that final route; it never
+        opens a modal dialog or saves asynchronously.
+        """
+
+        if (
+            not self._pending_livewire_matches_recovery(preview_identity)
+            or not self.is_tracing
+        ):
+            return False
+        point, auto_accept = self._take_pending_livewire_click()
+        if auto_accept:
+            self._commit_visible_livewire_segment(point)
+        return True
+
+    def _resolve_pending_livewire_fallback(self, *, nearby, detail):
+        """Release a queued click when its asynchronous Ink work fails."""
+
+        point, auto_accept = self._take_pending_livewire_click()
+        if point is None or not self.is_tracing:
+            return False
+        target = QgsPointXY(point)
+        if not auto_accept and self.start_point is not None:
+            target = QgsPointXY(self.start_point)
+        if nearby:
+            target = self.angle_constrained_snap(target)
+        self.preview_path = [target]
+        self.preview_is_global = bool(self.auto_path)
+        self.preview_target = target if self.auto_path else None
+        self._livewire_request_point = target
+        self._render_preview()
+        self._push_message(detail, MESSAGE_WARNING, 4)
+        if auto_accept:
+            self._commit_visible_livewire_segment(point)
+        return True
+
+    def _visible_enhanced_preview_matches(self, point):
+        """Return whether *point* explicitly accepts the shown challenger."""
+
+        target = self._livewire_request_point
+        if (
+            self._current_recovery_state != RECOVERY_STATE_ENHANCED
+            or not self.preview_path
+            or target is None
+        ):
+            return False
+        distance = math.hypot(point.x() - target.x(), point.y() - target.y())
+        return distance <= (
+            self.canvas.mapUnitsPerPixel() * self.PROPOSAL_ACCEPT_TOLERANCE_PIXELS
+        )
+
+    def _commit_visible_livewire_segment(self, point, *, sample_pos=None):
+        """Commit the exact current human-led preview as one checkpoint."""
+
+        self._invalidate_recovery("Segment accepted; Ink is the new champion.")
+        if self.preview_path:
+            self.path_points.extend(self.preview_path)
+            self.preview_path = []
+        elif self.path_points:
+            self.path_points.append(QgsPointXY(point))
+
+        if self.path_points:
+            self.last_input_point = QgsPointXY(point)
+            self.last_map_point = self.path_points[-1]
+            self.checkpoints.append(len(self.path_points) - 1)
+            self.checkpoint_markers.addPoint(self.path_points[-1])
+
+        self.preview_is_global = False
+        self.preview_target = None
+        self._render_preview()
+        self.redraw_confirmed_path()
+        self.last_sample_pos = sample_pos
+        self._livewire_request_point = None
+        self._request_livewire_tree(force=True)
+
     def _on_livewire_tree_finished(self, task, succeeded, tree, error):
         """Publish a current tree and redraw the latest cursor proposal."""
         if self._livewire_task is not task:
@@ -2044,6 +2236,26 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if is_current:
             self._livewire_tree = tree
             self._livewire_failed_anchor = None
+            pending_accept = self._pending_livewire_accept_point
+            if pending_accept is not None:
+                auto_accept = bool(self._pending_livewire_auto_accept)
+                pending_target = pending_accept
+                if not auto_accept and self.start_point is not None:
+                    pending_target = self.start_point
+                recovery_started = self._present_livewire_cursor_preview(
+                    pending_target,
+                    global_mode=self.auto_path,
+                    request_tree=False,
+                    schedule_recovery=True,
+                )
+                recovery_identity = self._recovery_preview_identity
+                if recovery_started and recovery_identity is not None:
+                    self._pending_livewire_recovery_identity = recovery_identity
+                    return
+                pending_accept, auto_accept = self._take_pending_livewire_click()
+                if auto_accept:
+                    self._commit_visible_livewire_segment(pending_accept)
+                return
             request_point = self._livewire_request_point
             if request_point is not None and not self.use_sam:
                 self._present_livewire_cursor_preview(
@@ -2055,6 +2267,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         if isinstance(error, LiveWireUnavailable):
             self._livewire_disabled = True
+            self._resolve_pending_livewire_fallback(
+                nearby=True,
+                detail=self._tr(
+                    "Live-Wire를 시작할 수 없어 가까운 선 스냅을 사용했습니다.",
+                    "Live-Wire could not start; the nearby-edge fallback was used.",
+                ),
+            )
             if not self._livewire_warning_emitted:
                 self._push_message(
                     self._tr(
@@ -2070,6 +2289,32 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if error is not None:
             self._livewire_failed_anchor = task.anchor_pixel
             print(f"Live-Wire tree build failed: {error}")
+            if self._resolve_pending_livewire_fallback(
+                nearby=True,
+                detail=self._tr(
+                    "Live-Wire 계산에 실패해 가까운 선 스냅을 사용했습니다.",
+                    "Live-Wire failed; the nearby-edge fallback was used.",
+                ),
+            ):
+                return
+
+        if (
+            not succeeded
+            and error is None
+            and current_anchor == task.anchor_pixel
+            and self._pending_livewire_accept_point is not None
+        ):
+            # An explicit task-manager cancellation must not leave the tool in
+            # a permanent "preparing" state.  Resolve the click through the
+            # documented nearby-edge fallback and keep tracing usable.
+            if self._resolve_pending_livewire_fallback(
+                nearby=True,
+                detail=self._tr(
+                    "Live-Wire가 취소되어 가까운 선 스냅을 사용했습니다.",
+                    "Live-Wire was cancelled; the nearby-edge fallback was used.",
+                ),
+            ):
+                return
 
         # A drag or click may have advanced the accepted anchor while the old
         # tree was building. Coalesce that state into one fresh build.
@@ -2129,6 +2374,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         *,
         global_mode=False,
         request_tree=True,
+        schedule_recovery=True,
     ):
         self._livewire_request_point = QgsPointXY(target_point)
         self.preview_path = self._livewire_preview_path(
@@ -2138,8 +2384,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.preview_is_global = bool(global_mode)
         self.preview_target = QgsPointXY(target_point) if global_mode else None
         self._render_preview()
-        if self.smart_recovery_enabled:
-            self._schedule_smart_recovery(target_point, force=False)
+        if self.smart_recovery_enabled and schedule_recovery:
+            return bool(self._schedule_smart_recovery(target_point, force=False))
+        return False
 
     def _recovery_pixel_path(self):
         """Return the visible Ink champion in the current evidence grid."""
@@ -2423,6 +2670,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     RECOVERY_STATE_ENHANCED,
                     "A safer corridor improved the weak Ink segment.",
                 )
+                self._finish_pending_livewire_recovery(task.preview_identity)
                 return
 
             reason = getattr(selection, "reason", "no_complete_route")
@@ -2431,6 +2679,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 RECOVERY_STATE_INK_FALLBACK,
                 f"Recovery was rejected ({reason}); Ink was kept.",
             )
+            self._finish_pending_livewire_recovery(task.preview_identity)
             return
 
         # A cursor move coalesces into exactly one fresh request after the old
@@ -2443,7 +2692,16 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             and self.is_tracing
             and self.smart_recovery_enabled
         ):
-            self._start_recovery_request(latest_request)
+            if self._start_recovery_request(latest_request):
+                return
+            latest_identity = latest_request.get("preview_identity")
+            if self._pending_livewire_matches_recovery(latest_identity):
+                self._recovery_request = None
+                self._emit_recovery_state(
+                    RECOVERY_STATE_INK_FALLBACK,
+                    "Recovery could not restart; Ink was kept.",
+                )
+                self._finish_pending_livewire_recovery(latest_identity)
             return
 
         # A later confident/empty Ink preview intentionally has no queued
@@ -2453,12 +2711,34 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             task.request_generation != self._recovery_generation
             or task.preview_identity != self._recovery_preview_identity
         ):
+            if self._pending_livewire_matches_recovery(task.preview_identity):
+                self._recovery_request = None
+                self._emit_recovery_state(
+                    RECOVERY_STATE_INK_FALLBACK,
+                    "Recovery became stale; Ink was kept.",
+                )
+                self._finish_pending_livewire_recovery(task.preview_identity)
+            elif (
+                latest_request is None
+                and getattr(self, "_current_recovery_state", None)
+                == RECOVERY_STATE_RECOVERING
+            ):
+                # Retry may have been pressed while an already-cancelled task
+                # was only waiting for its main-thread finished callback.  It
+                # correctly starts no duplicate work; once that stale callback
+                # drains, do not leave the dock stuck on Recovering forever.
+                self._emit_recovery_state(
+                    RECOVERY_STATE_INK_FALLBACK,
+                    "Recovery stopped before completion; Ink was kept.",
+                )
             return
 
+        self._recovery_request = None
         detail = "Recovery was cancelled; Ink was kept."
         if error is not None:
             detail = f"Recovery failed; Ink was kept: {error}"
         self._emit_recovery_state(RECOVERY_STATE_INK_FALLBACK, detail)
+        self._finish_pending_livewire_recovery(task.preview_identity)
 
     def retry_current_segment(self):
         """Explicitly re-run recovery for the current uncommitted Ink route."""
@@ -2473,6 +2753,20 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self._emit_recovery_state(
                 RECOVERY_STATE_INK_FALLBACK,
                 "Recovery model is unavailable; Ink remains active.",
+            )
+            return False
+        if (
+            getattr(self, "_recovery_task", None) is not None
+            or getattr(self, "_recovery_request", None) is not None
+        ):
+            # Keep the identity of the visible champion immutable until its
+            # one in-flight challenger resolves.  A second Retry used to
+            # advance the request generation while a deferred fast click was
+            # still bound to the first request, leaving that click pending
+            # forever when the replacement task completed.
+            self._emit_recovery_state(
+                RECOVERY_STATE_RECOVERING,
+                "Recovery is already evaluating this Ink segment.",
             )
             return False
         if self._current_recovery_state == RECOVERY_STATE_ENHANCED:
@@ -2739,8 +3033,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.canvas.mapUnitsPerPixel() * self.PROPOSAL_ACCEPT_TOLERANCE_PIXELS
         )
 
-    def _accept_or_prepare_auto_path(self, point):
-        """Accept a visible proposal, or show one for the first click."""
+    def _take_or_prepare_auto_path(self, point):
+        """Return a visible proposal without mutating the confirmed path.
+
+        Keeping proposal consumption separate from path mutation lets the
+        polygon-closing flow remain transactional while its elevation dialog
+        and layer write are still cancellable.
+        """
         if self._proposal_target_matches(point):
             self._proposal_timer.stop()
             self._cancel_proposal_task()
@@ -2749,12 +3048,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             accepted = list(self.preview_path)
             if accepted and accepted[0] == self.path_points[-1]:
                 accepted = accepted[1:]
-            self.path_points.extend(accepted or [QgsPointXY(point)])
             self.preview_path = []
             self.preview_is_global = False
             self.preview_target = None
             self._render_preview()
-            return True
+            return accepted or [QgsPointXY(point)]
 
         self._proposal_timer.stop()
         self._cancel_proposal_task()
@@ -2769,12 +3067,58 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             MESSAGE_INFO,
             3,
         )
-        return False
+        return None
+
+    def _accept_or_prepare_auto_path(self, point):
+        """Accept a visible proposal, or show one for the first click."""
+
+        accepted = self._take_or_prepare_auto_path(point)
+        if accepted is None:
+            return False
+        self.path_points.extend(accepted)
+        return True
+
+    def _save_closed_path_candidate(self, closing_path, elevation):
+        """Save a closed candidate without leaking it into tracing state.
+
+        ``save_to_layer`` intentionally reads ``self.path_points`` for the
+        ordinary open-line and resume contracts.  Temporarily swapping in a
+        private candidate keeps that API stable while guaranteeing that a
+        cancelled/failed close leaves the confirmed anchors byte-for-byte
+        unchanged.
+        """
+
+        confirmed_path = self.path_points
+        candidate_path = list(confirmed_path)
+        candidate_path.extend(closing_path)
+        if len(candidate_path) > 1 and candidate_path[-1] == candidate_path[0]:
+            candidate_path.pop()
+
+        saved = False
+        self.path_points = candidate_path
+        try:
+            saved = bool(self.save_to_layer(closed=True, elevation=elevation))
+            return saved
+        finally:
+            # reset_tracing() owns the successful cleanup.  Until it runs—or
+            # if the save raises—keep the editable trace at its last confirmed
+            # anchor rather than at a speculative closing route.
+            self.path_points = confirmed_path
 
     def canvasPressEvent(self, event):
         if event.button() == _qt_value("RightButton", "MouseButton"):
             # Right click = Finish Line (Enter)
             if not self.is_tracing:
+                return
+            if self._pending_livewire_accept_point is not None:
+                self._push_message(
+                    self._tr(
+                        "마지막 Ink 구간을 준비 중입니다. 잠시 후 다시 완료하세요.",
+                        "The last Ink segment is still preparing; finish again in a moment.",
+                    ),
+                    MESSAGE_INFO,
+                    2,
+                )
                 return
 
             # If there's a preview path (green line), DO NOT include it
@@ -2840,12 +3184,24 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.confirm_band.addPoint(place_point)
             self.preview_band.reset(LINE_GEOMETRY)
         else:
-            # A click accepts the currently visible Ink/enhanced candidate.
-            # Any still-running challenger belongs to the previous anchor.
-            self._invalidate_recovery("Segment accepted; Ink is the new champion.")
+            if self._pending_livewire_accept_point is not None:
+                # Keep the first explicit anchor authoritative.  Replacing a
+                # single pending slot with a second rapid click would silently
+                # skip an anchor and recreate the long-chord race.
+                self._push_message(
+                    self._tr(
+                        "이전 Ink 지점을 준비 중입니다. 완료될 때까지 다음 클릭을 기다려 주세요.",
+                        "The previous Ink point is still preparing; wait before the next click.",
+                    ),
+                    MESSAGE_INFO,
+                    2,
+                )
+                return
+
             # Preserve the existing double-click spot-height gesture before
             # Auto Path's two-click proposal acceptance can intercept it.
-            if self.is_near_start(point) and len(self.path_points) == 1:
+            near_start = self.is_near_start(point)
+            if near_start and len(self.path_points) == 1:
                 elevation = self.ask_elevation()
                 if elevation is None:
                     return
@@ -2853,17 +3209,47 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     self.reset_tracing()
                 return
 
+            # A newly accepted anchor starts an immutable Live-Wire tree in a
+            # background task.  If the next click beats that task, defer the
+            # ordinary segment until the exact Ink route is available.  A
+            # closing click is displayed when ready and deliberately requires
+            # one more click so an elevation dialog never appears later from
+            # an asynchronous callback.
+            if self._defer_click_until_livewire_ready(
+                point,
+                auto_accept=not near_start,
+            ):
+                return
+
+            accept_visible_enhanced = self._visible_enhanced_preview_matches(point)
+
+            # A click accepts the currently visible Ink/enhanced candidate.
+            # Any still-running challenger belongs to the previous anchor.
+            # Closing remains a transaction through its modal elevation
+            # dialog and layer write.  Preserve an Enhanced candidate if the
+            # user cancels or the write fails; successful close invalidates it
+            # immediately before tracing state is reset below.
+            if not near_start or not accept_visible_enhanced:
+                self._invalidate_recovery(
+                    "Segment accepted; Ink is the new champion."
+                )
+
             auto_path_accepted = False
+            closing_auto_path = None
             if self.auto_path and self.use_sam:
                 # A visible complete proposal is accepted by clicking its
                 # target. If the route is not ready yet, this click only
                 # displays it and the next click becomes the acceptance.
-                if not self._accept_or_prepare_auto_path(point):
+                if near_start:
+                    closing_auto_path = self._take_or_prepare_auto_path(point)
+                    if closing_auto_path is None:
+                        return
+                elif not self._accept_or_prepare_auto_path(point):
                     return
                 auto_path_accepted = True
 
             # Check if closing polygon (near start)
-            if self.is_near_start(point):
+            if near_start:
                 # SPECIAL CASE: Double Click on Start Point = Spot Height
                 if len(self.path_points) == 1:
                     elevation = self.ask_elevation()
@@ -2876,50 +3262,61 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 # Preserve WYSIWYG for the closing segment too. SAM keeps its
                 # explicit proposal flow; Live-Wire commits the green route
                 # already shown under the cursor.
-                if self.auto_path and self.use_sam and not auto_path_accepted:
-                    closing_path = self.find_optimal_path(self.start_point)
-                    if len(closing_path) > 2:
-                        closing_path = self.smooth_bezier(closing_path, closed=False)
-                elif self.auto_path and self.use_sam:
-                    closing_path = []
+                if (
+                    not self.use_sam
+                    and not accept_visible_enhanced
+                    and self._livewire_tree_is_ready()
+                ):
+                    self._present_livewire_cursor_preview(
+                        self.start_point,
+                        global_mode=self.auto_path,
+                        request_tree=False,
+                        schedule_recovery=False,
+                    )
+                if self.auto_path and self.use_sam:
+                    closing_path = closing_auto_path or [self.start_point]
                 elif self.preview_path:
                     closing_path = list(self.preview_path)
                     closing_path[-1] = self.start_point
                 else:
                     closing_path = [self.start_point]
 
-                self.path_points.extend(closing_path)
-
-                # Check for duplicate end point and remove to prevent artifact
-                if len(self.path_points) > 1 and self.path_points[-1] == self.path_points[0]:
-                    self.path_points.pop()
-
                 # Ask for elevation value
                 elevation = self.ask_elevation()
                 if elevation is None:
                     return
 
-                if self.save_to_layer(closed=True, elevation=elevation):
+                if self._save_closed_path_candidate(closing_path, elevation):
+                    self._invalidate_recovery(
+                        "Closed trace saved; the accepted segment is final."
+                    )
                     self.reset_tracing()
                 return
 
             # ADD CHECKPOINT: only the visible, explicitly accepted proposal
             # or the human-led preview becomes part of the confirmed path.
-            if auto_path_accepted:
-                # The accepted proposal was already appended above.
-                self.preview_path = []
-            elif self.preview_path:
-                # Commit SMOOTHED AI path (WYSIWYG)
-                # preview_path is already smoothed in canvasMoveEvent
-                self.path_points.extend(self.preview_path)
-                self.preview_path = []
-            else:
-                # Manual click point
-                # If manual mode is active, we might have just clicked.
-                # If path empty, user clicked start. If path not empty, user is adding points.
-                if len(self.path_points) > 0:
-                    # If points exist, add straight line to click
-                    self.path_points.append(point)
+            if not auto_path_accepted:
+                # Mouse motion normally prepared this exact target already,
+                # but recompute from the ready tree so a click one pixel away
+                # can never commit a stale cursor preview.
+                if (
+                    not accept_visible_enhanced
+                    and self._livewire_tree_is_ready()
+                ):
+                    self._present_livewire_cursor_preview(
+                        point,
+                        global_mode=self.auto_path,
+                        request_tree=False,
+                        schedule_recovery=False,
+                    )
+                self._commit_visible_livewire_segment(
+                    point,
+                    sample_pos=event.pos(),
+                )
+                return
+
+            # The accepted SAM proposal was already appended above.
+            self.preview_path = []
 
             if self.path_points:
                 self.last_input_point = point
@@ -2952,6 +3349,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return
 
         # 2. TRACING ACTIVE
+
+        # A click is an explicit anchor even if its predecessor tree finishes
+        # a fraction of a second later.  Do not let subsequent hover events
+        # move that queued target before the callback accepts it.
+        if self._pending_livewire_accept_point is not None:
+            return
 
         # Check close indicator
         if self.is_near_start(current_point):
@@ -3210,6 +3613,19 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         ) or event.key() == _qt_value("Key_Backspace", "Key")
         if is_checkpoint_undo:
             if self.is_tracing:
+                if self._pending_livewire_accept_point is not None:
+                    # The pending click may already be waiting on an ONNX
+                    # challenger.  Cancel/invalidate it before clearing the
+                    # target so its late callback cannot resurrect a preview
+                    # that Ctrl+Z explicitly discarded.
+                    self._invalidate_recovery(
+                        "Pending Ink point cancelled before acceptance."
+                    )
+                    self._take_pending_livewire_click()
+                    self._livewire_request_point = None
+                    self._clear_preview(stop_timer=False)
+                    event.accept()
+                    return
                 self.undo_to_checkpoint()
                 event.accept()
             else:
@@ -3239,6 +3655,16 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             _qt_value("Key_Enter", "Key"),
         ):
             if self.is_tracing:
+                if self._pending_livewire_accept_point is not None:
+                    self._push_message(
+                        self._tr(
+                            "마지막 Ink 구간을 준비 중입니다. 잠시 후 다시 완료하세요.",
+                            "The last Ink segment is still preparing; finish again in a moment.",
+                        ),
+                        MESSAGE_INFO,
+                        2,
+                    )
+                    return
                 # If there's a green preview line, DO NOT include it
                 # User request: "삐져나온 초록선이 거슬린다" -> Only save clicked points
                 # if self.preview_path:
@@ -3305,6 +3731,41 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         except Exception:
             return [target_point]
 
+    def _refresh_after_path_rewind(self):
+        """Invalidate segment work and rebuild it from the rewound anchor."""
+
+        self._invalidate_recovery(
+            "Trace returned to a previous anchor; stale recovery was discarded."
+        )
+        self._clear_preview()
+        self._cancel_livewire_task()
+        self._livewire_generation += 1
+        self._livewire_tree = None
+        self._livewire_anchor_pixel = None
+        self._livewire_request_point = None
+        self._livewire_failed_anchor = None
+        self._pending_livewire_accept_point = None
+        self._pending_livewire_auto_accept = False
+        self._pending_livewire_recovery_identity = None
+
+        if self.path_points:
+            anchor = self.path_points[-1]
+            self.last_map_point = anchor
+            self.last_input_point = anchor
+        else:
+            self.last_map_point = None
+            self.last_input_point = None
+        self.last_hover_pos = None
+        self.last_sample_pos = None
+        self.last_preview_pos = None
+
+        self.checkpoint_markers.reset(POINT_GEOMETRY)
+        for cp_idx in self.checkpoints[1:]:
+            if cp_idx < len(self.path_points):
+                self.checkpoint_markers.addPoint(self.path_points[cp_idx])
+        self.redraw_confirmed_path()
+        self._request_livewire_tree(force=True)
+
     def undo_to_checkpoint(self):
         """Undo back to the last checkpoint, but KEEP the checkpoint to continue from."""
         if len(self.checkpoints) <= 1:
@@ -3328,18 +3789,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # Trim path to checkpoint (keep points UP TO AND INCLUDING checkpoint)
         self.path_points = self.path_points[:last_cp_idx + 1]
 
-        # Update last_map_point so user can continue from checkpoint
-        if self.path_points:
-            self.last_map_point = self.path_points[-1]
-
-        # Rebuild checkpoint markers
-        self.checkpoint_markers.reset(POINT_GEOMETRY)
-        for cp_idx in self.checkpoints[1:]:  # Skip start point
-            if cp_idx < len(self.path_points):
-                self.checkpoint_markers.addPoint(self.path_points[cp_idx])
-
-        # Redraw
-        self.redraw_confirmed_path()
+        self._refresh_after_path_rewind()
 
     def undo_points(self, count):
         """Remove last N points."""
@@ -3350,22 +3800,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         remove_count = min(count, len(self.path_points) - 1)
         self.path_points = self.path_points[:-remove_count]
 
-        # Update last_map_point
-        if self.path_points:
-            self.last_map_point = self.path_points[-1]
-
         # Remove checkpoints that are now beyond the path
         while self.checkpoints and self.checkpoints[-1] >= len(self.path_points):
             self.checkpoints.pop()
-
-        # Rebuild checkpoint markers
-        self.checkpoint_markers.reset(POINT_GEOMETRY)
-        for cp_idx in self.checkpoints[1:]:
-            if cp_idx < len(self.path_points):
-                self.checkpoint_markers.addPoint(self.path_points[cp_idx])
-
-        # Redraw
-        self.redraw_confirmed_path()
+        self._refresh_after_path_rewind()
 
     def gentle_snap(self, map_point):
         """
@@ -3657,6 +4095,17 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             and not getattr(self, "_disposed", False)
         )
         if not is_current:
+            if (
+                self._pending_livewire_accept_point is not None
+                and not getattr(self, "_disposed", False)
+            ):
+                self._resolve_pending_livewire_fallback(
+                    nearby=False,
+                    detail=self._tr(
+                        "Ink 증거 준비가 끝나지 않아 정확한 커서 지점을 사용했습니다.",
+                        "Ink evidence did not complete; the exact cursor point was used.",
+                    ),
+                )
             if error is not None and not getattr(self, "_disposed", False):
                 self._emit_recovery_state(
                     RECOVERY_STATE_INK_FALLBACK,
@@ -3672,6 +4121,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 0,
             ).astype(np.uint8)
         if selected_edges is None:
+            self._resolve_pending_livewire_fallback(
+                nearby=False,
+                detail=self._tr(
+                    "Ink 증거가 없어 정확한 커서 지점을 사용했습니다.",
+                    "Ink evidence produced no route; the exact cursor point was used.",
+                ),
+            )
             self._clear_edge_cache()
             self._emit_recovery_state(
                 RECOVERY_STATE_INK_FALLBACK,
@@ -4431,6 +4887,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._livewire_anchor_pixel = None
         self._livewire_request_point = None
         self._livewire_failed_anchor = None
+        self._pending_livewire_accept_point = None
+        self._pending_livewire_auto_accept = False
+        self._pending_livewire_recovery_identity = None
         self.checkpoints = []
         self.start_point = None
         self.last_map_point = None

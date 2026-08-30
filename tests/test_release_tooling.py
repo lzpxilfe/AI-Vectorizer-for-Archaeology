@@ -135,9 +135,8 @@ class DependencyDeclarationTests(unittest.TestCase):
         self.assertIsNotNone(citation_version)
         self.assertEqual(citation_version.group(1), version)
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertIn(f"## {version} — release candidate", changelog)
-        if f"## {version} — release candidate" in changelog:
-            self.assertNotIn("date-released:", citation)
+        self.assertIn(f"## {version} — experimental QGIS release", changelog)
+        self.assertIn("date-released: 2026-08-26", citation)
 
         for relative_path in (
             "README.md",
@@ -152,6 +151,15 @@ class DependencyDeclarationTests(unittest.TestCase):
 
         release_record = ROOT / "docs" / f"RELEASE_READINESS_{version}.md"
         self.assertTrue(release_record.is_file())
+        release_evidence = release_record.read_text(encoding="utf-8")
+        self.assertIn(
+            "24f1def6acd63d483ea6bf7c20b944f56507ead52190667ec4f35562fca6c964",
+            release_evidence,
+        )
+        self.assertIn(
+            package_release.FROZEN_RELEASE_SHA256[version], release_evidence
+        )
+        self.assertIn("Frozen repository-local candidate", release_evidence)
         self.assertFalse((ROOT / "docs" / "COMPETITIVE_EXECUTION_PLAN.md").exists())
 
     def test_public_docs_have_resolvable_local_links_and_no_commercial_scorecard(self):
@@ -589,6 +597,42 @@ class ReleasePackagingTests(unittest.TestCase):
             finally:
                 os.rmdir(junction)
 
+    @unittest.skipUnless(os.name == "nt", "Windows model-cache junction regression")
+    def test_windows_model_cache_junction_is_never_repaired(self):
+        from ai_vectorizer.core import model_store
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            cache = base / "cache"
+            cache.mkdir()
+            outside = base / "outside-objects"
+            outside.mkdir()
+            sentinel = outside / "sentinel"
+            sentinel.write_bytes(b"unchanged")
+            junction = cache / "objects"
+            created = subprocess.run(
+                f'mklink /J "{junction}" "{outside}"',
+                shell=True,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(created.returncode, 0, created.stderr or created.stdout)
+            transport = mock.Mock(
+                side_effect=AssertionError("unsafe cache opened the network")
+            )
+            try:
+                status = model_store.inspect_bundle(cache)
+                self.assertTrue(
+                    all(item.state == model_store.STATE_UNSAFE for item in status.artifacts)
+                )
+                with self.assertRaises(model_store.ModelCacheSafetyError):
+                    model_store.repair_bundle(cache, transport=transport)
+                transport.assert_not_called()
+                self.assertEqual(sentinel.read_bytes(), b"unchanged")
+            finally:
+                os.rmdir(junction)
+
     def test_hed_download_and_rollback_residue_is_not_packaged(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -926,7 +970,10 @@ class ContinuousIntegrationTests(unittest.TestCase):
         self.assertIn('python: ["3.10", "3.12"]', workflow)
         self.assertIn("python38-compatibility:", workflow)
         self.assertIn('python-version: "3.8"', workflow)
-        self.assertIn("test_count < 150", workflow)
+        self.assertIn("test_count < 260", workflow)
+        self.assertIn('"tests.test_benchmark_public_dataset"', workflow)
+        self.assertIn('"tests.test_qgis_clean_profile_smoke"', workflow)
+        self.assertIn('"tests.test_qgis_recovery_lifecycle_smoke"', workflow)
         self.assertIn("python -m compileall -q", workflow)
         self.assertIn("plugin-security:", workflow)
         self.assertIn("bandit==1.8.6", workflow)

@@ -39,9 +39,15 @@ Windows에서는 `.venv\Scripts\python.exe`를 사용하세요. 선택 SAM backe
 
    ```bash
    python -m pytest -q
-   python scripts/package_release.py
-   python scripts/package_release.py --check
+   current_source_dir="$(mktemp -d)"
+   current_source_zip="$current_source_dir/ai_vectorizer-unreleased.zip"
+   python scripts/package_release.py --output "$current_source_zip"
+   python scripts/package_release.py --check --output "$current_source_zip"
    ```
+
+   metadata-derived 기본 경로는 공식 QGIS artifact가 아닌 repository-local
+   `0.1.5` 후보를 동결한 자리입니다. 일반 `Unreleased` 검증에서는 위처럼
+   반드시 별도 `--output` ZIP을 사용하세요.
 
 2. Python 3.8 source 계약
 
@@ -60,11 +66,33 @@ Windows에서는 `.venv\Scripts\python.exe`를 사용하세요. 선택 SAM backe
    새 feature, 기존 contour 연장, 한 번의 Undo, layer removal, unload와 실제
    TIN→GeoTIFF→hillshade를 변경 범위에 맞게 확인합니다.
 
+   macOS의 전체 QGIS desktop app이 있으면 다음 명령으로 현재 ZIP을 사용자 profile과
+   분리된 일회용 profile에 설치할 수 있습니다. 이 smoke는 QGIS plugin loader로
+   plugin을 시작한 뒤 synthetic RGB GeoTIFF에서 Freehand, 정확한 커서 0%, Ink v2와
+   Smart Recovery 기본 OFF·model 없음 경로를 실제 map-tool 저장까지 실행합니다.
+   profile은 성공·실패 후 제거되며 macOS Keychain은 사용하지 않습니다.
+
+   ```bash
+   python3 scripts/qgis_clean_profile_smoke.py \
+     --zip /absolute/path/to/ai_vectorizer-unreleased.zip
+   ```
+
 4. model 또는 dependency 변경
 
    source URL, license, immutable commit, 정확한 size·SHA-256, offline 재검증,
    symlink 거부, atomic publication과 rollback test를 함께 갱신합니다. versioned
    requirement graph는 CI의 `pip-audit --strict` 범위를 확인합니다.
+
+   macOS QGIS.app에서 Recovery의 model 없음·정상·runtime 없음·손상 상태와 실제
+   EfficientSAM-Ti CPU 추론을 일회용 profile/cache로 확인하려면 아래 smoke를
+   사용합니다. `--allow-network`를 명시한 실행만 고정 모델 약 39.4 MiB를 내려받으며,
+   사용자 QGIS profile이나 model cache는 읽거나 쓰지 않습니다.
+
+   ```bash
+   uv run --python 3.12 --with numpy==1.26.4 --with onnxruntime==1.29.0 \
+     python scripts/qgis_recovery_lifecycle_smoke.py \
+     --allow-network --timeout 120
+   ```
 
 ## Code ownership by area
 

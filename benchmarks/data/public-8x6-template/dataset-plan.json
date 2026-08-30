@@ -1,7 +1,7 @@
 {
   "schema_version": "archaeotrace-public-dataset-plan/1",
   "dataset_id": "public-ink-livewire-8x6-v1",
-  "title": "Public Ink LiveWire recovery benchmark — unresolved 8 sheet / 48 crop plan",
+  "title": "Public Ink LiveWire recovery benchmark — partially materialized 8 sheet / 48 crop plan",
   "publication_ranking_eligible": false,
   "threshold_status": "provisional",
   "split_policy": {
@@ -38,132 +38,273 @@
       "split": "calibration",
       "origin_group": "usgs_htmc",
       "source": {
-        "title": "Unresolved rights-cleared source slot cal-01",
-        "publisher": null,
-        "date_or_sheet": null,
-        "source_url": null,
-        "license": null,
-        "rights_status": "unresolved",
-        "rights_statement_url": null,
-        "text_snapshot": null,
-        "text_snapshot_sha256": null,
-        "source_raster": null,
-        "source_raster_sha256": null
+        "title": "USGS 1:125000-scale Quadrangle for East Denver, CO 1890",
+        "publisher": "U.S. Geological Survey",
+        "date_or_sheet": "East Denver, Colorado; 1890; 1:125,000; HTMC scan 402931",
+        "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_East%20Denver_402931_1890_125000_geo.tif",
+        "provenance_id": {
+          "authority": "sciencebase.gov",
+          "namespace": "catalog-item",
+          "value": "604ea84ad34eb12031203797"
+        },
+        "license": "U.S. Public Domain",
+        "rights_status": "public_domain",
+        "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted?items_per_=&items_per_page=6&page=1",
+        "text_snapshot": "rights/usgs-east-denver-co-1890.txt",
+        "text_snapshot_sha256": "f9cb248c51b9ccccf2d3609d5a7f10a60614b485e6862d88d91df5d5c45659e1",
+        "source_raster": "sources/usgs-east-denver-co-1890-125000.tif",
+        "source_raster_sha256": "0f53a676f32ecb4d6db6bc058d39b8920fc59ed88249130d0bcdd211d07dc95f"
       },
       "crops": [
         {
           "id": "cal-01-crop-01",
           "slot": 1,
           "difficulty_stratum": "clean_dark_curve",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            3100,
+            3100,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            3100,
+            3100
+          ],
+          "image": "images/cal-01-crop-01.png",
+          "image_sha256": "a917bfde5a06e09e45c671d8ad10364114f7c0ec4f81572cc9c78bfb25306537",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              164,
+              100
+            ],
+            "end_xy": [
+              79,
+              454
+            ],
+            "previous_xy": [
+              170,
+              86
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-01-crop-01.json",
+          "ordered_reference_sha256": "36b235760eccc86db490625938ff9277977c0b3574fa7d8fd0f18591fd3bb7da",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft contour centerline only; independent review and adjudication are pending."
         },
         {
           "id": "cal-01-crop-02",
           "slot": 2,
           "difficulty_stratum": "thick_or_scale",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            700,
+            1600,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            700,
+            1600
+          ],
+          "image": "images/cal-01-crop-02.png",
+          "image_sha256": "853aeed3f56335c16e130d06a46671f7cc6720e97d3236ce1009fdc9a4a21bce",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              374,
+              6
+            ],
+            "end_xy": [
+              6,
+              487
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-01-crop-02.json",
+          "ordered_reference_sha256": "cd641b310c5efa5b6cba3cc3dc5620a9a8706da7c899cc999cf90bd0f3f1ac1e",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft center of the thick Platte channel; independent review and adjudication are pending."
         },
         {
           "id": "cal-01-crop-03",
           "slot": 3,
           "difficulty_stratum": "faded_or_broken",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            2400,
+            1300,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            2400,
+            1300
+          ],
+          "image": "images/cal-01-crop-03.png",
+          "image_sha256": "3f16c25f2c013576ae30a377a6f67baa1daa196f261e6b7275c31fff5ecb556f",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              5,
+              24
+            ],
+            "end_xy": [
+              508,
+              277
+            ],
+            "previous_xy": [
+              1,
+              22
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-01-crop-03.json",
+          "ordered_reference_sha256": "6e9c7cc123a751372102b7dd66654f6a52ed9110f18217b2c2ddb6de80ccad4d",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft faded dash-and-dot creek centerline; independent review and adjudication are pending."
         },
         {
           "id": "cal-01-crop-04",
           "slot": 4,
           "difficulty_stratum": "colored_line",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            1300,
+            3000,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            1300,
+            3000
+          ],
+          "image": "images/cal-01-crop-04.png",
+          "image_sha256": "7df99491fae6defaf970afe4a8fe03bf65dd00822f321ebb9e71560fbed863fd",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              305,
+              6
+            ],
+            "end_xy": [
+              75,
+              428
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-01-crop-04.json",
+          "ordered_reference_sha256": "5b7f92d1b1dd3ed79d320ee6af69f8f35e9f62a8d50bdb34ff31731231cea8eb",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft blue High Line Ditch centerline; independent review and adjudication are pending."
         },
         {
           "id": "cal-01-crop-05",
           "slot": 5,
           "difficulty_stratum": "text_or_number_crossing",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            2000,
+            2200,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            2000,
+            2200
+          ],
+          "image": "images/cal-01-crop-05.png",
+          "image_sha256": "4ccd420b415b19a90e8edbc461a1beeb75a28af63f2c13affaba74d8a9842cde",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              4,
+              202
+            ],
+            "end_xy": [
+              507,
+              205
+            ],
+            "previous_xy": [
+              1,
+              202
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-01-crop-05.json",
+          "ordered_reference_sha256": "880515c247e6b5296c0c52443781cd3a94ba89d44b4ed728023a19b3842a8d42",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft Scranton railroad centerline through lettering; independent review and adjudication are pending."
         },
         {
           "id": "cal-01-crop-06",
           "slot": 6,
           "difficulty_stratum": "dense_parallel",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            3400,
+            4100,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            3400,
+            4100
+          ],
+          "image": "images/cal-01-crop-06.png",
+          "image_sha256": "233d12d03c12191e7991bb166395cd2c8ff4b63568beca2c57bad0ac1d8a37b5",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              47,
+              5
+            ],
+            "end_xy": [
+              510,
+              375
+            ],
+            "previous_xy": [
+              36,
+              1
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-01-crop-06.json",
+          "ordered_reference_sha256": "352591c9548bef4954df44d0eb3f40bdc57b965aea1615e854fca6744878409a",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft road centerline among dense contours; independent review and adjudication are pending."
         }
       ]
     },
@@ -177,6 +318,7 @@
         "publisher": null,
         "date_or_sheet": null,
         "source_url": null,
+        "provenance_id": null,
         "license": null,
         "rights_status": "unresolved",
         "rights_statement_url": null,
@@ -312,6 +454,7 @@
         "publisher": null,
         "date_or_sheet": null,
         "source_url": null,
+        "provenance_id": null,
         "license": null,
         "rights_status": "unresolved",
         "rights_statement_url": null,
@@ -447,6 +590,7 @@
         "publisher": null,
         "date_or_sheet": null,
         "source_url": null,
+        "provenance_id": null,
         "license": null,
         "rights_status": "unresolved",
         "rights_statement_url": null,
@@ -582,6 +726,7 @@
         "publisher": null,
         "date_or_sheet": null,
         "source_url": null,
+        "provenance_id": null,
         "license": null,
         "rights_status": "unresolved",
         "rights_statement_url": null,
@@ -717,6 +862,7 @@
         "publisher": null,
         "date_or_sheet": null,
         "source_url": null,
+        "provenance_id": null,
         "license": null,
         "rights_status": "unresolved",
         "rights_statement_url": null,
@@ -852,6 +998,7 @@
         "publisher": null,
         "date_or_sheet": null,
         "source_url": null,
+        "provenance_id": null,
         "license": null,
         "rights_status": "unresolved",
         "rights_statement_url": null,
@@ -987,6 +1134,7 @@
         "publisher": null,
         "date_or_sheet": null,
         "source_url": null,
+        "provenance_id": null,
         "license": null,
         "rights_status": "unresolved",
         "rights_statement_url": null,

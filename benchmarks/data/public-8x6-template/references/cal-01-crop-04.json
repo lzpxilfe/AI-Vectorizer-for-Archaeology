@@ -1,0 +1,40 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-high-line-ditch",
+      "closed": false,
+      "points": [
+        [305, 6],
+        [302, 38],
+        [286, 71],
+        [287, 107],
+        [302, 140],
+        [322, 175],
+        [323, 198],
+        [303, 220],
+        [279, 241],
+        [254, 264],
+        [231, 288],
+        [216, 319],
+        [201, 350],
+        [188, 380],
+        [164, 410],
+        [139, 426],
+        [102, 431],
+        [75, 428]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop",
+    "target_description": "solid blue High Line Ditch centerline",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

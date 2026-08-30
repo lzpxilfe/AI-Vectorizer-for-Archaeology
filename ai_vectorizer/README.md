@@ -12,11 +12,17 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 
 ## 🚧 Current Source Status
 
-- 현재 플러그인 metadata는 `0.1.5`, `experimental=True`입니다.
+- 공식 QGIS 저장소에 experimental `0.1.5`가 2026-08-26 공개됐습니다.
+  현재 checkout과 개발 ZIP도 metadata 숫자 `0.1.5`, `experimental=True`를
+  유지하지만, 아래 Ink v2·Smart Recovery 설명은 공식 0.1.5 이후의
+  `Unreleased` source에 해당합니다.
+- 동결 정책에 따라 `metadata.txt` 속 `about`/요약 문구는 공식 0.1.5
+  baseline을 그대로 보존합니다. 현재 `Unreleased` UI와 사용법은 이 문서가
+  source of truth이며, 같은 version 숫자로 QGIS에 다시 게시하지 않습니다.
 - QGIS `3.22–4.99`와 Python `3.8+` source 호환성을 대상으로 합니다. 로컬 검증은
-  Python 3.8/3.10/3.12와 macOS QGIS 3.44.8에서 수행했습니다. QGIS
-  3.22/3.44/4.2 package matrix는 CI에 구성되어 있지만 이 후보의 원격 run은 아직
-  실행하지 않았습니다.
+  Python 3.8/3.10/3.12와 macOS QGIS 3.44.8에서 수행했습니다. 원격 CI의 QGIS
+  3.22.16/3.44.13/4.2.1 package import·runtime safety와 Linux/Windows 결정적 ZIP도
+  통과했습니다.
 - 기본 UI는 `Freehand`, 다중 스케일 `Ink Centerline`, 기본 OFF의
   `Smart Recovery (Experimental)`입니다. LSD, HED, MobileSAM, SAM (ViT-B),
   Legacy Canny와 기존 model index 0–5는 접힌 Advanced 영역에 보존됩니다.
@@ -26,7 +32,7 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
   SAM Check/Status는 유효한 local checkpoint가 있으면 size와 SHA-256을 offline
   확인하고, 파일이 없을 때만 고정 source의 availability를 조회합니다.
 - source나 ZIP으로 개발판 `0.1.6–0.1.8`을 설치했다면 QGIS가 `0.1.5`를 자동 update로
-  보지 않을 수 있습니다. 기존 plugin을 제거하고 검증된 `0.1.5` ZIP을 다시
+  보지 않을 수 있습니다. 기존 plugin을 제거하고 공식 `0.1.5` ZIP을 다시
   설치하세요. profile에 저장된 검증 model은 plugin 폴더 밖에 유지됩니다.
 
 ## 🎯 What You Can Do
@@ -41,7 +47,7 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 - 👁️ `Ink Centerline`/`LSD`/`HED`/`Legacy Canny` 검출 미리보기와 SAM 계열의 인터랙티브 초록색 경로 미리보기
 - ⛰️ 등고선 고도값 입력 및 `Spot Heights` 포인트 저장
 - 🏔️ 고도 등고선을 선형 TIN `DEM`/`hillshade` GeoTIFF로 변환
-- 📄 `Check Selected SAM Model` / `SAM Status Report`로 모델 상태 점검
+- 📄 `Verify Selected SAM Model` / `SAM Status Report`로 모델 상태 점검
 - 🌏 한국어 / English UI 지원
 
 ## 🧠 Tracing Modes
@@ -85,8 +91,10 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 OpenCV는 검증한 4.8–4.11 범위로 제한하지만 이 제한만으로 QGIS의 공유
 NumPy ABI가 고정되지는 않습니다. 설치 전에 pip의 변경 계획을 확인하세요.
 
-QGIS 3.22/Python 3.8은 기본 ZIP 경로의 source·무의존성 계약 대상입니다. 이 후보의
-실제 QGIS 3.22 원격 runtime 결과는 아직 없습니다. Python 3.8은 EOL이며 최신 보안
+QGIS 3.22/Python 3.8은 기본 ZIP 경로의 source·무의존성 계약 대상입니다. 후속
+current-source commit `30e18f6`은 QGIS 3.22.16 원격 import·runtime-safety CI를
+통과했지만, 그 결과는 이미 게시된 공식 0.1.5 ZIP을 소급해 증명한 것이
+아닙니다. Python 3.8은 EOL이며 최신 보안
 수정이 적용된 Pillow/pytest
 의존성 계열을 설치할 수 없습니다. 이 릴리스의 선택적 SciPy/scikit-image,
 OpenCV, SAM pip 스택과 `requirements-dev.txt`는 보안 유지 대상 Python
@@ -136,9 +144,13 @@ macOS QGIS.app 예시:
   없습니다. 파일 검증과 ONNX session 준비는 background task에서 진행되어 그동안도
   Ink tracing을 사용할 수 있습니다. Recovery는 native Byte raster에서만 실행하고
   그 밖의 정수형에서는 Ink v2를 유지합니다. 상태는 `Ink`, `Recovering`, `Enhanced`,
-  `Ink fallback`으로 표시됩니다.
+  `Ink fallback`으로 표시됩니다. 검증된 regular model 파일이 손상됐으면 버튼이
+  `Repair Recovery Model`로 바뀌며, 명시적으로 눌렀을 때만 기존 파일을 격리하고
+  다시 받습니다. 실패·취소 시 미완료 파일은 격리본을 복원하고, 이미 hash 검증된
+  replacement는 유지하며 symlink·directory·Windows junction/reparse point는 변경하지
+  않습니다.
 - `HED`: `Step 3`에서 HED를 선택한 뒤 `Download HED`를 사용합니다.
-- `MobileSAM` / `SAM`: model을 선택하고 `Check Selected SAM Model`로 local 상태를
+- `MobileSAM` / `SAM`: model을 선택하고 `Verify Selected SAM Model`로 local 상태를
   확인한 뒤 필요한 경우 해당 `Download` 버튼을 사용합니다. local checkpoint가
   없을 때만 고정 source availability 조회가 일어납니다.
 - MobileSAM/SAM 진단이 필요하면 `SAM Status Report`를 생성합니다. report에는 현재
@@ -227,7 +239,7 @@ first use.
 ## 🇬🇧 English Summary
 
 - ArchaeoTrace is a local-first QGIS plugin for tracing elevation contours on historical maps and building reviewable terrain hypotheses.
-- The plugin metadata version is `0.1.5` and it remains experimental. This candidate consolidates unpublished development changes after the public `0.1.4` line.
+- The QGIS repository published experimental `0.1.5` on 2026-08-26. This guide describes additional `Unreleased` source while the metadata number and baseline summary remain frozen.
 - Cursor movement performs only a predecessor lookup after one asynchronous tree build per accepted anchor; the green line is the exact one-click result.
 - Assist is literal from 0% (exact cursor, no model work), through coordinate blending, to 100% (the full Live-Wire route).
 - `Freehand` needs no additional pip package, external model, or OpenCV, but uses NumPy from the QGIS Python environment.

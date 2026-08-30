@@ -10,21 +10,28 @@ inference service.
 
 ## Current status
 
-- The plugin metadata is an experimental `0.1.5` release candidate.
-- New tracing work on `main` remains `Unreleased`. Development does not bump
-  metadata, retag, or replace the existing `0.1.5` release ZIP.
-- `0.1.5` is being prepared as the next release after `0.1.4` in the
-  [QGIS plugin repository](https://plugins.qgis.org/plugins/ai_vectorizer/).
-  The `0.1.5–0.1.7` values in Git history and the unpublished `0.1.8`
-  worktree were development metadata, not QGIS repository releases. History is
-  preserved rather than rewritten.
+- The [QGIS plugin repository](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.5/)
+  published experimental `0.1.5` on 2026-08-26. Current source keeps that
+  version number and `experimental=True`.
+- The official QGIS `0.1.5` ZIP is 1,483,635 bytes with SHA-256
+  `24f1def6acd63d483ea6bf7c20b944f56507ead52190667ec4f35562fca6c964`.
+  The repository's `dist/ai_vectorizer-0.1.5.zip` is an earlier local candidate
+  from commit `89b9f20` (SHA-256 `d2925198…`), not the
+  official download.
+- Ink v2, Smart Recovery, and later fixes on `main` remain `Unreleased`.
+  Development does not bump metadata, retag, or republish a same-version QGIS
+  artifact. The `0.1.5–0.1.7` values in Git history and the unpublished `0.1.8`
+  worktree did not represent additional QGIS releases; history is preserved.
 - The metadata target is QGIS `3.22–4.99`, and the source contract is Python
-  `3.8+`. Local checks cover Python 3.8/3.10/3.12 and macOS QGIS 3.44.8. The
-  QGIS 3.22/3.44/4.2 package matrix is configured but has not yet run remotely
-  for this candidate. See the
+  `3.8+`. Local checks cover Python 3.8/3.10/3.12 and macOS QGIS 3.44.8.
+  Follow-up current-source commit `30e18f6` is
+  [green](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33339770178)
+  for QGIS 3.22.16/3.44.13/4.2.1 package import and runtime-safety checks, plus
+  deterministic Linux/Windows ZIP builds. That run does not attest the
+  published `0.1.5` ZIP or the current uncommitted worktree. See the
   [release-readiness record](docs/RELEASE_READINESS_0.1.5.md) for exact evidence.
 - If you manually installed an unpublished `0.1.6–0.1.8` source or ZIP, QGIS
-  may not treat `0.1.5` as an update. Remove that plugin and install the verified
+  may not treat `0.1.5` as an update. Remove that plugin and install the official
   `0.1.5` ZIP. Verified model files are kept outside the plugin directory in the
   QGIS profile.
 
@@ -117,7 +124,9 @@ shortcuts, and troubleshooting guidance.
 - Network access occurs only when the user explicitly installs a Recovery model
   or downloads HED/SAM models. Recovery never auto-downloads; the
   content-addressed size, SHA-256, and ONNX session are prepared in a background
-  task while Ink remains available. Recovery runs only on native Byte rasters;
+  task while Ink remains available. A corrupt regular cache object is
+  quarantined and re-fetched only through the explicit `Repair Recovery Model`
+  action; unsafe objects are never changed automatically. Recovery runs only on native Byte rasters;
   wider integer rasters retain Ink v2. SAM
   Check/Status verifies a valid local checkpoint offline and queries its pinned
   source only when the file is missing. The EfficientSAM benchmark uses network
@@ -159,9 +168,10 @@ as archaeological ground truth.
 - [Security](SECURITY.md): private reporting and safe diagnostics
 
 The harness registers independent Ink v1, Ink v2, EfficientSAM, and product-like
-Recovery method IDs. A rights-and-annotation validator and an 8-sheet/48-crop
-template are included, but the redistributable source maps and independent
-review are not yet populated, so `publication_ranking_eligible=false`. It does
+Recovery method IDs. The first USGS HTMC sheet and six lossless crops are now
+staged in the rights-and-annotation-validating 8-sheet/48-crop plan. The
+remaining seven sheets and all independent review are still incomplete, so
+`publication_ranking_eligible=false`. It does
 not establish historical-map accuracy or superiority over another tool. See
 [benchmarks/README.md](benchmarks/README.md) for its evidence format.
 
@@ -173,7 +183,7 @@ preparation begins. See [CHANGELOG.md](CHANGELOG.md) and
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Validate current source through an isolated package; this does not touch the
-frozen `dist/ai_vectorizer-0.1.5.zip` or production release tree:
+repository-local `dist/ai_vectorizer-0.1.5.zip` or candidate release tree:
 
 ```bash
 current_source_dir="$(mktemp -d)"
@@ -182,9 +192,11 @@ python3 scripts/package_release.py --output "$current_source_zip"
 python3 scripts/package_release.py --check --output "$current_source_zip"
 ```
 
-The metadata-derived production ZIP cannot be replaced when the current-source
-hash differs from its recorded frozen SHA-256. A deliberate release requires
-the exact metadata version through `--approve-release-overwrite VERSION`.
+The metadata-derived repository-local candidate ZIP cannot be replaced when
+the current-source hash differs from its recorded frozen SHA-256. That guard
+hash is not the identity of the official QGIS download. A deliberate new
+release requires the exact metadata version through
+`--approve-release-overwrite VERSION`.
 
 Use [CITATION.cff](CITATION.cff) for citation metadata.
 

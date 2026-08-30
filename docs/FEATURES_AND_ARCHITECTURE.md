@@ -1,11 +1,15 @@
 # ArchaeoTrace features and architecture
 
-이 문서는 ArchaeoTrace의 동결된 `0.1.5` 기준선과 현재 `Unreleased` source에 들어 있는
+이 문서는 ArchaeoTrace의 공식 experimental `0.1.5` 기준선과 현재
+`Unreleased` source에 들어 있는
 기능, 각 기능이 구현된 방식,
 현재 안전 경계와 아직 구현되지 않은 계획을 한곳에 정리합니다. ArchaeoTrace는
 고지도 등고선을 사용자가 검수하며 벡터화하고, 고도 의미를 부여한 뒤 검토 가능한
 DEM과 hillshade까지 만드는 오픈소스 QGIS 플러그인입니다. 계정이나 원격 추론 서비스는
 필요하지 않으며 지도와 추적 계산은 로컬에서 처리합니다.
+공식 QGIS 0.1.5 download, repository-local `d292…` 사전 후보와 현재
+Unreleased ZIP의 정확한 identity는
+[`RELEASE_READINESS_0.1.5.md`](RELEASE_READINESS_0.1.5.md)에 분리해 기록합니다.
 
 ## Status at a glance
 
@@ -18,7 +22,7 @@ DEM과 hillshade까지 만드는 오픈소스 QGIS 플러그인입니다. 계정
 | 지형 산출 | 실험적 구현 | 저장된 입력으로 선형 TIN DEM과 GDAL hillshade 생성 |
 | 모델 무결성 | 구현 | 고정 URL·크기·SHA-256 검증, 임시 파일, 원자 게시, 실패 시 복원 |
 | 재현 benchmark | 개발자용 구현 | 4개 독립 method ID, worker v1/v2 호환, 공개 8×6 dataset 계약과 최종 centerline 지표 |
-| 공개 역사 지도 dataset | 미완성 gate | 권리·원본·주석을 검증하는 48-crop template만 포함; 실제 자료 전에는 ranking 불가 |
+| 공개 역사 지도 dataset | 미완성 gate | USGS 1개 도엽·6개 draft crop staged; 나머지 7개 도엽·독립 검수 전에는 ranking 불가 |
 | 위상 QA·불확실성·DEM provenance | 미구현 | 교차·중복·고도 이상 검출, NoData/불확실성, sidecar manifest는 로드맵 항목 |
 
 `구현`은 기능 경로가 코드와 테스트에 존재한다는 뜻입니다. 실제 고지도 정확도나
@@ -101,7 +105,10 @@ Recovery image는 native Byte raster에만 허용하고, 더 넓은 정수형은
 통과한 challenger만 채택합니다. 모델·runtime 미설치, hash 불일치, 잘못된 output,
 오류·취소·stale 결과에서는 다른 backend를 조용히 쓰지 않고 같은 Ink champion과
 `Ink fallback` 사유를 유지합니다. 모델은 `Install Recovery Model`을 눌렀을 때만
-받으며 기본값은 신규·기존 설정과 관계없이 OFF입니다.
+받으며 기본값은 신규·기존 설정과 관계없이 OFF입니다. regular cache object의 hash가
+틀리면 같은 버튼이 `Repair Recovery Model`로 바뀌어 명시적 격리·재다운로드를 하고,
+실패·취소 시 미완료 object만 되돌립니다. 이미 hash 검증된 replacement는 유지하고
+symlink·junction/reparse point를 포함한 unsafe cache object는 자동 변경하지 않습니다.
 
 ### Advanced / Legacy methods
 
@@ -232,6 +239,10 @@ template은 8개 도엽×6개 무손실 PNG, 도엽 단위 calibration/locked ho
 층, 원본·권리 snapshot·crop·주석 검수 hash를 강제합니다. 재배포 가능한 USGS 4개와
 권리가 명확한 한국·한반도 4개 도엽 및 독립 검수가 실제로 채워질 때까지
 `publication_ranking_eligible`은 false이며 성능 순위를 주장할 수 없습니다.
+첫 calibration 도엽 `cal-01`은 USGS HTMC East Denver 1890 원본·권리 snapshot과
+6개 PNG·prompt·중심선 초안까지 staged 상태입니다. `benchmarks.public_assets`는
+PNG가 선언 좌표의 원본 픽셀과 정확히 같은지 검증하며, 중심선은 별도 검수와
+adjudication이 끝날 때까지 명시적으로 draft로 남습니다.
 
 ## Source map
 

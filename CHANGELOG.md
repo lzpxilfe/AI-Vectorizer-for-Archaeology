@@ -19,6 +19,8 @@ metadata 버전을 올리지 않습니다.
   구간 재시도 UI
 - worker request v2의 선택적 `previous_xy`, 네 개의 독립 benchmark method ID와
   8개 도엽·48개 crop 공개 dataset 권리·주석 검증 template
+- USGS HTMC public-domain 원본 1개와 source-pixel 그대로의 512px PNG crop 6개,
+  immutable provenance·권리 snapshot·draft 중심선을 첫 공개 benchmark 묶음으로 추가
 
 ### Changed
 
@@ -40,6 +42,21 @@ metadata 버전을 올리지 않습니다.
   전환하지 않고 계산 전과 동일한 Ink champion을 유지
 - model 설치 취소를 network read loop까지 전달하고, 이미 `Enhanced`인 preview를
   새 Ink champion으로 재사용하는 반복 Recovery를 차단
+- 다음 anchor의 Live-Wire tree가 준비되기 전 빠른 클릭이 임시 직선 chord를 저장하던
+  race를 막고, 계산된 Ink 경로와 필요한 Recovery quality gate가 끝난 뒤 같은 click
+  target을 확정
+- Recovery inference 실패 뒤 남던 stale request를 제거해 같은 Ink champion에서
+  명시적으로 다시 시도할 수 있도록 수정
+- 손상된 Recovery regular object는 사용자가 `Repair Recovery Model`을 명시적으로
+  누른 경우에만 격리·재다운로드하고, 실패·취소 시 미완료 object는 원본을 복원하되
+  이미 hash 검증·게시된 replacement는 유지하며 symlink·directory·Windows junction/
+  reparse point 등 unsafe cache는 자동 변경하지 않도록 수정
+- Recovery install/repair task 등록 실패는 버튼·상태를 즉시 복원하고, 마지막 artifact가
+  이미 검증·게시된 뒤 도착한 cancel flag는 성공한 store transaction을 취소로 오표시하지
+  않도록 commit boundary를 고정
+- Ctrl+Z와 checkpoint rewind가 진행 중 Recovery·Live-Wire·pending click을 함께
+  무효화하고, polygon close는 elevation 취소·layer 저장 실패에도 확정 경로와 화면의
+  Enhanced 후보를 바꾸지 않는 transaction으로 처리
 - 개발 source의 기본 package 명령이 동결된 `0.1.5` ZIP을 덮어쓰지 못하도록 하고
   CI는 격리된 `--output` current-source ZIP만 생성·검사
 - QGIS Plugins Website의 Bandit `B110`/`B112` false-positive 대상인 best-effort
@@ -47,14 +64,22 @@ metadata 버전을 올리지 않습니다.
   commit pin을 credential과 구분하는 검토된 `.secrets.baseline`을 current-source
   package에 포함; 같은 범위를 고정 Bandit·detect-secrets CI로 재검사
 - 실제 재배포 권리 자료와 독립 주석 검수가 완료될 때까지 benchmark의
-  `publication_ranking_eligible`을 false로 고정
+  `publication_ranking_eligible`을 false로 고정하고, 시작·끝점이 같거나 기하 길이가
+  0인 prompt/reference는 hash가 맞아도 거부
 
-## 0.1.5 — release candidate
+## 0.1.5 — experimental QGIS release (2026-08-26)
 
-`0.1.5`는 공식 QGIS plugin 저장소의 `0.1.4` 다음 공개 후보입니다. Git history의
-`0.1.5–0.1.7`과 미공개 worktree의 `0.1.8`은 QGIS 저장소에 게시되지 않은 개발
-metadata였습니다. 이력은 보존하고 그 변경을 하나의 `0.1.5` 후보로 정리했습니다.
-공개일은 아직 확정하지 않았습니다.
+`0.1.5`는 공식 QGIS plugin 저장소에 experimental release로 공개됐습니다.
+공식 다운로드는 1,483,635 bytes, 30 entries, SHA-256
+`24f1def6acd63d483ea6bf7c20b944f56507ead52190667ec4f35562fca6c964`입니다.
+29개 일반 plugin entry는 commit `0675cad`와 byte-identical이지만, upload ZIP의
+`.secrets.baseline`은 해당 commit blob과 다릅니다. repository에 보존된
+`dist/ai_vectorizer-0.1.5.zip`(SHA-256 `d2925198…`, 29 entries)은 commit
+`89b9f20`의 이전 로컬 후보이며 공식 artifact identity가 아닙니다.
+
+Git history의 `0.1.5–0.1.7`과 미공개 worktree의 `0.1.8` 표시는 추가 QGIS
+릴리스가 아닌 개발 metadata였습니다. 이력은 rewrite하지 않으며,
+Ink v2·Smart Recovery와 공개 이후 수정은 위 `Unreleased`에서 관리합니다.
 
 ### Added
 
@@ -89,12 +114,19 @@ metadata였습니다. 이력은 보존하고 그 변경을 하나의 `0.1.5` 후
 
 ### Known limitations
 
-- 실제 역사 지도 benchmark dataset과 제품 정확도 근거는 아직 없습니다.
+- 완성·독립 검수된 역사 지도 benchmark dataset과 제품 정확도 근거는 아직
+  없습니다.
 - topology QA, DEM uncertainty/NoData와 provenance sidecar는 아직 구현되지 않았습니다.
-- QGIS 3.22/3.44/4.2 remote package matrix와 clean-profile GUI 검증은 공개 전 남은
-  gate입니다.
+- 공식 0.1.5 source 시점의 [CI run 32924318782](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/32924318782)은
+  QGIS 3.22/4.2 runtime job이 green이 아니었습니다. 후속 commit `30e18f6`의
+  [run 33339770178](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33339770178)에서
+  3.22.16/3.44.13/4.2.1 current-source 행렬이 통과했지만 이는 공식 ZIP을
+  소급해 다시 검증한 것이 아닙니다.
+- Windows clean-profile GUI, `0.1.4 → 0.1.5` upgrade와 역사 지도 독립 검수는
+  stable 전환·다음 release 전 남은 gate입니다. QGIS 3.22/3.44/4.2 원격
+  matrix와 macOS 3.44.8 clean-profile current-source smoke는 통과했습니다.
 
-## 0.1.4 — latest QGIS repository baseline
+## 0.1.4 — previous QGIS repository baseline
 
 이 저장소 정리의 기준이 된 직전 QGIS plugin 저장소 버전입니다. 이전 변경의 세부
 내용은 Git history와 QGIS plugin 저장소의 version record를 참고하세요.

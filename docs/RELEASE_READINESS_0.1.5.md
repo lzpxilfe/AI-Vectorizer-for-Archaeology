@@ -1,31 +1,62 @@
 # ArchaeoTrace 0.1.5 release-readiness review
 
-기준일: 2026-08-23
-검토 기준 commit: `9cf2bd7ba119f03cb4771c6fcc5bd796d8800e8a` 위의 `0.1.5` 후보 worktree
-최종 로컬 산출물: `dist/ai_vectorizer-0.1.5.zip`
+최초 로컬 검토: 2026-08-23 · 공식 QGIS upload: 2026-08-26 ·
+Unreleased 후속 검증: 2026-08-31
+
+이 문서는 서로 다른 세 대상을 분리한다.
+
+1. 공식 QGIS 저장소에 이미 게시된 experimental `0.1.5` ZIP
+2. commit `89b9f20`에서 만든 repository-local 사전 후보
+   `dist/ai_vectorizer-0.1.5.zip`
+3. 같은 metadata 숫자를 유지하지만 Ink v2·Smart Recovery·후속 수정을
+   포함한 현재 `Unreleased` source
 
 ## Decision
 
-판정은 두 단계로 나눈다.
+판정은 공개 artifact와 현재 source를 섞지 않고 나눈다.
 
-- **Experimental 0.1.5 후보: 조건부 GO.** 현재 로컬 산출물은 Python
-  3.8/3.10/3.12, macOS QGIS 3.44.8 실제 API/runtime, QGIS upstream upload validator
-  script와 결정적 packaging 검증을 통과했다. 다음 단계는 이 worktree를 하나의
-  commit으로 고정해 원격 CI를 실행하는 것이다. validator 로컬 통과는 QGIS 저장소
-  업로드나 공식 승인을 뜻하지 않는다.
-- **Stable 공개 전환: NO-GO.** 원격 Linux/Windows/QGIS 3.22/3.44/4.2 행렬, clean
-  profile Windows/macOS GUI, `0.1.4 → 0.1.5` upgrade가 아직 실행되지 않았다.
+- **공식 experimental 0.1.5: 이미 공개됨.** QGIS 저장소가 2026-08-26
+  `0.1.5`를 게시했다. 이는 stable 승격이나 현재 `main`의 추가 기능 공개를
+  뜻하지 않는다.
+- **현재 Unreleased source: 조건부 GO.** commit `30e18f6`에서 Linux/Windows
+  결정적 package와 QGIS 3.22.16/3.44.13/4.2.1 import·runtime-safety CI가
+  통과했고, 후속 worktree에서 macOS QGIS 3.44.8 clean-profile·Recovery
+  lifecycle smoke를 수행했다. 다만 현재 worktree의 최종 commit, package SHA와
+  CI run은 아래의 pending evidence를 채우기 전까지 확정된 것이 아니다.
+- **Stable 공개 전환: NO-GO.** Windows clean-profile GUI, 다국어/HiDPI,
+  `0.1.4 → 0.1.5` upgrade와 실제 역사 지도 독립 검수가 아직 완료되지 않았다.
   `experimental=True`를 유지하며, 실제 역사 지도 benchmark 전에는 제품 정확도나
   속도 우위를 주장하지 않는다.
 
-커밋, push, tag, GitHub Release, QGIS 저장소 upload는 이 검토에서 수행하지 않았다.
-공식 QGIS plugin 저장소에는 검토일 현재 experimental `0.1.4`가 남아 있었다. 작업
-시작 당시 원격 `main` metadata는 `0.1.7`이었고, 이 worktree에는 미공개 `0.1.8`
-정리가 있었다. Git history의 `0.1.5–0.1.7`과 이 `0.1.8`은 QGIS 저장소에 게시되지
-않은 개발 metadata였으므로 공식 `0.1.4` 다음 후보를 `0.1.5`로 정규화했다. 이력은
-rewrite하지 않는다.
+최초 2026-08-23 검토 시점에는 QGIS 저장소에 `0.1.4`가 남아 있었으나,
+`0.1.5`는 이틀 후 실제로 upload됐다. GitHub tag/Release는 만들지 않았다.
+Git history의 `0.1.5–0.1.7`과 미공개 worktree의 `0.1.8` 표시는 추가 QGIS
+릴리스가 아닌 개발 metadata였으며 이력은 rewrite하지 않는다.
 
-## Final artifact identity
+## Official QGIS 0.1.5 artifact identity
+
+| 항목 | 값 |
+| --- | --- |
+| 공식 page | `https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.5/` |
+| 공개일 | 2026-08-26 |
+| SHA-256 | `24f1def6acd63d483ea6bf7c20b944f56507ead52190667ec4f35562fca6c964` |
+| 크기 | 1,483,635 bytes |
+| ZIP entries | 30 |
+| metadata | `0.1.5`, QGIS `3.22–4.99`, `experimental=True` |
+| 모델 weight/native binary | 포함하지 않음 |
+
+공식 ZIP의 29개 일반 plugin entry는 commit
+`0675cad82a34a04c7fcf44a8666055ee26f9fb6f`와 byte-identical이다. 다만 upload
+ZIP의 `.secrets.baseline`은 그 commit의 blob과 다르므로 전체 30 entries를
+하나의 Git tree로 소급할 수는 없다. 공식 identity는 위 download hash이며, 이
+provenance 차이를 숨기거나 로컬 ZIP으로 대체하지 않는다.
+
+공식 source 시점의 [CI run 32924318782](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/32924318782)은
+Linux/Windows package와 QGIS 3.44 job은 통과했지만 QGIS 3.22/4.2 runtime job이
+green이 아니었다. 따라서 후속 `main` CI를 공식 artifact의 소급 검증으로
+표현하지 않는다.
+
+## Frozen repository-local candidate
 
 | 항목 | 값 |
 | --- | --- |
@@ -33,17 +64,15 @@ rewrite하지 않는다.
 | SHA-256 | `d2925198dc2192bbb7eebe579bb48207c860179a94d4216df77e746d0451789a` |
 | 크기 | 1,464,897 bytes |
 | ZIP entries | 29 |
-| 재빌드 | 같은 source에서 2회 byte-identical |
-| metadata | `0.1.5`, QGIS `3.22–4.99`, `experimental=True` |
-| 모델 weight/native binary | 포함하지 않음 |
+| exact source | commit `89b9f201b8717e68ad9c348f84e6e6f695704497` plugin tree 29/29 entries |
 
-ZIP은 1980-01-01 timestamp, 정렬된 entry, 고정 파일 mode와 저장 압축을 사용한다.
-저장 압축은 zlib 구현 차이 없이 Linux/Windows 바이트 동일성을 만들기 위한 선택이다.
-업로드 상한은 QGIS 공개 지침의 decimal 20 MB를 적용한다.
+이 ZIP은 1980-01-01 timestamp, 정렬된 entry, 고정 파일 mode와 저장 압축을
+사용하며 같은 source에서 두 번 byte-identical로 재빌드됐다. 현재 package
+guard의 `d292…` 해시는 이 로컬 후보를 우연히 덮어쓰지 않게 하는
+값이며 공식 QGIS 0.1.5 identity가 아니다.
 
-후속 Bandit suppression 근거와 검토된 `.secrets.baseline`은 `Unreleased` source에만
-추가했다. 위 동결 ZIP을 다시 만들거나 그 artifact identity를 바꾸지 않으며, current
-source 검증은 production 이름과 분리된 `--output` ZIP에서 수행한다.
+현재 source 검증은 두 동결 artifact 중 어느 것도 덮어쓰지 않고, 공개
+이름과 분리된 `--output .../ai_vectorizer-unreleased.zip`에서 수행한다.
 
 ## Confirmed findings fixed
 
@@ -97,19 +126,28 @@ source 검증은 production 이름과 분리된 `--output` ZIP에서 수행한�
 
 | 검증 | 결과 |
 | --- | --- |
-| Python 3.10.20 fresh env, full pytest | `323 passed, 22 skipped, 86 subtests` |
-| Python 3.12.13 fresh env, full pytest | `323 passed, 22 skipped, 86 subtests` |
-| Python 3.8.20 no-dependency CI contract | `210 passed, 2 skipped` (총 212 tests); 전체 compile 통과 |
-| Extracted final ZIP, QGIS 3.44.8-Solothurn | package 경로 import 확인, runtime `20/20` 통과 |
+| 2026-08-23 review source, Python 3.10.20 | `323 passed, 22 skipped, 86 subtests` (historical review baseline) |
+| 2026-08-23 review source, Python 3.12.13 | `323 passed, 22 skipped, 86 subtests` (historical review baseline) |
+| 2026-08-23 review source, Python 3.8.20 | `210 passed, 2 skipped` (총 212 tests; historical review baseline) |
+| Extracted local pre-upload candidate, QGIS 3.44.8-Solothurn | `d292…` package 경로 import 확인, runtime `20/20` 통과 |
 | 실제 terrain path | QGIS TIN → GeoTIFF → GDAL hillshade 생성 및 resource 해제 통과 |
 | Runtime benchmark smoke | Canny/LSD generate → validate → evaluate 통과; 두 방법 local eligible, publication ineligible |
 | Runtime benchmark manifest SHA-256 | `f1d281a00c28a89a0c77b639958a5ca7bd04457838e7f1c54b1ac3cd806ee282` |
-| QGIS upstream upload validator script | commit `4f9b451658c3599c721a6da3fb20d33706580e81`에서 package/version/URL 로컬 검증 통과; 업로드·공식 승인 아님 |
 | `pip-audit==2.10.1` | Python 3.12/macOS ARM64에서 uv-compiled base/OpenCV/dev/SAM-common graph를 `--strict --disable-pip --no-deps`로 감사: 9/10/15/25 packages, known vulnerability 0 |
-| Bandit 1.9.4 | 배포·benchmark 38 files/19,531 LOC, medium/high finding 0; low 24는 별도 검토 대상 |
+| 2026-08-23 Bandit 1.9.4 | 배포·benchmark 38 files/19,531 LOC, medium/high finding 0; low 24는 별도 검토 대상 |
 | Ruff 0.16.4 fatal rules | Python 64 files, `E9,F63,F7,F82` 통과 |
 | Zizmor 1.29.0 | offline/pedantic/strict collection finding 0 |
 | Workflow/YAML/diff | YAML parse, `git diff --check` 통과 |
+| pre-final Unreleased follow-up | 이전 follow-up source의 Python 3.12 격리 dev runtime에서 `455 passed, 40 skipped, 111 subtests` (historical) |
+| 원격 CI follow-up | commit `30e18f6`, [run 33339770178](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33339770178): Linux/Windows package, Python 3.8/3.10/3.12, dependency/security, QGIS 3.22.16/3.44.13/4.2.1 모두 green |
+| 최종 local worktree, Python 3.10/3.12 | 각 `477 passed, 59 skipped, 122 subtests`; 격리 dev runtime |
+| 최종 local worktree, Python 3.8 contract | `272 passed, 8 skipped` (총 280 tests); 전체 source/test compile 통과 |
+| 최종 local plugin security | CI pin `Bandit 1.8.6`과 `detect-secrets 1.5.0` reviewed baseline 통과; Ruff fatal rules·`git diff --check` 통과 |
+| 공개 benchmark 첫 묶음 | USGS HTMC 1 sheet, source-pixel crop 6개, draft reference 6개 asset/hash 검증 통과; 독립 검수 전이라 ranking 불가 |
+| current-source ZIP pre-attestation | `65c0277c7ea90946e9538164a5f57c29cea6e23cd5ae564370c5191e652e451f`, 1,687,674 bytes, 35 entries; 두 build byte-identical·`--check` 통과 |
+| macOS clean-profile final ZIP | 위 exact ZIP을 QGIS 3.44.8에 격리 설치해 Freehand·정확한 0%·Ink v2·rapid/cache click deferral·Enhanced WYSIWYG 저장 통과; 사용자 profile/model cache 미접촉 |
+| Smart Recovery final lifecycle | 격리 QGIS 3.44.8에서 공식 EfficientSAM-Ti split SHA 검증·CPUExecutionProvider 실제 추론, model 없음/정상/runtime 없음/손상, 명시적 Repair 재다운로드와 inference 실패 Ink 보존 확인 |
+| 현재 Unreleased attestation | **PENDING:** 구현 commit, 위 ZIP SHA-256, 새 CI run URL을 후속 evidence-only commit에서 결속 |
 
 이번 로컬 환경의 직접 `pip-audit --strict -r` 수집기는 uv-managed Python의 내부
 `ensurepip` SIGABRT로 끝나 취약점 판정 증거로 사용하지 않았다. 대신 각 requirements를
@@ -126,8 +164,9 @@ package hash·license, Git backend, native library나 공급망 전체의 안전
 - HED caffemodel `58,876,104` bytes,
   SHA-256 `4b6937684bce9be1ef5163c78ec812dff9a23653bfbb451925210a64ecfaaac7`:
   다운로드·게시 및 OpenCV 4.11 Caffe forward 확인.
-- EfficientSAM split encoder/decoder: content-addressed download·SHA 검증 확인. 실제
-  ONNX inference smoke와 PyTorch MobileSAM/SAM inference는 최종 행렬에 포함되지 않았다.
+- EfficientSAM split encoder/decoder: content-addressed download·SHA 검증과 실제 QGIS
+  프로세스의 ONNX CPU inference를 확인했다. PyTorch MobileSAM/SAM inference는 최종
+  행렬에 포함되지 않았다.
 
 합성 runtime fixture의 F1=1은 wiring 계약만 증명한다. 역사 지도 품질 근거가 아니며
 report의 `publication_eligible`도 의도적으로 `false`다.
@@ -139,8 +178,8 @@ report의 `publication_eligible`도 의도적으로 `false`다.
 - pure kernel인 `trace_kernel.py`, `livewire.py`, `sam_trace_kernel.py`, `dem_spec.py`는
   QGIS 밖에서 경계·결정성·실패를 검증할 수 있다. 이번 결함 대부분을 여기서
   재현하고 회귀로 고정할 수 있었다.
-- 반면 `smart_trace_tool.py` 약 3.1K lines, `main_dialog.py` 약 2.0K lines,
-  `edge_detector.py` 약 1.5K lines가 QGIS lifecycle, UI, IO, 모델과 계산을 함께
+- 반면 `smart_trace_tool.py` 약 5.0K lines, `main_dialog.py` 약 2.7K lines,
+  `edge_detector.py` 약 2.3K lines가 QGIS lifecycle, UI, IO, 모델과 계산을 함께
   가진다. 변경 한 번의 회귀 범위가 너무 크다.
 - HED, SAM, EfficientSAM에는 비슷하지만 서로 다른 artifact publication 코드가
   세 벌 있다. 하나의 `ModelArtifactStore`와 공통 `OutputGuard`로 수렴해야 한다.
@@ -159,10 +198,10 @@ packages에 둔다.
 
 | 우선도 | 남은 위험 | release 처리 |
 | --- | --- | --- |
-| P1 | 이 worktree의 원격 CI가 아직 실행되지 않음 | experimental/stable 모두 upload 전에 필수 |
-| P1 | QGIS 3.22/3.44 Linux, QGIS 4.2, Windows package/runtime를 로컬에서 재현하지 못함 | digest-pinned remote matrix 필수; Windows/macOS clean-profile 수동 smoke 추가 |
-| P1 | 실제 MobileSAM/SAM PyTorch 및 EfficientSAM ONNX inference가 최종 환경에서 미실행 | 모델을 기본값으로 승격하거나 성능 주장 전에 pinned smoke 필수 |
-| P1 | 실제 역사 지도와 독립 기준선 benchmark가 없음 | 정확도·속도 주장 금지; Gate B 선행 |
+| P1 | Windows 실제 QGIS clean-profile/GUI와 HiDPI·한국어/영어 전환을 확인하지 못함 | stable 전 Windows 수동/자동 smoke 추가 |
+| P1 | 실제 MobileSAM/SAM PyTorch inference가 최종 환경에서 미실행 | 모델을 기본값으로 승격하거나 성능 주장 전에 pinned smoke 필수 |
+| P1 | 공식 0.1.5 ZIP의 `.secrets.baseline`이 source commit blob과 다르고 해당 source CI의 QGIS 3.22/4.2 job이 green이 아님 | 공식 hash와 후속 source 검증을 분리 기록; 다음 release는 exact commit·artifact·green run 결속 |
+| P1 | 완성·독립 검수된 역사 지도 기준선 benchmark가 없음 | 정확도·속도 주장 금지; Gate B 선행 |
 | P1 | sparse/wrong contour TIN이 그럴듯한 오답을 만들 수 있고 uncertainty/provenance가 아직 없음 | `experimental terrain hypothesis` 유지; Gate C/D 전 연구 결론에 자동 사용 금지 |
 | P2 | 모델 download/HED/SAM inference와 일부 raster 준비가 UI thread에서 길게 실행될 수 있음 | cancellable background task와 generation token으로 이동 |
 | P2 | DEM 입력 layer/provider 자체는 전체 task 동안 immutable snapshot이 아님 | 입력 export/hash manifest 후 processing 실행 |
@@ -179,30 +218,34 @@ packages에 둔다.
 
 ### Artifact identity
 
-- [x] source → release tree → ZIP 동기화
-- [x] 두 번의 로컬 build가 byte-identical
-- [x] 최종 ZIP을 별도 경로에서 실제 QGIS import/runtime 검증
-- [x] QGIS upstream upload validator script 로컬 통과
-- [ ] 하나의 release commit/tag와 원격 CI run URL에 SHA-256 결속
-- [ ] Linux = Windows = QGIS matrix SHA-256 확인
+- [x] 공식 QGIS 0.1.5 download size/SHA-256·entry 수 기록
+- [ ] 공식 30-entry ZIP을 하나의 exact Git tree·green CI run에 소급
+- [x] 로컬 `d292…` 후보는 commit `89b9f20` plugin tree와 29/29 동기화
+- [x] 로컬 `d292…` 후보의 두 build가 byte-identical이고 QGIS 3.44 import/runtime 통과
+- [x] commit `30e18f6` current-source Linux = Windows = QGIS matrix SHA-256 확인
+- [x] pre-attestation Unreleased ZIP 두 build byte-identical, SHA `65c0277c…`, 35 entries
+- [ ] 현재 Unreleased 최종 commit·ZIP SHA-256·새 CI run URL 결속
 - [ ] SBOM과 서명/attestation 적용 또는 미적용 사유 기록
 
 ### Runtime and upgrade
 
 - [x] Python 3.8 source/no-dependency, Python 3.10/3.12 full suite
 - [x] macOS QGIS 3.44.8 offscreen API/runtime 및 실제 DEM pipeline
-- [ ] digest-pinned QGIS 3.22/3.44/4.2 remote jobs green
-- [ ] Windows/macOS clean profile GUI와 HiDPI/한국어·영어 smoke
+- [x] commit `30e18f6` digest-pinned QGIS 3.22/3.44/4.2 remote jobs green
+- [x] macOS QGIS 3.44.8 clean-profile exact `65c0277c…` ZIP load/map-tool smoke
+- [x] macOS QGIS 3.44.8 실제 EfficientSAM inference·손상 model Repair lifecycle
+- [ ] Windows clean profile GUI와 HiDPI/한국어·영어 smoke
 - [ ] 공식 `0.1.4`에서 `0.1.5`로 upgrade/model migration/rollback smoke
 - [ ] 개발판 `0.1.6–0.1.8` 제거 후 `0.1.5` 수동 재설치·model 보존 smoke
 
 ### Product and scientific evidence
 
-- [x] RC와 terrain을 experimental로 표시
+- [x] 공식 0.1.5와 terrain을 experimental로 표시
 - [x] 합성 fixture를 제품 accuracy evidence로 사용하지 않음
-- [ ] 재배포 권리를 확인한 30–50개 실제 역사 지도 crop
+- [ ] 재배포 권리를 확인한 30–50개 실제 역사 지도 crop (`6/48` staged, 독립 검수 전)
 - [ ] 사전 고정 protocol, 두 검수자 기준선, raw event/hardware/repetition 기록
 - [ ] topology QA, uncertainty/NoData, DEM provenance sidecar
 
-따라서 다음 안전한 동작은 **commit을 고정하고 원격 CI를 실행하는 것**이다. 그
-결과 없이 `experimental=False`, tag, upload 또는 성능 우위 문구를 진행하지 않는다.
+따라서 다음 안전한 동작은 **남은 공개 dataset과 독립 검수, Windows clean-profile,
+upgrade smoke를 채우며 매 commit의 원격 CI를 유지하는 것**이다. 그 결과 없이
+`experimental=False`, 다음 tag/upload 또는 성능 우위 문구를 진행하지 않는다.

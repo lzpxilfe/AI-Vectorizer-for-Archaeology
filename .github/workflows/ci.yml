@@ -66,6 +66,7 @@ jobs:
               "tests.test_benchmark_hardening",
               "tests.test_benchmark_manifest",
               "tests.test_benchmark_metrics",
+              "tests.test_benchmark_public_dataset",
               "tests.test_benchmark_runner",
               "tests.test_benchmark_worker",
               "tests.test_config_models",
@@ -73,11 +74,13 @@ jobs:
               "tests.test_efficientsam_onnx",
               "tests.test_interaction_policy",
               "tests.test_model_store",
+              "tests.test_qgis_clean_profile_smoke",
+              "tests.test_qgis_recovery_lifecycle_smoke",
               "tests.test_trace_kernel",
           ]
           suite = unittest.defaultTestLoader.loadTestsFromNames(modules)
           test_count = suite.countTestCases()
-          if test_count < 150:
+          if test_count < 260:
               raise SystemExit(
                   f"Python 3.8 contract suite unexpectedly has only {test_count} tests"
               )

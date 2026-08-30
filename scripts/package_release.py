@@ -53,10 +53,11 @@ MAX_SOURCE_DATE_EPOCH = 4354819198  # 2107-12-31 23:59:58 UTC.
 MAX_UPLOAD_BYTES = 20_000_000
 ZIP_FILE_MODE = 0o100644
 ZIP_COMPRESSION = zipfile.ZIP_STORED
-# Published/local release candidates are immutable inputs while development is
-# kept under ``Unreleased`` without a metadata bump.  A source build whose hash
-# differs from one of these frozen artifacts must never replace its production
-# filename unless the operator explicitly confirms the metadata version.
+# Repository-local release candidates are immutable inputs while development
+# is kept under ``Unreleased`` without a metadata bump.  These hashes are not
+# necessarily the identity of an artifact already published by an external
+# repository.  A differing source build must never replace the local filename
+# unless the operator explicitly confirms the metadata version.
 FROZEN_RELEASE_SHA256 = {
     "0.1.5": "d2925198dc2192bbb7eebe579bb48207c860179a94d4216df77e746d0451789a",
 }
@@ -275,7 +276,7 @@ def _same_path(left: Path, right: Path) -> bool:
     # Retain fail-closed protection when the target itself is absent but both
     # spellings address the same existing directory.  This is deliberately
     # conservative on a case-sensitive filesystem: an explicit output whose
-    # basename differs only by case is not worth risking the production ZIP.
+    # basename differs only by case is not worth risking the frozen local ZIP.
     try:
         same_parent = os.path.samefile(left.parent, right.parent)
     except (FileNotFoundError, OSError, ValueError):
@@ -290,7 +291,7 @@ def _assert_production_write_allowed(
     *,
     approved_version: Optional[str],
 ) -> None:
-    """Protect a frozen metadata-derived production filename from dev builds."""
+    """Protect a frozen metadata-derived local filename from dev builds."""
     production_zip = zip_path(version)
     if not _same_path(target_zip, production_zip):
         return
@@ -303,7 +304,8 @@ def _assert_production_write_allowed(
         return
 
     raise ValueError(
-        f"Refusing to replace frozen {production_zip.name}: current source builds "
+        f"Refusing to replace frozen local candidate {production_zip.name}: "
+        f"current source builds "
         f"SHA-256 {payload_hash}, not frozen {frozen_hash}. Build Unreleased source "
         "with --output PATH, or use "
         f"--approve-release-overwrite {version} only for a deliberate release."
@@ -442,7 +444,7 @@ def run_check(
     problems: list[str] = []
 
     # An explicit output is the current-source/Unreleased path and does not use
-    # or validate the metadata-derived production release directory.
+    # or validate the metadata-derived repository-local candidate directory.
     if archive_path is None:
         try:
             problems.extend(compare_manifests("release dir", expected, release_manifest(version)))
@@ -491,8 +493,8 @@ def run_build(
     output_path: Optional[Path] = None,
     approved_version: Optional[str] = None,
 ) -> int:
-    # Guard/write the ZIP before mutating the production release tree.  Thus a
-    # normal Unreleased invocation cannot partially replace frozen artifacts.
+    # Guard/write the ZIP before mutating the repository-local candidate tree.
+    # Thus a normal Unreleased invocation cannot partially replace it.
     target_zip = build_release_zip(
         version,
         output_path=output_path,
@@ -523,14 +525,15 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         type=Path,
         help=(
             "Build or check a current-source ZIP at an explicit path without "
-            "touching metadata-derived production artifacts."
+            "touching metadata-derived repository-local candidate artifacts."
         ),
     )
     parser.add_argument(
         "--approve-release-overwrite",
         metavar="VERSION",
         help=(
-            "Explicitly approve replacing a frozen production ZIP for exactly "
+            "Explicitly approve replacing a frozen repository-local candidate ZIP "
+            "for exactly "
             "this metadata version. Never use this for normal Unreleased checks."
         ),
     )

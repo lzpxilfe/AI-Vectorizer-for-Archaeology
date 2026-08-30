@@ -1,0 +1,71 @@
+ArchaeoTrace public benchmark rights and provenance snapshot
+============================================================
+
+Snapshot date: 2026-08-31 (Asia/Seoul)
+Dataset slot: cal-01
+Origin group: usgs_htmc
+
+Selected product
+----------------
+
+Title: USGS 1:125000-scale Quadrangle for East Denver, CO 1890
+Publisher: U.S. Geological Survey
+Publication date: 1890-01-01
+HTMC scan identifier: 402931
+ScienceBase item identifier: 604ea84ad34eb12031203797
+ScienceBase item URL:
+https://www.sciencebase.gov/catalog/item/604ea84ad34eb12031203797
+
+The selected record was returned by the official TNMAccess products API for
+the "Historical Topographic Maps" dataset.  Its ScienceBase record identifies
+the title, publication date, HTMC scan identifier, and the GeoTIFF download
+listed below.  The downloaded GeoTIFF also embeds XMP identifying its creator
+as "U.S. Geological Survey", its collection as "Historical Topographic Map
+Collection", and its title as "East Denver, CO, 1:125,000 quad, 1890, USGS".
+
+TNMAccess query used for discovery:
+https://tnmaccess.nationalmap.gov/api/v1/products?datasets=Historical%20Topographic%20Maps&bbox=-105.05,39.70,-104.95,39.80&prodFormats=GeoTIFF&max=100
+
+Original GeoTIFF URL:
+https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_East%20Denver_402931_1890_125000_geo.tif
+
+Captured object facts:
+- Content-Type: image/tiff
+- Content-Length: 4769118
+- Last-Modified: Sun, 03 Jun 2018 21:38:04 GMT
+- ETag: "0f654ec1c79f36439b5b683c7ac563bc"
+- SHA-256: 0f53a676f32ecb4d6db6bc058d39b8920fc59ed88249130d0bcdd211d07dc95f
+- Pixel dimensions: 4900 x 5992
+
+Rights evidence
+---------------
+
+USGS rights FAQ:
+https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted?items_per_=&items_per_page=6&page=1
+
+Captured relevant USGS text:
+"All topographic maps produced by the U.S. Geological Survey (USGS) are in
+the public domain and are not copyrighted..."
+
+The FAQ states that USGS-produced topographic maps are public domain and not
+copyrighted, subject to three exceptions that apply only to US Topo maps from
+2009 onward.  This selected product is an 1890 Historical Topographic Map
+Collection scan, not a US Topo product, so none of those three exceptions
+applies.
+
+The official HTMC collection page also labels its historical-map material
+"Sources/Usage: Public Domain." and describes HTMC as scans of maps printed
+between 1884 and 2006:
+https://www.usgs.gov/programs/national-geospatial-program/historical-topographic-maps-preserving-past
+
+Recorded rights status: public_domain
+Recorded license label: U.S. Public Domain
+
+Scope and review warning
+------------------------
+
+This snapshot records the evidence used for this exact source selection.  It
+does not assert rights for any unresolved Korean source slot or for unrelated
+maps.  The six ordered centerlines currently stored for cal-01 are draft
+annotations only; they have not passed independent review or adjudication and
+must not be used to publish benchmark rankings.

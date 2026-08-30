@@ -371,6 +371,115 @@ class QgisSafetySourceTests(unittest.TestCase):
         self.assertIn("self._livewire_disabled", request)
         self.assertIn("self._livewire_failed_anchor == anchor_pixel", request)
 
+    def test_fast_livewire_click_waits_for_current_anchor_tree(self):
+        defer = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "_defer_click_until_livewire_ready",
+            "SmartTraceTool",
+        )
+        callback = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "_on_livewire_tree_finished",
+            "SmartTraceTool",
+        )
+        press = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "canvasPressEvent",
+            "SmartTraceTool",
+        )
+
+        self.assertIn("self._livewire_tree_is_ready()", defer)
+        self.assertIn("self.edge_method != EdgeDetector.METHOD_INK", defer)
+        self.assertIn("self._pending_livewire_accept_point = target", defer)
+        self.assertIn("self._pending_livewire_auto_accept = bool(auto_accept)", defer)
+        self.assertIn("pending_accept = self._pending_livewire_accept_point", callback)
+        self.assertIn("request_tree=False", callback)
+        self.assertIn("schedule_recovery=True", callback)
+        self.assertIn("self._pending_livewire_recovery_identity", callback)
+        self.assertIn("recovery_started", callback)
+        self.assertIn("self._commit_visible_livewire_segment", callback)
+        self.assertIn("self._defer_click_until_livewire_ready", press)
+        self.assertIn("The previous Ink point is still preparing", press)
+
+    def test_acceptance_preserves_enhanced_preview_and_cache_failure_drains_click(self):
+        press = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "canvasPressEvent",
+            "SmartTraceTool",
+        )
+        present = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "_present_livewire_cursor_preview",
+            "SmartTraceTool",
+        )
+        evidence_finished = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "_on_ink_evidence_finished",
+            "SmartTraceTool",
+        )
+
+        self.assertIn("accept_visible_enhanced", press)
+        self.assertIn("not accept_visible_enhanced", press)
+        self.assertGreaterEqual(press.count("schedule_recovery=False"), 2)
+        self.assertIn("schedule_recovery=True", present)
+        self.assertIn("and schedule_recovery", present)
+        self.assertIn("self._resolve_pending_livewire_fallback", evidence_finished)
+        self.assertIn("nearby=False", evidence_finished)
+
+    def test_path_rewind_invalidates_async_segment_state(self):
+        refresh = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "_refresh_after_path_rewind",
+            "SmartTraceTool",
+        )
+        undo_checkpoint = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "undo_to_checkpoint",
+            "SmartTraceTool",
+        )
+        undo_points = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "undo_points",
+            "SmartTraceTool",
+        )
+
+        self.assertIn("self._invalidate_recovery", refresh)
+        self.assertIn("self._clear_preview()", refresh)
+        self.assertIn("self._cancel_livewire_task()", refresh)
+        self.assertIn("self._livewire_generation += 1", refresh)
+        self.assertIn("self._pending_livewire_accept_point = None", refresh)
+        self.assertIn("self._request_livewire_tree(force=True)", refresh)
+        self.assertIn("self._refresh_after_path_rewind()", undo_checkpoint)
+        self.assertIn("self._refresh_after_path_rewind()", undo_points)
+
+    def test_polygon_close_uses_a_transactional_candidate(self):
+        press = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "canvasPressEvent",
+            "SmartTraceTool",
+        )
+        save_candidate = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "_save_closed_path_candidate",
+            "SmartTraceTool",
+        )
+        take_auto_path = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "_take_or_prepare_auto_path",
+            "SmartTraceTool",
+        )
+
+        self.assertNotIn("self.path_points.extend(closing_path)", press)
+        self.assertIn(
+            "if not near_start or not accept_visible_enhanced",
+            press,
+        )
+        self.assertIn("self._save_closed_path_candidate", press)
+        self.assertIn("confirmed_path = self.path_points", save_candidate)
+        self.assertIn("finally:", save_candidate)
+        self.assertIn("self.path_points = confirmed_path", save_candidate)
+        self.assertNotIn("self.path_points.extend", take_auto_path)
+
     def test_dem_processing_uses_exact_selected_project_layer(self):
         reference = _function_source(
             "ai_vectorizer/core/dem_pipeline.py",

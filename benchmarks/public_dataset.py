@@ -14,6 +14,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 from typing import Any, Mapping
 from urllib.parse import urlparse
 
@@ -41,6 +42,11 @@ PUBLIC_DATASET_STRATA = (
 _RIGHTS_STATUSES = frozenset({"unresolved", "public_domain", "open_license"})
 _MATERIALIZED_RIGHTS = frozenset({"public_domain", "open_license"})
 _MAX_PLAN_BYTES = 4 * 1024 * 1024
+_PROVENANCE_AUTHORITY = re.compile(
+    r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+    r"(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+"
+)
+_PROVENANCE_NAMESPACE = re.compile(r"[a-z0-9]+(?:[._-][a-z0-9]+)*")
 
 
 class PublicDatasetError(ValueError):
@@ -114,6 +120,58 @@ def _sha256(value: Any, label: str, *, required: bool) -> str | None:
     ):
         raise PublicDatasetError(f"{label} must be a lowercase SHA-256 digest")
     return value
+
+
+def _provenance_id(
+    value: Any,
+    label: str,
+    *,
+    required: bool,
+) -> tuple[str, str, str] | None:
+    if value is None and not required:
+        return None
+    record = _object(value, label)
+    if set(record) != {"authority", "namespace", "value"}:
+        raise PublicDatasetError(f"{label} has unsupported or missing fields")
+    authority = _text(record.get("authority"), f"{label}.authority") or ""
+    namespace = _text(record.get("namespace"), f"{label}.namespace") or ""
+    identifier = _text(record.get("value"), f"{label}.value") or ""
+    if len(authority) > 253 or _PROVENANCE_AUTHORITY.fullmatch(authority) is None:
+        raise PublicDatasetError(
+            f"{label}.authority must be a lowercase DNS authority"
+        )
+    if len(namespace) > 128 or _PROVENANCE_NAMESPACE.fullmatch(namespace) is None:
+        raise PublicDatasetError(
+            f"{label}.namespace must be a lowercase stable identifier namespace"
+        )
+    if len(identifier) > 512 or any(
+        character.isspace()
+        or ord(character) < 0x20
+        or ord(character) == 0x7F
+        for character in identifier
+    ):
+        raise PublicDatasetError(
+            f"{label}.value must be a non-whitespace immutable record identifier"
+        )
+    return authority, namespace, identifier
+
+
+def is_independently_accepted_annotation(value: Any) -> bool:
+    """Return whether two named, distinct people accepted an annotation."""
+
+    if not isinstance(value, Mapping):
+        return False
+    reviewer = value.get("reviewer_id")
+    adjudicator = value.get("adjudicator_id")
+    if not isinstance(reviewer, str) or not reviewer.strip():
+        return False
+    if not isinstance(adjudicator, str) or not adjudicator.strip():
+        return False
+    return (
+        reviewer.strip() != adjudicator.strip()
+        and value.get("review_status") == "approved"
+        and value.get("adjudication_status") == "accepted"
+    )
 
 
 def _file_sha256(path: Path) -> str:
@@ -202,8 +260,10 @@ def _validate_prompt(value: Any, width: int, height: int, label: str) -> None:
         raise PublicDatasetError(
             f"{label}.schema_version must be {PROMPT_EVIDENCE_SCHEMA_VERSION!r}"
         )
-    _point(prompt.get("start_xy"), width, height, f"{label}.start_xy")
-    _point(prompt.get("end_xy"), width, height, f"{label}.end_xy")
+    start = _point(prompt.get("start_xy"), width, height, f"{label}.start_xy")
+    end = _point(prompt.get("end_xy"), width, height, f"{label}.end_xy")
+    if start == end:
+        raise PublicDatasetError(f"{label} start_xy and end_xy must differ")
     previous = prompt.get("previous_xy")
     if previous is not None:
         _point(previous, width, height, f"{label}.previous_xy")
@@ -309,6 +369,7 @@ def validate_public_dataset_plan(
     source_raster_hashes_by_split = {
         split: set() for split in PUBLIC_DATASET_SPLITS
     }
+    provenance_ids: dict[tuple[str, str, str], str] = {}
 
     for sheet_index, raw_sheet in enumerate(sheets):
         label = f"sheets[{sheet_index}]"
@@ -344,6 +405,7 @@ def validate_public_dataset_plan(
             "publisher",
             "date_or_sheet",
             "source_url",
+            "provenance_id",
             "license",
             "rights_status",
             "rights_statement_url",
@@ -364,6 +426,19 @@ def validate_public_dataset_plan(
         source_url = _url(
             source.get("source_url"), f"{label}.source.source_url", required=is_open
         )
+        provenance_id = _provenance_id(
+            source.get("provenance_id"),
+            f"{label}.source.provenance_id",
+            required=is_open,
+        )
+        if provenance_id is not None:
+            previous_sheet = provenance_ids.get(provenance_id)
+            if previous_sheet is not None:
+                raise PublicDatasetError(
+                    f"{label}.source.provenance_id duplicates {previous_sheet}; "
+                    "immutable provenance ids must be globally unique across splits"
+                )
+            provenance_ids[provenance_id] = label
         _url(
             source.get("rights_statement_url"),
             f"{label}.source.rights_statement_url",
@@ -540,6 +615,22 @@ def validate_public_dataset_plan(
                     raise PublicDatasetError(
                         f"{crop_label}.ordered_reference must contain an ordered centerline"
                     )
+                for path_index, path_record in enumerate(reference.paths):
+                    if not any(
+                        math.hypot(
+                            second[0] - first[0],
+                            second[1] - first[1],
+                        )
+                        > 0.0
+                        for first, second in zip(
+                            path_record.points,
+                            path_record.points[1:],
+                        )
+                    ):
+                        raise PublicDatasetError(
+                            f"{crop_label}.ordered_reference.paths[{path_index}] "
+                            "must have positive geometric length"
+                        )
 
             prompt = crop.get("prompt")
             if prompt is None:
@@ -579,12 +670,13 @@ def validate_public_dataset_plan(
                 raise PublicDatasetError(
                     f"{crop_label} reviewer_id and adjudicator_id must be independent"
                 )
-            if not (
-                reviewer
-                and adjudicator
-                and review_status == "approved"
-                and adjudication_status == "accepted"
-            ):
+            normalized_annotation = {
+                "reviewer_id": reviewer,
+                "review_status": review_status,
+                "adjudicator_id": adjudicator,
+                "adjudication_status": adjudication_status,
+            }
+            if not is_independently_accepted_annotation(normalized_annotation):
                 materialized = False
             split_crop_counts[split] += 1
 
@@ -645,5 +737,6 @@ __all__ = [
     "PUBLIC_DATASET_STRATA",
     "PublicDatasetError",
     "PublicDatasetReport",
+    "is_independently_accepted_annotation",
     "validate_public_dataset_plan",
 ]

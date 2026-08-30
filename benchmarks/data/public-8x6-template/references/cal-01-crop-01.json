@@ -1,0 +1,51 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-clean-contour",
+      "closed": false,
+      "points": [
+        [164, 100],
+        [162, 127],
+        [142, 151],
+        [138, 183],
+        [143, 220],
+        [160, 245],
+        [188, 256],
+        [219, 241],
+        [245, 220],
+        [260, 221],
+        [268, 239],
+        [260, 261],
+        [242, 279],
+        [218, 283],
+        [202, 299],
+        [209, 316],
+        [235, 330],
+        [253, 351],
+        [271, 372],
+        [297, 384],
+        [309, 410],
+        [309, 430],
+        [293, 447],
+        [257, 445],
+        [220, 435],
+        [180, 429],
+        [147, 437],
+        [112, 452],
+        [79, 454]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop",
+    "target_description": "one continuous brown contour through an otherwise clean field",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

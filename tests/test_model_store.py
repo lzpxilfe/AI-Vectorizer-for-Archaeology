@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 import urllib.error
 from unittest import mock
@@ -36,6 +37,7 @@ from ai_vectorizer.core.model_store import (
     fetch_bundle,
     inspect_bundle,
     read_verified_bytes,
+    repair_bundle,
     resolve_bundle,
 )
 
@@ -226,6 +228,62 @@ class ModelStoreTests(unittest.TestCase):
                 resolve_bundle(root, spec)
             self.assertFalse(root.exists())
 
+    def test_windows_reparse_attributes_are_unsafe_for_directories_and_files(self):
+        reparse_flag = getattr(
+            model_store.stat,
+            "FILE_ATTRIBUTE_REPARSE_POINT",
+            0x400,
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder) / "directory"
+            directory.mkdir()
+            real_directory = os.lstat(directory)
+            fake_directory = SimpleNamespace(
+                st_mode=real_directory.st_mode,
+                st_file_attributes=reparse_flag,
+            )
+            with mock.patch.object(
+                model_store.os,
+                "lstat",
+                return_value=fake_directory,
+            ):
+                with self.assertRaisesRegex(
+                    ModelCacheSafetyError,
+                    "reparse point",
+                ):
+                    model_store._require_safe_directory(
+                        directory,
+                        "test directory",
+                    )
+
+            payload = b"model"
+            artifact = _artifact("encoder", payload)
+            spec = _bundle(artifact)
+            root = Path(folder) / "cache"
+            destination = _cache_path(root, artifact)
+            destination.parent.mkdir(parents=True)
+            destination.write_bytes(payload)
+            real_lstat = model_store.os.lstat
+
+            def mark_artifact(path):
+                information = real_lstat(path)
+                if Path(path) == destination:
+                    return SimpleNamespace(
+                        st_mode=information.st_mode,
+                        st_file_attributes=reparse_flag,
+                    )
+                return information
+
+            with mock.patch.object(
+                model_store.os,
+                "lstat",
+                side_effect=mark_artifact,
+            ), mock.patch.object(model_store.os, "supports_dir_fd", set()):
+                self.assertEqual(
+                    inspect_bundle(root, spec).artifact("encoder").state,
+                    STATE_UNSAFE,
+                )
+
     def test_fetch_publishes_verified_content_addressed_objects_and_reuses_them_offline(self):
         spec, payloads, by_url = self._pair()
         transport = FakeTransport(by_url)
@@ -284,6 +342,37 @@ class ModelStoreTests(unittest.TestCase):
 
             self.assertEqual(transport.calls, [])
             self.assertFalse(root.exists())
+
+    def test_ready_bundle_is_the_late_cancellation_commit_point(self):
+        payload = b"model"
+        artifact = _artifact("encoder", payload)
+        spec = _bundle(artifact)
+        for label, corrupt_first, action in (
+            ("fetch", False, fetch_bundle),
+            ("repair", True, repair_bundle),
+        ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder) / "cache"
+                destination = _cache_path(root, artifact)
+                if corrupt_first:
+                    destination.parent.mkdir(parents=True)
+                    destination.write_bytes(b"wrong")
+
+                def cancelled_only_after_verified_publish():
+                    try:
+                        return destination.read_bytes() == payload
+                    except FileNotFoundError:
+                        return False
+
+                verified = action(
+                    root,
+                    spec,
+                    transport=FakeTransport({artifact.url: payload}),
+                    cancel_check=cancelled_only_after_verified_publish,
+                )
+
+                self.assertEqual(verified.read_bytes("encoder"), payload)
+                self.assertTrue(inspect_bundle(root, spec).ready)
 
     def test_fetch_honours_midstream_cancellation_and_removes_partial(self):
         payload = b"x" * (DOWNLOAD_CHUNK_BYTES + 17)
@@ -429,7 +518,15 @@ class ModelStoreTests(unittest.TestCase):
             temporary.write_bytes(b"verified bytes")
             expected_parent = os.lstat(parent)
 
-            with mock.patch.object(model_store.os, "supports_dir_fd", set()):
+            with mock.patch.object(
+                model_store.os,
+                "supports_dir_fd",
+                set(),
+            ), mock.patch.object(
+                model_store.os,
+                "supports_follow_symlinks",
+                set(),
+            ):
                 with mock.patch.object(
                     model_store.os,
                     "open",
@@ -590,6 +687,252 @@ class ModelStoreTests(unittest.TestCase):
                 self.assertEqual(destination.is_dir(), before_is_directory)
                 if before is not None:
                     self.assertEqual(destination.read_bytes(), before)
+
+    def test_explicit_repair_replaces_only_corrupt_regular_objects(self):
+        payload = b"model"
+        artifact = _artifact("encoder", payload)
+        spec = _bundle(artifact)
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "cache"
+            destination = _cache_path(root, artifact)
+            destination.parent.mkdir(parents=True)
+            destination.write_bytes(b"wrong")
+            transport = FakeTransport({artifact.url: payload})
+
+            verified = repair_bundle(root, spec, transport=transport)
+
+            self.assertEqual(verified.read_bytes("encoder"), payload)
+            self.assertEqual(destination.read_bytes(), payload)
+            self.assertEqual(len(transport.calls), 1)
+            self.assertEqual(list(root.rglob("*.corrupt")), [])
+            self.assertTrue(inspect_bundle(root, spec).ready)
+
+    def test_explicit_repair_has_a_checked_no_dir_fd_fallback(self):
+        payload = b"model"
+        artifact = _artifact("encoder", payload)
+        spec = _bundle(artifact)
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "cache"
+            destination = _cache_path(root, artifact)
+            destination.parent.mkdir(parents=True)
+            destination.write_bytes(b"wrong")
+            with mock.patch.object(model_store.os, "supports_dir_fd", set()):
+                verified = repair_bundle(
+                    root,
+                    spec,
+                    transport=FakeTransport({artifact.url: payload}),
+                )
+
+            self.assertEqual(verified.read_bytes("encoder"), payload)
+            self.assertEqual(list(root.rglob("*.corrupt")), [])
+
+    def test_quarantine_keeps_exact_link_if_source_disappears_after_link(self):
+        with tempfile.TemporaryDirectory() as folder:
+            parent = Path(folder)
+            source = parent / "source"
+            quarantine = parent / "quarantine"
+            payload = b"corrupt-but-recoverable"
+            source.write_bytes(payload)
+            source_information = os.lstat(source)
+            parent_information = model_store._safe_parent_stat(parent)
+            real_lstat = model_store._entry_lstat
+            source_checks = 0
+
+            def concurrent_remove(parent_arg, name, descriptor):
+                nonlocal source_checks
+                if name == source.name:
+                    source_checks += 1
+                    if source_checks == 2:
+                        model_store._unlink_entry(
+                            parent_arg,
+                            name,
+                            descriptor,
+                        )
+                        raise FileNotFoundError(source)
+                return real_lstat(parent_arg, name, descriptor)
+
+            with mock.patch.object(
+                model_store,
+                "_entry_lstat",
+                side_effect=concurrent_remove,
+            ):
+                moved = model_store._move_regular_no_replace(
+                    source,
+                    quarantine,
+                    source_information,
+                    parent_information,
+                )
+
+            self.assertFalse(source.exists())
+            self.assertEqual(quarantine.read_bytes(), payload)
+            self.assertTrue(os.path.samestat(moved, os.lstat(quarantine)))
+
+    def test_directory_fsync_failure_does_not_hide_a_committed_quarantine(self):
+        with tempfile.TemporaryDirectory() as folder:
+            parent = Path(folder)
+            source = parent / "source"
+            quarantine = parent / "quarantine"
+            payload = b"corrupt-but-recoverable"
+            source.write_bytes(payload)
+            source_information = os.lstat(source)
+            parent_information = model_store._safe_parent_stat(parent)
+
+            with mock.patch.object(
+                model_store.os,
+                "fsync",
+                side_effect=OSError("directory fsync unsupported"),
+            ):
+                moved = model_store._move_regular_no_replace(
+                    source,
+                    quarantine,
+                    source_information,
+                    parent_information,
+                )
+
+            self.assertFalse(source.exists())
+            self.assertEqual(quarantine.read_bytes(), payload)
+            self.assertTrue(os.path.samestat(moved, os.lstat(quarantine)))
+
+    def test_restore_accepts_a_verified_concurrent_winner(self):
+        payload = b"model"
+        artifact = _artifact("encoder", payload)
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "cache"
+            destination = _cache_path(root, artifact)
+            destination.parent.mkdir(parents=True)
+            quarantine = destination.parent / ".encoder.race.corrupt"
+            quarantine.write_bytes(b"wrong")
+            quarantine_information = os.lstat(quarantine)
+
+            def concurrent_winner(*_args, **_kwargs):
+                destination.write_bytes(payload)
+                raise FileExistsError(destination)
+
+            with mock.patch.object(
+                model_store,
+                "_move_regular_no_replace",
+                side_effect=concurrent_winner,
+            ):
+                model_store._restore_quarantined_artifacts(
+                    root,
+                    ((artifact, quarantine, quarantine_information),),
+                )
+
+            self.assertEqual(destination.read_bytes(), payload)
+            self.assertFalse(quarantine.exists())
+
+    def test_failed_or_cancelled_repair_restores_the_corrupt_object(self):
+        payload = b"model"
+        artifact = _artifact("encoder", payload)
+        spec = _bundle(artifact)
+        for label, transport, cancel_check, error_type in (
+            (
+                "download-failure",
+                FakeTransport({artifact.url: OSError("offline")}),
+                None,
+                ModelDownloadError,
+            ),
+            (
+                "cancel-before-fetch",
+                FakeTransport({artifact.url: payload}),
+                mock.Mock(side_effect=[False, False, True]),
+                ModelDownloadCancelled,
+            ),
+        ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder) / "cache"
+                destination = _cache_path(root, artifact)
+                destination.parent.mkdir(parents=True)
+                corrupt = b"wrong"
+                destination.write_bytes(corrupt)
+
+                with self.assertRaises(error_type):
+                    repair_bundle(
+                        root,
+                        spec,
+                        transport=transport,
+                        cancel_check=cancel_check,
+                    )
+
+                self.assertEqual(destination.read_bytes(), corrupt)
+                self.assertEqual(list(root.rglob("*.corrupt")), [])
+                self.assertEqual(
+                    inspect_bundle(root, spec).artifact("encoder").state,
+                    STATE_CORRUPT,
+                )
+
+    def test_split_repair_keeps_verified_first_replacement_when_second_fails(self):
+        spec, payloads, by_url = self._pair()
+        second = spec.artifacts[1]
+        for label, injected_error in (
+            ("failure", ModelDownloadError("decoder failed")),
+            ("cancel", ModelDownloadCancelled("decoder cancelled")),
+        ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder) / "cache"
+                original = {
+                    "encoder": b"wrong-encoder",
+                    "decoder": b"wrong-decoder",
+                }
+                for artifact in spec.artifacts:
+                    destination = _cache_path(root, artifact)
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    destination.write_bytes(original[artifact.identifier])
+
+                real_download = model_store._download_artifact
+
+                def fail_second(root_arg, artifact_arg, **kwargs):
+                    if artifact_arg.identifier == second.identifier:
+                        raise injected_error
+                    return real_download(root_arg, artifact_arg, **kwargs)
+
+                with mock.patch.object(
+                    model_store,
+                    "_download_artifact",
+                    side_effect=fail_second,
+                ):
+                    with self.assertRaises(type(injected_error)):
+                        repair_bundle(
+                            root,
+                            spec,
+                            transport=FakeTransport(by_url),
+                        )
+
+                encoder = spec.artifacts[0]
+                self.assertEqual(
+                    _cache_path(root, encoder).read_bytes(),
+                    payloads[encoder.identifier],
+                )
+                self.assertEqual(
+                    inspect_bundle(root, spec).artifact("encoder").state,
+                    STATE_READY,
+                )
+                self.assertEqual(
+                    _cache_path(root, second).read_bytes(),
+                    original[second.identifier],
+                )
+                self.assertEqual(
+                    inspect_bundle(root, spec).artifact("decoder").state,
+                    STATE_CORRUPT,
+                )
+                self.assertEqual(list(root.rglob("*.corrupt")), [])
+
+    def test_explicit_repair_never_changes_an_unsafe_object(self):
+        payload = b"model"
+        artifact = _artifact("encoder", payload)
+        spec = _bundle(artifact)
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "cache"
+            destination = _cache_path(root, artifact)
+            destination.parent.mkdir(parents=True)
+            destination.mkdir()
+            transport = FakeTransport({artifact.url: payload})
+
+            with self.assertRaises(ModelCacheSafetyError):
+                repair_bundle(root, spec, transport=transport)
+
+            self.assertTrue(destination.is_dir())
+            self.assertEqual(transport.calls, [])
 
     def test_concurrent_valid_winner_is_reused_but_invalid_winner_is_preserved_and_rejected(self):
         payload = b"model"

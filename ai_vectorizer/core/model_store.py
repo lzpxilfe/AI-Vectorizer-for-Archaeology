@@ -1,8 +1,8 @@
 """Verified, content-addressed storage for pinned local model artifacts.
 
-Only :func:`fetch_bundle` may open the network.  Inspection, resolution, and
-loading are deliberately offline operations so benchmark execution cannot
-silently change its model inputs.
+Only the explicit :func:`fetch_bundle` and :func:`repair_bundle` actions may
+open the network. Inspection, resolution, and loading are deliberately
+offline operations so benchmark execution cannot silently change model input.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ import hashlib
 import math
 import os
 from pathlib import Path
+import secrets
 import stat
 import tempfile
 import time
@@ -196,6 +197,13 @@ def _lexists(path: Path) -> bool:
     return os.path.lexists(os.fspath(path))
 
 
+def _is_windows_reparse_point(information: os.stat_result) -> bool:
+    """Reject junctions and other name-surrogate objects on Python 3.8+."""
+
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return bool(getattr(information, "st_file_attributes", 0) & reparse_flag)
+
+
 def _require_safe_directory(path: Path, label: str) -> os.stat_result:
     try:
         information = os.lstat(path)
@@ -203,8 +211,10 @@ def _require_safe_directory(path: Path, label: str) -> os.stat_result:
         raise ModelNotFoundError(f"{label} is missing: {path}") from exc
     except OSError as exc:
         raise ModelCacheSafetyError(f"Could not inspect {label} {path}: {exc}") from exc
-    if stat.S_ISLNK(information.st_mode):
-        raise ModelCacheSafetyError(f"{label} must not be a symbolic link: {path}")
+    if stat.S_ISLNK(information.st_mode) or _is_windows_reparse_point(information):
+        raise ModelCacheSafetyError(
+            f"{label} must not be a symbolic link or reparse point: {path}"
+        )
     if not stat.S_ISDIR(information.st_mode):
         raise ModelCacheSafetyError(f"{label} is not a directory: {path}")
     return information
@@ -345,10 +355,12 @@ def _read_verified_file(path: Path, artifact: ArtifactSpec, *, collect: bool) ->
         if directory_descriptor is not None:
             os.close(directory_descriptor)
         raise ModelCacheSafetyError(f"Could not inspect model artifact {path}: {exc}") from exc
-    if stat.S_ISLNK(before.st_mode):
+    if stat.S_ISLNK(before.st_mode) or _is_windows_reparse_point(before):
         if directory_descriptor is not None:
             os.close(directory_descriptor)
-        raise ModelCacheSafetyError(f"Model artifact must not be a symbolic link: {path}")
+        raise ModelCacheSafetyError(
+            f"Model artifact must not be a symbolic link or reparse point: {path}"
+        )
     if not stat.S_ISREG(before.st_mode):
         if directory_descriptor is not None:
             os.close(directory_descriptor)
@@ -560,6 +572,232 @@ def _safe_parent_stat(parent: Path) -> os.stat_result:
     return _require_safe_directory(parent, "model cache digest directory")
 
 
+@contextmanager
+def _pinned_model_directory(parent: Path, expected: os.stat_result):
+    """Pin a digest directory for name-based repair mutations when possible."""
+
+    use_directory_descriptor = all(
+        operation in getattr(os, "supports_dir_fd", set())
+        for operation in (os.open, os.stat, os.link, os.unlink)
+    )
+    directory_descriptor = None
+    if use_directory_descriptor:
+        flags = (
+            os.O_RDONLY
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        try:
+            directory_descriptor = os.open(parent, flags)
+            if not os.path.samestat(expected, os.fstat(directory_descriptor)):
+                raise ModelCacheSafetyError(
+                    "Model cache directory changed before repair mutation."
+                )
+        except Exception:
+            if directory_descriptor is not None:
+                os.close(directory_descriptor)
+            raise
+    else:
+        if not os.path.samestat(expected, _safe_parent_stat(parent)):
+            raise ModelCacheSafetyError(
+                "Model cache directory changed before repair mutation."
+            )
+
+    try:
+        yield directory_descriptor
+    finally:
+        try:
+            if directory_descriptor is None and not os.path.samestat(
+                expected,
+                _safe_parent_stat(parent),
+            ):
+                raise ModelCacheSafetyError(
+                    "Model cache directory changed during repair mutation."
+                )
+        finally:
+            if directory_descriptor is not None:
+                os.close(directory_descriptor)
+
+
+def _entry_lstat(
+    parent: Path,
+    name: str,
+    directory_descriptor: Optional[int],
+) -> os.stat_result:
+    if directory_descriptor is None:
+        return os.lstat(parent / name)
+    return os.stat(
+        name,
+        dir_fd=directory_descriptor,
+        follow_symlinks=False,
+    )
+
+
+def _unlink_entry(
+    parent: Path,
+    name: str,
+    directory_descriptor: Optional[int],
+) -> None:
+    if directory_descriptor is None:
+        os.unlink(parent / name)
+    else:
+        os.unlink(name, dir_fd=directory_descriptor)
+
+
+def _unlink_if_same(
+    parent: Path,
+    name: str,
+    expected: os.stat_result,
+    directory_descriptor: Optional[int],
+) -> bool:
+    try:
+        current = _entry_lstat(parent, name, directory_descriptor)
+    except FileNotFoundError:
+        return False
+    if not os.path.samestat(expected, current):
+        return False
+    _unlink_entry(parent, name, directory_descriptor)
+    return True
+
+
+def _fsync_directory_after_commit(directory_descriptor: Optional[int]) -> None:
+    """Best-effort durability hint after an already-committed name change."""
+
+    if directory_descriptor is None or os.name != "posix":
+        return
+    try:
+        os.fsync(directory_descriptor)
+    # Some valid FUSE/NFS directory descriptors reject fsync. The logical
+    # link/unlink transaction is already committed and must not be reported
+    # as failed, because the caller would not yet know the quarantine name.
+    except OSError:  # nosec B110
+        pass
+
+
+def _move_regular_no_replace(
+    source: Path,
+    destination: Path,
+    expected_source: os.stat_result,
+    expected_parent: os.stat_result,
+) -> os.stat_result:
+    """Move an exact regular entry via a pinned, no-replace hard link."""
+
+    if source.parent != destination.parent:
+        raise ModelCacheSafetyError("Model repair move must stay in one digest directory.")
+    parent = source.parent
+    with _pinned_model_directory(parent, expected_parent) as directory_descriptor:
+        current = _entry_lstat(parent, source.name, directory_descriptor)
+        if (
+            not stat.S_ISREG(current.st_mode)
+            or _is_windows_reparse_point(current)
+            or not os.path.samestat(expected_source, current)
+        ):
+            raise ModelCacheSafetyError(
+                f"Model repair source changed before move: {source}"
+            )
+        try:
+            if directory_descriptor is None:
+                if os.link in getattr(os, "supports_follow_symlinks", set()):
+                    os.link(source, destination, follow_symlinks=False)
+                else:
+                    os.link(source, destination)
+            else:
+                os.link(
+                    source.name,
+                    destination.name,
+                    src_dir_fd=directory_descriptor,
+                    dst_dir_fd=directory_descriptor,
+                    follow_symlinks=False,
+                )
+        except FileExistsError:
+            raise
+        except OSError as exc:
+            raise ModelCacheSafetyError(
+                f"Could not quarantine model artifact {source}: {exc}"
+            ) from exc
+
+        linked = _entry_lstat(parent, destination.name, directory_descriptor)
+        if (
+            not stat.S_ISREG(linked.st_mode)
+            or _is_windows_reparse_point(linked)
+            or not os.path.samestat(expected_source, linked)
+        ):
+            _unlink_if_same(
+                parent,
+                destination.name,
+                linked,
+                directory_descriptor,
+            )
+            raise ModelCacheSafetyError(
+                f"Unexpected object linked during model repair: {destination}"
+            )
+        try:
+            source_now = _entry_lstat(
+                parent,
+                source.name,
+                directory_descriptor,
+            )
+        except FileNotFoundError:
+            # The exact inode is already pinned at destination, so a
+            # concurrent removal completed the effective move.
+            _fsync_directory_after_commit(directory_descriptor)
+            return linked
+        if (
+            _is_windows_reparse_point(source_now)
+            or not os.path.samestat(expected_source, source_now)
+        ):
+            _unlink_if_same(
+                parent,
+                destination.name,
+                linked,
+                directory_descriptor,
+            )
+            raise ModelCacheSafetyError(
+                f"Model repair source changed during move: {source}"
+            )
+        try:
+            _unlink_entry(parent, source.name, directory_descriptor)
+        except FileNotFoundError:
+            # A concurrent same-user removal completed the effective move;
+            # the exact original inode remains recoverable at destination.
+            pass
+        except OSError:
+            _unlink_if_same(
+                parent,
+                destination.name,
+                linked,
+                directory_descriptor,
+            )
+            raise
+        _fsync_directory_after_commit(directory_descriptor)
+        return linked
+
+
+def _unlink_exact_regular(
+    path: Path,
+    expected: os.stat_result,
+    expected_parent: os.stat_result,
+) -> None:
+    """Unlink only the exact regular inode from a pinned digest directory."""
+
+    with _pinned_model_directory(
+        path.parent,
+        expected_parent,
+    ) as directory_descriptor:
+        current = _entry_lstat(path.parent, path.name, directory_descriptor)
+        if (
+            not stat.S_ISREG(current.st_mode)
+            or _is_windows_reparse_point(current)
+            or not os.path.samestat(expected, current)
+        ):
+            raise ModelCacheSafetyError(
+                f"Model repair object changed before removal: {path}"
+            )
+        _unlink_entry(path.parent, path.name, directory_descriptor)
+        _fsync_directory_after_commit(directory_descriptor)
+
+
 def _publish_no_replace(
     temporary: Path,
     destination: Path,
@@ -740,7 +978,11 @@ def _download_artifact(
         current_parent = _safe_parent_stat(parent)
         if not os.path.samestat(parent_information, current_parent):
             raise ModelCacheSafetyError("Model cache directory changed during download.")
-        if not stat.S_ISREG(os.lstat(temporary).st_mode):
+        temporary_information = os.lstat(temporary)
+        if (
+            not stat.S_ISREG(temporary_information.st_mode)
+            or _is_windows_reparse_point(temporary_information)
+        ):
             raise ModelCacheSafetyError("Model temporary path is no longer a regular file.")
 
         try:
@@ -762,19 +1004,13 @@ def _download_artifact(
                 pass
 
 
-def fetch_bundle(
-    cache_root,
-    spec: ModelBundleSpec = EFFICIENTSAM_TI_SPLIT,
-    *,
-    transport: Optional[Callable] = None,
-    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
-    cancel_check: Optional[Callable[[], bool]] = None,
-) -> VerifiedBundle:
-    """Explicitly fetch missing artifacts, then return the verified bundle.
-
-    Existing corrupt or unsafe objects are never overwritten.  Callers must
-    make a separate, deliberate repair decision for such cache contents.
-    """
+def _validated_fetch_options(
+    spec: ModelBundleSpec,
+    transport: Optional[Callable],
+    timeout_seconds: float,
+    cancel_check: Optional[Callable[[], bool]],
+) -> Tuple[Callable, float]:
+    """Validate network options before any cache mutation."""
 
     _validate_bundle_contract(spec)
     if (
@@ -789,6 +1025,159 @@ def fetch_bundle(
         raise TypeError("transport must be callable.")
     if cancel_check is not None and not callable(cancel_check):
         raise TypeError("cancel_check must be callable or None.")
+    return selected_transport, float(timeout_seconds)
+
+
+def _quarantine_corrupt_artifact(
+    root: Path,
+    artifact: ArtifactSpec,
+) -> Optional[Tuple[Path, os.stat_result]]:
+    """Move one verified-corrupt regular object aside without deleting it."""
+
+    status = _artifact_status(root, artifact)
+    if status.state in {STATE_READY, STATE_MISSING}:
+        return None
+    if status.state == STATE_UNSAFE:
+        raise ModelCacheSafetyError(status.detail or "Cached model artifact is unsafe.")
+
+    parent = _managed_parent(root, artifact, create=False)
+    parent_information = _safe_parent_stat(parent)
+    destination = _artifact_path(root, artifact)
+    before = os.lstat(destination)
+    if not stat.S_ISREG(before.st_mode):
+        raise ModelCacheSafetyError(
+            f"Corrupt model artifact is no longer a regular file: {destination}"
+        )
+
+    # Re-read immediately before the move. A valid concurrent replacement is
+    # reused, while an unsafe replacement is never renamed or removed.
+    try:
+        _read_verified_file(destination, artifact, collect=False)
+    except ModelIntegrityError:
+        pass
+    else:
+        return None
+
+    for _attempt in range(16):
+        quarantine = parent / (
+            f".{artifact.identifier}.{secrets.token_hex(12)}.corrupt"
+        )
+        try:
+            moved = _move_regular_no_replace(
+                destination,
+                quarantine,
+                before,
+                parent_information,
+            )
+        except FileExistsError:
+            continue
+        return quarantine, moved
+    raise ModelCacheSafetyError(
+        f"Could not allocate a unique quarantine name for {destination}."
+    )
+
+
+def _restore_quarantined_artifacts(
+    root: Path,
+    quarantined: Tuple[Tuple[ArtifactSpec, Path, os.stat_result], ...],
+) -> None:
+    """Restore corrupt objects only where no verified replacement exists."""
+
+    failures = []
+    for artifact, quarantine, expected in reversed(quarantined):
+        destination = _artifact_path(root, artifact)
+        if not _lexists(quarantine):
+            continue
+        try:
+            parent = _managed_parent(root, artifact, create=False)
+            parent_information = _safe_parent_stat(parent)
+            if _lexists(destination):
+                # Publication is monotonic: never remove a hash-verified
+                # replacement that another process may already be using.
+                _read_verified_file(destination, artifact, collect=False)
+                _discard_quarantined_artifacts(
+                    root,
+                    ((artifact, quarantine, expected),),
+                )
+                continue
+
+            current = os.lstat(quarantine)
+            if (
+                not stat.S_ISREG(current.st_mode)
+                or not os.path.samestat(expected, current)
+                or quarantine.parent != parent
+            ):
+                failures.append(str(quarantine))
+                continue
+            try:
+                _move_regular_no_replace(
+                    quarantine,
+                    destination,
+                    current,
+                    parent_information,
+                )
+            except FileExistsError:
+                # A verified concurrent repair winner is monotonic. Keep it
+                # and remove only the exact obsolete quarantine.
+                _read_verified_file(destination, artifact, collect=False)
+                _discard_quarantined_artifacts(
+                    root,
+                    ((artifact, quarantine, expected),),
+                )
+        except Exception:
+            failures.append(str(quarantine))
+    if failures:
+        raise ModelCacheSafetyError(
+            "Could not restore quarantined model artifact(s): " + ", ".join(failures)
+        )
+
+
+def _discard_quarantined_artifacts(
+    root: Path,
+    quarantined: Tuple[Tuple[ArtifactSpec, Path, os.stat_result], ...],
+) -> None:
+    """Delete only exact corrupt objects after their replacements verify."""
+
+    for artifact, quarantine, expected in quarantined:
+        if not _lexists(quarantine):
+            continue
+        parent = _managed_parent(root, artifact, create=False)
+        parent_information = _safe_parent_stat(parent)
+        current = os.lstat(quarantine)
+        if (
+            not stat.S_ISREG(current.st_mode)
+            or not os.path.samestat(expected, current)
+            or quarantine.parent != parent
+        ):
+            # An unexpected local object is not ours to delete.
+            continue
+        _unlink_exact_regular(
+            quarantine,
+            expected,
+            parent_information,
+        )
+
+
+def fetch_bundle(
+    cache_root,
+    spec: ModelBundleSpec = EFFICIENTSAM_TI_SPLIT,
+    *,
+    transport: Optional[Callable] = None,
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    cancel_check: Optional[Callable[[], bool]] = None,
+) -> VerifiedBundle:
+    """Explicitly fetch missing artifacts, then return the verified bundle.
+
+    Existing corrupt or unsafe objects are never overwritten.  Callers must
+    make a separate, deliberate repair decision for such cache contents.
+    """
+
+    selected_transport, validated_timeout = _validated_fetch_options(
+        spec,
+        transport,
+        timeout_seconds,
+        cancel_check,
+    )
 
     _raise_if_cancelled(cancel_check)
     root = _normal_root(cache_root)
@@ -806,11 +1195,88 @@ def fetch_bundle(
             root,
             artifact,
             transport=selected_transport,
-            timeout_seconds=float(timeout_seconds),
+            timeout_seconds=validated_timeout,
             cancel_check=cancel_check,
         )
-    _raise_if_cancelled(cancel_check)
     return resolve_bundle(root, spec)
+
+
+def repair_bundle(
+    cache_root,
+    spec: ModelBundleSpec = EFFICIENTSAM_TI_SPLIT,
+    *,
+    transport: Optional[Callable] = None,
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    cancel_check: Optional[Callable[[], bool]] = None,
+) -> VerifiedBundle:
+    """Explicitly repair corrupt regular objects and fetch missing artifacts.
+
+    Corrupt content-addressed files are moved aside only after a second safe
+    inspection. An unfinished artifact is restored after failure or cancel;
+    any already-published hash-verified replacement is retained monotonically
+    and its obsolete quarantine is removed. Unsafe paths (including symlinks
+    and directories) are never changed.
+    """
+
+    selected_transport, validated_timeout = _validated_fetch_options(
+        spec,
+        transport,
+        timeout_seconds,
+        cancel_check,
+    )
+    _raise_if_cancelled(cancel_check)
+    root = _normal_root(cache_root)
+    status = inspect_bundle(root, spec)
+    unsafe = [item for item in status.artifacts if item.state == STATE_UNSAFE]
+    if unsafe:
+        raise ModelCacheSafetyError(
+            "; ".join(item.detail or item.spec.identifier for item in unsafe)
+        )
+
+    quarantined_items = []
+    try:
+        for artifact_status in status.artifacts:
+            _raise_if_cancelled(cancel_check)
+            if artifact_status.state != STATE_CORRUPT:
+                continue
+            moved = _quarantine_corrupt_artifact(root, artifact_status.spec)
+            if moved is not None:
+                quarantine, information = moved
+                quarantined_items.append(
+                    (artifact_status.spec, quarantine, information)
+                )
+        quarantined = tuple(quarantined_items)
+        _create_safe_directory(root, "model cache root", parents=True)
+        for artifact in spec.artifacts:
+            _raise_if_cancelled(cancel_check)
+            current = _artifact_status(root, artifact)
+            if current.state == STATE_READY:
+                continue
+            if current.state == STATE_CORRUPT:
+                raise ModelIntegrityError(
+                    current.detail or "Cached model artifact is corrupt."
+                )
+            if current.state == STATE_UNSAFE:
+                raise ModelCacheSafetyError(
+                    current.detail or "Cached model artifact is unsafe."
+                )
+            _download_artifact(
+                root,
+                artifact,
+                transport=selected_transport,
+                timeout_seconds=validated_timeout,
+                cancel_check=cancel_check,
+            )
+        bundle = resolve_bundle(root, spec)
+    except Exception:
+        _restore_quarantined_artifacts(
+            root,
+            tuple(quarantined_items),
+        )
+        raise
+
+    _discard_quarantined_artifacts(root, quarantined)
+    return bundle
 
 
 __all__ = [
@@ -834,6 +1300,7 @@ __all__ = [
     "bundle_fingerprint",
     "fetch_bundle",
     "inspect_bundle",
+    "repair_bundle",
     "read_verified_bytes",
     "resolve_bundle",
 ]

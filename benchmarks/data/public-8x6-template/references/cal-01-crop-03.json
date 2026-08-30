@@ -1,0 +1,44 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-broken-third-creek",
+      "closed": false,
+      "points": [
+        [5, 24],
+        [32, 35],
+        [65, 48],
+        [96, 66],
+        [126, 89],
+        [155, 99],
+        [181, 98],
+        [207, 110],
+        [235, 122],
+        [260, 136],
+        [285, 149],
+        [307, 165],
+        [323, 185],
+        [337, 207],
+        [348, 230],
+        [365, 246],
+        [390, 258],
+        [416, 274],
+        [442, 287],
+        [470, 292],
+        [495, 286],
+        [508, 277]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop",
+    "target_description": "faded blue dash-and-dot Third Creek line crossing a label",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-thick-platte-channel",
+      "closed": false,
+      "points": [
+        [374, 6],
+        [368, 37],
+        [341, 66],
+        [322, 102],
+        [301, 135],
+        [276, 166],
+        [234, 177],
+        [199, 173],
+        [178, 183],
+        [166, 214],
+        [153, 245],
+        [139, 278],
+        [116, 302],
+        [91, 326],
+        [76, 353],
+        [72, 382],
+        [83, 407],
+        [112, 421],
+        [125, 439],
+        [104, 455],
+        [70, 461],
+        [43, 469],
+        [24, 485],
+        [6, 487]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop",
+    "target_description": "center of a thick blue Platte River channel",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

@@ -550,6 +550,115 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         self.assertIsNone(task.error)
         self.assertIsNone(task.bundle)
 
+    def test_recovery_install_task_uses_explicit_corrupt_object_repair(self):
+        from ai_vectorizer.core import model_store
+        from ai_vectorizer.ui.main_dialog import _RecoveryInstallTask
+
+        callback = mock.Mock()
+        repaired = object()
+        task = _RecoveryInstallTask(
+            "/unused/cache",
+            callback,
+            repair_corrupt=True,
+        )
+        with mock.patch.object(
+            model_store,
+            "repair_bundle",
+            return_value=repaired,
+        ) as repair, mock.patch.object(model_store, "fetch_bundle") as fetch:
+            self.assertTrue(task.run(), task.error)
+
+        repair.assert_called_once()
+        fetch.assert_not_called()
+        self.assertIs(task.bundle, repaired)
+        self.assertIsNone(task.error)
+
+    def test_recovery_install_store_return_is_the_cancel_commit_point(self):
+        from ai_vectorizer.core import model_store
+        from ai_vectorizer.ui.main_dialog import _RecoveryInstallTask
+
+        task = _RecoveryInstallTask("/unused/cache", mock.Mock())
+        with mock.patch.object(
+            task,
+            "isCanceled",
+            side_effect=[False, True],
+        ) as cancelled, mock.patch.object(
+            model_store,
+            "fetch_bundle",
+            return_value=object(),
+        ):
+            self.assertTrue(task.run(), task.error)
+
+        cancelled.assert_called_once_with()
+
+    def test_recovery_install_scheduler_failure_restores_retry_state(self):
+        from ai_vectorizer.ui import main_dialog
+
+        status = SimpleNamespace(
+            artifacts=(SimpleNamespace(state="corrupt"),),
+        )
+        button = mock.Mock()
+        dock = SimpleNamespace(
+            recovery_install_task=None,
+            _recovery_model_status=status,
+            _recovery_prepare_error="",
+            recovery_install_btn=button,
+            _cancel_recovery_prepare=mock.Mock(),
+            _release_recovery_engine=mock.Mock(),
+            _sam_models_dir=mock.Mock(return_value="/unused/cache"),
+            _on_recovery_install_finished=mock.Mock(),
+            _set_recovery_state=mock.Mock(),
+            _refresh_recovery_availability=mock.Mock(),
+            _tr=lambda _ko, en: en,
+        )
+        scheduled_task = object()
+        manager = SimpleNamespace(
+            addTask=mock.Mock(side_effect=RuntimeError("scheduler offline")),
+        )
+        application = SimpleNamespace(taskManager=lambda: manager)
+
+        with mock.patch.object(
+            main_dialog,
+            "_RecoveryInstallTask",
+            return_value=scheduled_task,
+        ), mock.patch.object(main_dialog, "QgsApplication", application):
+            main_dialog.AIVectorizerDock.install_recovery_model(dock)
+
+        self.assertIsNone(dock.recovery_install_task)
+        self.assertIs(dock._recovery_model_status, status)
+        button.setEnabled.assert_has_calls([mock.call(False), mock.call(True)])
+        dock._refresh_recovery_availability.assert_called_once_with()
+
+    def test_failed_recovery_repair_reinspects_before_retry(self):
+        from ai_vectorizer.ui.main_dialog import AIVectorizerDock
+
+        task = SimpleNamespace(repair_corrupt=True)
+        previous_status = SimpleNamespace(ready=False)
+        dock = SimpleNamespace(
+            recovery_install_task=task,
+            _shutting_down=False,
+            recovery_install_btn=mock.Mock(),
+            _recovery_model_status=previous_status,
+            _recovery_prepare_error="previous",
+            _set_recovery_state=mock.Mock(),
+            _refresh_recovery_availability=mock.Mock(),
+            _tr=lambda _ko, en: en,
+        )
+
+        AIVectorizerDock._on_recovery_install_finished(
+            dock,
+            task,
+            False,
+            None,
+            RuntimeError("offline"),
+        )
+
+        self.assertIsNone(dock.recovery_install_task)
+        self.assertIsNone(dock._recovery_model_status)
+        self.assertEqual(dock._recovery_prepare_error, "")
+        dock.recovery_install_btn.setVisible.assert_called_once_with(False)
+        dock._refresh_recovery_availability.assert_called_once_with()
+
     def test_retry_does_not_treat_an_enhanced_route_as_a_new_ink_champion(self):
         tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
         tool.smart_recovery_requested = True
@@ -561,6 +670,76 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         self.assertEqual(tool._current_recovery_state, "Enhanced")
         self.assertIn(
             "already enhanced",
+            tool.recovery_state_callback.call_args.args[1],
+        )
+
+    def test_retry_during_recovery_preserves_pending_preview_identity(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        identity = (4, ((1.0, 1.0), (8.0, 8.0)), (8.0, 8.0))
+        task = object()
+        request = {"request_generation": 7, "preview_identity": identity}
+        tool.smart_recovery_requested = True
+        tool.smart_recovery_enabled = True
+        tool._current_recovery_state = "Recovering"
+        tool._recovery_task = task
+        tool._recovery_request = request
+        tool._recovery_generation = 7
+        tool._recovery_preview_identity = identity
+        tool._pending_livewire_accept_point = QgsPointXY(8, 8)
+        tool._pending_livewire_recovery_identity = identity
+        tool._schedule_smart_recovery = mock.Mock()
+        tool._emit_recovery_state = mock.Mock()
+
+        self.assertFalse(tool.retry_current_segment())
+
+        self.assertIs(tool._recovery_task, task)
+        self.assertIs(tool._recovery_request, request)
+        self.assertEqual(tool._recovery_generation, 7)
+        self.assertEqual(tool._recovery_preview_identity, identity)
+        self.assertEqual(tool._pending_livewire_recovery_identity, identity)
+        tool._schedule_smart_recovery.assert_not_called()
+        tool._emit_recovery_state.assert_called_once_with(
+            "Recovering",
+            "Recovery is already evaluating this Ink segment.",
+        )
+
+    def test_retry_while_cancelled_task_drains_does_not_stick_on_recovering(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        identity = (4, ((1.0, 1.0), (8.0, 8.0)), (8.0, 8.0))
+        task = SimpleNamespace(
+            request_generation=7,
+            cache_generation=4,
+            preview_identity=identity,
+            encoding=object(),
+        )
+        tool.smart_recovery_requested = True
+        tool.smart_recovery_enabled = True
+        tool._current_recovery_state = "Ink"
+        tool.recovery_state_callback = mock.Mock()
+        tool._recovery_task = task
+        tool._recovery_request = None
+        tool._recovery_generation = 8
+        tool._recovery_preview_identity = None
+        tool._cache_generation = 4
+        tool._disposed = False
+        tool.is_tracing = True
+
+        self.assertFalse(tool.retry_current_segment())
+        self.assertEqual(tool._current_recovery_state, "Recovering")
+
+        tool._on_recovery_preview_finished(
+            task,
+            False,
+            None,
+            None,
+            None,
+            None,
+        )
+
+        self.assertIsNone(tool._recovery_task)
+        self.assertEqual(tool._current_recovery_state, "Ink fallback")
+        self.assertIn(
+            "Ink was kept",
             tool.recovery_state_callback.call_args.args[1],
         )
 
@@ -627,6 +806,583 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
 
         self.assertEqual(tool.preview_path, ["new confident Ink"])
         self.assertEqual(tool._emit_recovery_state.call_count, state_call_count)
+
+    def test_current_recovery_error_keeps_ink_champion_and_clears_request(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        identity = (4, ((1.0, 1.0), (8.0, 8.0)), (8.0, 8.0))
+        task = SimpleNamespace(
+            request_generation=7,
+            cache_generation=4,
+            preview_identity=identity,
+            encoding=object(),
+        )
+        tool._recovery_task = task
+        tool._recovery_request = {
+            "request_generation": 7,
+            "cache_generation": 4,
+        }
+        tool._recovery_generation = 7
+        tool._recovery_preview_identity = identity
+        tool._cache_generation = 4
+        tool._disposed = False
+        tool.is_tracing = True
+        tool.smart_recovery_enabled = True
+        tool.preview_path = ["immutable Ink champion"]
+        tool._emit_recovery_state = mock.Mock()
+
+        error = RuntimeError("injected ONNX failure")
+        tool._on_recovery_preview_finished(
+            task,
+            False,
+            None,
+            None,
+            None,
+            error,
+        )
+
+        self.assertEqual(tool.preview_path, ["immutable Ink champion"])
+        self.assertIsNone(tool._recovery_request)
+        tool._emit_recovery_state.assert_called_once()
+        self.assertEqual(tool._emit_recovery_state.call_args.args[0], "Ink fallback")
+        self.assertIn("Ink was kept", tool._emit_recovery_state.call_args.args[1])
+        self.assertIn("injected ONNX failure", tool._emit_recovery_state.call_args.args[1])
+
+    def test_enhanced_preview_acceptance_matches_only_its_visible_target(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        tool._current_recovery_state = "Enhanced"
+        tool.preview_path = [QgsPointXY(2, 2), QgsPointXY(10, 10)]
+        tool._livewire_request_point = QgsPointXY(10, 10)
+        tool.canvas = SimpleNamespace(mapUnitsPerPixel=lambda: 1.0)
+
+        self.assertTrue(tool._visible_enhanced_preview_matches(QgsPointXY(15, 10)))
+        self.assertFalse(tool._visible_enhanced_preview_matches(QgsPointXY(30, 10)))
+        tool._current_recovery_state = "Ink"
+        self.assertFalse(tool._visible_enhanced_preview_matches(QgsPointXY(10, 10)))
+
+    def test_pending_livewire_fallback_drains_accept_and_close_actions(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        tool.is_tracing = True
+        tool.auto_path = False
+        tool.start_point = QgsPointXY(1, 2)
+        tool._render_preview = mock.Mock()
+        tool._push_message = mock.Mock()
+        tool._commit_visible_livewire_segment = mock.Mock()
+
+        tool._pending_livewire_accept_point = QgsPointXY(8, 9)
+        tool._pending_livewire_auto_accept = True
+        self.assertTrue(
+            tool._resolve_pending_livewire_fallback(
+                nearby=False,
+                detail="exact cursor",
+            )
+        )
+        self.assertIsNone(tool._pending_livewire_accept_point)
+        self.assertFalse(tool._pending_livewire_auto_accept)
+        tool._commit_visible_livewire_segment.assert_called_once()
+
+        tool._commit_visible_livewire_segment.reset_mock()
+        tool._pending_livewire_accept_point = QgsPointXY(3, 4)
+        tool._pending_livewire_auto_accept = False
+        self.assertTrue(
+            tool._resolve_pending_livewire_fallback(
+                nearby=False,
+                detail="close preview",
+            )
+        )
+        self.assertEqual(tool.preview_path, [tool.start_point])
+        self.assertEqual(tool._livewire_request_point, tool.start_point)
+        tool._commit_visible_livewire_segment.assert_not_called()
+
+    def test_ready_livewire_tree_displays_deferred_close_without_committing(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        task = SimpleNamespace(generation=5, anchor_pixel=(10, 10))
+        tree = SimpleNamespace(root=(10, 10))
+        tool._livewire_task = task
+        tool._livewire_generation = 5
+        tool._livewire_tree = None
+        tool._livewire_failed_anchor = None
+        tool._pending_livewire_accept_point = QgsPointXY(2, 3)
+        tool._pending_livewire_auto_accept = False
+        tool.start_point = QgsPointXY(1, 1)
+        tool.auto_path = False
+        tool.use_sam = False
+        tool.is_tracing = True
+        tool._current_livewire_anchor_pixel = lambda: (10, 10)
+        tool._recovery_preview_identity = None
+        tool._present_livewire_cursor_preview = mock.Mock(return_value=False)
+        tool._commit_visible_livewire_segment = mock.Mock()
+
+        tool._on_livewire_tree_finished(task, True, tree, None)
+
+        self.assertIs(tool._livewire_tree, tree)
+        self.assertIsNone(tool._pending_livewire_accept_point)
+        tool._present_livewire_cursor_preview.assert_called_once_with(
+            tool.start_point,
+            global_mode=False,
+            request_tree=False,
+            schedule_recovery=True,
+        )
+        tool._commit_visible_livewire_segment.assert_not_called()
+
+    def test_deferred_click_waits_when_smart_recovery_actually_starts(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        identity = (3, ((1.0, 1.0), (8.0, 8.0)), (8.0, 8.0))
+        task = SimpleNamespace(generation=5, anchor_pixel=(10, 10))
+        tree = SimpleNamespace(root=(10, 10))
+        pending = QgsPointXY(8, 8)
+        tool._livewire_task = task
+        tool._livewire_generation = 5
+        tool._livewire_tree = None
+        tool._livewire_failed_anchor = None
+        tool._pending_livewire_accept_point = pending
+        tool._pending_livewire_auto_accept = True
+        tool._pending_livewire_recovery_identity = None
+        tool._recovery_preview_identity = identity
+        tool.start_point = QgsPointXY(1, 1)
+        tool.auto_path = False
+        tool.use_sam = False
+        tool.is_tracing = True
+        tool._current_livewire_anchor_pixel = lambda: (10, 10)
+        tool._present_livewire_cursor_preview = mock.Mock(return_value=True)
+        tool._commit_visible_livewire_segment = mock.Mock()
+
+        tool._on_livewire_tree_finished(task, True, tree, None)
+
+        self.assertEqual(tool._pending_livewire_accept_point, pending)
+        self.assertTrue(tool._pending_livewire_auto_accept)
+        self.assertEqual(tool._pending_livewire_recovery_identity, identity)
+        tool._commit_visible_livewire_segment.assert_not_called()
+
+    def test_deferred_click_commits_immediately_when_recovery_does_not_start(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        task = SimpleNamespace(generation=5, anchor_pixel=(10, 10))
+        tree = SimpleNamespace(root=(10, 10))
+        pending = QgsPointXY(8, 8)
+        tool._livewire_task = task
+        tool._livewire_generation = 5
+        tool._livewire_tree = None
+        tool._livewire_failed_anchor = None
+        tool._pending_livewire_accept_point = pending
+        tool._pending_livewire_auto_accept = True
+        tool._pending_livewire_recovery_identity = None
+        tool._recovery_preview_identity = ("confident",)
+        tool.start_point = QgsPointXY(1, 1)
+        tool.auto_path = False
+        tool.use_sam = False
+        tool.is_tracing = True
+        tool._current_livewire_anchor_pixel = lambda: (10, 10)
+        tool._present_livewire_cursor_preview = mock.Mock(return_value=False)
+        tool._commit_visible_livewire_segment = mock.Mock()
+
+        tool._on_livewire_tree_finished(task, True, tree, None)
+
+        self.assertIsNone(tool._pending_livewire_accept_point)
+        self.assertIsNone(tool._pending_livewire_recovery_identity)
+        tool._commit_visible_livewire_segment.assert_called_once_with(pending)
+
+    def test_pending_recovery_error_commits_the_unchanged_ink_champion(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        identity = (4, ((1.0, 1.0), (8.0, 8.0)), (8.0, 8.0))
+        pending = QgsPointXY(8, 8)
+        task = SimpleNamespace(
+            request_generation=7,
+            cache_generation=4,
+            preview_identity=identity,
+            encoding=object(),
+        )
+        tool._recovery_task = task
+        tool._recovery_request = {
+            "request_generation": 7,
+            "cache_generation": 4,
+        }
+        tool._recovery_generation = 7
+        tool._recovery_preview_identity = identity
+        tool._cache_generation = 4
+        tool._disposed = False
+        tool.is_tracing = True
+        tool.smart_recovery_enabled = True
+        tool.preview_path = ["immutable Ink champion"]
+        tool._pending_livewire_accept_point = pending
+        tool._pending_livewire_auto_accept = True
+        tool._pending_livewire_recovery_identity = identity
+        tool._emit_recovery_state = mock.Mock()
+        committed = []
+        tool._commit_visible_livewire_segment = mock.Mock(
+            side_effect=lambda point: committed.append((point, list(tool.preview_path)))
+        )
+
+        tool._on_recovery_preview_finished(
+            task,
+            False,
+            None,
+            None,
+            None,
+            RuntimeError("injected ONNX failure"),
+        )
+
+        self.assertEqual(committed, [(pending, ["immutable Ink champion"])])
+        self.assertIsNone(tool._pending_livewire_accept_point)
+        self.assertIsNone(tool._pending_livewire_recovery_identity)
+
+    def test_pending_recovery_accepts_challenger_before_automatic_commit(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        identity = (6, ((1.0, 1.0), (8.0, 8.0)), (8.0, 8.0))
+        pending = QgsPointXY(8, 8)
+        task = SimpleNamespace(
+            request_generation=9,
+            cache_generation=6,
+            preview_identity=identity,
+            encoding=object(),
+        )
+        tool._recovery_task = task
+        tool._recovery_request = {
+            "request_generation": 9,
+            "cache_generation": 6,
+            "target_map": pending,
+        }
+        tool._recovery_generation = 9
+        tool._recovery_preview_identity = identity
+        tool._cache_generation = 6
+        tool._disposed = False
+        tool.is_tracing = True
+        tool.smart_recovery_enabled = True
+        tool.auto_path = False
+        tool.preview_path = [QgsPointXY(2, 2), pending]
+        tool._pending_livewire_accept_point = pending
+        tool._pending_livewire_auto_accept = True
+        tool._pending_livewire_recovery_identity = identity
+        tool.pixel_to_map = lambda x, y: QgsPointXY(x, y)
+        tool._render_preview = mock.Mock()
+        tool._emit_recovery_state = mock.Mock()
+        committed = []
+        tool._commit_visible_livewire_segment = mock.Mock(
+            side_effect=lambda point: committed.append((point, list(tool.preview_path)))
+        )
+
+        tool._on_recovery_preview_finished(
+            task,
+            True,
+            SimpleNamespace(reached_target=True),
+            ((1.0, 1.0), (4.0, 5.0), (8.0, 8.0)),
+            SimpleNamespace(accepted=True),
+            None,
+        )
+
+        self.assertEqual(
+            committed,
+            [(pending, [QgsPointXY(4, 5), QgsPointXY(8, 8)])],
+        )
+        self.assertIsNone(tool._pending_livewire_accept_point)
+
+    def test_pending_recovery_updates_close_preview_without_auto_saving(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        identity = (6, ((8.0, 8.0), (1.0, 1.0)), (1.0, 1.0))
+        start = QgsPointXY(1, 1)
+        task = SimpleNamespace(
+            request_generation=9,
+            cache_generation=6,
+            preview_identity=identity,
+            encoding=object(),
+        )
+        tool._recovery_task = task
+        tool._recovery_request = {
+            "request_generation": 9,
+            "cache_generation": 6,
+            "target_map": start,
+        }
+        tool._recovery_generation = 9
+        tool._recovery_preview_identity = identity
+        tool._cache_generation = 6
+        tool._disposed = False
+        tool.is_tracing = True
+        tool.smart_recovery_enabled = True
+        tool.auto_path = False
+        tool.preview_path = [start]
+        tool._pending_livewire_accept_point = start
+        tool._pending_livewire_auto_accept = False
+        tool._pending_livewire_recovery_identity = identity
+        tool.pixel_to_map = lambda x, y: QgsPointXY(x, y)
+        tool._render_preview = mock.Mock()
+        tool._emit_recovery_state = mock.Mock()
+        tool._commit_visible_livewire_segment = mock.Mock()
+
+        tool._on_recovery_preview_finished(
+            task,
+            True,
+            SimpleNamespace(reached_target=True),
+            ((8.0, 8.0), (4.0, 5.0), (1.0, 1.0)),
+            SimpleNamespace(accepted=True),
+            None,
+        )
+
+        self.assertEqual(tool.preview_path, [QgsPointXY(4, 5), start])
+        self.assertIsNone(tool._pending_livewire_accept_point)
+        tool._commit_visible_livewire_segment.assert_not_called()
+
+    def test_stale_pending_recovery_fails_closed_to_ink(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        identity = (4, ((1.0, 1.0), (8.0, 8.0)), (8.0, 8.0))
+        pending = QgsPointXY(8, 8)
+        task = SimpleNamespace(
+            request_generation=7,
+            cache_generation=4,
+            preview_identity=identity,
+            encoding=object(),
+        )
+        tool._recovery_task = task
+        tool._recovery_request = None
+        tool._recovery_generation = 8
+        tool._recovery_preview_identity = ("newer",)
+        tool._cache_generation = 4
+        tool._disposed = False
+        tool.is_tracing = True
+        tool.smart_recovery_enabled = True
+        tool.preview_path = ["immutable Ink champion"]
+        tool._pending_livewire_accept_point = pending
+        tool._pending_livewire_auto_accept = True
+        tool._pending_livewire_recovery_identity = identity
+        tool._emit_recovery_state = mock.Mock()
+        tool._commit_visible_livewire_segment = mock.Mock()
+
+        tool._on_recovery_preview_finished(
+            task,
+            False,
+            None,
+            None,
+            None,
+            None,
+        )
+
+        tool._commit_visible_livewire_segment.assert_called_once_with(pending)
+        self.assertIsNone(tool._pending_livewire_accept_point)
+        self.assertIn(
+            "stale",
+            tool._emit_recovery_state.call_args.args[1].lower(),
+        )
+
+    def test_ctrl_z_cancels_pending_recovery_before_clearing_preview(self):
+        from ai_vectorizer.tools.smart_trace_tool import _qt_value
+
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        tool.is_tracing = True
+        tool._pending_livewire_accept_point = QgsPointXY(8, 8)
+        tool._pending_livewire_auto_accept = True
+        tool._pending_livewire_recovery_identity = ("pending",)
+        tool._livewire_request_point = QgsPointXY(8, 8)
+        tool._invalidate_recovery = mock.Mock()
+        tool._clear_preview = mock.Mock()
+        event = SimpleNamespace(
+            key=lambda: _qt_value("Key_Z", "Key"),
+            modifiers=lambda: _qt_value("ControlModifier", "KeyboardModifier"),
+            accept=mock.Mock(),
+        )
+
+        tool.keyPressEvent(event)
+
+        tool._invalidate_recovery.assert_called_once()
+        self.assertIsNone(tool._pending_livewire_accept_point)
+        self.assertIsNone(tool._pending_livewire_recovery_identity)
+        self.assertIsNone(tool._livewire_request_point)
+        tool._clear_preview.assert_called_once_with(stop_timer=False)
+        event.accept.assert_called_once_with()
+
+    def test_ink_task_failure_resolves_a_pending_click_as_exact_cursor(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        task = SimpleNamespace(generation=3, cache_identity=("request",))
+        tool._ink_evidence_task = task
+        tool._ink_evidence_generation = 3
+        tool._pending_cache_identity = ("request",)
+        tool._disposed = False
+        tool._pending_livewire_accept_point = QgsPointXY(4, 5)
+        tool._current_ink_cache_identity = lambda: ("request",)
+        tool._resolve_pending_livewire_fallback = mock.Mock(return_value=True)
+        tool._emit_recovery_state = mock.Mock()
+
+        error = RuntimeError("injected evidence failure")
+        tool._on_ink_evidence_finished(
+            task,
+            False,
+            None,
+            None,
+            None,
+            None,
+            error,
+        )
+
+        tool._resolve_pending_livewire_fallback.assert_called_once()
+        self.assertFalse(
+            tool._resolve_pending_livewire_fallback.call_args.kwargs["nearby"]
+        )
+        self.assertIsNone(tool._ink_evidence_task)
+        tool._emit_recovery_state.assert_called_once()
+
+    def test_checkpoint_undo_discards_stale_recovery_and_livewire_state(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        start = QgsPointXY(1, 1)
+        middle = QgsPointXY(2, 2)
+        anchor = QgsPointXY(3, 3)
+        tool.path_points = [start, middle, anchor]
+        tool.checkpoints = [0, 2]
+        tool._livewire_generation = 9
+        tool._livewire_tree = object()
+        tool._livewire_anchor_pixel = (3, 3)
+        tool._livewire_request_point = anchor
+        tool._livewire_failed_anchor = (3, 3)
+        tool._pending_livewire_accept_point = QgsPointXY(4, 4)
+        tool._pending_livewire_auto_accept = True
+        tool.last_map_point = anchor
+        tool.last_input_point = anchor
+        tool.last_hover_pos = anchor
+        tool.last_sample_pos = object()
+        tool.last_preview_pos = object()
+        tool._invalidate_recovery = mock.Mock()
+        tool._clear_preview = mock.Mock()
+        tool._cancel_livewire_task = mock.Mock()
+        tool._request_livewire_tree = mock.Mock(return_value=True)
+        tool.redraw_confirmed_path = mock.Mock()
+        tool.checkpoint_markers = SimpleNamespace(
+            reset=mock.Mock(),
+            addPoint=mock.Mock(),
+        )
+
+        tool.undo_to_checkpoint()
+
+        self.assertEqual(tool.path_points, [start])
+        self.assertEqual(tool.checkpoints, [0])
+        tool._invalidate_recovery.assert_called_once()
+        tool._clear_preview.assert_called_once_with()
+        tool._cancel_livewire_task.assert_called_once_with()
+        self.assertEqual(tool._livewire_generation, 10)
+        self.assertIsNone(tool._livewire_tree)
+        self.assertIsNone(tool._livewire_anchor_pixel)
+        self.assertIsNone(tool._livewire_request_point)
+        self.assertIsNone(tool._livewire_failed_anchor)
+        self.assertIsNone(tool._pending_livewire_accept_point)
+        self.assertFalse(tool._pending_livewire_auto_accept)
+        self.assertEqual(tool.last_map_point, start)
+        self.assertEqual(tool.last_input_point, start)
+        self.assertIsNone(tool.last_hover_pos)
+        self.assertIsNone(tool.last_sample_pos)
+        self.assertIsNone(tool.last_preview_pos)
+        tool.redraw_confirmed_path.assert_called_once_with()
+        tool._request_livewire_tree.assert_called_once_with(force=True)
+
+    def test_closed_candidate_save_is_transactional_on_failure_and_exception(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        start = QgsPointXY(0, 0)
+        anchor = QgsPointXY(5, 0)
+        bend = QgsPointXY(5, 5)
+        confirmed = [start, anchor]
+        tool.path_points = confirmed
+        observed = []
+
+        def fail_save(*, closed, elevation):
+            observed.append((list(tool.path_points), closed, elevation))
+            return False
+
+        tool.save_to_layer = fail_save
+        self.assertFalse(
+            tool._save_closed_path_candidate([bend, start], 12.5)
+        )
+        self.assertIs(tool.path_points, confirmed)
+        self.assertEqual(observed[0][0], [start, anchor, bend])
+        self.assertTrue(observed[0][1])
+        self.assertEqual(observed[0][2], 12.5)
+
+        def raise_save(**_kwargs):
+            self.assertIsNot(tool.path_points, confirmed)
+            raise RuntimeError("injected layer failure")
+
+        tool.save_to_layer = raise_save
+        with self.assertRaisesRegex(RuntimeError, "injected layer failure"):
+            tool._save_closed_path_candidate([bend, start], 20.0)
+        self.assertIs(tool.path_points, confirmed)
+
+    def test_cancelled_enhanced_close_never_mutates_confirmed_path(self):
+        from ai_vectorizer.tools.smart_trace_tool import _qt_value
+
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        start = QgsPointXY(0, 0)
+        anchor = QgsPointXY(5, 0)
+        enhanced = QgsPointXY(3, 4)
+        confirmed = [start, anchor]
+        tool.path_points = confirmed
+        tool.is_tracing = True
+        tool.start_point = start
+        tool._pending_livewire_accept_point = None
+        tool.auto_path = False
+        tool.use_sam = False
+        tool.preview_path = [enhanced, start]
+        tool.toMapCoordinates = mock.Mock(return_value=start)
+        tool.is_near_start = mock.Mock(return_value=True)
+        tool._defer_click_until_livewire_ready = mock.Mock(return_value=False)
+        tool._visible_enhanced_preview_matches = mock.Mock(return_value=True)
+        tool._invalidate_recovery = mock.Mock()
+        tool._livewire_tree_is_ready = mock.Mock(return_value=True)
+        tool.ask_elevation = mock.Mock(return_value=None)
+        tool._save_closed_path_candidate = mock.Mock()
+        event = SimpleNamespace(
+            button=lambda: _qt_value("LeftButton", "MouseButton"),
+            pos=lambda: object(),
+        )
+
+        tool.canvasPressEvent(event)
+
+        self.assertIs(tool.path_points, confirmed)
+        self.assertEqual(tool.preview_path, [enhanced, start])
+        tool._save_closed_path_candidate.assert_not_called()
+        tool._invalidate_recovery.assert_not_called()
+
+    def test_plain_close_invalidates_old_recovery_before_ink_preview(self):
+        from ai_vectorizer.tools.smart_trace_tool import _qt_value
+
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        start = QgsPointXY(0, 0)
+        anchor = QgsPointXY(5, 0)
+        confirmed = [start, anchor]
+        tool.path_points = confirmed
+        tool.is_tracing = True
+        tool.start_point = start
+        tool._pending_livewire_accept_point = None
+        tool.auto_path = False
+        tool.use_sam = False
+        tool.preview_path = [QgsPointXY(4, 2), start]
+        tool.toMapCoordinates = mock.Mock(return_value=start)
+        tool.is_near_start = mock.Mock(return_value=True)
+        tool._defer_click_until_livewire_ready = mock.Mock(return_value=False)
+        tool._visible_enhanced_preview_matches = mock.Mock(return_value=False)
+        calls = mock.Mock()
+        invalidate = mock.Mock()
+        present = mock.Mock()
+        calls.attach_mock(invalidate, "invalidate")
+        calls.attach_mock(present, "present")
+        tool._invalidate_recovery = invalidate
+        tool._present_livewire_cursor_preview = present
+        tool._livewire_tree_is_ready = mock.Mock(return_value=True)
+        tool.ask_elevation = mock.Mock(return_value=None)
+        tool._save_closed_path_candidate = mock.Mock()
+        event = SimpleNamespace(
+            button=lambda: _qt_value("LeftButton", "MouseButton"),
+            pos=lambda: object(),
+        )
+
+        tool.canvasPressEvent(event)
+
+        self.assertIs(tool.path_points, confirmed)
+        self.assertEqual(
+            [call[0] for call in calls.mock_calls],
+            ["invalidate", "present"],
+        )
+        invalidate.assert_called_once_with(
+            "Segment accepted; Ink is the new champion."
+        )
+        present.assert_called_once_with(
+            start,
+            global_mode=False,
+            request_tree=False,
+            schedule_recovery=False,
+        )
+        tool._save_closed_path_candidate.assert_not_called()
 
     def test_recovery_prompts_do_not_relabel_prior_vertices_as_positive(self):
         tool = self.SmartTraceTool.__new__(self.SmartTraceTool)

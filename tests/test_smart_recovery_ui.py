@@ -98,15 +98,15 @@ class SmartRecoverySourceContractTests(unittest.TestCase):
     def test_only_explicit_install_task_calls_network_fetch(self):
         source = _source(DIALOG_PATH)
         tree = ast.parse(source)
-        owners = []
-        for node in ast.walk(tree):
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            segment = ast.get_source_segment(source, node) or ""
-            if "fetch_bundle" in segment:
-                owners.append(node.name)
-
-        self.assertEqual(owners, ["run"])
+        for network_action in ("fetch_bundle", "repair_bundle"):
+            owners = []
+            for node in ast.walk(tree):
+                if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                segment = ast.get_source_segment(source, node) or ""
+                if network_action in segment:
+                    owners.append(node.name)
+            self.assertEqual(owners, ["run"], network_action)
         install = _function_source(
             DIALOG_PATH,
             "install_recovery_model",
@@ -123,8 +123,60 @@ class SmartRecoverySourceContractTests(unittest.TestCase):
             "AIVectorizerDock",
         )
         self.assertIn("_RecoveryInstallTask", install)
+        self.assertIn("repair_corrupt=repair_corrupt", install)
         self.assertNotIn("fetch_bundle", load)
         self.assertNotIn("fetch_bundle", toggle)
+
+    def test_corrupt_cache_has_explicit_repair_but_unsafe_cache_is_immutable(self):
+        task_run = _function_source(
+            DIALOG_PATH,
+            "run",
+            "_RecoveryInstallTask",
+        )
+        refresh = _function_source(
+            DIALOG_PATH,
+            "_refresh_recovery_availability",
+            "AIVectorizerDock",
+        )
+        install = _function_source(
+            DIALOG_PATH,
+            "install_recovery_model",
+            "AIVectorizerDock",
+        )
+
+        self.assertIn("repair_bundle if self.repair_corrupt", task_run)
+        self.assertIn('artifact.state == "corrupt"', refresh)
+        self.assertIn('artifact.state == "unsafe"', refresh)
+        self.assertIn("not status.ready and not unsafe", refresh)
+        self.assertIn("if unsafe:", install)
+        self.assertIn("repair_corrupt=repair_corrupt", install)
+
+    def test_install_commit_and_scheduler_failure_have_terminal_ui_states(self):
+        task_run = _function_source(
+            DIALOG_PATH,
+            "run",
+            "_RecoveryInstallTask",
+        )
+        install = _function_source(
+            DIALOG_PATH,
+            "install_recovery_model",
+            "AIVectorizerDock",
+        )
+        finished = _function_source(
+            DIALOG_PATH,
+            "_on_recovery_install_finished",
+            "AIVectorizerDock",
+        )
+
+        self.assertIn("The verified store transaction is the commit point", task_run)
+        self.assertIn("return True", task_run)
+        self.assertNotIn("return not self.isCanceled()", task_run)
+        self.assertIn("except Exception as exc:", install)
+        self.assertIn("self.recovery_install_task = None", install)
+        self.assertIn("self._recovery_model_status = status", install)
+        self.assertIn("self._refresh_recovery_availability()", install)
+        self.assertIn("self._recovery_model_status = None", finished)
+        self.assertIn("self._refresh_recovery_availability()", finished)
 
     def test_model_hashing_and_onnx_initialization_run_only_in_prepare_task(self):
         source = _source(DIALOG_PATH)
