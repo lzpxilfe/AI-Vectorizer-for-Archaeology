@@ -502,6 +502,67 @@ class InkEvidenceTests(unittest.TestCase):
                 tile_origin=(0.5, 0),
             )
 
+    def test_pre_numpy_120_window_fallback_preserves_v1_and_v2(self):
+        image = np.full((48, 48), 235, dtype=np.uint8)
+        image[6:42, 22:27] = 25
+        detector = edge_detector_module.EdgeDetector
+
+        expected_mean = detector._numpy_mean_filter(
+            image.astype(np.float32),
+            5,
+        )
+        expected_closing = detector._numpy_grey_closing(
+            image.astype(np.float32),
+            5,
+        )
+        with patch.object(edge_detector_module, "_scipy_ndimage", None), patch.object(
+            edge_detector_module,
+            "_skimage_threshold_otsu",
+            None,
+        ), patch.object(
+            edge_detector_module,
+            "_skimage_skeletonize",
+            None,
+        ), patch.object(edge_detector_module, "get_cv2", return_value=None):
+            expected_v1 = detector(
+                method=detector.METHOD_INK,
+            ).detect_edges(image)
+            with patch.object(
+                np.lib.stride_tricks,
+                "sliding_window_view",
+                None,
+                create=True,
+            ):
+                actual_mean = detector._numpy_mean_filter(
+                    image.astype(np.float32),
+                    5,
+                )
+                actual_closing = detector._numpy_grey_closing(
+                    image.astype(np.float32),
+                    5,
+                )
+                actual_v1 = detector(
+                    method=detector.METHOD_INK,
+                ).detect_edges(image)
+                evidence = detector.detect_ink_evidence(image)
+
+        np.testing.assert_array_equal(actual_mean, expected_mean)
+        np.testing.assert_array_equal(actual_closing, expected_closing)
+        np.testing.assert_array_equal(actual_v1, expected_v1)
+        self.assertGreater(int(actual_v1.sum()), 25 * 255)
+        self.assertGreater(int(evidence.centerline.sum()), 25)
+        for field in (
+            "center_score",
+            "tangent_x",
+            "tangent_y",
+            "coherence",
+            "scale_px",
+        ):
+            values = getattr(evidence, field)
+            with self.subTest(field=field):
+                self.assertEqual(values.dtype, np.float32)
+                self.assertTrue(np.isfinite(values).all())
+
 
 if __name__ == "__main__":
     unittest.main()

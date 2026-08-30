@@ -48,12 +48,12 @@ except ImportError as exc:
 
 
 def _field_type(name):
+    if QVariant is not None and hasattr(QVariant, name):
+        return getattr(QVariant, name)
     meta_name = "QString" if name == "String" else name
     meta_types = getattr(QMetaType, "Type", None)
     if meta_types is not None and hasattr(meta_types, meta_name):
         return getattr(meta_types, meta_name)
-    if QVariant is not None and hasattr(QVariant, name):
-        return getattr(QVariant, name)
     raise RuntimeError(name)
 
 
@@ -99,6 +99,23 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         self.crs = QgsCoordinateReferenceSystem("EPSG:3857")
         self.canvas = QgsMapCanvas()
         self.canvas.setDestinationCrs(self.crs)
+
+    def test_qgsfield_type_resolvers_match_the_active_qt_binding(self):
+        from ai_vectorizer.tools.smart_trace_tool import (
+            _field_type as tool_field_type,
+        )
+        from ai_vectorizer.ui.main_dialog import (
+            _field_type as dialog_field_type,
+        )
+
+        for resolver in (_field_type, tool_field_type, dialog_field_type):
+            with self.subTest(resolver=resolver.__module__):
+                integer_field = QgsField("identifier", resolver("Int"))
+                double_field = QgsField("elevation", resolver("Double"))
+                self.assertEqual(integer_field.name(), "identifier")
+                self.assertEqual(double_field.name(), "elevation")
+                if QVariant is not None and hasattr(QVariant, "Double"):
+                    self.assertEqual(resolver("Double"), QVariant.Double)
 
     def _tool(self, layer, raster_crs=None):
         crs = raster_crs or self.crs
@@ -361,7 +378,16 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
             callback=lambda *_args: None,
         )
 
-        self.assertTrue(task.run())
+        # QGIS 3.22 images can ship NumPy 1.19, before
+        # sliding_window_view existed. The stable v1 fallback must still be
+        # produced so disabling v2 never leaves the cache empty.
+        with mock.patch.object(
+            np.lib.stride_tricks,
+            "sliding_window_view",
+            None,
+            create=True,
+        ):
+            self.assertTrue(task.run(), task.error)
         np.testing.assert_array_equal(
             task.fallback_edges,
             detector.detect_edges(visible),

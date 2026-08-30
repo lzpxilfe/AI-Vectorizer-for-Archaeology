@@ -915,6 +915,14 @@ class ContinuousIntegrationTests(unittest.TestCase):
         self.assertIn('--plugin-root "$ARCHAEOTRACE_RELEASE_ROOT"', workflow)
         self.assertIn("tests.test_qgis_runtime_safety", workflow)
         self.assertIn('ARCHAEOTRACE_REQUIRE_QGIS: "1"', workflow)
+        self.assertIn(
+            'export PYTHONPATH="$GITHUB_WORKSPACE${PYTHONPATH:+:$PYTHONPATH}"',
+            workflow,
+        )
+        self.assertNotRegex(
+            workflow,
+            r'(?m)^\s*export PYTHONPATH="\$GITHUB_WORKSPACE"\s*$',
+        )
         self.assertIn('python: ["3.10", "3.12"]', workflow)
         self.assertIn("python38-compatibility:", workflow)
         self.assertIn('python-version: "3.8"', workflow)

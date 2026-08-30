@@ -124,10 +124,15 @@ def _task_can_cancel():
 
 
 def _field_type(name):
-    # Prefer the QGIS 4-compatible API while retaining QGIS 3.22 fallback.
-    for owner in (getattr(QMetaType, "Type", None), QVariant):
-        if owner is not None and hasattr(owner, name):
-            return getattr(owner, name)
+    # QGIS 3.22 exposes QMetaType.Type through PyQt5, but QgsField still
+    # requires QVariant.Type there. Prefer that binding whenever it exists;
+    # PyQt6/QGIS 4 falls through to the scoped QMetaType enum.
+    if QVariant is not None and hasattr(QVariant, name):
+        return getattr(QVariant, name)
+    meta_name = "QString" if name == "String" else name
+    meta_types = getattr(QMetaType, "Type", None)
+    if meta_types is not None and hasattr(meta_types, meta_name):
+        return getattr(meta_types, meta_name)
     raise RuntimeError(f"Qt field type is unavailable: {name}")
 
 

@@ -1765,11 +1765,36 @@ class EdgeDetector:
         padding = [(0, 0)] * values.ndim
         padding[axis] = (before, after)
         padded = np.pad(values, padding, mode="edge")
-        windows = np.lib.stride_tricks.sliding_window_view(
-            padded,
-            window_shape=int(size),
-            axis=axis,
+        window_size = int(size)
+        sliding_window_view = getattr(
+            np.lib.stride_tricks,
+            "sliding_window_view",
+            None,
         )
+        if callable(sliding_window_view):
+            windows = sliding_window_view(
+                padded,
+                window_shape=window_size,
+                axis=axis,
+            )
+        else:
+            # QGIS 3.22 distributions can ship a pre-1.20 NumPy, while
+            # sliding_window_view was added only in NumPy 1.20. ``padded`` is
+            # a fresh, bounded array and this view is consumed immediately by
+            # a reduction, so the equivalent read-only as_strided layout does
+            # not expose overlapping writes or retain source-owned memory.
+            window_shape = list(padded.shape)
+            window_shape[axis] -= window_size - 1
+            window_shape.append(window_size)
+            window_strides = list(padded.strides)
+            window_strides.append(padded.strides[axis])
+            windows = np.lib.stride_tricks.as_strided(
+                padded,
+                shape=tuple(window_shape),
+                strides=tuple(window_strides),
+                subok=False,
+                writeable=False,
+            )
         return reducer(windows, axis=-1)
 
     @classmethod

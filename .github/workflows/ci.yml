@@ -278,7 +278,10 @@ jobs:
       - name: Run QGIS runtime safety tests
         run: |
           cd "$ARCHAEOTRACE_RELEASE_ROOT"
-          export PYTHONPATH="$GITHUB_WORKSPACE"
+          # QGIS 4 images expose their bindings through an image-owned
+          # PYTHONPATH (currently /usr/share/qgis/python). Preserve it while
+          # prepending the checkout so the test package remains importable.
+          export PYTHONPATH="$GITHUB_WORKSPACE${PYTHONPATH:+:$PYTHONPATH}"
           python3 - <<'PY'
           import tests.test_qgis_runtime_safety as runtime_suite
           if not runtime_suite.HAS_QGIS:
