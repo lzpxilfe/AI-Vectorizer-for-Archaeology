@@ -19,6 +19,7 @@ import numpy as np
 
 from ..config import PLUGIN_NAME
 from .dependencies import build_missing_cv2_message, get_cv2, is_cv2_available, require_cv2
+from .line_evidence import LineEvidence
 
 try:
     from scipy import ndimage as _scipy_ndimage
@@ -34,6 +35,15 @@ try:
     from skimage.morphology import skeletonize as _skimage_skeletonize
 except Exception:
     _skimage_skeletonize = None
+
+
+class InkEvidenceCancelled(RuntimeError):
+    """Raised when an opt-in Ink v2 evidence job is cancelled."""
+
+
+def _raise_if_ink_evidence_cancelled(cancel_check):
+    if cancel_check is not None and cancel_check():
+        raise InkEvidenceCancelled("Ink evidence calculation was cancelled")
 
 
 class _HEDNoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -81,6 +91,23 @@ class EdgeDetector:
     INK_RESPONSE_PERCENTILE = 99.0
     INK_MIN_NORMALIZED_RESPONSE = 0.04
     INK_MIN_COMPONENT_SIZE = 5
+
+    # Ink v2 retains the proven 15px response while adding a narrow and a
+    # wide context.  It is exposed as typed continuous evidence; the existing
+    # ``detect_edges(method="ink")`` v1 binary output deliberately remains
+    # unchanged for release and interaction compatibility.
+    INK_EVIDENCE_SCALES = (9, 15, 31)
+    INK_EVIDENCE_TILE_SIZE = 128
+    INK_EVIDENCE_TILE_HALO = 16
+    # Only endpoint-to-junction branches at or below this geodesic length are
+    # compatibility-mask speckles. Straight endpoints and longer branches are
+    # never eroded.
+    INK_EVIDENCE_MAX_SPUR_LENGTH_PX = 2.0
+    INK_EVIDENCE_CENTERLINE_SCORE = 1.0
+    INK_EVIDENCE_FOREGROUND_WEIGHT = 0.75
+    INK_EVIDENCE_GRADIENT_SIGMA = 0.8
+    INK_EVIDENCE_TENSOR_SIGMA = 1.4
+    INK_EVIDENCE_FALLBACK_FOREGROUND_PERCENTILE = 10.0
 
     CANNY_ADAPTIVE_BLOCK_SIZE = 21
     CANNY_ADAPTIVE_C = 10
@@ -866,6 +893,557 @@ class EdgeDetector:
         return edges
 
     @classmethod
+    def detect_ink_evidence(
+        cls,
+        image: np.ndarray,
+        *,
+        tile_origin=(0, 0),
+        cancel_check=None,
+    ) -> LineEvidence:
+        """Return multi-scale, colour-aware continuous Ink evidence.
+
+        This v2 API is intentionally separate from :meth:`detect_edges`.
+        Existing callers therefore keep their exact one-scale binary Ink
+        behaviour until they explicitly opt into ``LineEvidence``.
+
+        Four appearance surfaces are used for RGB input: luminance preserves
+        the stable dark-ink response, while the individual R/G/B channels make
+        isoluminant coloured strokes visible without requiring OpenCV.
+        Black top-hat responses over three bounded scales are fused before a
+        direct centerline and an axial direction field are derived.
+        """
+
+        if cancel_check is not None and not callable(cancel_check):
+            raise TypeError("cancel_check must be callable or None")
+        _raise_if_ink_evidence_cancelled(cancel_check)
+        tile_origin = cls._validate_ink_tile_origin(tile_origin)
+        sources, shape = cls._ink_evidence_sources(image)
+        _raise_if_ink_evidence_cancelled(cancel_check)
+        if min(shape, default=0) < 1:
+            raise ValueError("Ink evidence input must have non-empty dimensions")
+        if min(shape) < 2 or not sources:
+            return cls._empty_ink_evidence(shape)
+
+        # A black top-hat can create a dark halo on ordinary paper beside a
+        # bright stroke, especially at the widest scale of one RGB channel.
+        # Cap it by bounded local-mean darkness: a red line is then supplied
+        # by its darker G/B channels instead of artificial R-channel end caps.
+        # The 31px context has a 15px radius, so the existing tile halo plus
+        # filter radius remains an exact, finite source-grid contract.
+        dark_supports = []
+        dark_context = max(cls.INK_EVIDENCE_SCALES)
+        for source in sources:
+            _raise_if_ink_evidence_cancelled(cancel_check)
+            if _scipy_ndimage is not None:
+                local_reference = _scipy_ndimage.uniform_filter(
+                    source,
+                    size=dark_context,
+                    mode="nearest",
+                )
+            else:
+                local_reference = cls._numpy_mean_filter(source, dark_context)
+            dark_supports.append(np.maximum(local_reference - source, 0.0))
+        _raise_if_ink_evidence_cancelled(cancel_check)
+        fused_response = np.zeros(shape, dtype=np.float32)
+        winning_scale = np.zeros(shape, dtype=np.float32)
+        for scale in cls.INK_EVIDENCE_SCALES:
+            _raise_if_ink_evidence_cancelled(cancel_check)
+            scale_response = np.zeros(shape, dtype=np.float32)
+            for source, dark_support in zip(sources, dark_supports):
+                _raise_if_ink_evidence_cancelled(cancel_check)
+                if _scipy_ndimage is not None:
+                    background = _scipy_ndimage.grey_closing(
+                        source,
+                        size=(scale, scale),
+                        mode="nearest",
+                    )
+                else:
+                    background = cls._numpy_grey_closing(source, scale)
+                response = np.minimum(
+                    np.maximum(background - source, 0.0),
+                    dark_support,
+                )
+                np.maximum(scale_response, response, out=scale_response)
+                _raise_if_ink_evidence_cancelled(cancel_check)
+
+            stronger = scale_response > fused_response
+            fused_response = np.maximum(fused_response, scale_response)
+            winning_scale[stronger] = float(scale)
+
+        if not np.any(fused_response > 0.0):
+            return cls._empty_ink_evidence(shape)
+        normalized = cls._normalize_tiled_ink_response(
+            fused_response,
+            tile_origin,
+            cancel_check=cancel_check,
+        )
+        if np.any(normalized >= cls.INK_MIN_NORMALIZED_RESPONSE):
+            # Build the compatibility skeleton independently for every
+            # anchored tile from that tile's *raw response halo*.  Reusing a
+            # foreground array assigned by adjacent tiles makes the last
+            # pixels of a core depend on whether the adjacent tile is fully
+            # present in the current cache read.  The local construction
+            # below has one finite dependency: response halo + morphology
+            # radius, so a 31px source read context is sufficient.
+            centerline = cls._tiled_ink_centerline(
+                fused_response,
+                tile_origin,
+                cancel_check=cancel_check,
+            )
+            centerline = cls._prune_short_ink_spurs(
+                centerline,
+                tile_origin=tile_origin,
+                cancel_check=cancel_check,
+            )
+        else:
+            centerline = np.zeros(shape, dtype=bool)
+
+        # Spur pruning changes only the binary compatibility centreline.
+        # Preserve the pre-prune continuous response everywhere, then make
+        # surviving centre pixels the unambiguous optimum for path search.
+        center_score = (
+            normalized * np.float32(cls.INK_EVIDENCE_FOREGROUND_WEIGHT)
+        ).astype(np.float32)
+        center_score[centerline] = np.float32(
+            cls.INK_EVIDENCE_CENTERLINE_SCORE
+        )
+        winning_scale = np.where(
+            normalized > 0.0,
+            winning_scale,
+            0.0,
+        ).astype(np.float32)
+        # Direction is also evaluated independently on anchored response
+        # tiles.  A global tensor over the stitched compatibility score would
+        # let an incomplete adjacent tile perturb directions at the last
+        # pixel of an otherwise complete core.
+        tangent_x, tangent_y, coherence = cls._tiled_ink_evidence_direction(
+            fused_response,
+            tile_origin,
+            cancel_check=cancel_check,
+        )
+        _raise_if_ink_evidence_cancelled(cancel_check)
+        return LineEvidence(
+            center_score=center_score,
+            centerline=centerline,
+            tangent_x=tangent_x,
+            tangent_y=tangent_y,
+            coherence=coherence,
+            scale_px=winning_scale,
+        )
+
+    @staticmethod
+    def _normalize_ink_evidence_values(values: np.ndarray) -> np.ndarray:
+        """Normalize one channel without view-dependent scaling when possible."""
+
+        source = np.asarray(values)
+        array = np.asarray(source, dtype=np.float32)
+        finite = np.isfinite(array)
+        if not finite.any():
+            return np.zeros(array.shape, dtype=np.float32)
+
+        if np.issubdtype(source.dtype, np.bool_):
+            low, high = 0.0, 1.0
+        elif np.issubdtype(source.dtype, np.integer):
+            limits = np.iinfo(source.dtype)
+            low, high = float(limits.min), float(limits.max)
+        else:
+            finite_low = float(array[finite].min())
+            finite_high = float(array[finite].max())
+            if 0.0 <= finite_low and finite_high <= 1.0:
+                low, high = 0.0, 1.0
+            elif 0.0 <= finite_low and finite_high <= 255.0:
+                low, high = 0.0, 255.0
+            else:
+                # Unscaled floating rasters have no dtype range contract.
+                # A per-channel robust range is the least surprising fallback;
+                # downstream response scaling remains fixed-tile anchored.
+                low = float(np.percentile(array[finite], 1.0))
+                high = float(np.percentile(array[finite], 99.0))
+        if high <= low + np.finfo(np.float32).eps:
+            return np.zeros(array.shape, dtype=np.float32)
+        normalized = (array - low) / (high - low)
+        # Bright background is conservative for invalid source pixels: it
+        # cannot create a synthetic dark line during morphological closing.
+        normalized = np.where(finite, normalized, 1.0)
+        return np.ascontiguousarray(
+            np.clip(normalized, 0.0, 1.0),
+            dtype=np.float32,
+        )
+
+    @classmethod
+    def _ink_evidence_sources(cls, image: np.ndarray):
+        values = np.asarray(image)
+        if values.ndim == 2:
+            normalized = cls._normalize_ink_evidence_values(values)
+            return (normalized,), tuple(int(value) for value in values.shape)
+        if values.ndim != 3 or values.shape[2] < 1:
+            raise ValueError("Ink evidence input must be gray or RGB-like")
+
+        shape = tuple(int(value) for value in values.shape[:2])
+        if values.shape[2] < 3:
+            normalized = cls._normalize_ink_evidence_values(values[..., 0])
+            return (normalized,), shape
+
+        channels = tuple(
+            cls._normalize_ink_evidence_values(values[..., channel])
+            for channel in range(3)
+        )
+        luminance = (
+            channels[0] * np.float32(0.299)
+            + channels[1] * np.float32(0.587)
+            + channels[2] * np.float32(0.114)
+        ).astype(np.float32)
+        return (
+            np.ascontiguousarray(luminance),
+            *(np.ascontiguousarray(channel) for channel in channels),
+        ), shape
+
+    @staticmethod
+    def _validate_ink_tile_origin(tile_origin):
+        if (
+            isinstance(tile_origin, (str, bytes))
+            or not hasattr(tile_origin, "__len__")
+            or len(tile_origin) != 2
+            or any(
+                isinstance(value, (bool, np.bool_))
+                or not isinstance(value, (int, np.integer))
+                for value in tile_origin
+            )
+        ):
+            raise ValueError("tile_origin must be an integer (x, y) pair")
+        return int(tile_origin[0]), int(tile_origin[1])
+
+    @classmethod
+    def _normalize_tiled_ink_response(
+        cls,
+        response,
+        tile_origin,
+        *,
+        cancel_check=None,
+    ):
+        """Normalize response on source-grid anchored tiles with a halo.
+
+        The caller can pass the source pixel coordinate corresponding to
+        ``image[0, 0]``.  Overlapping cache reads then share the same global
+        tile boundaries and local robust scale.  A halo makes the scale
+        insensitive to features immediately across a tile boundary.
+        """
+
+        values = np.asarray(response, dtype=np.float32)
+        height, width = values.shape
+        origin_x, origin_y = tile_origin
+        tile_size = int(cls.INK_EVIDENCE_TILE_SIZE)
+        halo = int(cls.INK_EVIDENCE_TILE_HALO)
+        normalized = np.zeros(values.shape, dtype=np.float32)
+
+        first_tile_x = (origin_x // tile_size) * tile_size
+        first_tile_y = (origin_y // tile_size) * tile_size
+        for global_y in range(
+            first_tile_y,
+            origin_y + height,
+            tile_size,
+        ):
+            _raise_if_ink_evidence_cancelled(cancel_check)
+            local_y0 = max(0, global_y - origin_y)
+            local_y1 = min(height, global_y + tile_size - origin_y)
+            if local_y0 >= local_y1:
+                continue
+            halo_y0 = max(0, local_y0 - halo)
+            halo_y1 = min(height, local_y1 + halo)
+            for global_x in range(
+                first_tile_x,
+                origin_x + width,
+                tile_size,
+            ):
+                _raise_if_ink_evidence_cancelled(cancel_check)
+                local_x0 = max(0, global_x - origin_x)
+                local_x1 = min(width, global_x + tile_size - origin_x)
+                if local_x0 >= local_x1:
+                    continue
+                halo_x0 = max(0, local_x0 - halo)
+                halo_x1 = min(width, local_x1 + halo)
+                neighborhood = values[halo_y0:halo_y1, halo_x0:halo_x1]
+                positive = neighborhood[neighborhood > 0.0]
+                if positive.size == 0:
+                    continue
+                scale = max(
+                    float(np.percentile(positive, cls.INK_RESPONSE_PERCENTILE)),
+                    np.finfo(np.float32).eps,
+                )
+                normalized[local_y0:local_y1, local_x0:local_x1] = np.clip(
+                    values[local_y0:local_y1, local_x0:local_x1] / scale,
+                    0.0,
+                    1.0,
+                )
+        return normalized
+
+    @classmethod
+    def _tiled_ink_centerline(
+        cls,
+        response,
+        tile_origin,
+        *,
+        cancel_check=None,
+    ):
+        """Threshold and skeletonize independent anchored response tiles.
+
+        Each output core is derived only from its own raw-response halo.  In
+        particular, no foreground labels assigned by a neighbouring tile are
+        consumed.  This keeps the compatibility centerline deterministic for
+        overlapping source-grid reads while still giving thinning contextual
+        pixels on both sides of every internal tile boundary.
+        """
+
+        response = np.asarray(response, dtype=np.float32)
+        if response.ndim != 2:
+            raise ValueError("Ink response must be a 2D array")
+        height, width = response.shape
+        origin_x, origin_y = tile_origin
+        tile_size = int(cls.INK_EVIDENCE_TILE_SIZE)
+        halo = int(cls.INK_EVIDENCE_TILE_HALO)
+        centerline = np.zeros(response.shape, dtype=bool)
+        first_tile_x = (origin_x // tile_size) * tile_size
+        first_tile_y = (origin_y // tile_size) * tile_size
+
+        for global_y in range(first_tile_y, origin_y + height, tile_size):
+            _raise_if_ink_evidence_cancelled(cancel_check)
+            local_y0 = max(0, global_y - origin_y)
+            local_y1 = min(height, global_y + tile_size - origin_y)
+            if local_y0 >= local_y1:
+                continue
+            halo_y0 = max(0, local_y0 - halo)
+            halo_y1 = min(height, local_y1 + halo)
+            for global_x in range(first_tile_x, origin_x + width, tile_size):
+                _raise_if_ink_evidence_cancelled(cancel_check)
+                local_x0 = max(0, global_x - origin_x)
+                local_x1 = min(width, global_x + tile_size - origin_x)
+                if local_x0 >= local_x1:
+                    continue
+                halo_x0 = max(0, local_x0 - halo)
+                halo_x1 = min(width, local_x1 + halo)
+                neighborhood = response[
+                    halo_y0:halo_y1,
+                    halo_x0:halo_x1,
+                ]
+                positive = neighborhood[neighborhood > 0.0]
+                if positive.size == 0:
+                    continue
+                scale = max(
+                    float(
+                        np.percentile(
+                            positive,
+                            cls.INK_RESPONSE_PERCENTILE,
+                        )
+                    ),
+                    np.finfo(np.float32).eps,
+                )
+                score = np.clip(neighborhood / scale, 0.0, 1.0)
+                candidate = score >= cls.INK_MIN_NORMALIZED_RESPONSE
+                candidate = cls._remove_small_ink_components(
+                    candidate,
+                    cancel_check=cancel_check,
+                )
+                positive_scores = score[candidate]
+                if positive_scores.size == 0:
+                    continue
+                threshold = cls._ink_response_threshold(positive_scores)
+                foreground = candidate & (score >= threshold)
+                foreground = cls._remove_small_ink_components(
+                    foreground,
+                    cancel_check=cancel_check,
+                )
+                thinned = cls.thin_binary_mask(foreground)
+                core_y0 = local_y0 - halo_y0
+                core_y1 = core_y0 + (local_y1 - local_y0)
+                core_x0 = local_x0 - halo_x0
+                core_x1 = core_x0 + (local_x1 - local_x0)
+                centerline[local_y0:local_y1, local_x0:local_x1] = thinned[
+                    core_y0:core_y1,
+                    core_x0:core_x1,
+                ]
+        return centerline
+
+    @classmethod
+    def _empty_ink_evidence(cls, shape) -> LineEvidence:
+        zeros = np.zeros(shape, dtype=np.float32)
+        return LineEvidence(
+            center_score=zeros,
+            centerline=np.zeros(shape, dtype=bool),
+        )
+
+    @classmethod
+    def _ink_response_threshold(cls, positive_scores: np.ndarray) -> float:
+        continuity_threshold = float(
+            np.percentile(
+                positive_scores,
+                cls.INK_EVIDENCE_FALLBACK_FOREGROUND_PERCENTILE,
+            )
+        )
+        if _skimage_threshold_otsu is not None and positive_scores.size > 1:
+            try:
+                threshold = min(
+                    float(_skimage_threshold_otsu(positive_scores)),
+                    continuity_threshold,
+                )
+            except (TypeError, ValueError):
+                threshold = cls.INK_MIN_NORMALIZED_RESPONSE
+        else:
+            # The dependency-light fallback should preserve a weak but
+            # continuous stroke instead of keeping only its stronger end
+            # caps. Component cleanup has already removed isolated speckles.
+            threshold = continuity_threshold
+        threshold = max(cls.INK_MIN_NORMALIZED_RESPONSE, threshold)
+        response_max = float(positive_scores.max())
+        return min(threshold, float(np.nextafter(response_max, -np.inf)))
+
+    @classmethod
+    def _tiled_ink_evidence_direction(
+        cls,
+        response,
+        tile_origin,
+        *,
+        cancel_check=None,
+    ):
+        """Derive directions from independent anchored response halos."""
+
+        values = np.asarray(response, dtype=np.float32)
+        if values.ndim != 2:
+            raise ValueError("Ink response must be a 2D array")
+        height, width = values.shape
+        origin_x, origin_y = tile_origin
+        tile_size = int(cls.INK_EVIDENCE_TILE_SIZE)
+        halo = int(cls.INK_EVIDENCE_TILE_HALO)
+        tangent_x = np.zeros(values.shape, dtype=np.float32)
+        tangent_y = np.zeros(values.shape, dtype=np.float32)
+        coherence = np.zeros(values.shape, dtype=np.float32)
+        first_tile_x = (origin_x // tile_size) * tile_size
+        first_tile_y = (origin_y // tile_size) * tile_size
+
+        for global_y in range(first_tile_y, origin_y + height, tile_size):
+            _raise_if_ink_evidence_cancelled(cancel_check)
+            local_y0 = max(0, global_y - origin_y)
+            local_y1 = min(height, global_y + tile_size - origin_y)
+            if local_y0 >= local_y1:
+                continue
+            halo_y0 = max(0, local_y0 - halo)
+            halo_y1 = min(height, local_y1 + halo)
+            for global_x in range(first_tile_x, origin_x + width, tile_size):
+                _raise_if_ink_evidence_cancelled(cancel_check)
+                local_x0 = max(0, global_x - origin_x)
+                local_x1 = min(width, global_x + tile_size - origin_x)
+                if local_x0 >= local_x1:
+                    continue
+                halo_x0 = max(0, local_x0 - halo)
+                halo_x1 = min(width, local_x1 + halo)
+                neighborhood = values[
+                    halo_y0:halo_y1,
+                    halo_x0:halo_x1,
+                ]
+                positive = neighborhood[neighborhood > 0.0]
+                if positive.size == 0:
+                    continue
+                scale = max(
+                    float(
+                        np.percentile(
+                            positive,
+                            cls.INK_RESPONSE_PERCENTILE,
+                        )
+                    ),
+                    np.finfo(np.float32).eps,
+                )
+                local_score = (
+                    np.clip(neighborhood / scale, 0.0, 1.0)
+                    * np.float32(cls.INK_EVIDENCE_FOREGROUND_WEIGHT)
+                ).astype(np.float32)
+                local_x_field, local_y_field, local_coherence = (
+                    cls._ink_evidence_direction(
+                        local_score,
+                        cancel_check=cancel_check,
+                    )
+                )
+                core_y0 = local_y0 - halo_y0
+                core_y1 = core_y0 + (local_y1 - local_y0)
+                core_x0 = local_x0 - halo_x0
+                core_x1 = core_x0 + (local_x1 - local_x0)
+                target = np.s_[local_y0:local_y1, local_x0:local_x1]
+                core = np.s_[core_y0:core_y1, core_x0:core_x1]
+                tangent_x[target] = local_x_field[core]
+                tangent_y[target] = local_y_field[core]
+                coherence[target] = local_coherence[core]
+        return tangent_x, tangent_y, coherence
+
+    @classmethod
+    def _ink_evidence_direction(
+        cls,
+        center_score: np.ndarray,
+        *,
+        cancel_check=None,
+    ):
+        """Derive an axial tangent and confidence from a continuous score."""
+
+        score = np.asarray(center_score, dtype=np.float32)
+        zeros = np.zeros(score.shape, dtype=np.float32)
+        if min(score.shape, default=0) < 2 or not np.any(score > 0.0):
+            return zeros, zeros.copy(), zeros.copy()
+
+        _raise_if_ink_evidence_cancelled(cancel_check)
+        if _scipy_ndimage is not None:
+            smooth = _scipy_ndimage.gaussian_filter(
+                score,
+                sigma=cls.INK_EVIDENCE_GRADIENT_SIGMA,
+                mode="nearest",
+            )
+        else:
+            smooth = cls._numpy_mean_filter(score, 3)
+
+        gradient_y, gradient_x = np.gradient(smooth)
+        _raise_if_ink_evidence_cancelled(cancel_check)
+        tensor_xx = gradient_x * gradient_x
+        tensor_yy = gradient_y * gradient_y
+        tensor_xy = gradient_x * gradient_y
+        if _scipy_ndimage is not None:
+            tensor_xx = _scipy_ndimage.gaussian_filter(
+                tensor_xx,
+                sigma=cls.INK_EVIDENCE_TENSOR_SIGMA,
+                mode="nearest",
+            )
+            tensor_yy = _scipy_ndimage.gaussian_filter(
+                tensor_yy,
+                sigma=cls.INK_EVIDENCE_TENSOR_SIGMA,
+                mode="nearest",
+            )
+            tensor_xy = _scipy_ndimage.gaussian_filter(
+                tensor_xy,
+                sigma=cls.INK_EVIDENCE_TENSOR_SIGMA,
+                mode="nearest",
+            )
+        else:
+            tensor_xx = cls._numpy_mean_filter(tensor_xx, 3)
+            tensor_yy = cls._numpy_mean_filter(tensor_yy, 3)
+            tensor_xy = cls._numpy_mean_filter(tensor_xy, 3)
+
+        _raise_if_ink_evidence_cancelled(cancel_check)
+        discriminant = np.sqrt(
+            np.maximum(
+                (tensor_xx - tensor_yy) ** 2 + 4.0 * tensor_xy ** 2,
+                0.0,
+            )
+        )
+        coherence = discriminant / (tensor_xx + tensor_yy + 1e-6)
+        coherence = np.clip(coherence * score, 0.0, 1.0).astype(np.float32)
+        gradient_angle = 0.5 * np.arctan2(
+            2.0 * tensor_xy,
+            tensor_xx - tensor_yy,
+        )
+        tangent_angle = gradient_angle + np.float32(np.pi / 2.0)
+        tangent_x = np.cos(tangent_angle).astype(np.float32)
+        tangent_y = np.sin(tangent_angle).astype(np.float32)
+        unoriented = coherence <= np.float32(1e-6)
+        tangent_x[unoriented] = 0.0
+        tangent_y[unoriented] = 0.0
+        return tangent_x, tangent_y, coherence
+
+    @classmethod
     def _detect_ink_centerline(
         cls,
         gray: np.ndarray,
@@ -947,14 +1525,21 @@ class EdgeDetector:
         return centerline.astype(np.uint8) * cls.EDGE_MAX_VALUE
 
     @classmethod
-    def _remove_small_ink_components(cls, mask: np.ndarray) -> np.ndarray:
+    def _remove_small_ink_components(
+        cls,
+        mask: np.ndarray,
+        *,
+        cancel_check=None,
+    ) -> np.ndarray:
         """Remove isolated scan speckles without a version-sensitive API."""
         active = np.asarray(mask, dtype=bool)
+        _raise_if_ink_evidence_cancelled(cancel_check)
         if _scipy_ndimage is not None:
             labels, component_count = _scipy_ndimage.label(
                 active,
                 structure=np.ones((3, 3), dtype=np.uint8),
             )
+            _raise_if_ink_evidence_cancelled(cancel_check)
             if not component_count:
                 return np.zeros(labels.shape, dtype=bool)
             sizes = np.bincount(labels.ravel())
@@ -966,6 +1551,7 @@ class EdgeDetector:
         visited = np.zeros(active.shape, dtype=bool)
         retained = np.zeros(active.shape, dtype=bool)
         for start in np.flatnonzero(active):
+            _raise_if_ink_evidence_cancelled(cancel_check)
             start = int(start)
             start_y, start_x = divmod(start, width)
             if visited[start_y, start_x]:
@@ -974,6 +1560,8 @@ class EdgeDetector:
             stack = [(start_y, start_x)]
             component = []
             while stack:
+                if len(component) % 1024 == 0:
+                    _raise_if_ink_evidence_cancelled(cancel_check)
                 y, x = stack.pop()
                 component.append((y, x))
                 for next_y in range(max(0, y - 1), min(height, y + 2)):
@@ -985,6 +1573,190 @@ class EdgeDetector:
                 rows, columns = zip(*component)
                 retained[rows, columns] = True
         return retained
+
+    @staticmethod
+    def _ink_skeleton_crossing_number(centerline):
+        """Return 8-neighbour foreground groups around each skeleton pixel."""
+
+        active = np.asarray(centerline, dtype=bool)
+        if active.ndim != 2:
+            raise ValueError("centerline must be a 2D array")
+        padded = np.pad(active, 1, mode="constant", constant_values=False)
+        neighbors = (
+            padded[:-2, 1:-1],   # N
+            padded[:-2, 2:],     # NE
+            padded[1:-1, 2:],    # E
+            padded[2:, 2:],      # SE
+            padded[2:, 1:-1],    # S
+            padded[2:, :-2],     # SW
+            padded[1:-1, :-2],   # W
+            padded[:-2, :-2],    # NW
+        )
+        groups = np.zeros(active.shape, dtype=np.uint8)
+        for current, following in zip(neighbors, neighbors[1:] + neighbors[:1]):
+            groups += (~current & following).astype(np.uint8)
+        groups[~active] = 0
+        return groups
+
+    @classmethod
+    def _prune_short_ink_spurs(
+        cls,
+        centerline,
+        *,
+        tile_origin=None,
+        cancel_check=None,
+    ):
+        """Remove only bounded endpoint-to-junction skeleton branches.
+
+        The crossing number distinguishes a genuine endpoint from diagonal
+        neighbours in a digital T/X junction.  Each endpoint is followed for
+        at most ``INK_EVIDENCE_MAX_SPUR_LENGTH_PX``; pixels are removed only
+        when that exact trace reaches a junction.  A line ending normally,
+        an ambiguous trace, a crop-border endpoint, or a longer branch is
+        retained unchanged.
+        """
+
+        active = np.asarray(centerline, dtype=bool)
+        if active.ndim != 2:
+            raise ValueError("centerline must be a 2D array")
+        _raise_if_ink_evidence_cancelled(cancel_check)
+        if not active.any():
+            _raise_if_ink_evidence_cancelled(cancel_check)
+            return active.copy()
+
+        topology = cls._ink_skeleton_crossing_number(active)
+        _raise_if_ink_evidence_cancelled(cancel_check)
+        endpoints = np.argwhere(active & (topology == 1))
+        _raise_if_ink_evidence_cancelled(cancel_check)
+        height, width = active.shape
+        maximum_length = float(cls.INK_EVIDENCE_MAX_SPUR_LENGTH_PX)
+        if tile_origin is None:
+            origin_x = origin_y = None
+        else:
+            origin_x, origin_y = cls._validate_ink_tile_origin(tile_origin)
+        removals = np.zeros(active.shape, dtype=bool)
+        neighbor_offsets = (
+            (-1, -1),
+            (0, -1),
+            (1, -1),
+            (-1, 0),
+            (1, 0),
+            (-1, 1),
+            (0, 1),
+            (1, 1),
+        )
+
+        for endpoint_y, endpoint_x in endpoints:
+            _raise_if_ink_evidence_cancelled(cancel_check)
+            endpoint_x = int(endpoint_x)
+            endpoint_y = int(endpoint_y)
+            # A cache/crop boundary is not evidence of a real line ending.
+            if (
+                endpoint_x == 0
+                or endpoint_y == 0
+                or endpoint_x == width - 1
+                or endpoint_y == height - 1
+            ):
+                continue
+            if origin_x is not None and origin_y is not None:
+                # A bounded prune still depends on skeleton topology just
+                # across an internal tile seam. Leave that small safety band
+                # untouched so overlapping cache reads cannot disagree about
+                # a compatibility-only spur at the seam.
+                tile_x = (origin_x + endpoint_x) % cls.INK_EVIDENCE_TILE_SIZE
+                tile_y = (origin_y + endpoint_y) % cls.INK_EVIDENCE_TILE_SIZE
+                seam_margin = int(np.ceil(maximum_length))
+                if (
+                    tile_x <= seam_margin
+                    or tile_y <= seam_margin
+                    or tile_x >= cls.INK_EVIDENCE_TILE_SIZE - seam_margin
+                    or tile_y >= cls.INK_EVIDENCE_TILE_SIZE - seam_margin
+                ):
+                    continue
+
+            path = [(endpoint_x, endpoint_y)]
+            visited = {(endpoint_x, endpoint_y)}
+            previous = None
+            current = (endpoint_x, endpoint_y)
+            length = 0.0
+            while length <= maximum_length:
+                _raise_if_ink_evidence_cancelled(cancel_check)
+                current_x, current_y = current
+                candidates = []
+                for offset_x, offset_y in neighbor_offsets:
+                    next_x = current_x + offset_x
+                    next_y = current_y + offset_y
+                    candidate = (next_x, next_y)
+                    if (
+                        0 <= next_x < width
+                        and 0 <= next_y < height
+                        and active[next_y, next_x]
+                        and candidate not in visited
+                    ):
+                        candidates.append(candidate)
+                if not candidates:
+                    break
+
+                if previous is None:
+                    # A topological endpoint normally has one raw neighbour.
+                    # Multiple choices are an aliased/thick ambiguity, so keep
+                    # it instead of guessing which branch to erase.
+                    if len(candidates) != 1:
+                        break
+                    next_pixel = candidates[0]
+                else:
+                    junctions = [
+                        candidate
+                        for candidate in candidates
+                        if topology[candidate[1], candidate[0]] >= 3
+                    ]
+                    choices = junctions or candidates
+                    incoming_x = current_x - previous[0]
+                    incoming_y = current_y - previous[1]
+                    incoming_norm = float(np.hypot(incoming_x, incoming_y))
+                    ranked = []
+                    for next_x, next_y in choices:
+                        outgoing_x = next_x - current_x
+                        outgoing_y = next_y - current_y
+                        outgoing_norm = float(np.hypot(outgoing_x, outgoing_y))
+                        alignment = (
+                            incoming_x * outgoing_x + incoming_y * outgoing_y
+                        ) / max(incoming_norm * outgoing_norm, 1e-9)
+                        ranked.append((float(alignment), (next_x, next_y)))
+                    best_alignment = max(item[0] for item in ranked)
+                    best = [
+                        pixel
+                        for alignment, pixel in ranked
+                        if abs(alignment - best_alignment) <= 1e-9
+                    ]
+                    if len(best) != 1:
+                        break
+                    next_pixel = best[0]
+
+                step_length = float(
+                    np.hypot(
+                        next_pixel[0] - current_x,
+                        next_pixel[1] - current_y,
+                    )
+                )
+                length += step_length
+                if length > maximum_length + 1e-9:
+                    break
+                next_topology = int(topology[next_pixel[1], next_pixel[0]])
+                if next_topology >= 3:
+                    for path_x, path_y in path:
+                        removals[path_y, path_x] = True
+                    break
+                if next_topology != 2:
+                    break
+                path.append(next_pixel)
+                visited.add(next_pixel)
+                previous, current = current, next_pixel
+
+        pruned = active.copy()
+        pruned[removals] = False
+        _raise_if_ink_evidence_cancelled(cancel_check)
+        return pruned
 
     @staticmethod
     def _numpy_window_filter(values, size, axis, reducer):
@@ -999,6 +1771,11 @@ class EdgeDetector:
             axis=axis,
         )
         return reducer(windows, axis=-1)
+
+    @classmethod
+    def _numpy_mean_filter(cls, values, size):
+        averaged = cls._numpy_window_filter(values, size, 0, np.mean)
+        return cls._numpy_window_filter(averaged, size, 1, np.mean)
 
     @classmethod
     def _numpy_grey_closing(cls, values, size):

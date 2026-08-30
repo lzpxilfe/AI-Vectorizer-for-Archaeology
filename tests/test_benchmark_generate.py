@@ -9,12 +9,14 @@ import shutil
 import sys
 import tempfile
 import textwrap
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
 from benchmarks import cli
 from benchmarks.generate import (
     GenerationError,
+    _request_payload,
     _rename_no_replace,
     generate_benchmark_dataset,
 )
@@ -91,7 +93,7 @@ result_path = Path(sys.argv[2])
 root = request_path.parent
 request = json.loads(request_path.read_text(encoding="utf-8"))
 prompt_document = {{
-    "schema_version": "archaeotrace-trace-prompt/1",
+    "schema_version": "archaeotrace-trace-prompt/2",
     "start_xy": [float(value) for value in request["prompt"]["start_xy"]],
     "end_xy": [float(value) for value in request["prompt"]["end_xy"]],
     "positive_xy": [
@@ -275,6 +277,39 @@ raise SystemExit(return_code)
 
 
 class BenchmarkGenerationTests(unittest.TestCase):
+    def test_v2_request_binds_source_origin_without_changing_v1_payload(self):
+        sample = SimpleNamespace(
+            image_sha256="a" * 64,
+            width=32,
+            height=24,
+            source_tile_origin_xy=(128, 64),
+            prompt=SimpleNamespace(
+                start_xy=(1.0, 2.0),
+                end_xy=(20.0, 10.0),
+                positive_xy=(),
+                negative_xy=(),
+                previous_xy=None,
+            ),
+        )
+        method = SimpleNamespace(configuration={"edge_weight": 1.0})
+        common = dict(
+            request_id="sample--ink",
+            fallback_backend=None,
+            sample=sample,
+            method=method,
+            image_path="images/sample.png",
+            artifact_path="predictions/ink/sample.json",
+            warmup_runs=1,
+            measurement_runs=3,
+            threads=1,
+        )
+
+        v2 = _request_payload(backend="ink-livewire-v2", **common)
+        v1 = _request_payload(backend="ink-livewire-v1", **common)
+
+        self.assertEqual(v2["source_tile_origin_xy"], [128, 64])
+        self.assertNotIn("source_tile_origin_xy", v1)
+
     def test_cli_dispatches_generate_with_the_isolated_defaults(self):
         template = REPOSITORY_ROOT / "benchmarks" / "data" / "runtime-template" / "manifest.json"
         manifest = load_manifest(template)
@@ -324,6 +359,10 @@ class BenchmarkGenerationTests(unittest.TestCase):
             )
 
             self.assertEqual(generated.path, (output / "manifest.json").resolve())
+            self.assertEqual(
+                generated.samples[0].prompt.schema_version,
+                "archaeotrace-trace-prompt/2",
+            )
             self.assertEqual(template_path.read_bytes(), template_bytes)
             self.assertEqual(
                 _sha256(template_path.parent / "images" / "straight-line.pgm"),
@@ -348,6 +387,10 @@ class BenchmarkGenerationTests(unittest.TestCase):
 
             raw_manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
             sample = raw_manifest["samples"][0]
+            self.assertEqual(
+                sample["prompt"]["schema_version"],
+                "archaeotrace-trace-prompt/2",
+            )
             self.assertFalse(Path(sample["image"]).is_absolute())
             self.assertFalse(Path(sample["reference"]).is_absolute())
             for prediction in sample["predictions"].values():
@@ -527,6 +570,40 @@ class BenchmarkGenerationTests(unittest.TestCase):
                         )
 
                     self.assertFalse(output.parent.exists())
+
+    def test_recovery_generation_forbids_external_backend_fallback(self):
+        recovery_backend = "ink-v2-effsam-recovery-v1"
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            output = root / "generated"
+            template = SimpleNamespace(
+                methods=(SimpleNamespace(identifier=recovery_backend),),
+                samples=(),
+            )
+            with mock.patch(
+                "benchmarks.generate.validate_benchmark",
+                return_value=template,
+            ), mock.patch(
+                "benchmarks.generate._validate_model_backed_samples",
+            ), mock.patch(
+                "benchmarks.generate._resolve_required_models",
+                side_effect=AssertionError(
+                    "external recovery fallback must fail before model resolution"
+                ),
+            ):
+                with self.assertRaisesRegex(
+                    GenerationError,
+                    "does not permit an external fallback backend",
+                ):
+                    generate_benchmark_dataset(
+                        root / "template" / "manifest.json",
+                        output,
+                        fallback_backends={
+                            recovery_backend: "efficientsam-ti-onnx-v1"
+                        },
+                    )
+
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":

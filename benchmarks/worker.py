@@ -14,7 +14,7 @@ and method in a benchmark manifest without editing that evidence.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 import hashlib
 import importlib.metadata
 import json
@@ -40,20 +40,40 @@ from .manifest import (
 )
 
 
-WORKER_REQUEST_SCHEMA_VERSION = "archaeotrace-worker-request/1"
+WORKER_REQUEST_SCHEMA_VERSION_V1 = "archaeotrace-worker-request/1"
+WORKER_REQUEST_SCHEMA_VERSION = "archaeotrace-worker-request/2"
+WORKER_REQUEST_SCHEMA_VERSIONS = frozenset(
+    {WORKER_REQUEST_SCHEMA_VERSION_V1, WORKER_REQUEST_SCHEMA_VERSION}
+)
 WORKER_RESULT_SCHEMA_VERSION = "archaeotrace-worker-result/1"
 WORKER_ADAPTER_VERSION = "archaeotrace-worker/2"
 OPENCV_ADAPTER_VERSION = "opencv-edge-worker/1"
 EFFICIENTSAM_ADAPTER_VERSION = "efficientsam-ti-onnx-worker/1"
+INK_LIVEWIRE_ADAPTER_VERSION = "ink-livewire-worker/2"
+RECOVERY_ADAPTER_VERSION = "ink-v2-effsam-recovery-worker/1"
 PRODUCT_SMOOTHING_PROFILE = "smart-trace-v1-historical"
+INK_LIVEWIRE_SMOOTHING_PROFILE = "smart-trace-livewire-v1"
+RECOVERY_EVIDENCE_SCHEMA_VERSION = "archaeotrace-ink-effsam-recovery/1"
 PRODUCT_CACHE_MAX_DIMENSION = 1_000
 EFFICIENTSAM_INPUT_DIMENSION = 1_024
 METHOD_EDGE_BACKENDS = {
     "canny-adaptive-v1": "canny",
     "lsd-adaptive-v1": "lsd",
 }
+INK_LIVEWIRE_V1_BACKEND = "ink-livewire-v1"
+INK_LIVEWIRE_V2_BACKEND = "ink-livewire-v2"
+METHOD_INK_BACKENDS = frozenset(
+    {INK_LIVEWIRE_V1_BACKEND, INK_LIVEWIRE_V2_BACKEND}
+)
 EFFICIENTSAM_BACKEND = "efficientsam-ti-onnx-v1"
-METHOD_SAM_BACKENDS = frozenset({EFFICIENTSAM_BACKEND})
+INK_V2_EFFICIENTSAM_RECOVERY_BACKEND = "ink-v2-effsam-recovery-v1"
+METHOD_RECOVERY_BACKENDS = frozenset({INK_V2_EFFICIENTSAM_RECOVERY_BACKEND})
+METHOD_SOURCE_GRID_BACKENDS = frozenset(
+    {INK_LIVEWIRE_V2_BACKEND, *METHOD_RECOVERY_BACKENDS}
+)
+METHOD_SAM_BACKENDS = frozenset(
+    {EFFICIENTSAM_BACKEND, *METHOD_RECOVERY_BACKENDS}
+)
 EFFICIENTSAM_ORT_SESSION_OPTIONS = {
     "intra_op_num_threads": 1,
     "inter_op_num_threads": 1,
@@ -64,10 +84,13 @@ EFFICIENTSAM_PREDICTION_EVIDENCE_VERSION = (
     "archaeotrace-efficientsam-prediction-evidence/1"
 )
 LATENCY_SCOPE = "warmed_predict_plus_canonical_artifact_v1"
-SUPPORTED_BACKENDS = frozenset((*METHOD_EDGE_BACKENDS, *METHOD_SAM_BACKENDS))
+SUPPORTED_BACKENDS = frozenset(
+    (*METHOD_EDGE_BACKENDS, *METHOD_INK_BACKENDS, *METHOD_SAM_BACKENDS)
+)
 MAX_REQUEST_BYTES = 1024 * 1024
 MAX_ERROR_LENGTH = 2_000
 SHA256_LENGTH = 64
+MAX_SOURCE_TILE_ORIGIN = (1 << 63) - 1
 CPU_THREAD_VARIABLES = (
     "OMP_NUM_THREADS",
     "OPENBLAS_NUM_THREADS",
@@ -103,6 +126,8 @@ class TracePrompt:
     end_xy: tuple[float, float]
     positive_xy: tuple[tuple[float, float], ...] = ()
     negative_xy: tuple[tuple[float, float], ...] = ()
+    previous_xy: tuple[float, float] | None = None
+    schema_version: str = benchmark_evidence.PROMPT_EVIDENCE_SCHEMA_VERSION
 
 
 @dataclass(frozen=True)
@@ -124,6 +149,8 @@ class WorkerRequest:
     measurement_runs: int
     threads: int
     model_cache: Path | None = None
+    schema_version: str = WORKER_REQUEST_SCHEMA_VERSION
+    source_tile_origin_xy: tuple[int, int] = (0, 0)
 
 
 @dataclass(frozen=True)
@@ -195,6 +222,20 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _route_sha256(points: Sequence[Sequence[float]]) -> str:
+    """Hash a route independently of artifact metadata and timings."""
+
+    normalized = [[float(point[0]), float(point[1])] for point in points]
+    raw = json.dumps(
+        normalized,
+        sort_keys=False,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("utf-8")
+    return _sha256_bytes(raw)
+
+
 def _is_sha256(value: Any) -> bool:
     return (
         isinstance(value, str)
@@ -216,6 +257,8 @@ def _identifier(value: Any, label: str) -> str:
 def _backend_family(backend: str) -> str:
     if backend in METHOD_EDGE_BACKENDS:
         return "edge"
+    if backend in METHOD_INK_BACKENDS:
+        return "ink"
     if backend in METHOD_SAM_BACKENDS:
         return "sam"
     raise WorkerRequestError(f"Unsupported backend: {backend!r}.")
@@ -224,6 +267,8 @@ def _backend_family(backend: str) -> str:
 def _provider_contract(backend: str) -> tuple[str, str]:
     if _backend_family(backend) == "sam":
         return "onnxruntime", "CPUExecutionProvider"
+    if _backend_family(backend) == "ink":
+        return "python", "Python CPU"
     return "opencv", "OpenCV CPU"
 
 
@@ -262,6 +307,20 @@ def _point(value: Any, width: int, height: int, label: str) -> tuple[float, floa
     if not (0 <= coordinates[0] <= width - 1 and 0 <= coordinates[1] <= height - 1):
         raise WorkerRequestError(f"{label} lies outside the image.")
     return coordinates[0], coordinates[1]
+
+
+def _source_tile_origin(value: Any) -> tuple[int, int]:
+    if not isinstance(value, list) or len(value) != 2:
+        raise WorkerRequestError("source_tile_origin_xy must be an [x, y] pair.")
+    return tuple(
+        _integer(
+            coordinate,
+            f"source_tile_origin_xy[{index}]",
+            0,
+            MAX_SOURCE_TILE_ORIGIN,
+        )
+        for index, coordinate in enumerate(value)
+    )
 
 
 def _safe_input_path(root: Path, value: Any, label: str) -> Path:
@@ -355,7 +414,8 @@ def load_worker_request(path: str | Path) -> WorkerRequest:
     if not isinstance(payload, dict):
         raise WorkerRequestError("Worker request root must be an object.")
     _validate_json_value(payload, "request")
-    if payload.get("schema_version") != WORKER_REQUEST_SCHEMA_VERSION:
+    request_schema_version = payload.get("schema_version")
+    if request_schema_version not in WORKER_REQUEST_SCHEMA_VERSIONS:
         raise WorkerRequestError("Unsupported worker request schema.")
 
     requested_backend = _identifier(payload.get("requested_backend"), "requested_backend")
@@ -364,6 +424,11 @@ def load_worker_request(path: str | Path) -> WorkerRequest:
     fallback_value = payload.get("fallback_backend")
     fallback_backend = None
     if fallback_value is not None:
+        if requested_backend in METHOD_RECOVERY_BACKENDS:
+            raise WorkerRequestError(
+                "Smart Recovery does not permit an external fallback_backend; "
+                "model or inference failures must keep its Ink champion."
+            )
         fallback_backend = _identifier(fallback_value, "fallback_backend")
         if fallback_backend not in SUPPORTED_BACKENDS or fallback_backend == requested_backend:
             raise WorkerRequestError("fallback_backend must be a distinct supported backend.")
@@ -371,6 +436,27 @@ def load_worker_request(path: str | Path) -> WorkerRequest:
             raise WorkerRequestError(
                 "fallback_backend must use the same detector family as requested_backend."
             )
+    source_origin_value = payload.get("source_tile_origin_xy")
+    if request_schema_version == WORKER_REQUEST_SCHEMA_VERSION_V1:
+        if source_origin_value is not None:
+            raise WorkerRequestError(
+                "worker request schema v1 does not support source_tile_origin_xy."
+            )
+        source_tile_origin_xy = (0, 0)
+    elif requested_backend in METHOD_SOURCE_GRID_BACKENDS:
+        if source_origin_value is None:
+            raise WorkerRequestError(
+                "Ink v2 and Smart Recovery requests require "
+                "source_tile_origin_xy."
+            )
+        source_tile_origin_xy = _source_tile_origin(source_origin_value)
+    else:
+        if source_origin_value is not None:
+            raise WorkerRequestError(
+                "source_tile_origin_xy is only valid for Ink v2 and "
+                "Smart Recovery requests."
+            )
+        source_tile_origin_xy = (0, 0)
     device = payload.get("device")
     if device != "cpu":
         raise WorkerRequestError("Worker requests must set device='cpu'.")
@@ -380,7 +466,7 @@ def load_worker_request(path: str | Path) -> WorkerRequest:
         raise WorkerRequestError("image must be an object.")
     maximum_dimension = (
         EFFICIENTSAM_INPUT_DIMENSION
-        if _backend_family(requested_backend) == "sam"
+        if requested_backend == EFFICIENTSAM_BACKEND
         else PRODUCT_CACHE_MAX_DIMENSION
     )
     width = _integer(image.get("width"), "image.width", 1, maximum_dimension)
@@ -421,6 +507,14 @@ def load_worker_request(path: str | Path) -> WorkerRequest:
         raise WorkerRequestError(
             "EfficientSAM allows at most four guide points in addition to start/end."
         )
+    previous_value = prompt_payload.get("previous_xy")
+    if (
+        request_schema_version == WORKER_REQUEST_SCHEMA_VERSION_V1
+        and previous_value is not None
+    ):
+        raise WorkerRequestError(
+            "worker request schema v1 does not support prompt.previous_xy."
+        )
     prompt = TracePrompt(
         start_xy=_point(prompt_payload.get("start_xy"), width, height, "prompt.start_xy"),
         end_xy=_point(prompt_payload.get("end_xy"), width, height, "prompt.end_xy"),
@@ -431,6 +525,16 @@ def load_worker_request(path: str | Path) -> WorkerRequest:
         negative_xy=tuple(
             _point(value, width, height, f"prompt.negative_xy[{index}]")
             for index, value in enumerate(negative_values)
+        ),
+        previous_xy=(
+            _point(previous_value, width, height, "prompt.previous_xy")
+            if previous_value is not None
+            else None
+        ),
+        schema_version=(
+            benchmark_evidence.PROMPT_EVIDENCE_SCHEMA_VERSION_V1
+            if request_schema_version == WORKER_REQUEST_SCHEMA_VERSION_V1
+            else benchmark_evidence.PROMPT_EVIDENCE_SCHEMA_VERSION
         ),
     )
     if _backend_family(requested_backend) == "sam":
@@ -477,6 +581,8 @@ def load_worker_request(path: str | Path) -> WorkerRequest:
         ),
         threads=threads,
         model_cache=model_cache,
+        schema_version=request_schema_version,
+        source_tile_origin_xy=source_tile_origin_xy,
     )
 
 
@@ -501,6 +607,90 @@ def _edge_weight(configuration: Mapping[str, Any]) -> float:
             "M1.1 Canny/LSD comparisons require configuration.edge_weight=0.5."
         )
     return edge_weight
+
+
+def _ink_livewire_contract(configuration: Mapping[str, Any]) -> float:
+    """Validate the frozen product-like Live-Wire comparison contract."""
+
+    value = configuration.get("edge_weight")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise WorkerRequestError(
+            "Ink Live-Wire requires an explicit numeric configuration.edge_weight."
+        )
+    strength = float(value)
+    if not math.isfinite(strength) or not 0.0 < strength <= 1.0:
+        raise WorkerRequestError(
+            "Ink Live-Wire edge_weight must be finite and in (0, 1]."
+        )
+    expected = {
+        "livewire_window_px": 320,
+        "target_snap_radius_px": 6,
+        "smoothing_window_px": 5,
+        "smoothing_profile": INK_LIVEWIRE_SMOOTHING_PROFILE,
+    }
+    for key, expected_value in expected.items():
+        if configuration.get(key) != expected_value:
+            raise WorkerRequestError(
+                f"Ink Live-Wire requires configuration.{key}={expected_value!r}."
+            )
+    return strength
+
+
+def _recovery_contract(configuration: Mapping[str, Any]) -> Any:
+    """Return the explicit, hashed provisional product recovery policy.
+
+    Calibration runs may change threshold values, but they cannot silently
+    change them: every field is serialized in ``recovery_thresholds`` and its
+    canonical SHA-256 must be supplied beside the provisional policy id.
+    """
+
+    try:
+        from ai_vectorizer.core.smart_recovery import (
+            RECOVERY_POLICY_ID,
+            RecoveryConfig,
+        )
+    except Exception as exc:
+        raise WorkerDependencyError(
+            "the product Smart Recovery policy is unavailable"
+        ) from exc
+
+    if configuration.get("recovery_policy_id") != RECOVERY_POLICY_ID:
+        raise WorkerRequestError(
+            f"Recovery requires recovery_policy_id={RECOVERY_POLICY_ID!r}."
+        )
+    if configuration.get("recovery_provisional") is not True:
+        raise WorkerRequestError(
+            "Recovery thresholds must be marked recovery_provisional=true."
+        )
+    raw_thresholds = configuration.get("recovery_thresholds")
+    if not isinstance(raw_thresholds, Mapping):
+        raise WorkerRequestError(
+            "Recovery requires an explicit configuration.recovery_thresholds object."
+        )
+    expected_keys = set(asdict(RecoveryConfig()))
+    if set(raw_thresholds) != expected_keys:
+        raise WorkerRequestError(
+            "configuration.recovery_thresholds must contain every RecoveryConfig "
+            "field exactly once."
+        )
+    try:
+        config = RecoveryConfig(**dict(raw_thresholds)).validate()
+    except (TypeError, ValueError) as exc:
+        raise WorkerRequestError(
+            f"configuration.recovery_thresholds is invalid: {exc}"
+        ) from exc
+    if config.policy_id != RECOVERY_POLICY_ID:
+        raise WorkerRequestError(
+            "configuration.recovery_thresholds.policy_id must match "
+            "recovery_policy_id."
+        )
+    supplied_sha256 = configuration.get("recovery_configuration_sha256")
+    if supplied_sha256 != config.sha256:
+        raise WorkerRequestError(
+            "configuration.recovery_configuration_sha256 does not match the "
+            "canonical recovery thresholds."
+        )
+    return config
 
 
 def _canny_thresholds(configuration: Mapping[str, Any]) -> tuple[int, int]:
@@ -529,7 +719,11 @@ def _smoothing_profile(configuration: Mapping[str, Any]) -> str:
     return PRODUCT_SMOOTHING_PROFILE
 
 
-def _sam_model_contract(configuration: Mapping[str, Any]) -> tuple[str, str]:
+def _sam_model_contract(
+    configuration: Mapping[str, Any],
+    *,
+    require_canny: bool = True,
+) -> tuple[str, str]:
     try:
         from ai_vectorizer.core.efficientsam_spec import EFFICIENTSAM_TI_SPLIT
         from ai_vectorizer.core.model_store import bundle_fingerprint
@@ -556,8 +750,9 @@ def _sam_model_contract(configuration: Mapping[str, Any]) -> tuple[str, str]:
         raise WorkerRequestError(
             "EfficientSAM requires configuration.mask_logit_threshold=0.0."
         )
-    _canny_thresholds(configuration)
-    _smoothing_profile(configuration)
+    if require_canny:
+        _canny_thresholds(configuration)
+        _smoothing_profile(configuration)
     return bundle_id, fingerprint
 
 
@@ -565,8 +760,16 @@ def _validate_backend_configuration(
     backend: str,
     configuration: Mapping[str, Any],
 ) -> None:
-    if _backend_family(backend) == "sam":
-        _sam_model_contract(configuration)
+    if backend == EFFICIENTSAM_BACKEND:
+        _sam_model_contract(configuration, require_canny=True)
+        return
+    if backend in METHOD_RECOVERY_BACKENDS:
+        _sam_model_contract(configuration, require_canny=False)
+        _ink_livewire_contract(configuration)
+        _recovery_contract(configuration)
+        return
+    if backend in METHOD_INK_BACKENDS:
+        _ink_livewire_contract(configuration)
         return
     _edge_weight(configuration)
     _canny_thresholds(configuration)
@@ -684,6 +887,223 @@ def _stable_sam_prediction_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+_ROUTE_QUALITY_KEYS = frozenset(
+    {
+        "support_q10",
+        "mean_support",
+        "longest_unsupported_run",
+        "mean_coherence",
+        "detour_ratio",
+        "branch_density",
+        "endpoint_error",
+        "sample_count",
+    }
+)
+_RECOVERY_EVIDENCE_KEYS = frozenset(
+    {
+        "schema_version",
+        "policy_id",
+        "configuration_sha256",
+        "provisional",
+        "gate",
+        "champion_sha256",
+        "challenger_sha256",
+        "selected_route",
+        "selection",
+        "fallback_reason",
+        "rejection_reason",
+        "segmentation_evidence",
+    }
+)
+
+
+def _validated_route_quality(value: Any, label: str) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != _ROUTE_QUALITY_KEYS:
+        raise PredictionError(f"{label} has an unsupported structure")
+    result: dict[str, Any] = {}
+    for key in _ROUTE_QUALITY_KEYS - {"longest_unsupported_run", "sample_count"}:
+        raw = value.get(key)
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            raise PredictionError(f"{label}.{key} must be numeric")
+        number = float(raw)
+        if not math.isfinite(number) or number < 0.0:
+            raise PredictionError(f"{label}.{key} must be finite and non-negative")
+        result[key] = number
+    for key in ("longest_unsupported_run", "sample_count"):
+        raw = value.get(key)
+        if isinstance(raw, bool) or not isinstance(raw, int) or raw < 0:
+            raise PredictionError(f"{label}.{key} must be a non-negative integer")
+        result[key] = raw
+    return {key: result[key] for key in sorted(result)}
+
+
+def _optional_reason(value: Any, label: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip() or len(value) > MAX_ERROR_LENGTH:
+        raise PredictionError(f"{label} must be null or a bounded non-empty string")
+    return " ".join(value.split())
+
+
+def _validated_recovery_prediction_evidence(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != _RECOVERY_EVIDENCE_KEYS:
+        raise PredictionError("Smart Recovery evidence has an unsupported structure")
+    if value.get("schema_version") != RECOVERY_EVIDENCE_SCHEMA_VERSION:
+        raise PredictionError("Smart Recovery evidence has an unsupported schema")
+    if value.get("provisional") is not True:
+        raise PredictionError("Smart Recovery evidence must remain provisional")
+    try:
+        from ai_vectorizer.core.smart_recovery import RECOVERY_POLICY_ID
+    except Exception as exc:
+        raise PredictionError("Smart Recovery policy identity is unavailable") from exc
+    if value.get("policy_id") != RECOVERY_POLICY_ID:
+        raise PredictionError("Smart Recovery evidence changed policy_id")
+    if not _is_sha256(value.get("configuration_sha256")):
+        raise PredictionError("Smart Recovery evidence has an invalid configuration hash")
+    if not _is_sha256(value.get("champion_sha256")):
+        raise PredictionError("Smart Recovery evidence has an invalid champion hash")
+
+    gate = value.get("gate")
+    if not isinstance(gate, Mapping) or set(gate) != {"trigger", "reason", "metrics"}:
+        raise PredictionError("Smart Recovery gate evidence has an unsupported structure")
+    if not isinstance(gate.get("trigger"), bool):
+        raise PredictionError("Smart Recovery gate trigger must be boolean")
+    gate_reason = _optional_reason(gate.get("reason"), "recovery.gate.reason")
+    if gate_reason is None:
+        raise PredictionError("Smart Recovery gate reason cannot be null")
+    gate_metrics = _validated_route_quality(
+        gate.get("metrics"), "recovery.gate.metrics"
+    )
+
+    challenger_sha256 = value.get("challenger_sha256")
+    if challenger_sha256 is not None and not _is_sha256(challenger_sha256):
+        raise PredictionError("Smart Recovery challenger hash is invalid")
+    selected_route = value.get("selected_route")
+    if selected_route not in {"champion", "challenger"}:
+        raise PredictionError("Smart Recovery selected_route is invalid")
+    selection_value = value.get("selection")
+    selection = None
+    if selection_value is not None:
+        selection_keys = {
+            "reason",
+            "champion_metrics",
+            "challenger_metrics",
+            "strong_ink_retention",
+            "route_separation_p95",
+        }
+        if not isinstance(selection_value, Mapping) or set(selection_value) != selection_keys:
+            raise PredictionError("Smart Recovery selection has an unsupported structure")
+        selection_reason = _optional_reason(
+            selection_value.get("reason"), "recovery.selection.reason"
+        )
+        if selection_reason is None:
+            raise PredictionError("Smart Recovery selection reason cannot be null")
+        strong_retention = selection_value.get("strong_ink_retention")
+        if (
+            isinstance(strong_retention, bool)
+            or not isinstance(strong_retention, (int, float))
+            or not math.isfinite(float(strong_retention))
+            or not 0.0 <= float(strong_retention) <= 1.0
+        ):
+            raise PredictionError("Smart Recovery strong-ink retention is invalid")
+        separation = selection_value.get("route_separation_p95")
+        if separation is not None and (
+            isinstance(separation, bool)
+            or not isinstance(separation, (int, float))
+            or not math.isfinite(float(separation))
+            or float(separation) < 0.0
+        ):
+            raise PredictionError("Smart Recovery route separation is invalid")
+        challenger_metrics = selection_value.get("challenger_metrics")
+        selection = {
+            "reason": selection_reason,
+            "champion_metrics": _validated_route_quality(
+                selection_value.get("champion_metrics"),
+                "recovery.selection.champion_metrics",
+            ),
+            "challenger_metrics": (
+                _validated_route_quality(
+                    challenger_metrics,
+                    "recovery.selection.challenger_metrics",
+                )
+                if challenger_metrics is not None
+                else None
+            ),
+            "strong_ink_retention": float(strong_retention),
+            "route_separation_p95": (
+                float(separation) if separation is not None else None
+            ),
+        }
+
+    segmentation_value = value.get("segmentation_evidence")
+    segmentation = (
+        _validated_sam_prediction_evidence(segmentation_value)
+        if segmentation_value is not None
+        else None
+    )
+    trigger = bool(gate["trigger"])
+    fallback_reason = _optional_reason(
+        value.get("fallback_reason"), "recovery.fallback_reason"
+    )
+    rejection_reason = _optional_reason(
+        value.get("rejection_reason"), "recovery.rejection_reason"
+    )
+    if not trigger and any(
+        item is not None
+        for item in (challenger_sha256, selection, fallback_reason, segmentation)
+    ):
+        raise PredictionError("an untriggered recovery must not run a challenger")
+    if selected_route == "challenger" and (
+        not trigger
+        or challenger_sha256 is None
+        or segmentation is None
+        or selection is None
+        or selection["reason"] != "accepted"
+        or fallback_reason is not None
+        or rejection_reason is not None
+    ):
+        raise PredictionError("accepted recovery evidence is inconsistent")
+    if trigger and selected_route == "champion" and rejection_reason is None and fallback_reason is None:
+        raise PredictionError("rejected recovery evidence needs a rejection or fallback reason")
+
+    return {
+        "schema_version": RECOVERY_EVIDENCE_SCHEMA_VERSION,
+        "policy_id": RECOVERY_POLICY_ID,
+        "configuration_sha256": value["configuration_sha256"],
+        "provisional": True,
+        "gate": {
+            "trigger": trigger,
+            "reason": gate_reason,
+            "metrics": gate_metrics,
+        },
+        "champion_sha256": value["champion_sha256"],
+        "challenger_sha256": challenger_sha256,
+        "selected_route": selected_route,
+        "selection": selection,
+        "fallback_reason": fallback_reason,
+        "rejection_reason": rejection_reason,
+        "segmentation_evidence": segmentation,
+    }
+
+
+def _stable_recovery_prediction_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
+    result = dict(value)
+    gate = dict(result["gate"])
+    gate["metrics"] = dict(gate["metrics"])
+    result["gate"] = gate
+    if result["selection"] is not None:
+        selection = dict(result["selection"])
+        selection["champion_metrics"] = dict(selection["champion_metrics"])
+        if selection["challenger_metrics"] is not None:
+            selection["challenger_metrics"] = dict(selection["challenger_metrics"])
+        result["selection"] = selection
+    if result["segmentation_evidence"] is not None:
+        result["segmentation_evidence"] = _stable_sam_prediction_evidence(
+            result["segmentation_evidence"]
+        )
+    return result
+
+
 def _capture_prediction_evidence(
     pipeline: LoadedPipeline,
     info: BackendInfo,
@@ -695,18 +1115,35 @@ def _capture_prediction_evidence(
         raise PredictionError(
             "EfficientSAM pipeline did not expose prediction evidence"
         )
-    evidence = _validated_sam_prediction_evidence(getter())
-    samples = info.runtime_details.setdefault("sam_prediction_samples", [])
+    is_recovery = info.actual_backend in METHOD_RECOVERY_BACKENDS
+    evidence = (
+        _validated_recovery_prediction_evidence(getter())
+        if is_recovery
+        else _validated_sam_prediction_evidence(getter())
+    )
+    sample_key = (
+        "recovery_prediction_samples" if is_recovery else "sam_prediction_samples"
+    )
+    samples = info.runtime_details.setdefault(sample_key, [])
     if not isinstance(samples, list):
         raise PredictionError(
-            "EfficientSAM pipeline changed prediction sample evidence storage"
+            "model pipeline changed prediction sample evidence storage"
         )
-    samples.append(
-        {
-            key: ([*item] if key == "iou_predictions" else item)
-            for key, item in evidence.items()
-        }
-    )
+    if is_recovery:
+        samples.append(_stable_recovery_prediction_evidence(evidence) | {
+            "segmentation_evidence": (
+                dict(evidence["segmentation_evidence"])
+                if evidence["segmentation_evidence"] is not None
+                else None
+            )
+        })
+    else:
+        samples.append(
+            {
+                key: ([*item] if key == "iou_predictions" else item)
+                for key, item in evidence.items()
+            }
+        )
     return evidence
 
 
@@ -739,19 +1176,43 @@ def _canonical_artifact_bytes(
     if len(normalized) < 2:
         raise PredictionError("trace kernel must return at least two ordered points")
 
+    ink_or_recovery = (
+        actual_backend in METHOD_INK_BACKENDS
+        or actual_backend in METHOD_RECOVERY_BACKENDS
+    )
     metadata = {
         "actual_backend": actual_backend,
         "configuration_sha256": _configuration_sha256(request.configuration),
         "input_sha256": request.image_sha256,
         "prompt_sha256": benchmark_evidence.prompt_sha256(request.prompt),
         "requested_backend": request.requested_backend,
-        "smoothing": PRODUCT_SMOOTHING_PROFILE,
-        "trace_kernel": "ai_vectorizer.core.trace_kernel",
+        "smoothing": (
+            INK_LIVEWIRE_SMOOTHING_PROFILE
+            if ink_or_recovery
+            else PRODUCT_SMOOTHING_PROFILE
+        ),
+        "trace_kernel": (
+            "ai_vectorizer.core.livewire"
+            if actual_backend in METHOD_INK_BACKENDS
+            else "ai_vectorizer.core.trace_kernel"
+        ),
     }
-    if actual_backend in METHOD_SAM_BACKENDS:
+    if request.requested_backend in METHOD_SOURCE_GRID_BACKENDS:
+        metadata.update(
+            source_tile_origin_xy=list(request.source_tile_origin_xy),
+            source_grid_input_sha256=(
+                benchmark_evidence.source_grid_input_sha256(
+                    request.image_sha256,
+                    request.source_tile_origin_xy,
+                )
+            ),
+        )
+    if actual_backend == EFFICIENTSAM_BACKEND:
         from ai_vectorizer.core.efficientsam_spec import EFFICIENTSAM_TI_SPLIT
 
-        bundle_id, fingerprint = _sam_model_contract(request.configuration)
+        bundle_id, fingerprint = _sam_model_contract(
+            request.configuration, require_canny=True
+        )
         if prediction_evidence is None:
             raise PredictionError(
                 "EfficientSAM canonical artifacts require prediction evidence"
@@ -767,6 +1228,42 @@ def _canonical_artifact_bytes(
             ),
             segmentation_evidence=_stable_sam_prediction_evidence(
                 validated_evidence
+            ),
+        )
+    elif actual_backend in METHOD_RECOVERY_BACKENDS:
+        from ai_vectorizer.core.efficientsam_spec import EFFICIENTSAM_TI_SPLIT
+
+        bundle_id, fingerprint = _sam_model_contract(
+            request.configuration, require_canny=False
+        )
+        recovery_config = _recovery_contract(request.configuration)
+        if prediction_evidence is None:
+            raise PredictionError(
+                "Smart Recovery canonical artifacts require recovery evidence"
+            )
+        recovery_evidence = _validated_recovery_prediction_evidence(
+            prediction_evidence
+        )
+        if recovery_evidence["configuration_sha256"] != recovery_config.sha256:
+            raise PredictionError(
+                "Smart Recovery artifact evidence changed the configured policy hash"
+            )
+        metadata.update(
+            livewire_kernel="ai_vectorizer.core.livewire",
+            mask_trace_kernel="ai_vectorizer.core.sam_trace_kernel",
+            recovery_kernel="ai_vectorizer.core.smart_recovery",
+            model_bundle_id=bundle_id,
+            model_bundle_sha256=fingerprint,
+            model_source_commit=EFFICIENTSAM_TI_SPLIT.source_commit,
+            sam_prompt_tensor_sha256=(
+                benchmark_evidence.recovery_prompt_tensor_sha256(
+                    request.prompt,
+                    width=request.width,
+                    height=request.height,
+                )
+            ),
+            recovery_evidence=_stable_recovery_prediction_evidence(
+                recovery_evidence
             ),
         )
     elif prediction_evidence is not None:
@@ -939,6 +1436,16 @@ def _base_runtime(request: WorkerRequest, info: BackendInfo | None) -> dict[str,
         "deterministic": None,
         "output_sha256_samples": [],
     }
+    if request.requested_backend in METHOD_SOURCE_GRID_BACKENDS:
+        runtime.update(
+            source_tile_origin_xy=list(request.source_tile_origin_xy),
+            source_grid_input_sha256=(
+                benchmark_evidence.source_grid_input_sha256(
+                    request.image_sha256,
+                    request.source_tile_origin_xy,
+                )
+            ),
+        )
     if info and info.model_artifacts_sha256:
         runtime["model_artifacts_sha256"] = dict(info.model_artifacts_sha256)
     if info and info.model_bundle_id is not None:
@@ -950,7 +1457,10 @@ def _base_runtime(request: WorkerRequest, info: BackendInfo | None) -> dict[str,
     if info is None and request.requested_backend in METHOD_SAM_BACKENDS:
         from ai_vectorizer.core.efficientsam_spec import EFFICIENTSAM_TI_SPLIT
 
-        bundle_id, fingerprint = _sam_model_contract(request.configuration)
+        bundle_id, fingerprint = _sam_model_contract(
+            request.configuration,
+            require_canny=request.requested_backend == EFFICIENTSAM_BACKEND,
+        )
         runtime.update(
             model_bundle_id=bundle_id,
             model_bundle_sha256=fingerprint,
@@ -960,9 +1470,24 @@ def _base_runtime(request: WorkerRequest, info: BackendInfo | None) -> dict[str,
                 for artifact in EFFICIENTSAM_TI_SPLIT.artifacts
             },
         )
-    if request.requested_backend in METHOD_SAM_BACKENDS:
+    if request.requested_backend == EFFICIENTSAM_BACKEND:
         runtime["sam_prompt_tensor_sha256"] = (
             benchmark_evidence.sam_prompt_tensor_sha256(request.prompt)
+        )
+    elif request.requested_backend in METHOD_RECOVERY_BACKENDS:
+        runtime["sam_prompt_tensor_sha256"] = (
+            benchmark_evidence.recovery_prompt_tensor_sha256(
+                request.prompt,
+                width=request.width,
+                height=request.height,
+            )
+        )
+    if request.requested_backend in METHOD_RECOVERY_BACKENDS:
+        recovery_config = _recovery_contract(request.configuration)
+        runtime.update(
+            recovery_policy_id=recovery_config.policy_id,
+            recovery_configuration_sha256=recovery_config.sha256,
+            recovery_provisional=True,
         )
     return runtime
 
@@ -1001,6 +1526,14 @@ def _pipeline_attestation_error(
             return "pipeline did not attest disabled OpenCV threading/OpenCL"
         return None
 
+    if expected_kind == "python":
+        if (
+            info.thread_settings.get("opencl") is not False
+            or info.thread_settings.get("opencv_set_num_threads") != 0
+        ):
+            return "pipeline did not attest deterministic CPU Live-Wire execution"
+        return None
+
     required_ort_threads = {
         "onnx_intra_op_num_threads": 1,
         "onnx_inter_op_num_threads": 1,
@@ -1029,7 +1562,10 @@ def _pipeline_attestation_error(
         "decoder": dict(EFFICIENTSAM_ORT_SESSION_OPTIONS),
     }:
         return "pipeline raw ONNX session evidence did not attest deterministic options"
-    bundle_id, fingerprint = _sam_model_contract(request.configuration)
+    bundle_id, fingerprint = _sam_model_contract(
+        request.configuration,
+        require_canny=info.actual_backend == EFFICIENTSAM_BACKEND,
+    )
     from ai_vectorizer.core.efficientsam_spec import EFFICIENTSAM_TI_SPLIT
 
     expected_artifacts = {
@@ -1112,6 +1648,14 @@ def run_worker(
 
     if request.device != "cpu":
         raise WorkerRequestError("Only CPU worker requests are supported.")
+    if (
+        request.requested_backend in METHOD_RECOVERY_BACKENDS
+        and request.fallback_backend is not None
+    ):
+        raise WorkerRequestError(
+            "Smart Recovery does not permit an external fallback_backend; "
+            "model or inference failures must keep its Ink champion."
+        )
     _validate_backend_configuration(request.requested_backend, request.configuration)
     if pipeline_loader is None:
         def loader(backend: str, threads: int) -> LoadedPipeline:
@@ -1171,6 +1715,14 @@ def run_worker(
     decode_started = perf_counter_ns()
     try:
         image = pipeline.load_image(request.image_path, request.width, request.height)
+        if info.actual_backend in METHOD_SOURCE_GRID_BACKENDS:
+            if not isinstance(image, dict):
+                raise PredictionError(
+                    "Ink v2 source-grid input must use the product image record"
+                )
+            image["source_tile_origin_xy"] = tuple(
+                request.source_tile_origin_xy
+            )
     except Exception as exc:
         return _failure_result(
             request,
@@ -1534,6 +2086,212 @@ class _OpenCVTracePipeline:
         )
 
 
+class _InkLiveWirePipeline:
+    """Product-like Ink Centerline + bounded Live-Wire benchmark adapter."""
+
+    def __init__(
+        self,
+        backend: str,
+        threads: int,
+        np_module: Any,
+        cv2_module: Any,
+        *,
+        opencv_effective_num_threads: int,
+        opencv_opencl_enabled: bool,
+    ):
+        import ai_vectorizer as ai_vectorizer_package
+        from ai_vectorizer import core as core_package
+        from ai_vectorizer.core import edge_detector as edge_detector_module
+        from ai_vectorizer.core import line_evidence as line_evidence_module
+        from ai_vectorizer.core import livewire as livewire_module
+        from ai_vectorizer.core import trace_kernel
+        import benchmarks as benchmarks_package
+
+        if backend not in METHOD_INK_BACKENDS:
+            raise BackendUnavailableError(f"unsupported Ink Live-Wire backend: {backend}")
+        if threads != 1:
+            raise WorkerRequestError("Ink Live-Wire benchmark workers require threads=1")
+        if not livewire_module.is_livewire_available():
+            raise WorkerDependencyError("Ink Live-Wire requires a working SciPy runtime")
+
+        self._backend = backend
+        self._np = np_module
+        self._cv2 = cv2_module
+        self._edge_detector_module = edge_detector_module
+        self._livewire = livewire_module
+        self._trace_kernel = trace_kernel
+        self._detector = edge_detector_module.EdgeDetector(method="ink")
+
+        source_modules = (
+            benchmarks_package,
+            benchmark_evidence,
+            benchmark_geometry,
+            benchmark_manifest,
+            ai_vectorizer_package,
+            core_package,
+            edge_detector_module,
+            line_evidence_module,
+            livewire_module,
+            trace_kernel,
+        )
+        repository_root = Path(__file__).resolve().parents[1]
+        source_hashes = {"benchmarks/worker.py": _sha256_file(Path(__file__))}
+        for module in source_modules:
+            module_path = Path(module.__file__).resolve()
+            try:
+                label = module_path.relative_to(repository_root).as_posix()
+            except ValueError:
+                label = module_path.name
+            source_hashes[label] = _sha256_file(module_path)
+
+        self.info = BackendInfo(
+            actual_backend=backend,
+            provider_kind="python",
+            actual_provider="Python CPU",
+            provider_device_type="cpu",
+            adapter_version=INK_LIVEWIRE_ADAPTER_VERSION,
+            package_versions={
+                "numpy": str(getattr(np_module, "__version__", "unknown")),
+                "opencv": str(getattr(cv2_module, "__version__", "unknown")),
+                "scipy": _distribution_version("scipy"),
+            },
+            thread_settings={
+                "threads": threads,
+                "opencv_set_num_threads": 0,
+                "opencv_effective_num_threads": opencv_effective_num_threads,
+                "opencl": opencv_opencl_enabled,
+                **{variable: os.environ.get(variable) for variable in CPU_THREAD_VARIABLES},
+            },
+            provider_verified=True,
+            source_files_sha256=source_hashes,
+            runtime_details={
+                "livewire_window_px": 320,
+                "target_snap_radius_px": 6,
+                "smoothing_window_px": 5,
+                "ink_evidence_api": (
+                    "detect_ink_evidence"
+                    if backend == INK_LIVEWIRE_V2_BACKEND
+                    else "detect_edges"
+                ),
+            },
+        )
+
+    def load_image(self, path: Path, width: int, height: int) -> Any:
+        decode_started = time.perf_counter_ns()
+        image = self._cv2.imread(str(path), self._cv2.IMREAD_UNCHANGED)
+        if image is None:
+            raise PredictionError(f"OpenCV could not decode {path.name}")
+        if image.dtype != self._np.uint8 or tuple(image.shape[:2]) != (height, width):
+            raise PredictionError("Ink Live-Wire input must decode as sized uint8")
+        if image.ndim == 2:
+            rgb = image
+        elif image.ndim == 3 and image.shape[2] == 1:
+            rgb = image[..., 0]
+        elif image.ndim == 3 and image.shape[2] == 3:
+            rgb = self._cv2.cvtColor(image, self._cv2.COLOR_BGR2RGB)
+        elif image.ndim == 3 and image.shape[2] == 4:
+            rgb = self._cv2.cvtColor(image, self._cv2.COLOR_BGRA2RGBA)
+        else:
+            raise PredictionError("Ink Live-Wire input must be gray, RGB, or RGBA")
+        self.info.runtime_details["image_file_decode_ns"] = max(
+            0, time.perf_counter_ns() - decode_started
+        )
+        return {
+            "rgb": self._np.ascontiguousarray(rgb),
+            "edges": None,
+            "evidence": None,
+        }
+
+    def _prepare_ink(self, image: Any) -> tuple[Any, Any | None]:
+        if image["edges"] is not None:
+            return image["edges"], image["evidence"]
+        started = time.perf_counter_ns()
+        if self._backend == INK_LIVEWIRE_V1_BACKEND:
+            # This is intentionally the legacy API. It is the OFF/control
+            # boundary for proving that v2 is not silently v1 evidence.
+            edges = self._detector.detect_edges(image["rgb"])
+            evidence = None
+        else:
+            evidence = self._detector.detect_ink_evidence(
+                image["rgb"],
+                tile_origin=image.get("source_tile_origin_xy", (0, 0)),
+            )
+            centerline = self._np.asarray(evidence.centerline)
+            if tuple(centerline.shape) != tuple(image["rgb"].shape[:2]):
+                raise PredictionError("LineEvidence.centerline changed image dimensions")
+            if centerline.dtype == self._np.bool_:
+                edges = centerline.astype(self._np.uint8) * 255
+            else:
+                edges = self._np.where(centerline > 0, 255, 0).astype(self._np.uint8)
+        image["edges"] = self._np.ascontiguousarray(edges)
+        image["evidence"] = evidence
+        self.info.runtime_details["ink_cache_fill_wall_ns"] = max(
+            0, time.perf_counter_ns() - started
+        )
+        return image["edges"], image["evidence"]
+
+    def _champion_path(
+        self,
+        image: Any,
+        prompt: TracePrompt,
+        configuration: Mapping[str, Any],
+    ) -> tuple[list[tuple[float, float]], Any | None, Any]:
+        strength = _ink_livewire_contract(configuration)
+        edges, evidence = self._prepare_ink(image)
+        root = (int(prompt.start_xy[0]), int(prompt.start_xy[1]))
+        incoming_direction = None
+        if prompt.previous_xy is not None:
+            previous = (
+                int(prompt.previous_xy[0]),
+                int(prompt.previous_xy[1]),
+            )
+            incoming_direction = (
+                root[0] - previous[0],
+                root[1] - previous[1],
+            )
+            if incoming_direction == (0, 0):
+                incoming_direction = None
+        config = self._livewire.LiveWireConfig(
+            max_window_size=320,
+            target_snap_radius=6,
+        )
+        tree = self._livewire.build_livewire_tree(
+            image["rgb"],
+            edges,
+            root,
+            strength=strength,
+            incoming_direction=incoming_direction,
+            evidence=evidence if self._backend == INK_LIVEWIRE_V2_BACKEND else None,
+            config=config,
+        )
+        path = list(tree.trace(prompt.end_xy))
+        if len(path) > 5:
+            smoothed = list(self._trace_kernel.smooth_pixel_path(path, window_size=5))
+            smoothed[0] = path[0]
+            smoothed[-1] = path[-1]
+            path = smoothed
+        if len(path) < 2:
+            raise PredictionError("Ink Live-Wire did not return an ordered segment")
+        path[0] = (float(prompt.start_xy[0]), float(prompt.start_xy[1]))
+        # Recovery must remain inside this exact bounded tree window.  Return
+        # the tree rather than reconstructing a second, subtly different crop
+        # from the prompt coordinates in the challenger adapter.
+        return path, evidence, tree
+
+    def predict(
+        self,
+        image: Any,
+        prompt: TracePrompt,
+        configuration: Mapping[str, Any],
+    ) -> Sequence[Sequence[float]]:
+        path, _evidence, _tree = self._champion_path(
+            image,
+            prompt,
+            configuration,
+        )
+        return path
+
+
 class _EfficientSAMTracePipeline:
     """Official split EfficientSAM-Ti ONNX plus the product SAM trace policy."""
 
@@ -1843,6 +2601,450 @@ class _EfficientSAMTracePipeline:
         }
 
 
+class _InkV2EfficientSAMRecoveryPipeline(_InkLiveWirePipeline):
+    """Conditional Ink-v2 champion with a pinned EfficientSAM challenger."""
+
+    def __init__(
+        self,
+        backend: str,
+        threads: int,
+        model_cache: Path,
+        np_module: Any,
+        cv2_module: Any,
+        *,
+        opencv_effective_num_threads: int,
+        opencv_opencl_enabled: bool,
+    ):
+        if backend != INK_V2_EFFICIENTSAM_RECOVERY_BACKEND:
+            raise BackendUnavailableError(f"unsupported recovery backend: {backend}")
+        super().__init__(
+            INK_LIVEWIRE_V2_BACKEND,
+            threads,
+            np_module,
+            cv2_module,
+            opencv_effective_num_threads=opencv_effective_num_threads,
+            opencv_opencl_enabled=opencv_opencl_enabled,
+        )
+
+        from ai_vectorizer.core import efficientsam_onnx
+        from ai_vectorizer.core import efficientsam_spec
+        from ai_vectorizer.core import model_store
+        from ai_vectorizer.core import recovery_prompts
+        from ai_vectorizer.core import sam_trace_kernel
+        from ai_vectorizer.core import smart_recovery
+        from ai_vectorizer.core import trace_kernel
+
+        bundle = model_store.resolve_bundle(
+            model_cache,
+            efficientsam_spec.EFFICIENTSAM_TI_SPLIT,
+        )
+        self._engine = efficientsam_onnx.EfficientSAMOnnxEngine(
+            bundle.read_bytes("encoder"),
+            bundle.read_bytes("decoder"),
+            threads=threads,
+        )
+        self._recovery_prompts = recovery_prompts
+        self._sam_trace_kernel = sam_trace_kernel
+        self._smart_recovery = smart_recovery
+        self._recovery_trace_kernel = trace_kernel
+        self._latest_prediction_evidence: dict[str, Any] | None = None
+
+        engine_metadata = dict(self._engine.metadata)
+        providers = engine_metadata.get("providers", {})
+        provider_verified = (
+            isinstance(providers, dict)
+            and providers.get("encoder") == ["CPUExecutionProvider"]
+            and providers.get("decoder") == ["CPUExecutionProvider"]
+        )
+        session_options = engine_metadata.get("session_options", {})
+        if not isinstance(session_options, dict):
+            session_options = {}
+        artifact_hashes = {
+            artifact.id: artifact.sha256
+            for artifact in efficientsam_spec.EFFICIENTSAM_TI_SPLIT.artifacts
+        }
+        source_hashes = dict(self.info.source_files_sha256)
+        repository_root = Path(__file__).resolve().parents[1]
+        for module in (
+            efficientsam_onnx,
+            efficientsam_spec,
+            model_store,
+            recovery_prompts,
+            sam_trace_kernel,
+            smart_recovery,
+            trace_kernel,
+        ):
+            module_path = Path(module.__file__).resolve()
+            try:
+                label = module_path.relative_to(repository_root).as_posix()
+            except ValueError:
+                label = module_path.name
+            source_hashes[label] = _sha256_file(module_path)
+
+        runtime_details = dict(self.info.runtime_details)
+        runtime_details.update(
+            onnx_providers=providers,
+            onnx_session_options=engine_metadata.get("session_options_by_session"),
+            encoder_reused_across_predictions=True,
+            encoder_execution="conditional_after_recovery_gate",
+            model_source_commit=efficientsam_spec.EFFICIENTSAM_TI_SPLIT.source_commit,
+            recovery_policy_id=smart_recovery.RECOVERY_POLICY_ID,
+            recovery_configuration_sha256=(
+                smart_recovery.DEFAULT_RECOVERY_CONFIG.sha256
+            ),
+            recovery_provisional=True,
+        )
+        initialization_ms = (
+            engine_metadata.get("timing_ms", {}).get("session_initialization")
+            if isinstance(engine_metadata.get("timing_ms"), dict)
+            else None
+        )
+        if isinstance(initialization_ms, (int, float)):
+            runtime_details["session_initialization_ns"] = max(
+                0, int(float(initialization_ms) * 1_000_000)
+            )
+
+        self.info = BackendInfo(
+            actual_backend=backend,
+            provider_kind="onnxruntime",
+            actual_provider="CPUExecutionProvider",
+            provider_device_type="cpu",
+            adapter_version=RECOVERY_ADAPTER_VERSION,
+            package_versions={
+                **dict(self.info.package_versions),
+                "onnxruntime": str(
+                    engine_metadata.get("onnxruntime_version", "unknown")
+                ),
+            },
+            thread_settings={
+                "threads": threads,
+                "onnx_intra_op_num_threads": session_options.get(
+                    "intra_op_num_threads"
+                ),
+                "onnx_inter_op_num_threads": session_options.get(
+                    "inter_op_num_threads"
+                ),
+                "onnx_execution_mode": session_options.get("execution_mode"),
+                "onnx_graph_optimization_level": session_options.get(
+                    "graph_optimization_level"
+                ),
+                "opencv_set_num_threads": 0,
+                "opencv_effective_num_threads": opencv_effective_num_threads,
+                "opencl": opencv_opencl_enabled,
+                **{variable: os.environ.get(variable) for variable in CPU_THREAD_VARIABLES},
+            },
+            provider_verified=provider_verified,
+            source_files_sha256=source_hashes,
+            model_artifacts_sha256=artifact_hashes,
+            model_bundle_id=efficientsam_spec.EFFICIENTSAM_TI_SPLIT.id,
+            model_bundle_sha256=model_store.bundle_fingerprint(
+                efficientsam_spec.EFFICIENTSAM_TI_SPLIT
+            ),
+            runtime_details=runtime_details,
+        )
+
+    def load_image(self, path: Path, width: int, height: int) -> Any:
+        image = super().load_image(path, width, height)
+        image["encoding"] = None
+        return image
+
+    def _model_rgb(self, image: Any) -> Any:
+        rgb = self._np.asarray(image["rgb"])
+        if rgb.ndim == 2:
+            rgb = self._np.repeat(rgb[..., None], 3, axis=2)
+        elif rgb.ndim == 3 and rgb.shape[2] == 4:
+            rgb = rgb[..., :3]
+        if rgb.ndim != 3 or rgb.shape[2] != 3:
+            raise PredictionError("Smart Recovery model input must be RGB")
+        return self._np.ascontiguousarray(rgb, dtype=self._np.uint8)
+
+    def _segmentation_evidence(self, prediction: Any) -> dict[str, Any]:
+        metadata = prediction.metadata
+        timing = metadata.get("timing_ms") if isinstance(metadata, Mapping) else None
+        decoder_ms = timing.get("decoder") if isinstance(timing, Mapping) else None
+        if (
+            isinstance(decoder_ms, bool)
+            or not isinstance(decoder_ms, (int, float))
+            or not math.isfinite(float(decoder_ms))
+            or float(decoder_ms) < 0.0
+        ):
+            raise PredictionError("EfficientSAM decoder omitted finite timing evidence")
+        float32_dtype = self._np.dtype("<f4")
+        iou_array = self._np.ascontiguousarray(
+            self._np.asarray(prediction.iou_predictions, dtype=float32_dtype)
+        )
+        selected_logits = self._np.ascontiguousarray(
+            self._np.asarray(prediction.selected_logits, dtype=float32_dtype)
+        )
+        selected_mask = self._np.ascontiguousarray(
+            self._np.asarray(prediction.mask, dtype=self._np.uint8)
+        )
+        if tuple(iou_array.shape) != (3,) or not bool(self._np.isfinite(iou_array).all()):
+            raise PredictionError("EfficientSAM returned invalid IoU evidence")
+        if not bool(self._np.isfinite(selected_logits).all()):
+            raise PredictionError("EfficientSAM returned non-finite logits")
+        if selected_logits.shape != selected_mask.shape:
+            raise PredictionError("EfficientSAM mask/logit evidence dimensions disagree")
+        selected_index = int(prediction.selected_index)
+        if selected_index != int(self._np.argmax(iou_array)):
+            raise PredictionError("EfficientSAM selected mask disagrees with predicted IoU")
+        return {
+            "schema_version": EFFICIENTSAM_PREDICTION_EVIDENCE_VERSION,
+            "selected_mask_index": selected_index,
+            "iou_predictions": [float(value) for value in iou_array.tolist()],
+            "iou_predictions_sha256": _sha256_bytes(iou_array.tobytes(order="C")),
+            "selected_logits_sha256": _sha256_bytes(
+                selected_logits.tobytes(order="C")
+            ),
+            "selected_binary_mask_sha256": _sha256_bytes(
+                selected_mask.tobytes(order="C")
+            ),
+            "accepted_mask_sha256": _sha256_bytes(
+                selected_mask.tobytes(order="C")
+            ),
+            "decoder_wall_ns": max(0, int(float(decoder_ms) * 1_000_000)),
+        }
+
+    def _bounded_recovery_inputs(
+        self,
+        evidence: Any,
+        corridor: Any,
+        champion_tree: Any,
+        prompt: TracePrompt,
+    ) -> tuple[Any, Any, tuple[float, float], tuple[float, float], tuple[int, int]]:
+        """Crop recovery to the champion Live-Wire tree's exact pixel window."""
+
+        from ai_vectorizer.core.line_evidence import LineEvidence
+
+        try:
+            origin_x, origin_y = (int(value) for value in champion_tree.origin)
+            height, width = (int(value) for value in champion_tree.shape)
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise PredictionError(
+                "Smart Recovery champion omitted its bounded Live-Wire window"
+            ) from exc
+        if (
+            height < 1
+            or width < 1
+            or height > 320
+            or width > 320
+            or origin_x < 0
+            or origin_y < 0
+        ):
+            raise PredictionError("Smart Recovery champion window is outside the 320px contract")
+
+        score_shape = tuple(self._np.asarray(evidence.center_score).shape)
+        corridor_array = self._np.asarray(corridor, dtype=self._np.float32)
+        if len(score_shape) != 2 or tuple(corridor_array.shape) != score_shape:
+            raise PredictionError(
+                "Smart Recovery corridor must match the full Ink evidence grid"
+            )
+        end_x = origin_x + width
+        end_y = origin_y + height
+        if end_x > score_shape[1] or end_y > score_shape[0]:
+            raise PredictionError("Smart Recovery champion window leaves the evidence grid")
+
+        local_start = (
+            float(prompt.start_xy[0]) - origin_x,
+            float(prompt.start_xy[1]) - origin_y,
+        )
+        local_end = (
+            float(prompt.end_xy[0]) - origin_x,
+            float(prompt.end_xy[1]) - origin_y,
+        )
+        for label, (x, y) in (("start", local_start), ("end", local_end)):
+            if not (0.0 <= x < width and 0.0 <= y < height):
+                raise PredictionError(
+                    f"Smart Recovery {label} lies outside the champion Live-Wire window"
+                )
+
+        window = (slice(origin_y, end_y), slice(origin_x, end_x))
+        bounded_evidence = LineEvidence(
+            center_score=evidence.center_score[window],
+            centerline=evidence.centerline[window],
+            tangent_x=evidence.tangent_x[window],
+            tangent_y=evidence.tangent_y[window],
+            coherence=evidence.coherence[window],
+            scale_px=evidence.scale_px[window],
+        )
+        bounded_corridor = self._np.ascontiguousarray(corridor_array[window])
+        return (
+            bounded_evidence,
+            bounded_corridor,
+            local_start,
+            local_end,
+            (origin_x, origin_y),
+        )
+
+    def predict(
+        self,
+        image: Any,
+        prompt: TracePrompt,
+        configuration: Mapping[str, Any],
+    ) -> Sequence[Sequence[float]]:
+        recovery_config = _recovery_contract(configuration)
+        champion, evidence, champion_tree = self._champion_path(
+            image,
+            prompt,
+            configuration,
+        )
+        if evidence is None:
+            raise PredictionError("Smart Recovery requires explicit LineEvidence")
+        gate = self._smart_recovery.recovery_gate(
+            champion,
+            evidence,
+            expected_start=prompt.start_xy,
+            expected_end=prompt.end_xy,
+            config=recovery_config,
+        )
+        record: dict[str, Any] = {
+            "schema_version": RECOVERY_EVIDENCE_SCHEMA_VERSION,
+            "policy_id": gate.policy_id,
+            "configuration_sha256": gate.configuration_sha256,
+            "provisional": True,
+            "gate": {
+                "trigger": bool(gate.trigger),
+                "reason": gate.reason,
+                "metrics": gate.quality.as_dict(),
+            },
+            "champion_sha256": _route_sha256(champion),
+            "challenger_sha256": None,
+            "selected_route": "champion",
+            "selection": None,
+            "fallback_reason": None,
+            "rejection_reason": "recovery_not_triggered",
+            "segmentation_evidence": None,
+        }
+        if not gate.trigger:
+            self._latest_prediction_evidence = record
+            return champion
+
+        # A model call is forbidden before this point. The encoder is cached
+        # only after the product Ink quality gate explicitly permits recovery.
+        record["rejection_reason"] = None
+        try:
+            if image["encoding"] is None:
+                encode_started = time.perf_counter_ns()
+                image["encoding"] = self._engine.encode(self._model_rgb(image))
+                self.info.runtime_details["conditional_image_encode_wall_ns"] = max(
+                    0, time.perf_counter_ns() - encode_started
+                )
+            recovery_prompts = self._recovery_prompts.build_recovery_prompt_tensors(
+                prompt.start_xy,
+                prompt.end_xy,
+                width=int(image["rgb"].shape[1]),
+                height=int(image["rgb"].shape[0]),
+            )
+            points, labels = recovery_prompts.as_numpy(self._np)
+            prediction = self._engine.predict(image["encoding"], points, labels)
+            segmentation_evidence = self._segmentation_evidence(prediction)
+            corridor = self._np.asarray(prediction.mask, dtype=self._np.float32)
+            (
+                bounded_evidence,
+                bounded_corridor,
+                local_start,
+                local_end,
+                (origin_x, origin_y),
+            ) = self._bounded_recovery_inputs(
+                evidence,
+                corridor,
+                champion_tree,
+                prompt,
+            )
+            cost_map = self._smart_recovery.build_corridor_cost_map(
+                bounded_evidence,
+                bounded_corridor,
+                config=recovery_config,
+            )
+            window_height, window_width = cost_map.shape
+            trace_config = self._recovery_trace_kernel.TraceConfig(
+                max_width=int(window_width),
+                max_height=int(window_height),
+                max_cells=int(window_width) * int(window_height),
+                validate_all_costs=False,
+                validate_accessed_costs=False,
+            )
+            trace = self._recovery_trace_kernel.trace_path(
+                cost_map,
+                local_start,
+                local_end,
+                allow_partial=False,
+                config=trace_config,
+            )
+            if trace.status != "complete":
+                raise PredictionError("Smart Recovery challenger did not reach the endpoint")
+            challenger = [
+                (float(x) + origin_x, float(y) + origin_y)
+                for x, y in trace.points_xy
+            ]
+            # Product recovery displays a five-point-smoothed route.  Apply
+            # that transformation before the safety arbiter and use this one
+            # exact route for evidence, hashing, and output; a post-arbitration
+            # geometry change could otherwise bypass endpoint/branch checks.
+            if len(challenger) > 5:
+                challenger = list(
+                    self._recovery_trace_kernel.smooth_pixel_path(
+                        challenger,
+                        window_size=5,
+                    )
+                )
+            challenger[0] = (
+                float(prompt.start_xy[0]),
+                float(prompt.start_xy[1]),
+            )
+            challenger[-1] = (
+                float(prompt.end_xy[0]),
+                float(prompt.end_xy[1]),
+            )
+            selection = self._smart_recovery.arbitrate_routes(
+                champion,
+                challenger,
+                evidence,
+                expected_start=prompt.start_xy,
+                expected_end=prompt.end_xy,
+                config=recovery_config,
+            )
+            separation = float(selection.route_separation_p95)
+            record.update(
+                challenger_sha256=_route_sha256(challenger),
+                selected_route=selection.selected,
+                selection={
+                    "reason": selection.reason,
+                    "champion_metrics": selection.champion_quality.as_dict(),
+                    "challenger_metrics": (
+                        selection.challenger_quality.as_dict()
+                        if selection.challenger_quality is not None
+                        else None
+                    ),
+                    "strong_ink_retention": float(selection.strong_ink_retention),
+                    "route_separation_p95": (
+                        separation if math.isfinite(separation) else None
+                    ),
+                },
+                rejection_reason=(
+                    None if selection.accepted else selection.reason
+                ),
+                segmentation_evidence=segmentation_evidence,
+            )
+            self._latest_prediction_evidence = record
+            return challenger if selection.accepted else champion
+        except Exception as exc:
+            record.update(
+                selected_route="champion",
+                fallback_reason=_safe_error(exc),
+                rejection_reason=None,
+            )
+            self._latest_prediction_evidence = record
+            return champion
+
+    def prediction_evidence(self) -> Mapping[str, Any]:
+        if self._latest_prediction_evidence is None:
+            raise PredictionError(
+                "Smart Recovery evidence was requested before prediction"
+            )
+        return dict(self._latest_prediction_evidence)
+
+
 def _distribution_version(name: str) -> str | None:
     try:
         return importlib.metadata.version(name)
@@ -1952,7 +3154,12 @@ def _load_efficientsam_pipeline(
     opencv_effective_num_threads, opencv_opencl_enabled = (
         _configure_efficientsam_opencv(cv2, threads)
     )
-    return _EfficientSAMTracePipeline(
+    pipeline_class = (
+        _InkV2EfficientSAMRecoveryPipeline
+        if backend in METHOD_RECOVERY_BACKENDS
+        else _EfficientSAMTracePipeline
+    )
+    return pipeline_class(
         backend,
         threads,
         model_cache,
@@ -1960,6 +3167,30 @@ def _load_efficientsam_pipeline(
         cv2,
         opencv_effective_num_threads=opencv_effective_num_threads,
         opencv_opencl_enabled=opencv_opencl_enabled,
+    )
+
+
+def _load_ink_pipeline(backend: str, threads: int) -> LoadedPipeline:
+    """Lazy-load the CPU Ink + Live-Wire adapter without importing QGIS."""
+
+    if backend not in METHOD_INK_BACKENDS:
+        raise BackendUnavailableError(f"unsupported Ink backend: {backend}")
+    try:
+        import numpy as np
+    except Exception as exc:
+        raise WorkerDependencyError("Ink Live-Wire workers require NumPy") from exc
+    try:
+        import cv2
+    except Exception as exc:
+        raise WorkerDependencyError("Ink Live-Wire workers require OpenCV") from exc
+    effective_threads, opencl_enabled = _configure_efficientsam_opencv(cv2, threads)
+    return _InkLiveWirePipeline(
+        backend,
+        threads,
+        np,
+        cv2,
+        opencv_effective_num_threads=effective_threads,
+        opencv_opencl_enabled=opencl_enabled,
     )
 
 
@@ -1971,6 +3202,8 @@ def _load_pipeline(
 ) -> LoadedPipeline:
     if backend in METHOD_EDGE_BACKENDS:
         return _load_opencv_pipeline(backend, threads)
+    if backend in METHOD_INK_BACKENDS:
+        return _load_ink_pipeline(backend, threads)
     if backend in METHOD_SAM_BACKENDS:
         return _load_efficientsam_pipeline(backend, threads, model_cache)
     raise BackendUnavailableError(f"unsupported benchmark backend: {backend}")
@@ -2062,13 +3295,21 @@ __all__ = [
     "BackendInfo",
     "BackendUnavailableError",
     "EFFICIENTSAM_BACKEND",
+    "INK_LIVEWIRE_V1_BACKEND",
+    "INK_LIVEWIRE_V2_BACKEND",
+    "INK_V2_EFFICIENTSAM_RECOVERY_BACKEND",
     "LoadedPipeline",
     "METHOD_EDGE_BACKENDS",
+    "METHOD_INK_BACKENDS",
+    "METHOD_RECOVERY_BACKENDS",
     "METHOD_SAM_BACKENDS",
+    "METHOD_SOURCE_GRID_BACKENDS",
     "PredictionError",
     "PRODUCT_SMOOTHING_PROFILE",
     "TracePrompt",
     "WORKER_REQUEST_SCHEMA_VERSION",
+    "WORKER_REQUEST_SCHEMA_VERSION_V1",
+    "WORKER_REQUEST_SCHEMA_VERSIONS",
     "WORKER_RESULT_SCHEMA_VERSION",
     "SUPPORTED_BACKENDS",
     "WorkerDependencyError",

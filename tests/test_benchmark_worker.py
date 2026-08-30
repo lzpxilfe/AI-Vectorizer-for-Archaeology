@@ -14,12 +14,18 @@ import unittest
 from unittest import mock
 
 import benchmarks.worker as benchmark_worker
+from benchmarks.evidence import (
+    PROMPT_EVIDENCE_SCHEMA_VERSION,
+    PROMPT_EVIDENCE_SCHEMA_VERSION_V1,
+    prompt_sha256,
+)
 from benchmarks.geometry import load_centerline_artifact
 from benchmarks.manifest import load_manifest
 from benchmarks.worker import (
     BackendInfo,
     BackendUnavailableError,
     WORKER_REQUEST_SCHEMA_VERSION,
+    WORKER_REQUEST_SCHEMA_VERSION_V1,
     WorkerDependencyError,
     WorkerRequestError,
     load_worker_request,
@@ -143,6 +149,90 @@ print(benchmarks.worker.WORKER_REQUEST_SCHEMA_VERSION)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn(WORKER_REQUEST_SCHEMA_VERSION, completed.stdout)
 
+    def test_request_v2_previous_point_and_v1_compatibility_are_explicit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            request_path, payload = self._fixture(folder)
+            current_without_previous = load_worker_request(request_path)
+            self.assertEqual(
+                current_without_previous.prompt.schema_version,
+                PROMPT_EVIDENCE_SCHEMA_VERSION,
+            )
+            payload["schema_version"] = WORKER_REQUEST_SCHEMA_VERSION_V1
+            request_path.write_text(json.dumps(payload), encoding="utf-8")
+            legacy = load_worker_request(request_path)
+            self.assertEqual(legacy.schema_version, WORKER_REQUEST_SCHEMA_VERSION_V1)
+            self.assertIsNone(legacy.prompt.previous_xy)
+            self.assertEqual(
+                legacy.prompt.schema_version,
+                PROMPT_EVIDENCE_SCHEMA_VERSION_V1,
+            )
+            self.assertNotEqual(
+                prompt_sha256(current_without_previous.prompt),
+                prompt_sha256(legacy.prompt),
+            )
+
+            payload["prompt"]["previous_xy"] = [0.5, 4.0]
+            request_path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(WorkerRequestError, "v1 does not support"):
+                load_worker_request(request_path)
+
+            payload["schema_version"] = WORKER_REQUEST_SCHEMA_VERSION
+            request_path.write_text(json.dumps(payload), encoding="utf-8")
+            upgraded = load_worker_request(request_path)
+            self.assertEqual(upgraded.prompt.previous_xy, (0.5, 4.0))
+            self.assertEqual(
+                upgraded.prompt.schema_version,
+                PROMPT_EVIDENCE_SCHEMA_VERSION,
+            )
+
+    def test_recovery_request_forbids_external_backend_fallback(self):
+        with tempfile.TemporaryDirectory() as folder:
+            request_path, payload = self._fixture(folder)
+            payload.update(
+                requested_backend="ink-v2-effsam-recovery-v1",
+                fallback_backend="efficientsam-ti-onnx-v1",
+            )
+            request_path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(
+                WorkerRequestError,
+                "does not permit an external fallback_backend",
+            ):
+                load_worker_request(request_path)
+
+    def test_v2_source_tile_origin_is_explicit_and_v1_stays_unchanged(self):
+        with tempfile.TemporaryDirectory() as folder:
+            request_path, payload = self._fixture(folder)
+            payload.update(
+                requested_backend="ink-livewire-v2",
+                artifact="predictions/ink-livewire-v2/straight-line.json",
+                configuration={
+                    "edge_weight": 0.5,
+                    "livewire_window_px": 320,
+                    "target_snap_radius_px": 6,
+                    "smoothing_window_px": 5,
+                    "smoothing_profile": "smart-trace-livewire-v1",
+                },
+            )
+            request_path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(
+                WorkerRequestError,
+                "require source_tile_origin_xy",
+            ):
+                load_worker_request(request_path)
+
+            payload["source_tile_origin_xy"] = [128, 64]
+            request_path.write_text(json.dumps(payload), encoding="utf-8")
+            request = load_worker_request(request_path)
+            self.assertEqual(request.source_tile_origin_xy, (128, 64))
+
+            payload["schema_version"] = WORKER_REQUEST_SCHEMA_VERSION_V1
+            request_path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(
+                WorkerRequestError,
+                "v1 does not support source_tile_origin_xy",
+            ):
+                load_worker_request(request_path)
+
     def test_success_records_manifest_compatible_self_observed_evidence(self):
         with tempfile.TemporaryDirectory() as folder:
             request_path, _payload = self._fixture(folder)
@@ -173,6 +263,10 @@ print(benchmarks.worker.WORKER_REQUEST_SCHEMA_VERSION)
         self.assertEqual(pipeline.calls, 4)
         self.assertEqual((artifact.width, artifact.height), (9, 9))
         self.assertEqual(artifact.paths[0].points, ((1.0, 4.0), (7.0, 4.0)))
+        self.assertNotIn("source_tile_origin_xy", runtime)
+        self.assertNotIn("source_grid_input_sha256", runtime)
+        self.assertNotIn("source_tile_origin_xy", artifact.metadata)
+        self.assertNotIn("source_grid_input_sha256", artifact.metadata)
 
     def test_lsd_load_failure_can_record_explicit_canny_fallback(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -653,6 +747,9 @@ print(benchmarks.worker.WORKER_REQUEST_SCHEMA_VERSION)
             }
             manifest_payload["samples"][0]["prompt"] = copy.deepcopy(
                 request_payload["prompt"]
+            )
+            manifest_payload["samples"][0]["prompt"]["schema_version"] = (
+                PROMPT_EVIDENCE_SCHEMA_VERSION
             )
             manifest_path.write_text(json.dumps(manifest_payload), encoding="utf-8")
 

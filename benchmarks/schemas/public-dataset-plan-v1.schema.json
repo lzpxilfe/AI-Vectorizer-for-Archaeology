@@ -1,0 +1,449 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/benchmarks/schemas/public-dataset-plan-v1.schema.json",
+  "title": "ArchaeoTrace public 8x6 dataset plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "dataset_id",
+    "title",
+    "publication_ranking_eligible",
+    "threshold_status",
+    "split_policy",
+    "difficulty_strata",
+    "sheets"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "archaeotrace-public-dataset-plan/1"
+    },
+    "dataset_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "publication_ranking_eligible": {
+      "const": false
+    },
+    "threshold_status": {
+      "const": "provisional"
+    },
+    "split_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assignment_unit",
+        "calibration_sheet_ids",
+        "holdout_sheet_ids",
+        "selection_seed",
+        "frozen_holdout"
+      ],
+      "properties": {
+        "assignment_unit": {
+          "const": "sheet"
+        },
+        "calibration_sheet_ids": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "holdout_sheet_ids": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "selection_seed": {
+          "type": "string",
+          "minLength": 1
+        },
+        "frozen_holdout": {
+          "const": true
+        }
+      }
+    },
+    "difficulty_strata": {
+      "const": [
+        "clean_dark_curve",
+        "thick_or_scale",
+        "faded_or_broken",
+        "colored_line",
+        "text_or_number_crossing",
+        "dense_parallel",
+        "stain_fold_bleed",
+        "straight_grid_distractor"
+      ]
+    },
+    "sheets": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/sheet"
+      }
+    }
+  },
+  "$defs": {
+    "point": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "number"
+      }
+    },
+    "sheet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source_id",
+        "split",
+        "origin_group",
+        "source",
+        "crops"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "split": {
+          "enum": [
+            "calibration",
+            "holdout"
+          ]
+        },
+        "origin_group": {
+          "enum": [
+            "usgs_htmc",
+            "korea_rights_cleared"
+          ]
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "title",
+            "publisher",
+            "date_or_sheet",
+            "source_url",
+            "license",
+            "rights_status",
+            "rights_statement_url",
+            "text_snapshot",
+            "text_snapshot_sha256",
+            "source_raster",
+            "source_raster_sha256"
+          ],
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "publisher": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "date_or_sheet": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source_url": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "license": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rights_status": {
+              "enum": [
+                "unresolved",
+                "public_domain",
+                "open_license"
+              ]
+            },
+            "rights_statement_url": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "text_snapshot": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "text_snapshot_sha256": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              ]
+            },
+            "source_raster": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source_raster_sha256": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              ]
+            }
+          }
+        },
+        "crops": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "$ref": "#/$defs/crop"
+          }
+        }
+      }
+    },
+    "crop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "slot",
+        "difficulty_stratum",
+        "source_crop_xywh",
+        "source_tile_origin_xy",
+        "image",
+        "image_sha256",
+        "prompt",
+        "ordered_reference",
+        "ordered_reference_sha256",
+        "annotation",
+        "notes"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "slot": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        },
+        "difficulty_stratum": {
+          "enum": [
+            "clean_dark_curve",
+            "thick_or_scale",
+            "faded_or_broken",
+            "colored_line",
+            "text_or_number_crossing",
+            "dense_parallel",
+            "stain_fold_bleed",
+            "straight_grid_distractor"
+          ]
+        },
+        "source_crop_xywh": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          ]
+        },
+        "source_tile_origin_xy": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          ]
+        },
+        "image": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "image_sha256": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          ]
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "schema_version",
+                "start_xy",
+                "end_xy",
+                "positive_xy",
+                "negative_xy"
+              ],
+              "properties": {
+                "schema_version": {
+                  "const": "archaeotrace-trace-prompt/2"
+                },
+                "start_xy": {
+                  "$ref": "#/$defs/point"
+                },
+                "end_xy": {
+                  "$ref": "#/$defs/point"
+                },
+                "previous_xy": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/$defs/point"
+                    }
+                  ]
+                },
+                "positive_xy": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/point"
+                  },
+                  "maxItems": 4
+                },
+                "negative_xy": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/point"
+                  },
+                  "maxItems": 4
+                }
+              }
+            }
+          ]
+        },
+        "ordered_reference": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ordered_reference_sha256": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          ]
+        },
+        "annotation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reviewer_id",
+            "review_status",
+            "adjudicator_id",
+            "adjudication_status"
+          ],
+          "properties": {
+            "reviewer_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "review_status": {
+              "enum": [
+                "unreviewed",
+                "approved",
+                "rejected"
+              ]
+            },
+            "adjudicator_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "adjudication_status": {
+              "enum": [
+                "pending",
+                "accepted",
+                "rejected"
+              ]
+            }
+          }
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

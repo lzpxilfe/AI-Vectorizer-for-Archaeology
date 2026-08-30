@@ -2,9 +2,10 @@
 
 This directory contains a dependency-free evaluator plus optional isolated CPU
 workers for the M1 model benchmark. The evaluator can score imported traces;
-the worker path executes the product's Canny/LSD detector or the pinned
-EfficientSAM-Ti split ONNX adapter, calls the same QGIS-independent trace
-kernels as `SmartTraceTool`, and emits an `archaeotrace-centerline/1` artifact.
+the worker path executes Canny/LSD, Ink Live-Wire, the pinned EfficientSAM-Ti
+split ONNX adapter, or the conditional Ink-v2 recovery route. It calls the
+same QGIS-independent trace kernels as `SmartTraceTool` and emits an
+`archaeotrace-centerline/1` artifact.
 
 That boundary matters: edge maps, region masks, and final ordered lines are not
 interchangeable. Scoring begins only after every method crosses the shared
@@ -62,6 +63,45 @@ The current measured method ids describe the real hybrid implementations:
 Both fix `edge_weight=0.5`, require scikit-image skeletonization, use one CPU
 thread, and disable OpenCL. Dependency/backend failures and explicit fallbacks
 remain structured execution records instead of becoming silent successes.
+
+## Ink Live-Wire and conditional recovery methods
+
+The registered comparison ids are deliberately separate contracts:
+
+- `ink-livewire-v1` calls the legacy `EdgeDetector.detect_edges()` Ink path;
+- `ink-livewire-v2` calls `detect_ink_evidence()`, consumes
+  `LineEvidence.centerline`, and passes the full evidence object to bounded
+  Live-Wire. It is the Smart Recovery **OFF** control;
+- `efficientsam-ti-onnx-v1` remains the pure segmentation comparison;
+- `ink-v2-effsam-recovery-v1` first builds the identical Ink-v2 champion. It
+  runs the EfficientSAM encoder/decoder only when the product recovery gate
+  marks that route low quality, then uses `build_corridor_cost_map()` and
+  `arbitrate_routes()` to accept or reject the challenger.
+
+Both Ink adapters freeze the 320-pixel Live-Wire window, 6-pixel target snap,
+five-point endpoint-restored smoothing, and an explicit edge strength. Worker
+request schema `archaeotrace-worker-request/2` adds optional `previous_xy` so
+directional history can be measured. The worker still accepts schema v1
+requests without that field, and their canonical prompt hashes remain byte-for-
+byte compatible. Prompt hash provenance follows the carrying protocol rather
+than field population: request /2 always hashes `archaeotrace-trace-prompt/2`,
+even when `previous_xy` is omitted, while request /1 keeps prompt /1.
+
+The hybrid recovery adapter derives its model prompt through the same
+QGIS-free helper used by the plugin: anchor and target are the only positives,
+with up to four clipped 10-pixel perpendicular negatives. `previous_xy` is
+Live-Wire direction only, and `positive_xy`/`negative_xy` do not alter the
+recovery model tensor. Runtime evidence and the centerline artifact bind the
+SHA-256 of that actual derived tensor.
+
+Recovery thresholds are not implied defaults. Every request contains all
+`RecoveryConfig` fields in `recovery_thresholds`, the provisional policy id
+`smart-recovery-gate-v1-provisional`, and the configuration SHA-256. Runtime
+and artifact evidence separately record gate metrics/trigger, champion and
+optional challenger route hashes, selected route, fallback or rejection
+reason, and conditional segmentation evidence. An untriggered record is
+invalid if it contains decoder evidence. These thresholds remain provisional
+until calibration is completed on the public dataset below.
 
 ## Isolated EfficientSAM-Ti ONNX smoke check
 
@@ -230,6 +270,49 @@ Neither 9×9 smoke fixture is an accuracy benchmark. They prove only that
 validation, execution, tracing, and reporting are connected. Reports keep
 `publication_ranking_eligible=false` until a licensed, stratified historical-map
 dataset and review protocol exist.
+
+## Public 8-sheet / 48-crop plan
+
+[`data/public-8x6-template/dataset-plan.json`](data/public-8x6-template/dataset-plan.json)
+is a rights-safe plan, not a dataset download. It reserves eight independent
+source sheets and six ordered-reference crops per sheet, split at sheet level
+into four calibration and four frozen holdout sheets. Each split contains two
+`usgs_htmc` and two `korea_rights_cleared` sources. The eight fixed failure
+strata each occur three times per split (six times overall): clean dark curve,
+thick/scale variation, faded/broken line, coloured line, text/number crossing,
+dense parallel lines, stain/fold/bleed, and straight/grid distractors.
+
+Validate the structural template offline:
+
+```bash
+python3 -c "from benchmarks.public_dataset import validate_public_dataset_plan as v; print(v('benchmarks/data/public-8x6-template/dataset-plan.json'))"
+```
+
+The companion
+[`public-dataset-plan-v1.schema.json`](schemas/public-dataset-plan-v1.schema.json)
+documents the JSON shape. `validate_public_dataset_plan()` additionally checks
+the distribution and leakage constraints JSON Schema cannot express. It never
+downloads anything. The checked-in template intentionally uses unresolved
+rights/assets and therefore reports `materialized=false` and
+`publication_ranking_eligible=false`.
+
+Before a materialized plan is accepted, every source must have an open/public-
+domain rights status, publisher/date or sheet id, source and rights-statement
+URLs, a locally captured rights-text snapshot and hash, and a source-raster
+hash. Every crop must have source `x,y,width,height`, the matching explicit
+`source_tile_origin_xy=[x,y]`, hashed local image and ordered reference, a
+bounded prompt explicitly marked `schema_version=archaeotrace-trace-prompt/2`,
+and completed independent reviewer and adjudicator approval.
+Ink v2/Recovery worker evidence binds that origin together with the image hash
+so an identical PNG cannot silently move to a different normalization tile.
+Run the validator with `require_materialized=True` for
+that gate. Calibration can tune the provisional recovery thresholds; the
+frozen holdout cannot be used for tuning.
+
+Do not fill a source slot with rights-unclear material or the restricted-
+distribution Library of Congress L851 collection. A public URL by itself is
+not redistribution permission; retain the item-level rights evidence and its
+local snapshot.
 
 ## Adding real cases
 

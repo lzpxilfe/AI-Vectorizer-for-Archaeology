@@ -87,6 +87,11 @@ class DependencyDeclarationTests(unittest.TestCase):
         opencv = (ROOT / "requirements-opencv.txt").read_text(encoding="utf-8")
         self.assertIn("opencv-python-headless>=4.8,<4.12", opencv)
         self.assertIn("does not pin QGIS' own NumPy ABI", opencv)
+        recovery = (ROOT / "requirements-smart-recovery.txt").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("onnxruntime>=1.17.0,<2", recovery)
+        self.assertNotIn("onnxruntime", base)
         self.assertIn("Pillow>=12.3.0", base)
         development = (ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
         self.assertIn("pytest>=9.0.3,<10", development)
@@ -207,6 +212,228 @@ class ReleasePackagingTests(unittest.TestCase):
             for _source, relative in package_release.iter_source_files()
         }
         self.assertIn(".secrets.baseline", selected)
+
+    def test_security_baseline_contains_only_reviewed_model_identity_constants(self):
+        baseline_path = ROOT / "ai_vectorizer" / ".secrets.baseline"
+        baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+        results = baseline.get("results")
+        expected_counts = {
+            "ai_vectorizer/core/edge_detector.py": 2,
+            "ai_vectorizer/core/efficientsam_spec.py": 3,
+            "ai_vectorizer/core/sam_engine.py": 4,
+        }
+        self.assertEqual(
+            {path: len(findings) for path, findings in results.items()},
+            expected_counts,
+        )
+        reviewed_markers = (
+            "SHA256",
+            "SOURCE_COMMIT",
+            "sha256=",
+            '"weights_sha256"',
+        )
+        for relative_path, findings in results.items():
+            source_lines = (ROOT / relative_path).read_text(encoding="utf-8").splitlines()
+            for finding in findings:
+                self.assertEqual(finding["type"], "Hex High Entropy String")
+                self.assertEqual(finding["filename"], relative_path)
+                self.assertFalse(finding["is_verified"])
+                line_number = finding["line_number"]
+                self.assertGreaterEqual(line_number, 1)
+                source_line = source_lines[line_number - 1]
+                self.assertTrue(
+                    any(marker in source_line for marker in reviewed_markers),
+                    f"Unreviewed secret-baseline entry: {relative_path}:{line_number}",
+                )
+
+    def test_frozen_015_hash_matches_release_readiness_record(self):
+        frozen_hash = package_release.FROZEN_RELEASE_SHA256["0.1.5"]
+        release_record = (
+            ROOT / "docs" / "RELEASE_READINESS_0.1.5.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn(frozen_hash, release_record)
+        for relative_path in ("README.md", "README.en.md"):
+            document = (ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertIn("--output", document)
+            self.assertIn("--approve-release-overwrite VERSION", document)
+            self.assertNotRegex(
+                document,
+                r"(?m)^python3 scripts/package_release\.py\s*$",
+            )
+
+    def test_unreleased_source_cannot_replace_frozen_production_zip(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            plugin_dir = root / "ai_vectorizer"
+            plugin_dir.mkdir()
+            (plugin_dir / "metadata.txt").write_text(
+                f"[general]\nversion={TEST_VERSION}\n",
+                encoding="utf-8",
+            )
+            (plugin_dir / "config.py").write_text("UNRELEASED = True\n", encoding="utf-8")
+            dist_dir = root / "dist"
+            dist_dir.mkdir()
+            production_zip = dist_dir / f"ai_vectorizer-{TEST_VERSION}.zip"
+            frozen_payload = b"frozen release bytes"
+            production_zip.write_bytes(frozen_payload)
+            frozen_hash = package_release.bytes_hash(frozen_payload)
+
+            with mock.patch.multiple(
+                package_release,
+                ROOT=root,
+                PLUGIN_DIR=plugin_dir,
+                DIST_DIR=dist_dir,
+                TOP_LEVEL_ITEMS=("metadata.txt", "config.py"),
+                FROZEN_RELEASE_SHA256={TEST_VERSION: frozen_hash},
+            ):
+                with self.assertRaisesRegex(ValueError, "Refusing to replace frozen"):
+                    package_release.run_build(TEST_VERSION)
+
+            self.assertEqual(production_zip.read_bytes(), frozen_payload)
+            self.assertFalse((root / f"ai_vectorizer {TEST_VERSION}").exists())
+            self.assertEqual(list(dist_dir.glob("*.tmp")), [])
+
+    def test_production_guard_rejects_filesystem_alias_of_frozen_zip(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            plugin_dir = root / "ai_vectorizer"
+            plugin_dir.mkdir()
+            (plugin_dir / "metadata.txt").write_text(
+                f"[general]\nversion={TEST_VERSION}\n",
+                encoding="utf-8",
+            )
+            (plugin_dir / "config.py").write_text(
+                "UNRELEASED = True\n",
+                encoding="utf-8",
+            )
+            dist_dir = root / "dist"
+            dist_dir.mkdir()
+            production_zip = dist_dir / f"ai_vectorizer-{TEST_VERSION}.zip"
+            frozen_payload = b"frozen release bytes"
+            production_zip.write_bytes(frozen_payload)
+            alias_zip = dist_dir / f"AI_VECTORIZER-{TEST_VERSION}.ZIP"
+
+            with mock.patch.multiple(
+                package_release,
+                ROOT=root,
+                PLUGIN_DIR=plugin_dir,
+                DIST_DIR=dist_dir,
+                TOP_LEVEL_ITEMS=("metadata.txt", "config.py"),
+                FROZEN_RELEASE_SHA256={
+                    TEST_VERSION: package_release.bytes_hash(frozen_payload)
+                },
+            ), mock.patch.object(
+                package_release.os.path,
+                "samefile",
+                side_effect=lambda left, right: (
+                    Path(left).name.casefold() == Path(right).name.casefold()
+                    and Path(left).parent == Path(right).parent
+                ),
+            ):
+                with self.assertRaisesRegex(ValueError, "Refusing to replace frozen"):
+                    package_release.build_release_zip(
+                        TEST_VERSION,
+                        output_path=alias_zip,
+                    )
+
+            self.assertEqual(production_zip.read_bytes(), frozen_payload)
+            self.assertEqual(
+                [path.name for path in dist_dir.iterdir()],
+                [production_zip.name],
+            )
+
+    def test_explicit_unreleased_output_is_checked_without_touching_frozen_artifacts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            plugin_dir = root / "ai_vectorizer"
+            plugin_dir.mkdir()
+            (plugin_dir / "metadata.txt").write_text(
+                f"[general]\nversion={TEST_VERSION}\n",
+                encoding="utf-8",
+            )
+            (plugin_dir / "config.py").write_text("UNRELEASED = True\n", encoding="utf-8")
+            dist_dir = root / "dist"
+            dist_dir.mkdir()
+            production_zip = dist_dir / f"ai_vectorizer-{TEST_VERSION}.zip"
+            frozen_payload = b"frozen release bytes"
+            production_zip.write_bytes(frozen_payload)
+            output_zip = root / "build" / "ai_vectorizer-unreleased.zip"
+
+            with mock.patch.multiple(
+                package_release,
+                ROOT=root,
+                PLUGIN_DIR=plugin_dir,
+                DIST_DIR=dist_dir,
+                TOP_LEVEL_ITEMS=("metadata.txt", "config.py"),
+                FROZEN_RELEASE_SHA256={
+                    TEST_VERSION: package_release.bytes_hash(frozen_payload)
+                },
+            ):
+                self.assertEqual(
+                    package_release.run_build(
+                        TEST_VERSION,
+                        output_path=output_zip,
+                    ),
+                    0,
+                )
+                self.assertEqual(
+                    package_release.run_check(
+                        TEST_VERSION,
+                        archive_path=output_zip,
+                    ),
+                    0,
+                )
+
+            self.assertTrue(output_zip.is_file())
+            self.assertEqual(production_zip.read_bytes(), frozen_payload)
+            self.assertFalse((root / f"ai_vectorizer {TEST_VERSION}").exists())
+
+    def test_exact_version_approval_allows_deliberate_frozen_overwrite(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            plugin_dir = root / "ai_vectorizer"
+            plugin_dir.mkdir()
+            (plugin_dir / "metadata.txt").write_text(
+                f"[general]\nversion={TEST_VERSION}\n",
+                encoding="utf-8",
+            )
+            (plugin_dir / "config.py").write_text("RELEASE = True\n", encoding="utf-8")
+            dist_dir = root / "dist"
+            frozen_payload = b"previous frozen release"
+
+            with mock.patch.multiple(
+                package_release,
+                ROOT=root,
+                PLUGIN_DIR=plugin_dir,
+                DIST_DIR=dist_dir,
+                TOP_LEVEL_ITEMS=("metadata.txt", "config.py"),
+                FROZEN_RELEASE_SHA256={
+                    TEST_VERSION: package_release.bytes_hash(frozen_payload)
+                },
+            ):
+                target = package_release.build_release_zip(
+                    TEST_VERSION,
+                    approved_version=TEST_VERSION,
+                )
+
+            self.assertTrue(target.is_file())
+            self.assertNotEqual(
+                package_release.file_hash(target),
+                package_release.bytes_hash(frozen_payload),
+            )
+
+    def test_release_overwrite_approval_requires_exact_metadata_version(self):
+        with mock.patch.object(package_release, "load_version", return_value=TEST_VERSION):
+            with self.assertRaisesRegex(ValueError, "exactly match metadata version"):
+                package_release.main(["--approve-release-overwrite", "0.0.1"])
+
+        for arguments in (
+            ["--check", "--approve-release-overwrite", TEST_VERSION],
+            ["--output", "unreleased.zip", "--approve-release-overwrite", TEST_VERSION],
+        ):
+            with self.subTest(arguments=arguments), redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit):
+                        package_release.parse_args(arguments)
 
     def test_zip_is_independent_of_source_mtime_and_has_normalized_metadata(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -693,11 +920,18 @@ class ContinuousIntegrationTests(unittest.TestCase):
         self.assertIn('python-version: "3.8"', workflow)
         self.assertIn("test_count < 150", workflow)
         self.assertIn("python -m compileall -q", workflow)
+        self.assertIn("plugin-security:", workflow)
+        self.assertIn("bandit==1.8.6", workflow)
+        self.assertIn("detect-secrets==1.5.0", workflow)
+        self.assertIn("python -m bandit -q -r ai_vectorizer", workflow)
+        self.assertIn("detect-secrets-hook", workflow)
+        self.assertIn("--baseline ai_vectorizer/.secrets.baseline", workflow)
         self.assertIn("dependency-audit:", workflow)
         self.assertIn("pip-audit==2.10.1", workflow)
         self.assertIn("python -m pip_audit", workflow)
         self.assertIn("--strict", workflow)
         self.assertIn("requirements-sam-common.txt", workflow)
+        self.assertIn("requirements-smart-recovery.txt", workflow)
         self.assertIn("Verify immutable non-PyPI backend pins", workflow)
         self.assertNotIn("requirements-sam-mobile.txt", workflow)
         self.assertNotIn("requirements-sam-full.txt", workflow)
@@ -707,6 +941,12 @@ class ContinuousIntegrationTests(unittest.TestCase):
         self.assertIn("qgis-import:\n    name:", workflow)
         self.assertIn("RELEASE_ZIP_SHA256:", workflow)
         self.assertIn('test "$actual_sha" = "$RELEASE_ZIP_SHA256"', workflow)
+        self.assertIn("scripts/package_release.py --output", workflow)
+        self.assertIn("scripts/package_release.py --check --output", workflow)
+        self.assertNotRegex(
+            workflow,
+            r"(?m)^\s*python3? scripts/package_release\.py\s*$",
+        )
         self.assertIn("persist-credentials: false", workflow)
 
 

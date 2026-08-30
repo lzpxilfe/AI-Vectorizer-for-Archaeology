@@ -9,6 +9,7 @@ import gc
 import os
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -25,6 +26,7 @@ try:
         QgsGeometry,
         QgsPointXY,
         QgsProject,
+        QgsRectangle,
         QgsRasterLayer,
         QgsVectorLayer,
     )
@@ -111,6 +113,580 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
             layer,
             freehand=True,
             language="en",
+        )
+
+    def test_ink_v2_sampling_preserves_source_pixel_grid_or_falls_back(self):
+        class Raster:
+            @staticmethod
+            def width():
+                return 5000
+
+            @staticmethod
+            def height():
+                return 3000
+
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        tool.raster_layer = Raster()
+        raster_extent = QgsRectangle(0, 0, 500, 300)
+        visible_extent = QgsRectangle(100, 140, 150, 170)
+
+        read_extent, tile_origin = tool._ink_evidence_extent_and_origin(
+            visible_extent,
+            raster_extent,
+        )
+        native_plan = tool._ink_evidence_sampling_plan(
+            read_extent,
+            raster_extent,
+        )
+        self.assertEqual(tile_origin, (865, 1249))
+        self.assertEqual(native_plan[:2], ((702, 446), True))
+
+        wide_plan = tool._ink_evidence_sampling_plan(
+            raster_extent,
+            raster_extent,
+        )
+        self.assertEqual(wide_plan[0], (1000, 600))
+        self.assertFalse(wide_plan[1])
+        self.assertIn("Zoom in", wide_plan[2])
+
+    def test_ink_v2_pan_within_same_source_tiles_reuses_exact_context(self):
+        class Raster:
+            @staticmethod
+            def width():
+                return 512
+
+            @staticmethod
+            def height():
+                return 512
+
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        tool.raster_layer = Raster()
+        raster_extent = QgsRectangle(0, 0, 512, 512)
+        first_visible = QgsRectangle(140, 300, 200, 360)
+        second_visible = QgsRectangle(170, 310, 230, 370)
+
+        first_extent, first_origin = tool._ink_evidence_extent_and_origin(
+            first_visible,
+            raster_extent,
+        )
+        second_extent, second_origin = tool._ink_evidence_extent_and_origin(
+            second_visible,
+            raster_extent,
+        )
+
+        self.assertEqual(first_origin, (97, 97))
+        self.assertEqual(second_origin, first_origin)
+        self.assertEqual(first_extent, QgsRectangle(97, 225, 287, 415))
+        self.assertEqual(second_extent, first_extent)
+        self.assertEqual(
+            tool._ink_evidence_sampling_plan(first_extent, raster_extent)[:2],
+            ((190, 190), True),
+        )
+
+    def test_ink_cache_update_publishes_v2_or_exact_visible_v1_fallback(self):
+        """Exercise the real task-construction path, including both snapshots."""
+
+        import numpy as np
+
+        from ai_vectorizer.core.edge_detector import EdgeDetector
+
+        class Provider:
+            @staticmethod
+            def dataSourceUri():
+                return "memory://ink-source"
+
+        class Raster:
+            def __init__(self, crs):
+                self._crs = crs
+                self._provider = Provider()
+
+            def crs(self):
+                return self._crs
+
+            @staticmethod
+            def extent():
+                return QgsRectangle(0, 0, 512, 512)
+
+            @staticmethod
+            def width():
+                return 512
+
+            @staticmethod
+            def height():
+                return 512
+
+            @staticmethod
+            def id():
+                return "ink-source"
+
+            @staticmethod
+            def isValid():
+                return True
+
+            def dataProvider(self):
+                return self._provider
+
+        raster = Raster(self.crs)
+        output = QgsVectorLayer(
+            "LineString?crs=EPSG:3857",
+            "ink output",
+            "memory",
+        )
+        self.canvas.setExtent(QgsRectangle(140, 300, 200, 360))
+        tool = self.SmartTraceTool(
+            self.canvas,
+            raster,
+            output,
+            edge_weight=0.5,
+            edge_method=EdgeDetector.METHOD_INK,
+            language="en",
+        )
+
+        class ImmediateTaskManager:
+            @staticmethod
+            def addTask(task):
+                result = bool(task.run())
+                task.finished(result)
+                return True
+
+        def wait_for_ink_task():
+            self.assertIsNone(tool._ink_evidence_task)
+
+        def display_bands(_provider, _extent, width, height, **_kwargs):
+            return [np.full((height, width), 220, dtype=np.uint8)]
+
+        def native_bands(_provider, _extent, width, height, **_kwargs):
+            display = np.full((height, width), 220, dtype=np.uint8)
+            native = np.full((height, width), 22_000, dtype=np.uint16)
+            return [display], [native], True
+
+        try:
+            with mock.patch.object(
+                QgsApplication,
+                "taskManager",
+                return_value=ImmediateTaskManager(),
+            ), mock.patch(
+                "ai_vectorizer.tools.smart_trace_tool.read_raster_bands",
+                side_effect=display_bands,
+            ), mock.patch(
+                "ai_vectorizer.tools.smart_trace_tool."
+                "read_raster_bands_with_native",
+                side_effect=native_bands,
+            ):
+                self.canvas.setMapTool(tool)
+                wait_for_ink_task()
+                self.assertIsNotNone(tool.cached_ink_evidence)
+                self.assertEqual(
+                    tool.cached_edges.shape,
+                    tool.cached_ink_evidence.shape,
+                )
+                self.assertEqual(
+                    tool.cached_rgb_image.shape[:2],
+                    tool.cached_edges.shape,
+                )
+
+                class FailingEvidenceDetector:
+                    @staticmethod
+                    def detect_edges(fallback_image):
+                        return np.zeros(
+                            np.asarray(fallback_image).shape[:2],
+                            dtype=np.uint8,
+                        )
+
+                    @staticmethod
+                    def detect_ink_evidence(*_args, **_kwargs):
+                        raise RuntimeError("deliberate v2 failure")
+
+                    @staticmethod
+                    def get_edge_cost_map(edges, _weight):
+                        return np.ones(edges.shape, dtype=np.float32)
+
+                expected_visible = tool._canvas_extent_in_raster_crs().intersect(
+                    raster.extent()
+                )
+                tool.edge_detector = FailingEvidenceDetector()
+                tool.cache_dirty = True
+                tool.update_edge_cache()
+                wait_for_ink_task()
+
+                self.assertIsNone(tool.cached_ink_evidence)
+                self.assertEqual(tool.cache_tile_origin, (0, 0))
+                self.assertEqual(tool.cache_extent, expected_visible)
+                self.assertEqual(
+                    tool.cached_edges.shape,
+                    (
+                        int(tool.cache_transform["height"]),
+                        int(tool.cache_transform["width"]),
+                    ),
+                )
+        finally:
+            if self.canvas.mapTool() is tool:
+                self.canvas.unsetMapTool(tool)
+            tool.dispose()
+            tool.deleteLater()
+            QgsApplication.processEvents()
+
+    def test_disabled_v2_publishes_exact_visible_extent_v1_fallback(self):
+        import numpy as np
+
+        from ai_vectorizer.core.edge_detector import EdgeDetector
+        from ai_vectorizer.tools.smart_trace_tool import _InkEvidenceTask
+
+        visible = np.full((64, 80), 235, dtype=np.uint8)
+        visible[8:56, 38:43] = 25
+        visible_rgb = np.repeat(visible[..., None], 3, axis=2)
+        expanded = np.full((96, 112), 180, dtype=np.uint8)
+        expanded_rgb = np.repeat(expanded[..., None], 3, axis=2)
+        detector = EdgeDetector(method=EdgeDetector.METHOD_INK)
+        task = _InkEvidenceTask(
+            detector=detector,
+            fallback_image=visible,
+            fallback_rgb_image=visible_rgb,
+            fallback_cache_identity=("visible",),
+            fallback_cache_extent=(10.0, 20.0, 90.0, 84.0),
+            fallback_output_size=(80, 64),
+            evidence_image=expanded,
+            recovery_image=expanded_rgb,
+            recovery_compatible=True,
+            recovery_disabled_reason="",
+            tile_origin=(31, 31),
+            enable_evidence=False,
+            evidence_disabled_reason="test fallback",
+            build_cost_map=False,
+            edge_weight=0.5,
+            generation=7,
+            cache_identity=("expanded request",),
+            cache_extent=(0.0, 0.0, 112.0, 96.0),
+            output_size=(112, 96),
+            callback=lambda *_args: None,
+        )
+
+        self.assertTrue(task.run())
+        np.testing.assert_array_equal(
+            task.fallback_edges,
+            detector.detect_edges(visible),
+        )
+        self.assertEqual(task.fallback_edges.shape, visible.shape)
+        self.assertIsNone(task.evidence)
+
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        tool._ink_evidence_task = task
+        tool._ink_evidence_generation = 7
+        tool._pending_cache_identity = task.cache_identity
+        tool._disposed = False
+        tool._current_ink_cache_identity = lambda: task.cache_identity
+        tool._publish_edge_cache = mock.Mock()
+        tool._emit_recovery_state = mock.Mock()
+        tool.smart_recovery_requested = False
+        tool.smart_recovery_enabled = False
+
+        tool._on_ink_evidence_finished(
+            task,
+            True,
+            task.fallback_edges,
+            None,
+            None,
+            task.evidence_error,
+            None,
+        )
+
+        published = tool._publish_edge_cache.call_args.kwargs
+        np.testing.assert_array_equal(published["rgb_image"], visible_rgb)
+        np.testing.assert_array_equal(published["edges"], task.fallback_edges)
+        self.assertIsNone(published["evidence"])
+        self.assertEqual(
+            published["read_extent"],
+            QgsRectangle(10.0, 20.0, 90.0, 84.0),
+        )
+        self.assertEqual(published["output_size"], (80, 64))
+        self.assertEqual(published["tile_origin"], (0, 0))
+        self.assertEqual(published["cache_identity"], ("visible",))
+
+    def test_recovery_engine_can_be_attached_after_background_preparation(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        tool._disposed = False
+        tool.smart_recovery_requested = True
+        tool.freehand = False
+        tool.edge_weight = 0.5
+        from ai_vectorizer.core.edge_detector import EdgeDetector
+
+        tool.edge_method = EdgeDetector.METHOD_INK
+        tool._recovery_task = None
+        tool._recovery_request = None
+        tool._recovery_generation = 3
+        tool._recovery_encoding = object()
+        tool._recovery_encoding_cache_generation = 2
+        tool.recovery_state_callback = mock.Mock()
+        engine = SimpleNamespace(is_ready=True)
+
+        self.assertTrue(tool.set_recovery_engine(engine))
+        self.assertIs(tool.recovery_engine, engine)
+        self.assertTrue(tool.smart_recovery_enabled)
+        self.assertIsNone(tool._recovery_encoding)
+        self.assertEqual(tool._current_recovery_state, "Ink")
+
+    def test_recovery_prepare_task_verifies_and_initializes_off_ui_thread(self):
+        from ai_vectorizer.ui.main_dialog import _RecoveryPrepareTask
+        from ai_vectorizer.core import efficientsam_recovery
+
+        status = SimpleNamespace(ready=True)
+
+        class Engine:
+            @staticmethod
+            def inspect(cache_root):
+                self.assertEqual(cache_root, "/verified/cache")
+                return status
+
+            def __init__(instance, cache_root):
+                self.assertEqual(cache_root, "/verified/cache")
+                instance.is_ready = True
+
+        callback = mock.Mock()
+        with mock.patch.object(
+            efficientsam_recovery,
+            "EfficientSAMRecoveryEngine",
+            Engine,
+        ):
+            task = _RecoveryPrepareTask(
+                "/verified/cache",
+                9,
+                True,
+                callback,
+            )
+            self.assertTrue(task.run(), task.error)
+            task.finished(True)
+
+        self.assertIs(task.status, status)
+        self.assertTrue(task.engine.is_ready)
+        callback.assert_called_once_with(task, True, status, task.engine, None)
+
+    def test_recovery_prepare_completion_is_generation_guarded_and_injects_ready_engine(self):
+        from ai_vectorizer.ui.main_dialog import AIVectorizerDock
+
+        stale = SimpleNamespace(generation=4)
+        current = SimpleNamespace(generation=5)
+        active_tool = SimpleNamespace(
+            smart_recovery_requested=True,
+            set_recovery_engine=mock.Mock(),
+        )
+        dock = SimpleNamespace(
+            recovery_prepare_task=current,
+            _recovery_prepare_generation=5,
+            _shutting_down=False,
+            _recovery_model_status=None,
+            _recovery_prepare_error="",
+            recovery_engine=None,
+            recovery_install_task=None,
+            recovery_install_btn=mock.Mock(),
+            active_tool=active_tool,
+            _refresh_recovery_availability=mock.Mock(),
+        )
+        engine = SimpleNamespace(is_ready=True)
+
+        AIVectorizerDock._on_recovery_prepare_finished(
+            dock,
+            stale,
+            True,
+            SimpleNamespace(ready=True),
+            engine,
+            None,
+        )
+        self.assertIs(dock.recovery_prepare_task, current)
+        active_tool.set_recovery_engine.assert_not_called()
+
+        status = SimpleNamespace(ready=True)
+        AIVectorizerDock._on_recovery_prepare_finished(
+            dock,
+            current,
+            True,
+            status,
+            engine,
+            None,
+        )
+        self.assertIsNone(dock.recovery_prepare_task)
+        self.assertIs(dock._recovery_model_status, status)
+        self.assertIs(dock.recovery_engine, engine)
+        active_tool.set_recovery_engine.assert_called_once_with(engine)
+        dock._refresh_recovery_availability.assert_called_once_with()
+
+    def test_recovery_install_task_reports_cooperative_download_cancel_as_cancel(self):
+        from ai_vectorizer.core import model_store
+        from ai_vectorizer.ui.main_dialog import _RecoveryInstallTask
+
+        callback = mock.Mock()
+        task = _RecoveryInstallTask("/unused/cache", callback)
+        with mock.patch.object(
+            model_store,
+            "fetch_bundle",
+            side_effect=model_store.ModelDownloadCancelled("cancelled"),
+        ):
+            self.assertFalse(task.run())
+        self.assertIsNone(task.error)
+        self.assertIsNone(task.bundle)
+
+    def test_retry_does_not_treat_an_enhanced_route_as_a_new_ink_champion(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        tool.smart_recovery_requested = True
+        tool.smart_recovery_enabled = True
+        tool._current_recovery_state = "Enhanced"
+        tool.recovery_state_callback = mock.Mock()
+
+        self.assertFalse(tool.retry_current_segment())
+        self.assertEqual(tool._current_recovery_state, "Enhanced")
+        self.assertIn(
+            "already enhanced",
+            tool.recovery_state_callback.call_args.args[1],
+        )
+
+    def test_raster_data_change_invalidates_and_reschedules_only_when_active(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        tool._is_active = True
+        tool._needs_edge_cache = mock.Mock(return_value=True)
+        tool._schedule_edge_cache_update = mock.Mock()
+        tool._clear_edge_cache = mock.Mock()
+
+        tool._on_raster_data_changed()
+        tool._schedule_edge_cache_update.assert_called_once_with()
+        tool._clear_edge_cache.assert_not_called()
+
+        tool._is_active = False
+        tool._on_raster_data_changed()
+        tool._clear_edge_cache.assert_called_once_with()
+
+    def test_stale_recovery_cannot_replace_a_new_confident_ink_preview(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        old_identity = (4, ((1.0, 1.0), (8.0, 8.0)), (8.0, 8.0))
+        task = SimpleNamespace(
+            request_generation=7,
+            cache_generation=4,
+            preview_identity=old_identity,
+            encoding=object(),
+        )
+        tool._recovery_task = task
+        tool._recovery_request = {"old": True}
+        tool._recovery_generation = 7
+        tool._recovery_preview_identity = old_identity
+        tool._cache_generation = 4
+        tool._disposed = False
+        tool.is_tracing = True
+        tool.smart_recovery_enabled = True
+        tool._recovery_cache_compatible = True
+        tool._recovery_cache_disabled_reason = ""
+        tool._livewire_disabled = False
+        tool._livewire_tree = SimpleNamespace(root=(1, 1))
+        tool._recovery_pixel_path = lambda: ((1.0, 1.0), (5.0, 4.0))
+        tool.map_to_pixel_float = lambda _point: (5.0, 4.0)
+        tool._current_livewire_anchor_pixel = lambda: (1, 1)
+        tool._build_recovery_request = mock.Mock(
+            return_value={"trigger": False, "reason": "ink_confident"}
+        )
+        tool.preview_path = ["new confident Ink"]
+        tool._emit_recovery_state = mock.Mock()
+
+        self.assertFalse(tool._schedule_smart_recovery(QgsPointXY(5, 4)))
+        self.assertEqual(tool._recovery_generation, 8)
+        self.assertIsNone(tool._recovery_request)
+        tool._emit_recovery_state.assert_called_once()
+        self.assertEqual(tool._emit_recovery_state.call_args.args[0], "Ink")
+        state_call_count = tool._emit_recovery_state.call_count
+
+        tool._on_recovery_preview_finished(
+            task,
+            True,
+            SimpleNamespace(reached_target=True, path=((2, 2), (8, 8))),
+            ((1.0, 1.0), (8.0, 8.0)),
+            SimpleNamespace(accepted=True, reason="improved"),
+            None,
+        )
+
+        self.assertEqual(tool.preview_path, ["new confident Ink"])
+        self.assertEqual(tool._emit_recovery_state.call_count, state_call_count)
+
+    def test_recovery_prompts_do_not_relabel_prior_vertices_as_positive(self):
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        previous = QgsPointXY(4, 8)
+        anchor = QgsPointXY(20, 20)
+        target = QgsPointXY(60, 20)
+        tool.path_points = [previous, anchor]
+        tool.cache_transform = {"ready": True}
+        tool.cached_rgb_image = __import__("numpy").zeros(
+            (100, 100, 3),
+            dtype="uint8",
+        )
+        coordinates = {
+            id(previous): (4, 8),
+            id(anchor): (20, 20),
+            id(target): (60, 20),
+        }
+        tool.map_to_pixel = lambda point: coordinates[id(point)]
+
+        points, labels = tool._build_recovery_prompts(target)
+
+        self.assertEqual(labels[:2].tolist(), [1, 1])
+        self.assertEqual(points[:2].tolist(), [[20.0, 20.0], [60.0, 20.0]])
+        self.assertNotIn([4.0, 8.0], points.tolist())
+
+    def test_recovery_task_crops_to_livewire_window_and_preserves_endpoints(self):
+        import numpy as np
+
+        from ai_vectorizer.core.line_evidence import LineEvidence
+        from ai_vectorizer.core.trace_kernel import TraceConfig
+        from ai_vectorizer.tools.smart_trace_tool import _RecoveryPreviewTask
+
+        score = np.ones((12, 12), dtype=np.float32)
+        evidence = LineEvidence(
+            center_score=score,
+            centerline=score > 0.5,
+            tangent_x=np.ones_like(score),
+            tangent_y=np.zeros_like(score),
+            coherence=np.ones_like(score),
+        )
+
+        class Engine:
+            @staticmethod
+            def encode(_image):
+                return "encoding"
+
+            @staticmethod
+            def predict(encoding, _points, _labels):
+                if encoding != "encoding":
+                    raise AssertionError("unexpected encoding")
+                return SimpleNamespace(mask=np.ones((12, 12), dtype=np.float32))
+
+        task = _RecoveryPreviewTask(
+            engine=Engine(),
+            image=np.zeros((12, 12, 3), dtype=np.uint8),
+            encoding=None,
+            evidence=evidence,
+            champion_path=((4.0, 5.0), (5.0, 6.0), (7.0, 7.0)),
+            start_pixel=(4.0, 5.0),
+            target_pixel=(7.0, 7.0),
+            prompt_points=np.array([[4.0, 5.0], [7.0, 7.0]], dtype=np.float32),
+            prompt_labels=np.array([1, 1], dtype=np.int32),
+            window_bounds=(3, 4, 9, 9),
+            cache_generation=1,
+            request_generation=1,
+            preview_identity=("current",),
+            smooth_window_size=5,
+            trace_config=TraceConfig(
+                max_width=6,
+                max_height=5,
+                max_cells=30,
+                validate_all_costs=False,
+                validate_accessed_costs=False,
+            ),
+            callback=lambda *_args: None,
+        )
+
+        self.assertTrue(task.run(), task.error)
+        self.assertTrue(task.trace_result.reached_target)
+        self.assertEqual(task.challenger_path[0], (4.0, 5.0))
+        self.assertEqual(task.challenger_path[-1], (7.0, 7.0))
+        self.assertTrue(
+            all(
+                3.0 <= x < 9.0 and 4.0 <= y < 9.0
+                for x, y in task.challenger_path
+            )
         )
 
     def test_resume_updates_geometry_and_elevation_together(self):

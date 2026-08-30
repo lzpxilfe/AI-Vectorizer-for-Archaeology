@@ -3,8 +3,11 @@ import numpy as np
 from ai_vectorizer.core.raster_utils import (
     MAX_RASTER_BLOCK_BYTES,
     compute_resampled_dimensions,
+    raster_block_to_native_array,
     raster_block_to_uint8,
     read_raster_bands,
+    read_raster_bands_with_native,
+    stable_integer_band_to_uint8,
 )
 
 
@@ -104,6 +107,76 @@ def test_internal_nodata_bitmap_is_respected_for_byte_rasters():
     converted = raster_block_to_uint8(block, 3, 1)
 
     np.testing.assert_array_equal(converted, np.array([[15, 10, 20]], dtype=np.uint8))
+
+
+def test_native_integer_nodata_uses_fixed_bright_value_not_block_median():
+    block = _RasterBlock(
+        np.array([10, 1000, 2000], dtype=np.uint16),
+        "UInt16",
+        nodata_indices=(0,),
+    )
+
+    native = raster_block_to_native_array(block, 3, 1)
+
+    np.testing.assert_array_equal(
+        native,
+        np.array([[65535, 1000, 2000]], dtype=np.uint16),
+    )
+
+
+def test_stable_integer_display_does_not_depend_on_block_extrema():
+    first = stable_integer_band_to_uint8(
+        np.array([[0, 1000]], dtype=np.uint16)
+    )
+    second = stable_integer_band_to_uint8(
+        np.array([[1000, 60000]], dtype=np.uint16)
+    )
+
+    assert int(first[0, 1]) == int(second[0, 0])
+
+
+def test_combined_reader_uses_one_provider_block_and_attests_integer_dtypes():
+    class Provider:
+        def __init__(self, block):
+            self.block_value = block
+            self.calls = 0
+
+        def bandCount(self):
+            return 1
+
+        def dataType(self, _band_number):
+            return self.block_value.dataType()
+
+        def block(self, *_args):
+            self.calls += 1
+            return self.block_value
+
+    integer_provider = Provider(
+        _RasterBlock(np.array([100, 200], dtype=np.uint16), "UInt16")
+    )
+    display, native, stable = read_raster_bands_with_native(
+        integer_provider,
+        extent=None,
+        width=2,
+        height=1,
+    )
+    assert integer_provider.calls == 1
+    assert stable is True
+    np.testing.assert_array_equal(display[0], np.array([[0, 255]], dtype=np.uint8))
+    np.testing.assert_array_equal(
+        native[0], np.array([[100, 200]], dtype=np.uint16)
+    )
+
+    float_provider = Provider(
+        _RasterBlock(np.array([0.0, 1.0], dtype=np.float32), "Float32")
+    )
+    _display, _native, stable = read_raster_bands_with_native(
+        float_provider,
+        extent=None,
+        width=2,
+        height=1,
+    )
+    assert stable is False
 
 
 def test_invalid_dimensions_are_rejected_without_reading_payload():

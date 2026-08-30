@@ -47,8 +47,15 @@ product behavior change and needs a new profile plus side-by-side results.
 ## Worker protocol
 
 Real adapters run in one fresh worker process per sample/method pair so native
-memory and model state do not leak across comparisons. The current request and
-result schemas are `archaeotrace-worker-request/1` and
+memory and model state do not leak across comparisons. The current request
+schema is `archaeotrace-worker-request/2`; v1 remains accepted only when the
+new optional `prompt.previous_xy` and source-grid origin fields are absent. An
+Ink v2 or Recovery v2 request must explicitly carry `source_tile_origin_xy`.
+The request version is also prompt-hash provenance: request /2 canonicalizes as
+`archaeotrace-trace-prompt/2` even when `previous_xy` is omitted, whereas a v1
+request canonicalizes as prompt /1 with its historical digest unchanged.
+Synthetic `generated://` samples default that value to `[0, 0]` when loaded;
+real samples may not omit it. The result schema remains
 `archaeotrace-worker-result/1`; the conceptual boundary is:
 
 ```text
@@ -122,6 +129,63 @@ request, verifies that the artifact is the first measured output, and
 atomically publishes only a complete validated dataset without replacing an
 existing destination. Hand-edited records are still not proof that a backend
 ran.
+
+## Ink and conditional recovery boundary
+
+`ink-livewire-v1` is the frozen legacy Ink control: it calls
+`EdgeDetector.detect_edges(image)` and gives that binary centerline to bounded
+Live-Wire. `ink-livewire-v2` must instead call
+`EdgeDetector.detect_ink_evidence(image)`, use `LineEvidence.centerline` as
+Live-Wire's edge input, and pass the same `LineEvidence` object via the
+`evidence=` parameter. Absence of either explicit v2 API is a failure; the
+adapter may not fall back to `detect_edges()` while retaining a v2 method id.
+Both use the product 320-pixel window, six-pixel snap radius and endpoint-
+restored five-point smoothing. Product parity first truncates `start_xy` and
+`previous_xy` with Python `int()` (the QGIS pixel conversion rule), then uses
+their difference as the incoming direction. The exact floating start remains
+restored in the published route.
+
+The v2 call is actually
+`detect_ink_evidence(image, tile_origin=source_tile_origin_xy)`. Crop bytes do
+not identify their position in the source raster, yet that position selects
+the anchored 128-pixel normalization tiles. Runtime and canonical artifact
+metadata therefore bind both the integer origin and a separately derived
+`source_grid_input_sha256` over the image SHA-256 plus that origin. These fields
+are absent from `ink-livewire-v1`; its image, prompt, configuration and artifact
+contracts remain unchanged.
+
+`ink-v2-effsam-recovery-v1` is a conditional hybrid, not a mask union:
+
+```text
+Ink-v2 Live-Wire champion
+  -> recovery_gate(champion, LineEvidence)
+  -> confident: publish champion; do not call EfficientSAM
+  -> low quality: EfficientSAM corridor challenger
+       -> build_corridor_cost_map(LineEvidence, corridor)
+       -> strict ordered trace
+       -> arbitrate_routes(champion, challenger, LineEvidence)
+       -> publish only the selected route
+```
+
+The policy id is `smart-recovery-gate-v1-provisional`. A request must serialize
+every `RecoveryConfig` field and its canonical SHA-256; calibration may change
+those explicit values, but it cannot create an unrecorded default. Recovery
+evidence is `archaeotrace-ink-effsam-recovery/1` and contains the gate trigger,
+reason and metrics, champion hash, optional challenger hash, selection record,
+selected route, fallback/rejection reason, and optional EfficientSAM evidence.
+No-trigger records must have no challenger or decoder evidence. Provider
+failure after a trigger is a successful champion fallback inside the recovery
+method, with its reason recorded; it is not silently relabelled as an accepted
+challenger.
+
+Recovery model prompts come from the shared QGIS-free
+`ai_vectorizer.core.recovery_prompts` contract. Only the integer-quantized
+anchor and target are positive. Up to four distinct in-bounds negatives are
+placed 10 pixels away along the perpendicular at those endpoints.
+`previous_xy` and manifest guide points never enter the model tensor. Runtime
+and artifact metadata record the hash of this derived tensor—not the generic
+SAM guide tensor—and the final manifest loader verifies it again from the
+sample dimensions and endpoints.
 
 ## Implemented EfficientSAM-Ti ONNX contract
 

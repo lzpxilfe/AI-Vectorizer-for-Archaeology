@@ -17,7 +17,14 @@ from ai_vectorizer.core.efficientsam_spec import (
     bundle_fingerprint,
 )
 
-from .evidence import prompt_sha256, sam_prompt_tensor_sha256
+from .evidence import (
+    PROMPT_EVIDENCE_SCHEMA_VERSION_V1,
+    PROMPT_EVIDENCE_SCHEMA_VERSIONS,
+    prompt_sha256,
+    recovery_prompt_tensor_sha256,
+    sam_prompt_tensor_sha256,
+    source_grid_input_sha256,
+)
 from .geometry import MAX_ARTIFACT_BYTES, load_centerline_artifact
 
 
@@ -54,6 +61,9 @@ SHARED_THREAD_SETTING_KEYS = (
     "VECLIB_MAXIMUM_THREADS",
 )
 EFFICIENTSAM_METHOD_ID = "efficientsam-ti-onnx-v1"
+RECOVERY_METHOD_ID = "ink-v2-effsam-recovery-v1"
+INK_V2_METHOD_ID = "ink-livewire-v2"
+SOURCE_GRID_METHOD_IDS = frozenset({INK_V2_METHOD_ID, RECOVERY_METHOD_ID})
 EFFICIENTSAM_INPUT_DIMENSION = 1024
 EFFICIENTSAM_PREDICTION_EVIDENCE_VERSION = (
     "archaeotrace-efficientsam-prediction-evidence/1"
@@ -84,6 +94,40 @@ EFFICIENTSAM_ARTIFACT_METADATA_KEYS = frozenset(
         "sam_prompt_tensor_sha256",
         "segmentation_evidence",
         "smoothing",
+        "trace_kernel",
+    }
+)
+RECOVERY_ARTIFACT_METADATA_KEYS = frozenset(
+    {
+        "actual_backend",
+        "configuration_sha256",
+        "input_sha256",
+        "livewire_kernel",
+        "mask_trace_kernel",
+        "model_bundle_id",
+        "model_bundle_sha256",
+        "model_source_commit",
+        "prompt_sha256",
+        "recovery_evidence",
+        "recovery_kernel",
+        "requested_backend",
+        "sam_prompt_tensor_sha256",
+        "source_grid_input_sha256",
+        "source_tile_origin_xy",
+        "smoothing",
+        "trace_kernel",
+    }
+)
+INK_V2_ARTIFACT_METADATA_KEYS = frozenset(
+    {
+        "actual_backend",
+        "configuration_sha256",
+        "input_sha256",
+        "prompt_sha256",
+        "requested_backend",
+        "smoothing",
+        "source_grid_input_sha256",
+        "source_tile_origin_xy",
         "trace_kernel",
     }
 )
@@ -170,6 +214,8 @@ class PromptSpec:
     end_xy: tuple[float, float]
     positive_xy: tuple[tuple[float, float], ...]
     negative_xy: tuple[tuple[float, float], ...]
+    previous_xy: tuple[float, float] | None = None
+    schema_version: str = PROMPT_EVIDENCE_SCHEMA_VERSION_V1
 
 
 @dataclass(frozen=True)
@@ -185,6 +231,7 @@ class SampleSpec:
     strata: dict[str, str]
     source: dict[str, str]
     predictions: dict[str, PredictionSpec]
+    source_tile_origin_xy: tuple[int, int] = (0, 0)
 
 
 @dataclass(frozen=True)
@@ -311,6 +358,16 @@ def _nonnegative_integer(value: Any, label: str, optional: bool = False) -> int 
     ):
         raise ManifestError(f"{label} must be a non-negative integer.")
     return value
+
+
+def _source_tile_origin(value: Any, label: str) -> tuple[int, int]:
+    values = _array(value, label)
+    if len(values) != 2:
+        raise ManifestError(f"{label} must be an [x, y] pair.")
+    return (
+        _nonnegative_integer(values[0], f"{label}[0]"),
+        _nonnegative_integer(values[1], f"{label}[1]"),
+    )
 
 
 def _positive_number(value: Any, label: str, allow_zero: bool = False) -> float:
@@ -1017,6 +1074,12 @@ def _prediction(root: Path, payload: Any, method_id: str, label: str) -> Predict
 
 def _prompt(payload: Any, width: int, height: int, label: str) -> PromptSpec:
     prompt = _object(payload, label)
+    schema_version = prompt.get(
+        "schema_version",
+        PROMPT_EVIDENCE_SCHEMA_VERSION_V1,
+    )
+    if schema_version not in PROMPT_EVIDENCE_SCHEMA_VERSIONS:
+        raise ManifestError(f"{label}.schema_version is unsupported.")
     positive_values = _array(prompt.get("positive_xy", []), f"{label}.positive_xy")
     negative_values = _array(prompt.get("negative_xy", []), f"{label}.negative_xy")
     positive = tuple(
@@ -1029,11 +1092,25 @@ def _prompt(payload: Any, width: int, height: int, label: str) -> PromptSpec:
     )
     if len(positive) + len(negative) > 6:
         raise ManifestError(f"{label} may contain at most six SAM prompt points.")
+    previous_value = prompt.get("previous_xy")
+    if (
+        schema_version == PROMPT_EVIDENCE_SCHEMA_VERSION_V1
+        and previous_value is not None
+    ):
+        raise ManifestError(
+            f"{label} schema v1 does not support previous_xy."
+        )
     return PromptSpec(
         start_xy=_point(prompt.get("start_xy"), width, height, f"{label}.start_xy"),
         end_xy=_point(prompt.get("end_xy"), width, height, f"{label}.end_xy"),
         positive_xy=positive,
         negative_xy=negative,
+        previous_xy=(
+            _point(previous_value, width, height, f"{label}.previous_xy")
+            if previous_value is not None
+            else None
+        ),
+        schema_version=schema_version,
     )
 
 
@@ -1188,6 +1265,21 @@ def _sample(
         key: _text(source_payload.get(key), f"{label}.source.{key}")
         for key in ("name", "license", "url")
     }
+    raw_source_tile_origin = sample.get("source_tile_origin_xy")
+    needs_source_grid = bool(set(method_ids) & SOURCE_GRID_METHOD_IDS)
+    synthetic_source = source["url"].startswith("generated://")
+    if raw_source_tile_origin is None:
+        if needs_source_grid and not synthetic_source:
+            raise ManifestError(
+                f"{label}.source_tile_origin_xy is required for non-synthetic "
+                "Ink v2 and Smart Recovery samples."
+            )
+        source_tile_origin_xy = (0, 0)
+    else:
+        source_tile_origin_xy = _source_tile_origin(
+            raw_source_tile_origin,
+            f"{label}.source_tile_origin_xy",
+        )
 
     prompt = _prompt(sample.get("prompt"), width, height, f"{label}.prompt")
     if EFFICIENTSAM_METHOD_ID in method_ids:
@@ -1225,8 +1317,32 @@ def _sample(
     }
     expected_prompt_sha256 = prompt_sha256(prompt)
     expected_sam_tensor_sha256 = sam_prompt_tensor_sha256(prompt)
+    expected_recovery_tensor_sha256 = (
+        recovery_prompt_tensor_sha256(
+            prompt,
+            width=width,
+            height=height,
+        )
+        if RECOVERY_METHOD_ID in method_ids
+        else None
+    )
+    expected_source_grid_sha256 = source_grid_input_sha256(
+        image_sha,
+        source_tile_origin_xy,
+    )
     for method_id, prediction in predictions.items():
         runtime = prediction.execution.runtime
+        if method_id in SOURCE_GRID_METHOD_IDS:
+            if (
+                runtime.get("source_tile_origin_xy")
+                != list(source_tile_origin_xy)
+                or runtime.get("source_grid_input_sha256")
+                != expected_source_grid_sha256
+            ):
+                raise ManifestError(
+                    f"{label}.predictions.{method_id} is not bound to the "
+                    "sample image and source-grid tile origin."
+                )
         observed_prompt_sha256 = runtime.get("prompt_sha256")
         if observed_prompt_sha256 is not None:
             _sha256(
@@ -1237,6 +1353,41 @@ def _sample(
                 raise ManifestError(
                     f"{label}.predictions.{method_id} prompt_sha256 does not "
                     "match the sample prompt."
+                )
+        if (
+            method_id == INK_V2_METHOD_ID
+            and prediction.execution.status in {"ok", "fallback"}
+        ):
+            if prediction.artifact_path is None:
+                raise ManifestError(
+                    f"{label}.predictions.{method_id} omitted its artifact."
+                )
+            try:
+                artifact = load_centerline_artifact(prediction.artifact_path)
+            except (OSError, ValueError) as exc:
+                raise ManifestError(
+                    f"{label}.predictions.{method_id} artifact is invalid: {exc}"
+                ) from exc
+            expected_ink_metadata = {
+                "actual_backend": prediction.execution.actual_backend,
+                "configuration_sha256": _configuration_sha256(
+                    methods_by_id[method_id].configuration
+                ),
+                "input_sha256": image_sha,
+                "prompt_sha256": expected_prompt_sha256,
+                "requested_backend": method_id,
+                "smoothing": "smart-trace-livewire-v1",
+                "source_grid_input_sha256": expected_source_grid_sha256,
+                "source_tile_origin_xy": list(source_tile_origin_xy),
+                "trace_kernel": "ai_vectorizer.core.livewire",
+            }
+            if (
+                set(artifact.metadata) != INK_V2_ARTIFACT_METADATA_KEYS
+                or artifact.metadata != expected_ink_metadata
+            ):
+                raise ManifestError(
+                    f"{label}.predictions.{method_id} artifact is not bound to "
+                    "its source-grid tile origin."
                 )
         if (
             method_id == EFFICIENTSAM_METHOD_ID
@@ -1462,6 +1613,104 @@ def _sample(
                     "its backend, input, configuration, model, prompt, and "
                     "first measured SAM prediction."
                 )
+        elif (
+            method_id == RECOVERY_METHOD_ID
+            and prediction.execution.status in {"ok", "fallback"}
+        ):
+            runtime_label = f"{label}.predictions.{method_id}.execution.runtime"
+            observed_tensor_sha256 = runtime.get("sam_prompt_tensor_sha256")
+            if observed_tensor_sha256 is not None:
+                _sha256(
+                    observed_tensor_sha256,
+                    f"{runtime_label}.sam_prompt_tensor_sha256",
+                )
+            if observed_tensor_sha256 != expected_recovery_tensor_sha256:
+                raise ManifestError(
+                    f"{label}.predictions.{method_id} must bind the exact product "
+                    "Smart Recovery prompt tensors."
+                )
+            method = methods_by_id[method_id]
+            expected_configuration_sha256 = _configuration_sha256(
+                method.configuration
+            )
+            if (
+                prediction.execution.status != "ok"
+                or prediction.execution.actual_backend != method_id
+                or runtime.get("provider_kind") != "onnxruntime"
+                or runtime.get("actual_provider") != "CPUExecutionProvider"
+                or runtime.get("provider_device_type") != "cpu"
+                or runtime.get("provider_verified") is not True
+            ):
+                raise ManifestError(
+                    f"{label}.predictions.{method_id} requires the verified "
+                    "ONNX CPU backend and permits no backend fallback."
+                )
+            if (
+                runtime.get("input_sha256") != image_sha
+                or runtime.get("configuration_sha256")
+                != expected_configuration_sha256
+                or runtime.get("model_bundle_id") != EFFICIENTSAM_TI_SPLIT.id
+                or runtime.get("model_bundle_sha256")
+                != EFFICIENTSAM_BUNDLE_SHA256
+                or runtime.get("model_source_commit")
+                != EFFICIENTSAM_TI_SPLIT.source_commit
+                or runtime.get("model_artifacts_sha256")
+                != EFFICIENTSAM_ARTIFACTS_SHA256
+            ):
+                raise ManifestError(
+                    f"{runtime_label} is not bound to the sample, configuration, "
+                    "and pinned EfficientSAM bundle."
+                )
+            expected_session_options = {
+                "encoder": dict(EFFICIENTSAM_ORT_SESSION_OPTIONS),
+                "decoder": dict(EFFICIENTSAM_ORT_SESSION_OPTIONS),
+            }
+            if runtime.get("onnx_session_options") != expected_session_options:
+                raise ManifestError(
+                    f"{runtime_label}.onnx_session_options does not match the "
+                    "required encoder and decoder readback."
+                )
+            if prediction.artifact_path is None:
+                raise ManifestError(
+                    f"{label}.predictions.{method_id} omitted its artifact."
+                )
+            try:
+                artifact = load_centerline_artifact(prediction.artifact_path)
+            except (OSError, ValueError) as exc:
+                raise ManifestError(
+                    f"{label}.predictions.{method_id} artifact is invalid: {exc}"
+                ) from exc
+            expected_artifact_fields = {
+                "actual_backend": method_id,
+                "configuration_sha256": expected_configuration_sha256,
+                "input_sha256": image_sha,
+                "livewire_kernel": "ai_vectorizer.core.livewire",
+                "mask_trace_kernel": "ai_vectorizer.core.sam_trace_kernel",
+                "model_bundle_id": EFFICIENTSAM_TI_SPLIT.id,
+                "model_bundle_sha256": EFFICIENTSAM_BUNDLE_SHA256,
+                "model_source_commit": EFFICIENTSAM_TI_SPLIT.source_commit,
+                "prompt_sha256": expected_prompt_sha256,
+                "recovery_kernel": "ai_vectorizer.core.smart_recovery",
+                "requested_backend": method_id,
+                "sam_prompt_tensor_sha256": expected_recovery_tensor_sha256,
+                "source_grid_input_sha256": expected_source_grid_sha256,
+                "source_tile_origin_xy": list(source_tile_origin_xy),
+                "smoothing": "smart-trace-livewire-v1",
+                "trace_kernel": "ai_vectorizer.core.trace_kernel",
+            }
+            if (
+                set(artifact.metadata) != RECOVERY_ARTIFACT_METADATA_KEYS
+                or any(
+                    artifact.metadata.get(key) != expected_value
+                    for key, expected_value in expected_artifact_fields.items()
+                )
+                or not isinstance(artifact.metadata.get("recovery_evidence"), dict)
+            ):
+                raise ManifestError(
+                    f"{label}.predictions.{method_id} artifact is not bound to "
+                    "its backend, input, configuration, model, and actual "
+                    "recovery prompt tensors."
+                )
     return SampleSpec(
         identifier=_identifier(sample.get("id"), f"{label}.id"),
         width=width,
@@ -1474,6 +1723,7 @@ def _sample(
         strata=strata,
         source=source,
         predictions=predictions,
+        source_tile_origin_xy=source_tile_origin_xy,
     )
 
 

@@ -6,6 +6,11 @@ import shutil
 import tempfile
 import unittest
 
+from benchmarks.evidence import (
+    PROMPT_EVIDENCE_SCHEMA_VERSION,
+    PROMPT_EVIDENCE_SCHEMA_VERSION_V1,
+    prompt_sha256,
+)
 from benchmarks.manifest import ManifestError, load_manifest
 
 
@@ -25,6 +30,51 @@ class BenchmarkManifestTests(unittest.TestCase):
         self.assertEqual([method.identifier for method in manifest.methods], ["perfect", "offset", "broken"])
         self.assertEqual(manifest.metric_config.primary_tolerance_px, 3.0)
         self.assertEqual(manifest.samples[0].prompt.start_xy, (1.0, 4.0))
+        self.assertEqual(
+            manifest.samples[0].prompt.schema_version,
+            PROMPT_EVIDENCE_SCHEMA_VERSION_V1,
+        )
+        self.assertEqual(manifest.samples[0].source_tile_origin_xy, (0, 0))
+
+    def test_explicit_prompt_v2_is_preserved_without_previous_xy(self):
+        with tempfile.TemporaryDirectory() as folder:
+            fixture = self._copy_fixture(folder)
+            manifest_path = fixture / "manifest.json"
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            payload["samples"][0]["prompt"]["schema_version"] = (
+                PROMPT_EVIDENCE_SCHEMA_VERSION
+            )
+            manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            manifest = load_manifest(manifest_path)
+
+        prompt = manifest.samples[0].prompt
+        self.assertEqual(prompt.schema_version, PROMPT_EVIDENCE_SCHEMA_VERSION)
+        self.assertIsNone(prompt.previous_xy)
+        self.assertNotEqual(
+            prompt_sha256(prompt),
+            prompt_sha256(
+                prompt,
+                schema_version=PROMPT_EVIDENCE_SCHEMA_VERSION_V1,
+            ),
+        )
+
+    def test_real_v2_sample_requires_explicit_source_tile_origin(self):
+        with tempfile.TemporaryDirectory() as folder:
+            fixture = self._copy_fixture(folder)
+            manifest_path = fixture / "manifest.json"
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            payload["methods"][0]["id"] = "ink-livewire-v2"
+            prediction = payload["samples"][0]["predictions"].pop("perfect")
+            payload["samples"][0]["predictions"]["ink-livewire-v2"] = prediction
+            payload["samples"][0]["source"]["url"] = "https://example.test/map"
+            manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ManifestError,
+                "source_tile_origin_xy is required",
+            ):
+                load_manifest(manifest_path)
 
     def test_loads_the_worker_generation_template(self):
         manifest = load_manifest(RUNTIME_TEMPLATE_ROOT / "manifest.json")

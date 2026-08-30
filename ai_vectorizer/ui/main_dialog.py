@@ -5,6 +5,7 @@ Dockable panel with guided workflow and tooltips
 """
 
 import os
+import importlib.util
 import json
 import shutil
 import tempfile
@@ -35,6 +36,7 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
     QgsApplication,
+    QgsTask,
     QgsSymbol,
     QgsSingleSymbolRenderer,
     Qgis,
@@ -57,6 +59,13 @@ from ..core.raster_utils import compute_resampled_dimensions, read_raster_bands
 from ..core.dem_pipeline import (
     layer_file_path as _layer_file_path,
     project_layers_using_path as _project_layers_using_path,
+)
+from ..recovery import (
+    RECOVERY_STATE_ENHANCED,
+    RECOVERY_STATE_INK,
+    RECOVERY_STATE_INK_FALLBACK,
+    RECOVERY_STATE_RECOVERING,
+    require_recovery_state,
 )
 from ..config import (
     DEFAULT_CRS_AUTHID,
@@ -97,6 +106,9 @@ from ..config import (
 
 LANG_KO = "ko"
 LANG_EN = "en"
+RECOVERY_RUNTIME_INSTALL_COMMAND = (
+    'python -m pip install "onnxruntime>=1.17,<2"'
+)
 
 
 def _qt_value(legacy_name, scope_name):
@@ -145,6 +157,16 @@ def _writer_no_error():
     return QgsVectorFileWriter.WriterError.NoError
 
 
+def _task_can_cancel():
+    legacy = getattr(QgsTask, "CanCancel", None)
+    if legacy is not None:
+        return legacy
+    scoped = getattr(QgsTask, "Flag", None)
+    if scoped is not None and hasattr(scoped, "CanCancel"):
+        return scoped.CanCancel
+    return Qgis.TaskFlag.CanCancel
+
+
 def _write_vector_layer(layer, path, crs):
     modern = getattr(QgsVectorFileWriter, "writeAsVectorFormatV3", None)
     if modern is not None:
@@ -171,6 +193,82 @@ def _exec_dialog(dialog):
     if execute is None:
         execute = dialog.exec_
     return execute()
+
+
+class _RecoveryInstallTask(QgsTask):
+    """Fetch the pinned recovery bundle after one explicit button press."""
+
+    def __init__(self, cache_root, callback):
+        super().__init__("ArchaeoTrace install recovery model", _task_can_cancel())
+        self.cache_root = cache_root
+        self.callback = callback
+        self.bundle = None
+        self.error = None
+
+    def run(self):
+        if self.isCanceled():
+            return False
+        try:
+            # This is the only Smart Recovery path allowed to open the
+            # network. Inspection, tracing, and retry remain offline.
+            from ..core.model_store import ModelDownloadCancelled, fetch_bundle
+
+            try:
+                self.bundle = fetch_bundle(
+                    self.cache_root,
+                    cancel_check=self.isCanceled,
+                )
+            except ModelDownloadCancelled:
+                return False
+            return not self.isCanceled()
+        except Exception as exc:
+            self.error = exc
+            return False
+
+    def finished(self, result):
+        self.callback(self, bool(result), self.bundle, self.error)
+
+
+class _RecoveryPrepareTask(QgsTask):
+    """Verify and initialize an already-installed bundle off the UI thread."""
+
+    def __init__(self, cache_root, generation, runtime_available, callback):
+        super().__init__("ArchaeoTrace prepare recovery model", _task_can_cancel())
+        self.cache_root = cache_root
+        self.generation = int(generation)
+        self.runtime_available = bool(runtime_available)
+        self.callback = callback
+        self.status = None
+        self.engine = None
+        self.error = None
+
+    def run(self):
+        if self.isCanceled():
+            return False
+        try:
+            from ..core.efficientsam_recovery import EfficientSAMRecoveryEngine
+
+            # Both SHA-256 verification and ONNX session construction can be
+            # expensive for the pinned 41 MB bundle. They belong in QgsTask,
+            # never in a checkbox or trace-button callback.
+            self.status = EfficientSAMRecoveryEngine.inspect(self.cache_root)
+            if self.isCanceled():
+                return False
+            if self.status.ready and self.runtime_available:
+                self.engine = EfficientSAMRecoveryEngine(self.cache_root)
+            return not self.isCanceled()
+        except Exception as exc:
+            self.error = exc
+            return False
+
+    def finished(self, result):
+        self.callback(
+            self,
+            bool(result),
+            self.status,
+            self.engine,
+            self.error,
+        )
 
 
 class _TemporaryPreviewStore:
@@ -258,6 +356,15 @@ class AIVectorizerDock(QDockWidget):
         self.dem_dialog = None
         self.sam_engine = None
         self.sam_engine_key = None
+        self.recovery_engine = None
+        self.recovery_install_task = None
+        self.recovery_prepare_task = None
+        self._recovery_prepare_generation = 0
+        self._recovery_model_status = None
+        self._recovery_prepare_error = ""
+        self._shutting_down = False
+        self._recovery_state = RECOVERY_STATE_INK
+        self._recovery_detail = ""
         self._preview_store = _TemporaryPreviewStore(QgsProject.instance())
         self.current_language = self._load_language()
         self._configure_hed_storage()
@@ -356,6 +463,9 @@ class AIVectorizerDock(QDockWidget):
             self.browse_btn,
             self.create_shp_btn,
             self.vector_combo,
+            self.smart_recovery_check,
+            self.recovery_install_btn,
+            self.advanced_check,
             self.model_combo,
             self.sam_check_btn,
             self.sam_report_btn,
@@ -366,12 +476,25 @@ class AIVectorizerDock(QDockWidget):
             self.preview_edge_btn,
         ):
             widget.setEnabled(enabled)
+        self.recovery_install_btn.setEnabled(
+            enabled
+            and self.recovery_install_task is None
+            and self.recovery_prepare_task is None
+        )
+        self.recovery_retry_btn.setEnabled(
+            not enabled
+            and self.active_tool is not None
+            and bool(
+                getattr(self.active_tool, "smart_recovery_enabled", False)
+            )
+        )
         self._update_dem_button_for_tracing(not enabled)
 
     def _set_idle_ui(self, prompt=False):
         self._set_trace_configuration_enabled(True)
         self._set_trace_button_idle()
         self._set_ready_state(prompt=prompt)
+        self._refresh_recovery_availability()
 
     def _set_sam_status(self, text, tone="neutral"):
         style_by_tone = {
@@ -495,6 +618,343 @@ class AIVectorizerDock(QDockWidget):
             "models",
         )
 
+    def _set_recovery_state(self, state, detail=""):
+        """Render the four-state recovery contract without hiding Ink."""
+
+        state = require_recovery_state(state)
+        self._recovery_state = state
+        self._recovery_detail = str(detail or "")
+        if not hasattr(self, "recovery_status"):
+            return
+        tone_by_state = {
+            RECOVERY_STATE_INK: STATUS_STYLE_INFO,
+            RECOVERY_STATE_RECOVERING: STATUS_STYLE_WARNING,
+            RECOVERY_STATE_ENHANCED: STATUS_STYLE_READY,
+            RECOVERY_STATE_INK_FALLBACK: STATUS_STYLE_WARNING,
+        }
+        suffix = f" — {self._recovery_detail}" if self._recovery_detail else ""
+        self.recovery_status.setText(f"{state}{suffix}")
+        self.recovery_status.setStyleSheet(
+            tone_by_state.get(state, STATUS_STYLE_NEUTRAL)
+        )
+
+    def _on_recovery_state_changed(self, state, detail=""):
+        """Receive current-segment state from SmartTraceTool's main thread."""
+
+        self._set_recovery_state(state, detail)
+
+    def _load_recovery_engine_offline(self):
+        """Return a prepared engine without doing file or ONNX work here."""
+
+        if self.recovery_engine is not None:
+            return self.recovery_engine, ""
+        self._refresh_recovery_availability()
+        if self.recovery_prepare_task is not None:
+            return None, "Recovery model verification is still running."
+        if self._recovery_prepare_error:
+            return None, self._recovery_prepare_error
+        return None, "Recovery model is not prepared; Ink remains active."
+
+    def _cancel_recovery_prepare(self):
+        task = self.recovery_prepare_task
+        self.recovery_prepare_task = None
+        self._recovery_prepare_generation += 1
+        if task is not None:
+            try:
+                task.cancel()
+            except RuntimeError:
+                pass
+        return task is not None
+
+    def _start_recovery_prepare(self, runtime_available):
+        if self.recovery_prepare_task is not None or self._shutting_down:
+            return
+        self._recovery_prepare_generation += 1
+        generation = self._recovery_prepare_generation
+        task = _RecoveryPrepareTask(
+            self._sam_models_dir(),
+            generation,
+            runtime_available,
+            self._on_recovery_prepare_finished,
+        )
+        self.recovery_prepare_task = task
+        self.recovery_install_btn.setEnabled(False)
+        self._set_recovery_state(
+            RECOVERY_STATE_INK_FALLBACK,
+            self._tr(
+                "복구 모델 검증·준비 중; Ink만 사용",
+                "Verifying and preparing recovery model; using Ink only",
+            ),
+        )
+        try:
+            QgsApplication.taskManager().addTask(task)
+        except Exception as exc:
+            self.recovery_prepare_task = None
+            self._recovery_prepare_error = str(exc)
+            self.recovery_install_btn.setEnabled(
+                self.recovery_install_task is None and self.active_tool is None
+            )
+            self._set_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                self._tr(
+                    f"복구 준비 작업 시작 실패; Ink 유지: {exc}",
+                    f"Could not start recovery preparation; Ink kept: {exc}",
+                ),
+            )
+
+    def _on_recovery_prepare_finished(
+        self,
+        task,
+        succeeded,
+        status,
+        engine,
+        error,
+    ):
+        if (
+            self.recovery_prepare_task is not task
+            or task.generation != self._recovery_prepare_generation
+        ):
+            return
+        self.recovery_prepare_task = None
+        if self._shutting_down:
+            return
+        self.recovery_install_btn.setEnabled(
+            self.recovery_install_task is None and self.active_tool is None
+        )
+        self._recovery_model_status = status
+        if not succeeded and error is None:
+            self._recovery_prepare_error = "Recovery model preparation was cancelled."
+        else:
+            self._recovery_prepare_error = "" if error is None else str(error)
+        self.recovery_engine = engine if succeeded and error is None else None
+        active_tool = self.active_tool
+        if (
+            self.recovery_engine is not None
+            and active_tool is not None
+            and bool(getattr(active_tool, "smart_recovery_requested", False))
+        ):
+            setter = getattr(active_tool, "set_recovery_engine", None)
+            if callable(setter):
+                ready_for_retry = bool(setter(self.recovery_engine))
+                if hasattr(self, "recovery_retry_btn"):
+                    self.recovery_retry_btn.setEnabled(ready_for_retry)
+        self._refresh_recovery_availability()
+
+    def _release_recovery_engine(self):
+        engine = self.recovery_engine
+        self.recovery_engine = None
+        if engine is None:
+            return
+        clear_image = getattr(engine, "clear_image", None)
+        if callable(clear_image):
+            try:
+                clear_image()
+            except Exception as exc:
+                self._log_nonfatal_ui_error(
+                    "Failed to clear Smart Recovery image",
+                    exc,
+                )
+
+    @staticmethod
+    def _recovery_runtime_available():
+        try:
+            return importlib.util.find_spec("onnxruntime") is not None
+        except (ImportError, AttributeError, ValueError):
+            return False
+
+    def _refresh_recovery_availability(self):
+        if self._shutting_down or not hasattr(self, "smart_recovery_check"):
+            return
+        enabled = self.smart_recovery_check.isChecked()
+        self.recovery_install_btn.setVisible(False)
+        self.recovery_retry_btn.setVisible(enabled)
+        self.recovery_runtime_guide.setVisible(False)
+        self.recovery_runtime_cmd.setVisible(False)
+        if not enabled:
+            self._set_recovery_state(
+                RECOVERY_STATE_INK,
+                self._tr(
+                    "기본 중심선 추적기",
+                    "Primary centerline tracer",
+                ),
+            )
+            return
+        if (
+            hasattr(self, "freedom_slider")
+            and self.freedom_slider.value() <= 0
+        ):
+            self._set_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                self._tr(
+                    "0% 보조에서는 모델·증거 계산 없이 정확한 커서만 사용",
+                    "At 0% assist, exact cursor input runs without model or evidence work",
+                ),
+            )
+            return
+        runtime_ready = self._recovery_runtime_available()
+        if not runtime_ready:
+            self.recovery_runtime_guide.setVisible(True)
+            self.recovery_runtime_cmd.setVisible(True)
+        if self.recovery_engine is not None and runtime_ready:
+            self._set_recovery_state(
+                RECOVERY_STATE_INK,
+                self._tr(
+                    "복구 모델 준비됨; 약한 구간에서만 실행",
+                    "Recovery model ready; runs only on weak segments",
+                ),
+            )
+            return
+        if self.recovery_prepare_task is not None:
+            self._set_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                self._tr(
+                    "복구 모델 검증·준비 중; Ink만 사용",
+                    "Verifying and preparing recovery model; using Ink only",
+                ),
+            )
+            return
+        status = self._recovery_model_status
+        if status is None and not self._recovery_prepare_error:
+            self._start_recovery_prepare(runtime_ready)
+            return
+        if status is None:
+            self.recovery_install_btn.setVisible(True)
+            self._set_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                self._tr(
+                    f"모델 확인 실패; Ink 유지: {self._recovery_prepare_error}",
+                    f"Model inspection failed; Ink kept: {self._recovery_prepare_error}",
+                ),
+            )
+            return
+        if status.ready and runtime_ready and not self._recovery_prepare_error:
+            # A prior 0%/Freehand lifecycle may have deliberately released
+            # the session while retaining the cheap inspection result.
+            self._recovery_model_status = None
+            self._start_recovery_prepare(runtime_ready)
+            return
+        self.recovery_install_btn.setVisible(not status.ready)
+        states = ", ".join(
+            f"{artifact.spec.identifier}:{artifact.state}"
+            for artifact in status.artifacts
+            if not artifact.ready
+        )
+        self._set_recovery_state(
+            RECOVERY_STATE_INK_FALLBACK,
+            (
+                self._tr(
+                    "ONNX Runtime 없음; 아래 명령을 QGIS Python 환경에서 실행하세요. Ink만 사용합니다.",
+                    "ONNX Runtime is missing; run the command below in QGIS Python. Using Ink only.",
+                )
+                if status.ready and not runtime_ready
+                else self._tr(
+                    f"복구 준비 실패; Ink 유지: {self._recovery_prepare_error}",
+                    f"Recovery preparation failed; Ink kept: {self._recovery_prepare_error}",
+                )
+                if status.ready and self._recovery_prepare_error
+                else self._tr(
+                    f"복구 모델 없음 ({states}); Ink만 사용",
+                    f"Recovery model unavailable ({states}); using Ink only",
+                )
+            ),
+        )
+
+    def _on_smart_recovery_toggled(self, checked):
+        """Opt in without ever turning model discovery into a download."""
+
+        if not checked:
+            self._cancel_recovery_prepare()
+            self._release_recovery_engine()
+        else:
+            self._recovery_model_status = None
+            self._recovery_prepare_error = ""
+        if checked and self.freehand_check.isChecked():
+            self.freehand_check.setChecked(False)
+        if checked and self.model_combo.currentIndex() != MODEL_IDX_INK:
+            self.model_combo.setCurrentIndex(MODEL_IDX_INK)
+        self._refresh_recovery_availability()
+
+    def _on_assist_strength_changed(self, value):
+        """Keep literal 0% free of evidence and model preparation work."""
+
+        self.freedom_label.setText(f"{int(value)}%")
+        if int(value) <= 0:
+            self._cancel_recovery_prepare()
+            self._release_recovery_engine()
+        self._refresh_recovery_availability()
+
+    def _on_freehand_toggled(self, checked):
+        """Keep literal Freehand and model-assisted Recovery unambiguous."""
+
+        if checked and self.smart_recovery_check.isChecked():
+            # setChecked(False) routes through the normal engine release and
+            # offline availability refresh; no special lifecycle path exists.
+            self.smart_recovery_check.setChecked(False)
+
+    def install_recovery_model(self):
+        """Start the sole, explicit network action for Smart Recovery."""
+
+        if self.recovery_install_task is not None:
+            return
+        self._cancel_recovery_prepare()
+        self._release_recovery_engine()
+        self._recovery_model_status = None
+        self._recovery_prepare_error = ""
+        task = _RecoveryInstallTask(
+            self._sam_models_dir(),
+            self._on_recovery_install_finished,
+        )
+        self.recovery_install_task = task
+        self.recovery_install_btn.setEnabled(False)
+        self._set_recovery_state(
+            RECOVERY_STATE_INK_FALLBACK,
+            self._tr(
+                "복구 모델 설치 중; 완료 전까지 Ink 유지",
+                "Installing recovery model; Ink remains active",
+            ),
+        )
+        QgsApplication.taskManager().addTask(task)
+
+    def _on_recovery_install_finished(self, task, succeeded, _bundle, error):
+        if self.recovery_install_task is not task:
+            return
+        self.recovery_install_task = None
+        if self._shutting_down:
+            return
+        self.recovery_install_btn.setEnabled(True)
+        if succeeded and error is None:
+            self._release_recovery_engine()
+            self._recovery_model_status = None
+            self._recovery_prepare_error = ""
+            self._refresh_recovery_availability()
+            return
+        detail = (
+            self._tr(
+                "설치 취소; Ink 유지",
+                "Installation cancelled; Ink kept",
+            )
+            if error is None
+            else self._tr(
+                f"설치 실패; Ink 유지: {error}",
+                f"Installation failed; Ink kept: {error}",
+            )
+        )
+        self.recovery_install_btn.setVisible(True)
+        self._set_recovery_state(RECOVERY_STATE_INK_FALLBACK, detail)
+
+    def retry_current_segment(self):
+        retry = getattr(self.active_tool, "retry_current_segment", None)
+        if not callable(retry):
+            self._set_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                self._tr(
+                    "먼저 Ink 트레이싱을 시작하세요",
+                    "Start Ink tracing before retrying a segment",
+                ),
+            )
+            return False
+        return bool(retry())
+
     @classmethod
     def _configure_hed_storage(cls):
         """Keep HED assets beside SAM weights so ZIP upgrades preserve them."""
@@ -544,6 +1004,22 @@ class AIVectorizerDock(QDockWidget):
 
     def cleanup(self, permanent=False):
         if permanent:
+            self._shutting_down = True
+        install_task = self.recovery_install_task
+        if install_task is not None:
+            try:
+                install_task.cancel()
+            except RuntimeError:
+                pass
+        self._cancel_recovery_prepare()
+        if (
+            hasattr(self, "smart_recovery_check")
+            and self.smart_recovery_check.isChecked()
+        ):
+            # Closing the dock returns the experimental opt-in to its safe
+            # default and prevents a refresh from starting a new task.
+            self.smart_recovery_check.setChecked(False)
+        if permanent:
             self._preview_store.shutdown()
         else:
             self._preview_store.clear()
@@ -561,6 +1037,7 @@ class AIVectorizerDock(QDockWidget):
                 self._log_nonfatal_ui_error("Failed to unset active tool", exc)
         self.active_tool = None
         self._release_sam_engine()
+        self._release_recovery_engine()
         self._set_idle_ui()
 
     def closeEvent(self, event):
@@ -630,55 +1107,14 @@ class AIVectorizerDock(QDockWidget):
 
         self.step3_group = QGroupBox()
         step3_layout = QVBoxLayout()
-        self.model_desc_label = QLabel()
-        self.model_desc_label.setStyleSheet("color: gray; font-size: 10px;")
-        step3_layout.addWidget(self.model_desc_label)
 
-        model_layout = QHBoxLayout()
-        self.model_label = QLabel()
-        model_layout.addWidget(self.model_label)
-        self.model_combo = QComboBox()
-        self.model_combo.currentIndexChanged.connect(self.on_model_changed)
-        model_layout.addWidget(self.model_combo)
-        step3_layout.addLayout(model_layout)
-
-        self.sam_status = QLabel("")
-        self.sam_status.setStyleSheet("font-size: 10px;")
-        step3_layout.addWidget(self.sam_status)
-
-        self.sam_check_btn = QPushButton()
-        self.sam_check_btn.clicked.connect(self.check_sam_update)
-        self.sam_check_btn.setVisible(False)
-        step3_layout.addWidget(self.sam_check_btn)
-
-        self.sam_report_btn = QPushButton()
-        self.sam_report_btn.clicked.connect(self.export_sam_report)
-        self.sam_report_btn.setVisible(False)
-        step3_layout.addWidget(self.sam_report_btn)
-
-        self.sam_download_btn = QPushButton()
-        self.sam_download_btn.clicked.connect(self.download_sam)
-        self.sam_download_btn.setVisible(False)
-        step3_layout.addWidget(self.sam_download_btn)
-
-        self.install_guide = QLabel()
-        self.install_guide.setStyleSheet("color: #e67e22; font-size: 9px;")
-        self.install_guide.setVisible(False)
-        step3_layout.addWidget(self.install_guide)
-
-        self.install_cmd = QLineEdit()
-        self.install_cmd.setText(self._install_command_for_model())
-        self.install_cmd.setReadOnly(True)
-        self.install_cmd.setStyleSheet("background: #fff3e0; font-size: 9px; padding: 3px;")
-        self.install_cmd.setVisible(False)
-        step3_layout.addWidget(self.install_cmd)
+        self.primary_mode_label = QLabel()
+        self.primary_mode_label.setWordWrap(True)
+        self.primary_mode_label.setStyleSheet("color: gray; font-size: 10px;")
+        step3_layout.addWidget(self.primary_mode_label)
 
         self.freehand_check = QCheckBox()
         step3_layout.addWidget(self.freehand_check)
-
-        self.auto_path_check = QCheckBox()
-        self.auto_path_check.toggled.connect(self._on_auto_path_toggled)
-        step3_layout.addWidget(self.auto_path_check)
 
         edge_layout = QHBoxLayout()
         self.edge_strength_label = QLabel()
@@ -689,9 +1125,107 @@ class AIVectorizerDock(QDockWidget):
         self.freedom_slider.setValue(DEFAULT_FREEDOM_SLIDER_VALUE)
         edge_layout.addWidget(self.freedom_slider)
         self.freedom_label = QLabel(f"{DEFAULT_FREEDOM_SLIDER_VALUE}%")
-        self.freedom_slider.valueChanged.connect(lambda v: self.freedom_label.setText(f"{v}%"))
+        self.freedom_slider.valueChanged.connect(self._on_assist_strength_changed)
         edge_layout.addWidget(self.freedom_label)
         step3_layout.addLayout(edge_layout)
+
+        self.smart_recovery_check = QCheckBox()
+        self.smart_recovery_check.setChecked(False)
+        self.smart_recovery_check.toggled.connect(
+            self._on_smart_recovery_toggled
+        )
+        self.freehand_check.toggled.connect(self._on_freehand_toggled)
+        step3_layout.addWidget(self.smart_recovery_check)
+
+        self.recovery_status = QLabel()
+        self.recovery_status.setWordWrap(True)
+        step3_layout.addWidget(self.recovery_status)
+
+        recovery_actions = QHBoxLayout()
+        self.recovery_install_btn = QPushButton()
+        self.recovery_install_btn.clicked.connect(self.install_recovery_model)
+        self.recovery_install_btn.setVisible(False)
+        recovery_actions.addWidget(self.recovery_install_btn)
+        self.recovery_retry_btn = QPushButton()
+        self.recovery_retry_btn.clicked.connect(self.retry_current_segment)
+        self.recovery_retry_btn.setEnabled(False)
+        self.recovery_retry_btn.setVisible(False)
+        recovery_actions.addWidget(self.recovery_retry_btn)
+        step3_layout.addLayout(recovery_actions)
+
+        self.recovery_runtime_guide = QLabel()
+        self.recovery_runtime_guide.setWordWrap(True)
+        self.recovery_runtime_guide.setStyleSheet(
+            "color: #e67e22; font-size: 9px;"
+        )
+        self.recovery_runtime_guide.setVisible(False)
+        step3_layout.addWidget(self.recovery_runtime_guide)
+        self.recovery_runtime_cmd = QLineEdit()
+        self.recovery_runtime_cmd.setText(RECOVERY_RUNTIME_INSTALL_COMMAND)
+        self.recovery_runtime_cmd.setReadOnly(True)
+        self.recovery_runtime_cmd.setStyleSheet(
+            "background: #fff3e0; font-size: 9px; padding: 3px;"
+        )
+        self.recovery_runtime_cmd.setVisible(False)
+        step3_layout.addWidget(self.recovery_runtime_cmd)
+
+        self.advanced_check = QCheckBox()
+        self.advanced_check.setChecked(False)
+        step3_layout.addWidget(self.advanced_check)
+
+        self.advanced_group = QGroupBox()
+        advanced_layout = QVBoxLayout()
+        self.model_desc_label = QLabel()
+        self.model_desc_label.setStyleSheet("color: gray; font-size: 10px;")
+        advanced_layout.addWidget(self.model_desc_label)
+
+        model_layout = QHBoxLayout()
+        self.model_label = QLabel()
+        model_layout.addWidget(self.model_label)
+        self.model_combo = QComboBox()
+        self.model_combo.currentIndexChanged.connect(self.on_model_changed)
+        model_layout.addWidget(self.model_combo)
+        advanced_layout.addLayout(model_layout)
+
+        self.sam_status = QLabel("")
+        self.sam_status.setStyleSheet("font-size: 10px;")
+        advanced_layout.addWidget(self.sam_status)
+
+        self.sam_check_btn = QPushButton()
+        self.sam_check_btn.clicked.connect(self.check_sam_update)
+        self.sam_check_btn.setVisible(False)
+        advanced_layout.addWidget(self.sam_check_btn)
+
+        self.sam_report_btn = QPushButton()
+        self.sam_report_btn.clicked.connect(self.export_sam_report)
+        self.sam_report_btn.setVisible(False)
+        advanced_layout.addWidget(self.sam_report_btn)
+
+        self.sam_download_btn = QPushButton()
+        self.sam_download_btn.clicked.connect(self.download_sam)
+        self.sam_download_btn.setVisible(False)
+        advanced_layout.addWidget(self.sam_download_btn)
+
+        self.install_guide = QLabel()
+        self.install_guide.setStyleSheet("color: #e67e22; font-size: 9px;")
+        self.install_guide.setVisible(False)
+        advanced_layout.addWidget(self.install_guide)
+
+        self.install_cmd = QLineEdit()
+        self.install_cmd.setText(self._install_command_for_model())
+        self.install_cmd.setReadOnly(True)
+        self.install_cmd.setStyleSheet("background: #fff3e0; font-size: 9px; padding: 3px;")
+        self.install_cmd.setVisible(False)
+        advanced_layout.addWidget(self.install_cmd)
+
+        self.auto_path_check = QCheckBox()
+        self.auto_path_check.toggled.connect(self._on_auto_path_toggled)
+        advanced_layout.addWidget(self.auto_path_check)
+
+        self.advanced_group.setLayout(advanced_layout)
+        self.advanced_group.setVisible(False)
+        self.advanced_check.toggled.connect(self.advanced_group.setVisible)
+        step3_layout.addWidget(self.advanced_group)
 
         self.trace_btn = QPushButton()
         self.trace_btn.setCheckable(True)
@@ -749,6 +1283,7 @@ class AIVectorizerDock(QDockWidget):
 
         self.apply_language()
         self.on_model_changed(self.model_combo.currentIndex())
+        self._refresh_recovery_availability()
         self.on_layer_selected(self.vector_combo.currentLayer())
 
     def apply_language(self):
@@ -784,8 +1319,64 @@ class AIVectorizerDock(QDockWidget):
         self.vector_combo.setToolTip(self._tr("이미 있는 라인 레이어에 추가", "Append to an existing line layer"))
 
         self.step3_group.setTitle(self._tr("3️⃣ 트레이싱 설정", "3️⃣ Tracing Options"))
-        self.step3_group.setToolTip(self._tr("등고선을 따라 그리기 위한 AI 설정", "AI options for contour tracing"))
-        self.model_desc_label.setText(self._tr("💡 AI 모델: 등고선 인식 방식 선택", "💡 AI model: choose contour detection behavior"))
+        self.step3_group.setToolTip(self._tr("Ink 중심선과 선택적 복구 설정", "Ink centerline and optional recovery settings"))
+        self.primary_mode_label.setText(
+            self._tr(
+                "🖋 기본은 Ink Centerline입니다. 모델 없이 항상 먼저 실행됩니다.",
+                "🖋 Ink Centerline is the default and always runs first without a model.",
+            )
+        )
+        self.smart_recovery_check.setText(
+            self._tr(
+                "🛟 Smart Recovery (실험적, 기본 꺼짐)",
+                "🛟 Smart Recovery (Experimental, default OFF)",
+            )
+        )
+        self.smart_recovery_check.setToolTip(
+            self._tr(
+                "Ink 증거가 약한 현재 구간만 로컬 EfficientSAM으로 재검토합니다. 모델 결과가 안전하게 개선될 때만 초록 미리보기를 바꿉니다.",
+                "Re-check only weak current Ink segments with local EfficientSAM. The green preview changes only when the challenger is a safe improvement.",
+            )
+        )
+        self.recovery_install_btn.setText(
+            self._tr(
+                "⬇️ Install Recovery Model",
+                "⬇️ Install Recovery Model",
+            )
+        )
+        self.recovery_install_btn.setToolTip(
+            self._tr(
+                "명시적으로 누를 때만 고정 URL에서 모델을 다운로드하고 SHA-256을 검증합니다.",
+                "Downloads from the pinned URL and verifies SHA-256 only after this explicit click.",
+            )
+        )
+        self.recovery_retry_btn.setText(
+            self._tr(
+                "↻ Retry current segment",
+                "↻ Retry current segment",
+            )
+        )
+        self.recovery_retry_btn.setToolTip(
+            self._tr(
+                "확정되지 않은 현재 Ink 구간에 복구를 한 번 다시 요청합니다.",
+                "Explicitly retry recovery for the current uncommitted Ink segment.",
+            )
+        )
+        self.recovery_runtime_guide.setText(
+            self._tr(
+                "📦 Recovery Runtime 설치 (자동 실행되지 않음, 복사 가능):",
+                "📦 Install Recovery Runtime (never run automatically; copy this):",
+            )
+        )
+        self.recovery_runtime_cmd.setText(RECOVERY_RUNTIME_INSTALL_COMMAND)
+        self.advanced_check.setText(
+            self._tr(
+                "▸ Advanced: 기존 추적 모델",
+                "▸ Advanced: legacy tracing models",
+            )
+        )
+        self.advanced_group.setTitle(self._tr("고급 모델 선택", "Advanced model selection"))
+        self.model_desc_label.setText(self._tr("기존 모델 인덱스 0–5 호환 영역", "Compatibility area preserving legacy model indices 0–5"))
         self.model_label.setText(self._tr("AI 모델:", "AI Model:"))
         self.model_label.setToolTip(
             self._tr(
@@ -933,6 +1524,7 @@ class AIVectorizerDock(QDockWidget):
             )
         else:
             self._set_ready_state()
+        self._refresh_recovery_availability()
 
     def on_language_changed(self, _index):
         selected = self.lang_combo.currentData()
@@ -1161,6 +1753,33 @@ class AIVectorizerDock(QDockWidget):
             freehand = self.freehand_check.isChecked()
             auto_path = self.auto_path_check.isChecked() and not freehand
             model_idx = self.model_combo.currentIndex()
+            smart_recovery = (
+                self.smart_recovery_check.isChecked()
+                and model_idx == MODEL_IDX_INK
+                and not freehand
+                and edge_weight > 0.0
+            )
+            recovery_engine = None
+            if smart_recovery:
+                recovery_engine, recovery_error = (
+                    self._load_recovery_engine_offline()
+                )
+                if recovery_engine is None:
+                    # Missing dependencies, absent/corrupt files, and load
+                    # errors are never blockers. Ink starts unchanged and no
+                    # download is attempted from this path.
+                    self._set_recovery_state(
+                        RECOVERY_STATE_INK_FALLBACK,
+                        self._tr(
+                            f"복구를 시작할 수 없어 Ink 유지: {recovery_error}",
+                            f"Recovery could not start; Ink kept: {recovery_error}",
+                        ),
+                    )
+            else:
+                # Freehand, legacy models, and literal 0% tracing must not
+                # retain optional ONNX sessions from an earlier run.
+                self._cancel_recovery_prepare()
+                self._release_recovery_engine()
             if self._is_sam_model(model_idx) and auto_path and edge_weight > 0.0:
                 self.init_sam_engine()
             else:
@@ -1250,6 +1869,9 @@ class AIVectorizerDock(QDockWidget):
                     iface=self.iface,
                     language=self.current_language,
                     auto_path=auto_path,
+                    recovery_engine=recovery_engine,
+                    smart_recovery=smart_recovery,
+                    recovery_state_callback=self._on_recovery_state_changed,
                 )
                 tool.deactivated.connect(self.on_tool_deactivated)
                 self.active_tool = tool
@@ -1281,6 +1903,11 @@ class AIVectorizerDock(QDockWidget):
                 mode_name = self._tr("정확한 커서 (AI 0%)", "Exact Cursor (AI 0%)")
             elif freehand:
                 mode_name = self._tr("프리핸드", "Freehand")
+            elif smart_recovery and recovery_engine is not None:
+                mode_name = self._tr(
+                    "Ink + Smart Recovery",
+                    "Ink + Smart Recovery",
+                )
             elif self._is_sam_model(model_idx) and not use_sam:
                 mode_name = self._tr(
                     "사람 주도 보조 (Ink Centerline)",
@@ -1317,6 +1944,12 @@ class AIVectorizerDock(QDockWidget):
     def on_model_changed(self, index):
         self._set_model_aux_visibility()
         self._release_sam_engine()
+        if (
+            hasattr(self, "smart_recovery_check")
+            and index != MODEL_IDX_INK
+            and self.smart_recovery_check.isChecked()
+        ):
+            self.smart_recovery_check.setChecked(False)
         if index == MODEL_IDX_INK:
             from ..core.edge_detector import EdgeDetector
 
@@ -1341,6 +1974,7 @@ class AIVectorizerDock(QDockWidget):
                 "info",
             )
             self.sam_status.setToolTip("")
+            self._refresh_recovery_availability()
             return
         if index == MODEL_IDX_LEGACY_CANNY:
             if not is_livewire_available():

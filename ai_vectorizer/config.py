@@ -57,24 +57,24 @@ MODE_NAME_BY_MODEL = {
 
 MODEL_MENU_LABELS = {
     MODEL_IDX_INK: {
-        "ko": "🖋 Ink Centerline / 사람-기계 협업 (기본)",
-        "en": "🖋 Ink Centerline / Human Assist (Default)",
+        "ko": "🖋 Ink Centerline (기본)",
+        "en": "🖋 Ink Centerline (Default)",
     },
     MODEL_IDX_LSD: {
-        "ko": "📐 LSD 선분검출 (빠름)",
-        "en": "📐 LSD Line Detector (Fast)",
+        "ko": "📐 LSD (직선·격자 특화)",
+        "en": "📐 LSD (Straight-line specialist)",
     },
     MODEL_IDX_HED: {
-        "ko": "🧠 HED 딥러닝 (매끄러움)",
-        "en": "🧠 HED Deep Learning (Smooth)",
+        "ko": "🧠 HED (실험적 엣지 지도)",
+        "en": "🧠 HED (Experimental edge map)",
     },
     MODEL_IDX_MOBILE_SAM: {
-        "ko": "🎯 MobileSAM (고품질)",
-        "en": "🎯 MobileSAM (High Quality)",
+        "ko": "🎯 MobileSAM (프롬프트 마스크)",
+        "en": "🎯 MobileSAM (Prompt mask)",
     },
     MODEL_IDX_SAM: {
-        "ko": "🧩 SAM (정밀)",
-        "en": "🧩 SAM (Precise)",
+        "ko": "🧩 SAM ViT-B (프롬프트 마스크)",
+        "en": "🧩 SAM ViT-B (Prompt mask)",
     },
     MODEL_IDX_LEGACY_CANNY: {
         "ko": "🔧 Legacy Canny (호환용)",

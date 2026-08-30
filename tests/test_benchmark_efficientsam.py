@@ -23,7 +23,11 @@ from benchmarks.generate import (
     _verified_prediction,
     generate_benchmark_dataset,
 )
-from benchmarks.evidence import prompt_sha256, sam_prompt_tensor_sha256
+from benchmarks.evidence import (
+    PROMPT_EVIDENCE_SCHEMA_VERSION,
+    prompt_sha256,
+    sam_prompt_tensor_sha256,
+)
 from benchmarks.geometry import load_centerline_artifact
 from benchmarks.manifest import (
     ManifestError,
@@ -480,6 +484,9 @@ class EfficientSAMGenerationBoundaryTests(unittest.TestCase):
             manifest_payload["samples"][0]["predictions"] = {
                 EFFICIENTSAM_BACKEND: copy.deepcopy(result["prediction"])
             }
+            manifest_payload["samples"][0]["prompt"]["schema_version"] = (
+                PROMPT_EVIDENCE_SCHEMA_VERSION
+            )
             manifest_path.write_text(
                 json.dumps(manifest_payload),
                 encoding="utf-8",
@@ -724,6 +731,8 @@ class EfficientSAMGenerationBoundaryTests(unittest.TestCase):
                                 "configuration_sha256"
                             ],
                             expected_prompt_sha256=prompt_sha256(request.prompt),
+                            expected_source_tile_origin_xy=(0, 0),
+                            expected_source_grid_input_sha256=None,
                             expected_sam_prompt_tensor_sha256=(
                                 sam_prompt_tensor_sha256(request.prompt)
                             ),

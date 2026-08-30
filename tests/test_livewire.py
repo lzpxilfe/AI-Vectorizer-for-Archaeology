@@ -3,6 +3,8 @@ import math
 import numpy as np
 import pytest
 
+import ai_vectorizer.core.livewire as livewire_module
+from ai_vectorizer.core.line_evidence import LineEvidence
 from ai_vectorizer.core.livewire import (
     LiveWireCancelled,
     LiveWireConfig,
@@ -58,6 +60,173 @@ def test_zero_strength_is_literal_cursor_segment():
         (float(root[0]), float(root[1])),
         (float(target[0]), float(target[1])),
     ]
+
+
+def test_zero_strength_remains_literal_with_optional_evidence():
+    image, edges, desired, _ = _dense_contour_fixture()
+    root = desired[2]
+    target = (desired[-3][0] + 0.4, desired[-3][1] - 0.3)
+    evidence = LineEvidence(
+        center_score=np.ones(edges.shape, dtype=np.float32),
+        centerline=np.ones(edges.shape, dtype=bool),
+    )
+    tree = build_livewire_tree(
+        image,
+        edges,
+        root,
+        strength=0.0,
+        evidence=evidence,
+    )
+
+    assert tree.trace(target) == [
+        (float(root[0]), float(root[1])),
+        (float(target[0]), float(target[1])),
+    ]
+
+
+def test_explicit_none_evidence_is_v1_compatible():
+    image, edges, desired, _ = _dense_contour_fixture()
+    root = desired[4]
+    kwargs = {
+        "strength": 1.0,
+        "incoming_direction": (1.0, 0.0),
+        "config": LiveWireConfig(max_window_size=160, target_snap_radius=3),
+    }
+
+    historical = build_livewire_tree(image, edges, root, **kwargs)
+    explicit_none = build_livewire_tree(
+        image,
+        edges,
+        root,
+        evidence=None,
+        **kwargs,
+    )
+
+    np.testing.assert_array_equal(
+        historical.predecessors,
+        explicit_none.predecessors,
+    )
+    np.testing.assert_array_equal(historical.distances, explicit_none.distances)
+    assert historical.trace(desired[-5]) == explicit_none.trace(desired[-5])
+
+
+def test_direct_centerline_evidence_can_supply_a_missing_route():
+    image = np.full((64, 64), 255, dtype=np.uint8)
+    edges = np.zeros((64, 64), dtype=np.uint8)
+    root = (5, 32)
+    target = (58, 32)
+    centerline = np.zeros(edges.shape, dtype=bool)
+
+    def draw_segment(start, end):
+        steps = int(max(abs(end[0] - start[0]), abs(end[1] - start[1])))
+        for index in range(steps + 1):
+            fraction = index / max(1, steps)
+            x = int(round(start[0] + (end[0] - start[0]) * fraction))
+            y = int(round(start[1] + (end[1] - start[1]) * fraction))
+            centerline[y, x] = True
+
+    draw_segment(root, (18, 18))
+    draw_segment((18, 18), (45, 18))
+    draw_segment((45, 18), target)
+    evidence = LineEvidence(
+        # The direct mask remains usable even if a producer has not supplied
+        # a separate continuous score yet.
+        center_score=np.zeros(edges.shape, dtype=np.float32),
+        centerline=centerline,
+    )
+
+    without_evidence = build_livewire_tree(
+        image,
+        edges,
+        root,
+        strength=1.0,
+        config=LiveWireConfig(max_window_size=64, target_snap_radius=0),
+    ).trace(target)
+    with_evidence = build_livewire_tree(
+        image,
+        edges,
+        root,
+        strength=1.0,
+        evidence=evidence,
+        config=LiveWireConfig(max_window_size=64, target_snap_radius=0),
+    ).trace(target)
+
+    assert min(y for _x, y in without_evidence) > 25.0
+    assert min(y for _x, y in with_evidence) <= 20.0
+    supported = sum(
+        bool(centerline[int(round(y)), int(round(x))])
+        for x, y in with_evidence
+    )
+    assert supported >= int(len(with_evidence) * 0.75)
+
+
+def test_precomputed_evidence_skips_duplicate_image_feature_passes(monkeypatch):
+    image = np.full((48, 48), 255, dtype=np.uint8)
+    edges = np.zeros((48, 48), dtype=np.uint8)
+    centerline = np.zeros(edges.shape, dtype=bool)
+    centerline[24, 4:44] = True
+    tangent_x = np.zeros(edges.shape, dtype=np.float32)
+    tangent_x[centerline] = 1.0
+    coherence = np.zeros(edges.shape, dtype=np.float32)
+    coherence[centerline] = 1.0
+    evidence = LineEvidence(
+        center_score=centerline.astype(np.float32),
+        centerline=centerline,
+        tangent_x=tangent_x,
+        tangent_y=np.zeros_like(tangent_x),
+        coherence=coherence,
+    )
+
+    def unexpected_feature_pass(*_args, **_kwargs):
+        raise AssertionError("precomputed evidence must bypass image features")
+
+    runtime, _error = livewire_module._get_livewire_runtime()
+    ndimage, _sparse, _dijkstra = runtime
+    monkeypatch.setattr(livewire_module, "_to_grayscale", unexpected_feature_pass)
+    monkeypatch.setattr(
+        ndimage,
+        "distance_transform_edt",
+        unexpected_feature_pass,
+    )
+    monkeypatch.setattr(ndimage, "gaussian_filter", unexpected_feature_pass)
+    monkeypatch.setattr(ndimage, "sobel", unexpected_feature_pass)
+
+    tree = build_livewire_tree(
+        image,
+        edges,
+        (4, 24),
+        evidence=evidence,
+        config=LiveWireConfig(max_window_size=48, target_snap_radius=0),
+    )
+
+    assert tree.trace((43, 24))[0] == (4.0, 24.0)
+    assert tree.trace((43, 24))[-1] == (43.0, 24.0)
+
+
+def test_evidence_type_and_dimensions_are_checked():
+    image = np.full((32, 32), 255, dtype=np.uint8)
+    edges = np.zeros_like(image)
+    with pytest.raises(TypeError, match="LineEvidence"):
+        build_livewire_tree(image, edges, (4, 4), evidence={})
+
+    evidence = LineEvidence(
+        center_score=np.zeros((16, 16), dtype=np.float32),
+        centerline=np.zeros((16, 16), dtype=bool),
+    )
+    with pytest.raises(ValueError, match="dimensions"):
+        build_livewire_tree(image, edges, (4, 4), evidence=evidence)
+
+    matching_evidence = LineEvidence(
+        center_score=np.zeros(edges.shape, dtype=np.float32),
+        centerline=np.zeros(edges.shape, dtype=bool),
+    )
+    with pytest.raises(ValueError, match="image dimensions"):
+        build_livewire_tree(
+            image[:, :-1],
+            edges,
+            (4, 4),
+            evidence=matching_evidence,
+        )
 
 
 def test_direction_aware_route_bridges_gap_without_switching_contours():

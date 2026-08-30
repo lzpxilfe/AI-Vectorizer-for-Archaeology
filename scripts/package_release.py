@@ -27,6 +27,7 @@ TOP_LEVEL_ITEMS = (
     "__init__.py",
     "plugin.py",
     "config.py",
+    "recovery.py",
     "metadata.txt",
     ".secrets.baseline",
     "README.md",
@@ -52,6 +53,13 @@ MAX_SOURCE_DATE_EPOCH = 4354819198  # 2107-12-31 23:59:58 UTC.
 MAX_UPLOAD_BYTES = 20_000_000
 ZIP_FILE_MODE = 0o100644
 ZIP_COMPRESSION = zipfile.ZIP_STORED
+# Published/local release candidates are immutable inputs while development is
+# kept under ``Unreleased`` without a metadata bump.  A source build whose hash
+# differs from one of these frozen artifacts must never replace its production
+# filename unless the operator explicitly confirms the metadata version.
+FROZEN_RELEASE_SHA256 = {
+    "0.1.5": "d2925198dc2192bbb7eebe579bb48207c860179a94d4216df77e746d0451789a",
+}
 
 
 def load_version() -> str:
@@ -247,15 +255,82 @@ def build_release_zip_bytes() -> bytes:
     return buffer.getvalue()
 
 
-def build_release_zip(version: str) -> Path:
-    DIST_DIR.mkdir(parents=True, exist_ok=True)
-    target_zip = zip_path(version)
+def _same_path(left: Path, right: Path) -> bool:
+    """Compare output paths across aliases and case-insensitive filesystems."""
+
+    resolved_left = left.resolve(strict=False)
+    resolved_right = right.resolve(strict=False)
+    if resolved_left == resolved_right:
+        return True
+
+    # ``Path.resolve()`` preserves the spelling supplied by the caller on
+    # case-insensitive APFS/NTFS.  When the frozen artifact exists, samefile()
+    # is the authoritative check and also handles other filesystem aliases.
+    try:
+        if os.path.samefile(left, right):
+            return True
+    except (FileNotFoundError, OSError, ValueError):
+        pass
+
+    # Retain fail-closed protection when the target itself is absent but both
+    # spellings address the same existing directory.  This is deliberately
+    # conservative on a case-sensitive filesystem: an explicit output whose
+    # basename differs only by case is not worth risking the production ZIP.
+    try:
+        same_parent = os.path.samefile(left.parent, right.parent)
+    except (FileNotFoundError, OSError, ValueError):
+        same_parent = False
+    return bool(same_parent and left.name.casefold() == right.name.casefold())
+
+
+def _assert_production_write_allowed(
+    version: str,
+    target_zip: Path,
+    payload: bytes,
+    *,
+    approved_version: Optional[str],
+) -> None:
+    """Protect a frozen metadata-derived production filename from dev builds."""
+    production_zip = zip_path(version)
+    if not _same_path(target_zip, production_zip):
+        return
+
+    frozen_hash = FROZEN_RELEASE_SHA256.get(version)
+    payload_hash = bytes_hash(payload)
+    if frozen_hash is None or payload_hash == frozen_hash:
+        return
+    if approved_version == version:
+        return
+
+    raise ValueError(
+        f"Refusing to replace frozen {production_zip.name}: current source builds "
+        f"SHA-256 {payload_hash}, not frozen {frozen_hash}. Build Unreleased source "
+        "with --output PATH, or use "
+        f"--approve-release-overwrite {version} only for a deliberate release."
+    )
+
+
+def build_release_zip(
+    version: str,
+    *,
+    output_path: Optional[Path] = None,
+    approved_version: Optional[str] = None,
+) -> Path:
+    target_zip = Path(output_path) if output_path is not None else zip_path(version)
     payload = build_release_zip_bytes()
     if len(payload) > MAX_UPLOAD_BYTES:
         raise ValueError(
             f"Release ZIP exceeds the {MAX_UPLOAD_BYTES // 1_000_000} MB "
             "QGIS repository package upload limit"
         )
+    _assert_production_write_allowed(
+        version,
+        target_zip,
+        payload,
+        approved_version=approved_version,
+    )
+
+    target_zip.parent.mkdir(parents=True, exist_ok=True)
 
     descriptor = None
     temporary_path = None
@@ -263,7 +338,7 @@ def build_release_zip(version: str) -> Path:
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=f".{target_zip.name}.",
             suffix=".tmp",
-            dir=DIST_DIR,
+            dir=target_zip.parent,
         )
         temporary_path = Path(temporary_name)
         try:
@@ -319,8 +394,12 @@ def release_manifest(version: str) -> dict[str, str]:
     return manifest
 
 
-def zip_manifest(version: str) -> dict[str, str]:
-    archive_path = zip_path(version)
+def zip_manifest(
+    version: str,
+    *,
+    archive_path: Optional[Path] = None,
+) -> dict[str, str]:
+    archive_path = Path(archive_path) if archive_path is not None else zip_path(version)
     if not archive_path.exists():
         raise FileNotFoundError(f"Release zip does not exist: {archive_path}")
 
@@ -354,25 +433,39 @@ def compare_manifests(label: str, expected: dict[str, str], actual: dict[str, st
     return problems
 
 
-def run_check(version: str) -> int:
+def run_check(
+    version: str,
+    *,
+    archive_path: Optional[Path] = None,
+) -> int:
     expected = source_manifest()
     problems: list[str] = []
 
-    try:
-        problems.extend(compare_manifests("release dir", expected, release_manifest(version)))
-    except Exception as exc:
-        problems.append(str(exc))
+    # An explicit output is the current-source/Unreleased path and does not use
+    # or validate the metadata-derived production release directory.
+    if archive_path is None:
+        try:
+            problems.extend(compare_manifests("release dir", expected, release_manifest(version)))
+        except Exception as exc:
+            problems.append(str(exc))
 
     try:
-        problems.extend(compare_manifests("release zip", expected, zip_manifest(version)))
-        archive_size = zip_path(version).stat().st_size
+        checked_zip = Path(archive_path) if archive_path is not None else zip_path(version)
+        problems.extend(
+            compare_manifests(
+                "release zip",
+                expected,
+                zip_manifest(version, archive_path=checked_zip),
+            )
+        )
+        archive_size = checked_zip.stat().st_size
         if archive_size > MAX_UPLOAD_BYTES:
             problems.append(
                 f"release zip: exceeds the {MAX_UPLOAD_BYTES // 1_000_000} MB "
                 "QGIS repository package upload limit"
             )
         expected_zip_hash = bytes_hash(build_release_zip_bytes())
-        actual_zip_hash = file_hash(zip_path(version))
+        actual_zip_hash = file_hash(checked_zip)
         if actual_zip_hash != expected_zip_hash:
             problems.append(
                 "release zip: archive bytes are not the deterministic source build"
@@ -385,16 +478,34 @@ def run_check(version: str) -> int:
             print(problem, file=sys.stderr)
         return 1
 
-    print(f"Release artifacts are in sync for {version}.")
+    if archive_path is None:
+        print(f"Release artifacts are in sync for {version}.")
+    else:
+        print(f"Current-source package is in sync: {Path(archive_path)}")
     return 0
 
 
-def run_build(version: str) -> int:
-    target_dir = build_release_tree(version)
-    target_zip = build_release_zip(version)
-    print(f"Built release directory: {target_dir}")
-    print(f"Built release zip: {target_zip}")
-    print(f"Release zip SHA-256: {file_hash(target_zip)}")
+def run_build(
+    version: str,
+    *,
+    output_path: Optional[Path] = None,
+    approved_version: Optional[str] = None,
+) -> int:
+    # Guard/write the ZIP before mutating the production release tree.  Thus a
+    # normal Unreleased invocation cannot partially replace frozen artifacts.
+    target_zip = build_release_zip(
+        version,
+        output_path=output_path,
+        approved_version=approved_version,
+    )
+    if output_path is None:
+        target_dir = build_release_tree(version)
+        print(f"Built release directory: {target_dir}")
+        print(f"Built release zip: {target_zip}")
+        print(f"Release zip SHA-256: {file_hash(target_zip)}")
+    else:
+        print(f"Built current-source package: {target_zip}")
+        print(f"Current-source package SHA-256: {file_hash(target_zip)}")
     return 0
 
 
@@ -407,15 +518,48 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         action="store_true",
         help="Verify that the generated release directory and zip match the root source tree.",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help=(
+            "Build or check a current-source ZIP at an explicit path without "
+            "touching metadata-derived production artifacts."
+        ),
+    )
+    parser.add_argument(
+        "--approve-release-overwrite",
+        metavar="VERSION",
+        help=(
+            "Explicitly approve replacing a frozen production ZIP for exactly "
+            "this metadata version. Never use this for normal Unreleased checks."
+        ),
+    )
+    args = parser.parse_args(argv)
+    if args.approve_release_overwrite is not None and args.check:
+        parser.error("--approve-release-overwrite cannot be used with --check")
+    if args.approve_release_overwrite is not None and args.output is not None:
+        parser.error("--approve-release-overwrite cannot be used with --output")
+    return args
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     version = load_version()
+    if (
+        args.approve_release_overwrite is not None
+        and args.approve_release_overwrite != version
+    ):
+        raise ValueError(
+            "--approve-release-overwrite must exactly match metadata version "
+            f"{version}"
+        )
     if args.check:
-        return run_check(version)
-    return run_build(version)
+        return run_check(version, archive_path=args.output)
+    return run_build(
+        version,
+        output_path=args.output,
+        approved_version=args.approve_release_overwrite,
+    )
 
 
 if __name__ == "__main__":

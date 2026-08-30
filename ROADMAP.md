@@ -106,7 +106,8 @@ QGIS 편집 수명주기, Python/QGIS 호환성, 재현 패키징을 닫는 stab
 
 ## M1 — Local model benchmark before replacement
 
-상태: M1.2 EfficientSAM-Ti ONNX 격리 경로까지 구현, 실데이터 구축·기존 PyTorch SAM adapter 대기
+상태: M1.3 Ink v1/v2/Recovery 독립 worker와 공개 8×6 dataset 계약 구현,
+재배포 가능 실데이터·독립 검수 대기
 
 완료:
 
@@ -149,6 +150,9 @@ QGIS 편집 수명주기, Python/QGIS 호환성, 재현 패키징을 닫는 stab
 - EfficientSAM을 넣을지 여부를 체감이 아닌 CPU 정확도·속도 지표로 결정합니다.
 
 ## M2 — EfficientSAM-guided hybrid line vectorizer
+
+상태: 첫 보수적 `Smart Recovery (Experimental)` 제품 경로 구현, 기본 승격 전
+locked holdout·clean-profile QGIS 검증 대기
 
 범위:
 

@@ -15,7 +15,7 @@ from qgis.core import (
     QgsWkbTypes, QgsProject, QgsPointXY, QgsGeometry,
     QgsFeature, QgsCoordinateTransform,
     QgsVectorLayer, QgsField, QgsFieldConstraints, QgsApplication, QgsTask,
-    QgsVectorLayerUtils, Qgis
+    QgsVectorLayerUtils, QgsRectangle, Qgis
 )
 from qgis.PyQt.QtCore import Qt, QTimer
 try:
@@ -29,8 +29,13 @@ except ImportError:
 from qgis.PyQt.QtGui import QColor
 
 from ..core.dependencies import get_cv2, require_cv2
-from ..core.edge_detector import EdgeDetector
-from ..core.raster_utils import compute_resampled_dimensions, read_raster_bands
+from ..core.edge_detector import EdgeDetector, InkEvidenceCancelled
+from ..core.raster_utils import (
+    compute_resampled_dimensions,
+    read_raster_bands,
+    read_raster_bands_with_native,
+    stable_integer_band_to_uint8,
+)
 from ..core.interaction_policy import (
     MODE_AUTO_PATH,
     MODE_FREEHAND,
@@ -46,6 +51,11 @@ from ..core.livewire import (
     build_livewire_tree,
     is_livewire_available,
 )
+from ..core.line_evidence import crop_line_evidence
+from ..core.recovery_prompts import (
+    RecoveryPromptError,
+    build_recovery_prompt_tensors,
+)
 from ..core.sam_trace_kernel import (
     DEFAULT_CONFIG as DEFAULT_SAM_TRACE_CONFIG,
     SamTraceConfig,
@@ -54,11 +64,23 @@ from ..core.sam_trace_kernel import (
     postprocess_mask as postprocess_sam_mask,
     trace_mask as trace_sam_mask,
 )
+from ..core.smart_recovery import (
+    arbitrate_routes,
+    build_corridor_cost_map,
+    recovery_gate,
+)
 from ..core.trace_kernel import (
     TraceConfig,
     chaikin_smooth_path,
     find_path,
     smooth_pixel_path,
+)
+from ..recovery import (
+    RECOVERY_STATE_ENHANCED,
+    RECOVERY_STATE_INK,
+    RECOVERY_STATE_INK_FALLBACK,
+    RECOVERY_STATE_RECOVERING,
+    require_recovery_state,
 )
 from ..config import (
     DEFAULT_EDGE_METHOD,
@@ -178,6 +200,141 @@ class _AStarPreviewTask(QgsTask):
         self.callback(self, bool(result), self.trace_result, self.error)
 
 
+class _InkEvidenceTask(QgsTask):
+    """Build Ink v1/v2 evidence away from QGIS' main thread."""
+
+    def __init__(
+        self,
+        *,
+        detector,
+        fallback_image,
+        fallback_rgb_image,
+        fallback_cache_identity,
+        fallback_cache_extent,
+        fallback_output_size,
+        evidence_image,
+        recovery_image,
+        recovery_compatible,
+        recovery_disabled_reason,
+        tile_origin,
+        enable_evidence,
+        evidence_disabled_reason,
+        build_cost_map,
+        edge_weight,
+        generation,
+        cache_identity,
+        cache_extent,
+        output_size,
+        callback,
+    ):
+        super().__init__("ArchaeoTrace Ink evidence", _task_can_cancel())
+        self.detector = detector
+        self.fallback_image = fallback_image
+        self.fallback_rgb_image = fallback_rgb_image
+        self.fallback_cache_identity = tuple(fallback_cache_identity)
+        self.fallback_cache_extent = tuple(
+            float(value) for value in fallback_cache_extent
+        )
+        self.fallback_output_size = tuple(
+            int(value) for value in fallback_output_size
+        )
+        self.evidence_image = evidence_image
+        self.recovery_image = recovery_image
+        self.recovery_compatible = bool(recovery_compatible)
+        self.recovery_disabled_reason = str(recovery_disabled_reason or "")
+        self.tile_origin = tuple(tile_origin)
+        self.enable_evidence = bool(enable_evidence)
+        self.evidence_disabled_reason = str(evidence_disabled_reason or "")
+        self.build_cost_map = bool(build_cost_map)
+        self.edge_weight = float(edge_weight)
+        self.generation = int(generation)
+        self.cache_identity = tuple(cache_identity)
+        self.cache_extent = tuple(float(value) for value in cache_extent)
+        self.output_size = tuple(int(value) for value in output_size)
+        self.callback = callback
+        self.fallback_edges = None
+        self.evidence = None
+        self.evidence_error = None
+        self.cost_map = None
+        self.error = None
+
+    def run(self):
+        if self.isCanceled():
+            return False
+        try:
+            # Always produce the stable v1 champion first. A v2 failure is a
+            # recoverable result, not a failed tracing session.
+            self.fallback_edges = self.detector.detect_edges(
+                self.fallback_image
+            )
+            if self.isCanceled():
+                return False
+            detect_evidence = getattr(self.detector, "detect_ink_evidence", None)
+            if not self.enable_evidence:
+                self.evidence_error = RuntimeError(
+                    self.evidence_disabled_reason
+                    or "continuous Ink evidence is disabled for this cache"
+                )
+            elif not callable(detect_evidence):
+                self.evidence_error = RuntimeError(
+                    "continuous Ink evidence is unavailable"
+                )
+            else:
+                try:
+                    try:
+                        self.evidence = detect_evidence(
+                            self.evidence_image,
+                            tile_origin=self.tile_origin,
+                            cancel_check=self.isCanceled,
+                        )
+                    except TypeError as exc:
+                        if not any(
+                            keyword in str(exc)
+                            for keyword in ("cancel_check", "tile_origin")
+                        ):
+                            raise
+                        try:
+                            self.evidence = detect_evidence(
+                                self.evidence_image,
+                                tile_origin=self.tile_origin,
+                            )
+                        except TypeError as legacy_exc:
+                            if "tile_origin" not in str(legacy_exc):
+                                raise
+                            self.evidence = detect_evidence(self.evidence_image)
+                except InkEvidenceCancelled:
+                    return False
+                except Exception as exc:
+                    self.evidence_error = exc
+            selected_edges = self.fallback_edges
+            if self.evidence is not None:
+                selected_edges = np.where(
+                    np.asarray(self.evidence.centerline, dtype=bool),
+                    255,
+                    0,
+                ).astype(np.uint8)
+            if self.build_cost_map:
+                self.cost_map = self.detector.get_edge_cost_map(
+                    selected_edges,
+                    self.edge_weight,
+                )
+            return not self.isCanceled()
+        except Exception as exc:
+            self.error = exc
+            return False
+
+    def finished(self, result):
+        self.callback(
+            self,
+            bool(result),
+            self.fallback_edges,
+            self.evidence,
+            self.cost_map,
+            self.evidence_error,
+            self.error,
+        )
+
+
 class _LiveWireTreeTask(QgsTask):
     """Build one anchor-rooted Live-Wire tree away from the UI thread."""
 
@@ -186,6 +343,7 @@ class _LiveWireTreeTask(QgsTask):
         *,
         image,
         edges,
+        evidence,
         anchor_pixel,
         incoming_direction,
         strength,
@@ -196,6 +354,7 @@ class _LiveWireTreeTask(QgsTask):
         super().__init__("ArchaeoTrace Live-Wire tree", _task_can_cancel())
         self.image = image
         self.edges = edges
+        self.evidence = evidence
         self.anchor_pixel = tuple(anchor_pixel)
         self.incoming_direction = incoming_direction
         self.strength = float(strength)
@@ -217,6 +376,7 @@ class _LiveWireTreeTask(QgsTask):
                 incoming_direction=self.incoming_direction,
                 config=self.config,
                 cancel_check=self.isCanceled,
+                evidence=self.evidence,
             )
             return not self.isCanceled()
         except LiveWireCancelled:
@@ -227,6 +387,165 @@ class _LiveWireTreeTask(QgsTask):
 
     def finished(self, result):
         self.callback(self, bool(result), self.tree, self.error)
+
+
+class _RecoveryPreviewTask(QgsTask):
+    """Evaluate one EfficientSAM challenger without touching QGIS objects."""
+
+    def __init__(
+        self,
+        *,
+        engine,
+        image,
+        encoding,
+        evidence,
+        champion_path,
+        start_pixel,
+        target_pixel,
+        prompt_points,
+        prompt_labels,
+        window_bounds,
+        cache_generation,
+        request_generation,
+        preview_identity,
+        smooth_window_size,
+        trace_config,
+        callback,
+    ):
+        super().__init__("ArchaeoTrace Smart Recovery", _task_can_cancel())
+        self.engine = engine
+        self.image = image
+        self.encoding = encoding
+        self.evidence = evidence
+        self.champion_path = tuple(tuple(point) for point in champion_path)
+        self.start_pixel = tuple(start_pixel)
+        self.target_pixel = tuple(target_pixel)
+        self.prompt_points = prompt_points
+        self.prompt_labels = prompt_labels
+        self.window_bounds = tuple(int(value) for value in window_bounds)
+        self.cache_generation = int(cache_generation)
+        self.request_generation = int(request_generation)
+        self.preview_identity = preview_identity
+        self.smooth_window_size = int(smooth_window_size)
+        self.trace_config = trace_config
+        self.callback = callback
+        self.selection = None
+        self.trace_result = None
+        self.challenger_path = None
+        self.error = None
+
+    def run(self):
+        if self.isCanceled():
+            return False
+        try:
+            prepare_image = getattr(self.engine, "set_image", None)
+            if callable(prepare_image):
+                self.encoding = prepare_image(self.image)
+            elif self.encoding is None:
+                self.encoding = getattr(self.engine, "encode")(self.image)
+            if self.isCanceled():
+                return False
+
+            predict = getattr(self.engine, "predict")
+            if callable(prepare_image):
+                prediction = predict(self.prompt_points, self.prompt_labels)
+            else:
+                prediction = predict(
+                    self.encoding,
+                    self.prompt_points,
+                    self.prompt_labels,
+                )
+            corridor = getattr(prediction, "mask", prediction)
+            corridor = np.asarray(corridor, dtype=np.float32)
+            evidence_shape = tuple(int(value) for value in self.evidence.shape)
+            if corridor.shape != evidence_shape:
+                raise ValueError(
+                    "Recovery corridor must match the full Ink evidence grid"
+                )
+            x0, y0, x1, y1 = self.window_bounds
+            height, width = evidence_shape
+            if not (0 <= x0 < x1 <= width and 0 <= y0 < y1 <= height):
+                raise ValueError("Recovery window leaves the Ink evidence grid")
+            local_start = (
+                float(self.start_pixel[0]) - x0,
+                float(self.start_pixel[1]) - y0,
+            )
+            local_target = (
+                float(self.target_pixel[0]) - x0,
+                float(self.target_pixel[1]) - y0,
+            )
+            window_width = x1 - x0
+            window_height = y1 - y0
+            for label, (x, y) in (
+                ("start", local_start),
+                ("target", local_target),
+            ):
+                if not (0.0 <= x < window_width and 0.0 <= y < window_height):
+                    raise ValueError(
+                        f"Recovery {label} lies outside the Live-Wire window"
+                    )
+
+            bounded_evidence = crop_line_evidence(
+                self.evidence,
+                self.window_bounds,
+            )
+            bounded_corridor = np.ascontiguousarray(
+                corridor[y0:y1, x0:x1],
+                dtype=np.float32,
+            )
+            cost_map = build_corridor_cost_map(
+                bounded_evidence,
+                bounded_corridor,
+            )
+            if self.isCanceled():
+                return False
+
+            self.trace_result = find_path(
+                cost_map,
+                local_start,
+                local_target,
+                allow_partial=False,
+                config=self.trace_config,
+            )
+            raw_challenger = tuple(
+                (float(x) + x0, float(y) + y0)
+                for x, y in self.trace_result.points_xy
+            )
+            challenger_path = list(
+                smooth_pixel_path(
+                    raw_challenger,
+                    window_size=self.smooth_window_size,
+                )
+            )
+            if challenger_path:
+                challenger_path[0] = tuple(
+                    float(value) for value in self.start_pixel
+                )
+                challenger_path[-1] = tuple(
+                    float(value) for value in self.target_pixel
+                )
+            self.challenger_path = tuple(challenger_path)
+            self.selection = arbitrate_routes(
+                self.champion_path,
+                self.challenger_path,
+                self.evidence,
+                expected_start=self.start_pixel,
+                expected_end=self.target_pixel,
+            )
+            return not self.isCanceled()
+        except Exception as exc:
+            self.error = exc
+            return False
+
+    def finished(self, result):
+        self.callback(
+            self,
+            bool(result),
+            self.trace_result,
+            self.challenger_path,
+            self.selection,
+            self.error,
+        )
 
 
 class SmartTraceTool(QgsMapToolEmitPoint):
@@ -255,6 +574,19 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     CACHE_MIN_DIMENSION = 10
     CACHE_MAX_BANDS_FOR_RGB = 3
     CACHE_DEBOUNCE_MS = 150
+    # Keep the product cache on the detector's source-pixel grid.  A visible
+    # viewport is expanded to complete normalization tiles plus their halo so
+    # that a source pixel receives the same local context after a small pan.
+    INK_EVIDENCE_TILE_SOURCE_PIXELS = int(
+        EdgeDetector.INK_EVIDENCE_TILE_SIZE
+    )
+    INK_EVIDENCE_FILTER_RADIUS_SOURCE_PIXELS = int(
+        max(EdgeDetector.INK_EVIDENCE_SCALES) // 2
+    )
+    INK_EVIDENCE_HALO_SOURCE_PIXELS = int(
+        EdgeDetector.INK_EVIDENCE_TILE_HALO
+        + INK_EVIDENCE_FILTER_RADIUS_SOURCE_PIXELS
+    )
     PROPOSAL_DEBOUNCE_MS = 110
     PROPOSAL_ACCEPT_TOLERANCE_PIXELS = 12
 
@@ -431,20 +763,44 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             connections.append(vector_crs_changed)
 
         try:
+            raster_data_changed = getattr(self.raster_layer, "dataChanged", None)
+        except RuntimeError:
+            raster_data_changed = None
+
+        try:
             for signal in connections:
                 if enabled:
                     signal.connect(self._on_source_layer_invalidated)
                 else:
                     signal.disconnect(self._on_source_layer_invalidated)
+            if raster_data_changed is not None:
+                if enabled:
+                    raster_data_changed.connect(self._on_raster_data_changed)
+                else:
+                    raster_data_changed.disconnect(self._on_raster_data_changed)
             self._source_lifecycle_listeners_connected = enabled
         except (RuntimeError, TypeError) as exc:
             if not enabled:
                 self._source_lifecycle_listeners_connected = False
             print(f"Layer lifecycle listener update failed: {exc}")
 
+    def _on_raster_data_changed(self, *_args):
+        """Invalidate source pixels changed in place and request a fresh cache."""
+
+        if self._is_active and self._needs_edge_cache():
+            self._schedule_edge_cache_update()
+        else:
+            self._clear_edge_cache()
+
     def _on_source_layer_invalidated(self, *_args):
         """Stop before a replaced/deleted source can receive trace edits."""
 
+        # Invalidate worker generations before asking QGIS to deactivate us.
+        # Some providers emit this signal while their C++ layer is already
+        # being torn down, and unsetMapTool() is therefore not guaranteed to
+        # reach deactivate().  A late Ink task must never republish a cache
+        # captured from that obsolete source.
+        self._clear_edge_cache()
         try:
             if self.canvas.mapTool() is self:
                 self.canvas.unsetMapTool(self)
@@ -514,7 +870,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def __init__(self, canvas, raster_layer, vector_layer, model_type=0,
                  sam_engine=None, edge_weight=0.5, freehand=False, edge_method=DEFAULT_EDGE_METHOD,
-                 iface=None, language="ko", auto_path=False):
+                 iface=None, language="ko", auto_path=False,
+                 recovery_engine=None, smart_recovery=False,
+                 recovery_state_callback=None):
         self.canvas = canvas
         super().__init__(self.canvas)
         self.iface = iface
@@ -551,6 +909,17 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # the interaction contract remains exactly [0.0, 1.0].
         self.edge_weight = max(0.0, min(1.0, float(edge_weight)))
         self.auto_path = bool(auto_path) and not self.freehand
+        self.smart_recovery_requested = bool(smart_recovery)
+        self.recovery_engine = recovery_engine
+        self.recovery_state_callback = recovery_state_callback
+        self.smart_recovery_enabled = (
+            self.smart_recovery_requested
+            and not self.freehand
+            and self.edge_weight > 0.0
+            and self.edge_method == EdgeDetector.METHOD_INK
+            and self.recovery_engine is not None
+        )
+        self._current_recovery_state = RECOVERY_STATE_INK
 
         # Keep the search geometry local. The strength slider controls the
         # actual attraction radius and blend below; it must not turn into a
@@ -653,11 +1022,23 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.cached_edges = None
         self.cached_cost = None
         self.cache_extent = None
+        self.cache_tile_origin = None
+        self.cache_identity = None
         self.cache_transform = None  # Pixel <-> Map transform
         self.cached_rgb_image = None
+        self.cached_ink_evidence = None
+        self._recovery_cache_compatible = False
+        self._recovery_cache_disabled_reason = (
+            "Smart Recovery is waiting for a native Byte Ink v2 cache."
+        )
         self.sam_image_ready = False
         self.sam_warning_emitted = False
         self.cache_dirty = True
+        self._cache_generation = 0
+        self._ink_evidence_task = None
+        self._ink_evidence_generation = 0
+        self._pending_cache_identity = None
+        self._is_active = False
 
         self._edge_cache_timer = QTimer(self)
         self._edge_cache_timer.setSingleShot(True)
@@ -688,6 +1069,17 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._livewire_disabled = False
         self._livewire_failed_anchor = None
 
+        # Smart Recovery evaluates only an already-rendered Ink candidate.
+        # Requests are coalesced so the ONNX session is never invoked by two
+        # concurrent cursor tasks, and stale results cannot replace a newer
+        # champion preview.
+        self._recovery_task = None
+        self._recovery_request = None
+        self._recovery_generation = 0
+        self._recovery_preview_identity = None
+        self._recovery_encoding = None
+        self._recovery_encoding_cache_generation = None
+
         # CRS transforms are refreshed if the canvas or raster CRS changes.
         # Reusing transforms created for an earlier project CRS silently moves
         # traces by hundreds of kilometres in otherwise valid projects.
@@ -702,6 +1094,14 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # Stability (Anti-Pulse)
         self.last_hover_pos = None
         self.last_sample_pos = None
+
+        if self.smart_recovery_requested and not self.smart_recovery_enabled:
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                "Recovery model unavailable; Ink remains active.",
+            )
+        else:
+            self._emit_recovery_state(RECOVERY_STATE_INK)
 
     def create_output_layer(self):
         crs = self.canvas.mapSettings().destinationCrs().authid()
@@ -767,7 +1167,89 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         else:
             print(text)
 
+    def _emit_recovery_state(self, state, detail=""):
+        """Publish one validated, main-thread recovery state to the dock."""
+
+        state = require_recovery_state(state)
+        self._current_recovery_state = state
+        callback = getattr(self, "recovery_state_callback", None)
+        if not callable(callback):
+            return
+        try:
+            callback(state, str(detail or ""))
+        except (RuntimeError, TypeError) as exc:
+            print(f"Smart Recovery state callback failed: {exc}")
+
+    def set_recovery_engine(self, engine):
+        """Attach a background-prepared engine without changing the Ink route."""
+
+        if getattr(self, "_disposed", False):
+            return False
+        self._cancel_recovery_task(clear_request=True)
+        self._recovery_generation += 1
+        self._recovery_encoding = None
+        self._recovery_encoding_cache_generation = None
+        self.recovery_engine = engine
+        self.smart_recovery_enabled = (
+            self.smart_recovery_requested
+            and not self.freehand
+            and self.edge_weight > 0.0
+            and self.edge_method == EdgeDetector.METHOD_INK
+            and engine is not None
+            and bool(getattr(engine, "is_ready", True))
+        )
+        if self.smart_recovery_enabled:
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK,
+                "Recovery model is ready; the current Ink route is unchanged.",
+            )
+        elif self.smart_recovery_requested:
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                "Recovery model is unavailable; Ink remains active.",
+            )
+        return self.smart_recovery_enabled
+
+    def _cancel_recovery_task(self, *, clear_request=True):
+        task = getattr(self, "_recovery_task", None)
+        if clear_request:
+            self._recovery_request = None
+        if task is not None:
+            try:
+                task.cancel()
+            except RuntimeError:
+                pass
+        return task is not None
+
+    def _cancel_ink_evidence_task(self):
+        task = getattr(self, "_ink_evidence_task", None)
+        self._ink_evidence_task = None
+        self._pending_cache_identity = None
+        self._ink_evidence_generation += 1
+        if task is not None:
+            try:
+                task.cancel()
+            except RuntimeError:
+                pass
+        return task is not None
+
+    def _invalidate_recovery(self, detail=""):
+        """Make every outstanding challenger stale while preserving Ink."""
+
+        self._cancel_recovery_task(clear_request=True)
+        self._recovery_generation += 1
+        self._recovery_preview_identity = None
+        if self.smart_recovery_requested:
+            self._emit_recovery_state(RECOVERY_STATE_INK, detail)
+
     def _clear_edge_cache(self):
+        ink_evidence_was_running = self._cancel_ink_evidence_task()
+        recovery_was_running = self._cancel_recovery_task(clear_request=True)
+        self._recovery_generation += 1
+        self._recovery_preview_identity = None
+        self._recovery_encoding = None
+        self._recovery_encoding_cache_generation = None
+        self._cache_generation += 1
         self._cancel_livewire_task()
         self._livewire_generation += 1
         self._livewire_tree = None
@@ -776,12 +1258,29 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._livewire_failed_anchor = None
         self.cached_edges = None
         self.cached_cost = None
+        self.cached_ink_evidence = None
         self.cache_extent = None
+        self.cache_tile_origin = None
+        self.cache_identity = None
         self.cache_transform = None
         self.cached_rgb_image = None
+        self._recovery_cache_compatible = False
+        self._recovery_cache_disabled_reason = (
+            "Smart Recovery is waiting for a native Byte Ink v2 cache."
+        )
         self.sam_image_ready = False
         self.sam_warning_emitted = False
         self.cache_dirty = True
+        if recovery_was_running and self.smart_recovery_requested:
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                "Recovery cancelled after the map view changed; Ink was kept.",
+            )
+        elif ink_evidence_was_running:
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                "Ink evidence refresh was cancelled; exact cursor remains active.",
+            )
 
     @staticmethod
     def _ensure_edit_session(layer):
@@ -1159,6 +1658,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             rgb = np.stack([bands[0], bands[0], bands[0]], axis=-1)
         return np.ascontiguousarray(rgb)
 
+    @classmethod
+    def _build_stable_integer_rgb_image(cls, bands):
+        """Create a pan-stable Recovery RGB cache from native integer DNs."""
+
+        converted = [stable_integer_band_to_uint8(band) for band in bands]
+        return cls._build_cached_rgb_image(converted)
+
     def _sam_trace_config(self):
         """Bind compatibility constants to the shared QGIS-free SAM kernel."""
 
@@ -1266,6 +1772,41 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             np.array(prompt_labels, dtype=np.int32),
         )
 
+    def _build_recovery_prompts(self, target_point):
+        """Build the benchmark-parity anchor/target recovery prompt.
+
+        Prior confirmed vertices express incoming direction for Live-Wire;
+        they are never additional positive EfficientSAM prompts. This keeps
+        product inference aligned with the recovery worker's explicit start
+        and end positives while retaining conservative perpendicular
+        negatives around only those two endpoints.
+        """
+
+        if (
+            self.cache_transform is None
+            or not self.path_points
+            or self.cached_rgb_image is None
+        ):
+            return None, None
+        height, width = self.cached_rgb_image.shape[:2]
+        start_px, start_py = self.map_to_pixel(self.path_points[-1])
+        target_px, target_py = self.map_to_pixel(target_point)
+        if not self._is_pixel_in_bounds(start_px, start_py, width, height):
+            return None, None
+        if not self._is_pixel_in_bounds(target_px, target_py, width, height):
+            return None, None
+
+        try:
+            tensors = build_recovery_prompt_tensors(
+                (start_px, start_py),
+                (target_px, target_py),
+                width=width,
+                height=height,
+            )
+        except RecoveryPromptError:
+            return None, None
+        return tensors.as_numpy(np)
+
     def _predict_sam_mask(self, target_point):
         if not self._ensure_sam_image():
             return None
@@ -1321,6 +1862,32 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             max_width=self.CACHE_MAX_DIMENSION,
             max_height=self.CACHE_MAX_DIMENSION,
             max_cells=self.CACHE_MAX_DIMENSION * self.CACHE_MAX_DIMENSION,
+            validate_all_costs=False,
+            validate_accessed_costs=False,
+            neighbors=tuple(self.A_STAR_NEIGHBORS),
+        )
+
+    def _recovery_trace_config(self, window_bounds):
+        """Bind strict Recovery A* to the exact Live-Wire tree window."""
+
+        x0, y0, x1, y1 = (int(value) for value in window_bounds)
+        width = x1 - x0
+        height = y1 - y0
+        if (
+            width < 1
+            or height < 1
+            or width > self.LIVEWIRE_WINDOW_PIXELS
+            or height > self.LIVEWIRE_WINDOW_PIXELS
+        ):
+            raise ValueError("Recovery window must fit the 320px Live-Wire bound")
+        return TraceConfig(
+            straight_move_cost=self.PATH_MOVE_COST_STRAIGHT,
+            diagonal_move_cost=self.PATH_MOVE_COST_DIAGONAL,
+            max_iterations_base=self.PATH_MAX_ITER_BASE,
+            max_iterations_distance_factor=self.PATH_MAX_ITER_DISTANCE_FACTOR,
+            max_width=width,
+            max_height=height,
+            max_cells=width * height,
             validate_all_costs=False,
             validate_accessed_costs=False,
             neighbors=tuple(self.A_STAR_NEIGHBORS),
@@ -1443,6 +2010,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         task = _LiveWireTreeTask(
             image=self.cached_rgb_image,
             edges=self.cached_edges,
+            evidence=self.cached_ink_evidence,
             anchor_pixel=anchor_pixel,
             incoming_direction=self._livewire_incoming_direction(anchor_pixel),
             strength=self.edge_weight,
@@ -1565,6 +2133,357 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.preview_is_global = bool(global_mode)
         self.preview_target = QgsPointXY(target_point) if global_mode else None
         self._render_preview()
+        if self.smart_recovery_enabled:
+            self._schedule_smart_recovery(target_point, force=False)
+
+    def _recovery_pixel_path(self):
+        """Return the visible Ink champion in the current evidence grid."""
+
+        evidence = self.cached_ink_evidence
+        if evidence is None or not self.path_points or not self.preview_path:
+            return None
+        height, width = evidence.center_score.shape
+        map_path = [self.path_points[-1], *self.preview_path]
+        pixel_path = []
+        for map_point in map_path:
+            px, py = self.map_to_pixel_float(map_point)
+            px = float(px)
+            py = float(py)
+            if not (0.0 <= px < width and 0.0 <= py < height):
+                return None
+            point = (px, py)
+            if not pixel_path or point != pixel_path[-1]:
+                pixel_path.append(point)
+        return tuple(pixel_path) if len(pixel_path) >= 2 else None
+
+    def _build_recovery_request(
+        self,
+        target_point,
+        *,
+        force,
+        champion_path,
+        request_generation,
+        preview_identity,
+    ):
+        if champion_path is None or self.cached_rgb_image is None:
+            return None
+        height, width = self.cached_rgb_image.shape[:2]
+        start_pixel = champion_path[0]
+        target_pixel = self.map_to_pixel_float(target_point)
+        target_pixel = tuple(float(value) for value in target_pixel)
+        if not (
+            0.0 <= target_pixel[0] < width
+            and 0.0 <= target_pixel[1] < height
+        ):
+            return None
+
+        prompt_points, prompt_labels = self._build_recovery_prompts(target_point)
+        if prompt_points is None or prompt_labels is None:
+            return None
+        gate = recovery_gate(
+            champion_path,
+            self.cached_ink_evidence,
+            expected_start=start_pixel,
+            expected_end=target_pixel,
+            force=bool(force),
+        )
+        if not gate.trigger:
+            return {
+                "trigger": False,
+                "reason": gate.reason,
+            }
+        tree = self._livewire_tree
+        if tree is None:
+            return None
+        origin_x, origin_y = (int(value) for value in tree.origin)
+        tree_height, tree_width = (int(value) for value in tree.shape)
+        window_bounds = (
+            origin_x,
+            origin_y,
+            origin_x + tree_width,
+            origin_y + tree_height,
+        )
+        if not tree.contains(start_pixel) or not tree.contains(target_pixel):
+            return None
+        return {
+            "trigger": True,
+            "reason": gate.reason,
+            "target_map": QgsPointXY(target_point),
+            "champion_path": champion_path,
+            "start_pixel": start_pixel,
+            "target_pixel": target_pixel,
+            "prompt_points": prompt_points,
+            "prompt_labels": prompt_labels,
+            "window_bounds": window_bounds,
+            "cache_generation": self._cache_generation,
+            "request_generation": int(request_generation),
+            "preview_identity": preview_identity,
+        }
+
+    def _start_recovery_request(self, request):
+        if (
+            not self.smart_recovery_enabled
+            or self.recovery_engine is None
+            or request is None
+            or not request.get("trigger")
+            or not self.is_tracing
+        ):
+            return False
+        if "request_generation" not in request:
+            self._recovery_generation += 1
+            request["request_generation"] = self._recovery_generation
+        if "preview_identity" not in request:
+            request["preview_identity"] = (
+                int(request["cache_generation"]),
+                tuple(tuple(point) for point in request["champion_path"]),
+                tuple(request["target_pixel"]),
+            )
+            self._recovery_preview_identity = request["preview_identity"]
+        if self._recovery_task is not None:
+            self._recovery_request = request
+            return True
+
+        request_generation = request["request_generation"]
+        self._recovery_request = request
+        encoding = (
+            self._recovery_encoding
+            if self._recovery_encoding_cache_generation == self._cache_generation
+            else None
+        )
+        task = _RecoveryPreviewTask(
+            engine=self.recovery_engine,
+            image=self.cached_rgb_image,
+            encoding=encoding,
+            evidence=self.cached_ink_evidence,
+            champion_path=request["champion_path"],
+            start_pixel=request["start_pixel"],
+            target_pixel=request["target_pixel"],
+            prompt_points=request["prompt_points"],
+            prompt_labels=request["prompt_labels"],
+            window_bounds=request["window_bounds"],
+            cache_generation=request["cache_generation"],
+            request_generation=request_generation,
+            preview_identity=request["preview_identity"],
+            smooth_window_size=self.PATH_SMOOTH_WINDOW_SIZE,
+            trace_config=self._recovery_trace_config(
+                request["window_bounds"]
+            ),
+            callback=self._on_recovery_preview_finished,
+        )
+        self._recovery_task = task
+        self._emit_recovery_state(
+            RECOVERY_STATE_RECOVERING,
+            "Ink evidence is weak; evaluating an optional local corridor.",
+        )
+        QgsApplication.taskManager().addTask(task)
+        return True
+
+    def _schedule_smart_recovery(self, target_point, *, force=False):
+        """Gate a challenger only after the Ink champion is available."""
+
+        if not self.smart_recovery_enabled:
+            return False
+        if not self._recovery_cache_compatible:
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                self._recovery_cache_disabled_reason
+                or "Smart Recovery is unavailable for this raster; Ink was kept.",
+            )
+            return False
+        # Every visible Ink champion advances identity before any gate can
+        # return. A previous ONNX task is allowed to finish, but it becomes
+        # stale even when this newer route is confident or lacks evidence.
+        self._recovery_generation += 1
+        request_generation = self._recovery_generation
+        champion_path = self._recovery_pixel_path()
+        try:
+            target_identity = tuple(
+                float(value) for value in self.map_to_pixel_float(target_point)
+            )
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            target_identity = (
+                float(target_point.x()),
+                float(target_point.y()),
+            )
+        preview_identity = (
+            int(self._cache_generation),
+            tuple(
+                tuple(float(value) for value in point)
+                for point in (champion_path or ())
+            ),
+            target_identity,
+        )
+        self._recovery_preview_identity = preview_identity
+        self._recovery_request = None
+
+        anchor_pixel = self._current_livewire_anchor_pixel()
+        if (
+            self._livewire_disabled
+            or self._livewire_tree is None
+            or anchor_pixel is None
+            or self._livewire_tree.root != anchor_pixel
+        ):
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK,
+                "Ink preview updated; recovery is waiting for line evidence.",
+            )
+            return False
+        try:
+            request = self._build_recovery_request(
+                target_point,
+                force=force,
+                champion_path=champion_path,
+                request_generation=request_generation,
+                preview_identity=preview_identity,
+            )
+        except Exception as exc:
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                f"Recovery gate failed; Ink was kept: {exc}",
+            )
+            return False
+        if request is None:
+            detail = (
+                "No current Ink segment is available to retry."
+                if force
+                else "Recovery is unavailable for this segment; Ink was kept."
+            )
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                detail,
+            )
+            return False
+        if not request.get("trigger"):
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK,
+                "Ink evidence is confident; recovery was not run.",
+            )
+            return False
+        return self._start_recovery_request(request)
+
+    def _on_recovery_preview_finished(
+        self,
+        task,
+        succeeded,
+        trace_result,
+        challenger_path,
+        selection,
+        error,
+    ):
+        """Publish a challenger only when the conservative arbiter accepts."""
+
+        if self._recovery_task is not task:
+            return
+        self._recovery_task = None
+        if getattr(self, "_disposed", False):
+            self._recovery_request = None
+            return
+        latest_request = self._recovery_request
+        result_is_current = (
+            succeeded
+            and error is None
+            and task.request_generation == self._recovery_generation
+            and task.cache_generation == self._cache_generation
+            and task.preview_identity == self._recovery_preview_identity
+            and self.is_tracing
+            and self.smart_recovery_enabled
+        )
+        if result_is_current:
+            self._recovery_encoding = task.encoding
+            self._recovery_encoding_cache_generation = task.cache_generation
+            if (
+                selection is not None
+                and selection.accepted
+                and trace_result is not None
+                and trace_result.reached_target
+                and challenger_path is not None
+                and len(challenger_path) >= 2
+            ):
+                # The task already smoothed and arbitrated this exact global
+                # route. Convert without a second geometry-changing pass and
+                # omit its root because _render_preview prepends the anchor.
+                self.preview_path = [
+                    self.pixel_to_map(x, y)
+                    for x, y in challenger_path[1:]
+                ]
+                self.preview_is_global = bool(self.auto_path)
+                self.preview_target = None
+                # Keep the existing map-space acceptance target in Auto Path;
+                # ordinary Ink still accepts the enhanced green line once.
+                if self.auto_path and latest_request is not None:
+                    self.preview_target = QgsPointXY(latest_request["target_map"])
+                self._render_preview()
+                self._recovery_request = None
+                self._emit_recovery_state(
+                    RECOVERY_STATE_ENHANCED,
+                    "A safer corridor improved the weak Ink segment.",
+                )
+                return
+
+            reason = getattr(selection, "reason", "no_complete_route")
+            self._recovery_request = None
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                f"Recovery was rejected ({reason}); Ink was kept.",
+            )
+            return
+
+        # A cursor move coalesces into exactly one fresh request after the old
+        # ONNX call returns. A cancelled/error result never alters the Ink
+        # preview already visible on the canvas.
+        if (
+            latest_request is not None
+            and latest_request.get("request_generation") != task.request_generation
+            and latest_request.get("cache_generation") == self._cache_generation
+            and self.is_tracing
+            and self.smart_recovery_enabled
+        ):
+            self._start_recovery_request(latest_request)
+            return
+
+        # A later confident/empty Ink preview intentionally has no queued
+        # challenger. Its visible route and state must remain untouched by a
+        # stale completion from the previous cursor target.
+        if (
+            task.request_generation != self._recovery_generation
+            or task.preview_identity != self._recovery_preview_identity
+        ):
+            return
+
+        detail = "Recovery was cancelled; Ink was kept."
+        if error is not None:
+            detail = f"Recovery failed; Ink was kept: {error}"
+        self._emit_recovery_state(RECOVERY_STATE_INK_FALLBACK, detail)
+
+    def retry_current_segment(self):
+        """Explicitly re-run recovery for the current uncommitted Ink route."""
+
+        if not self.smart_recovery_requested:
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                "Enable Smart Recovery before retrying the current segment.",
+            )
+            return False
+        if not self.smart_recovery_enabled:
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                "Recovery model is unavailable; Ink remains active.",
+            )
+            return False
+        if self._current_recovery_state == RECOVERY_STATE_ENHANCED:
+            self._emit_recovery_state(
+                RECOVERY_STATE_ENHANCED,
+                "This segment is already enhanced; move the cursor to create a new Ink champion.",
+            )
+            return False
+        target = self._livewire_request_point or self.last_hover_pos
+        if not self.is_tracing or target is None:
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                "Draw or hover an Ink segment before retrying recovery.",
+            )
+            return False
+        return self._schedule_smart_recovery(target, force=True)
 
     def _find_sam_path(self, target_point):
         if not self.use_sam or self.cached_rgb_image is None or not self.path_points:
@@ -1875,6 +2794,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         point = self.toMapCoordinates(event.pos())
 
         if not self.is_tracing:
+            self._invalidate_recovery("Ink tracing started.")
             # Start tracing
 
             # Check if snapping to existing endpoint (Resume)
@@ -1915,6 +2835,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.confirm_band.addPoint(place_point)
             self.preview_band.reset(LINE_GEOMETRY)
         else:
+            # A click accepts the currently visible Ink/enhanced candidate.
+            # Any still-running challenger belongs to the previous anchor.
+            self._invalidate_recovery("Segment accepted; Ink is the new champion.")
             # Preserve the existing double-click spot-height gesture before
             # Auto Path's two-click proposal acceptance can intercept it.
             if self.is_near_start(point) and len(self.path_points) == 1:
@@ -2074,6 +2997,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return
 
         if is_dragging:
+            if self._recovery_task is not None or self._recovery_request is not None:
+                self._invalidate_recovery("Manual drawing kept the Ink path.")
             # Committed freehand/local-assist points remain lightly sampled so
             # long traces do not accumulate one vertex per OS mouse event.
             if self.last_sample_pos is None:
@@ -2592,6 +3517,331 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         layer.triggerRepaint()
         return True
 
+    def _cache_request_identity(self, read_extent, output_size, tile_origin):
+        """Capture the raster/extent/CRS identity on QGIS' main thread."""
+
+        def safe_value(owner, name, fallback=""):
+            try:
+                value = getattr(owner, name)()
+                return str(value)
+            except (AttributeError, RuntimeError, TypeError):
+                return fallback
+
+        provider = self.raster_layer.dataProvider()
+        raster_extent = self.raster_layer.extent()
+        return (
+            safe_value(self.raster_layer, "id", str(id(self.raster_layer))),
+            safe_value(provider, "dataSourceUri"),
+            safe_value(self.raster_layer.crs(), "authid"),
+            safe_value(self.canvas.mapSettings().destinationCrs(), "authid"),
+            int(self.raster_layer.width()),
+            int(self.raster_layer.height()),
+            float(raster_extent.xMinimum()),
+            float(raster_extent.yMinimum()),
+            float(raster_extent.xMaximum()),
+            float(raster_extent.yMaximum()),
+            float(read_extent.xMinimum()),
+            float(read_extent.yMinimum()),
+            float(read_extent.xMaximum()),
+            float(read_extent.yMaximum()),
+            int(output_size[0]),
+            int(output_size[1]),
+            int(tile_origin[0]),
+            int(tile_origin[1]),
+        )
+
+    def _current_ink_cache_identity(self):
+        """Recompute the live view/source identity for an async result."""
+
+        if not self._is_active or getattr(self, "_disposed", False):
+            return None
+        try:
+            if not self.raster_layer or not self.raster_layer.isValid():
+                return None
+            canvas_extent = self._canvas_extent_in_raster_crs()
+            if canvas_extent is None:
+                return None
+            raster_extent = self.raster_layer.extent()
+            read_extent, tile_origin = self._ink_evidence_extent_and_origin(
+                canvas_extent,
+                raster_extent,
+            )
+            if read_extent.isEmpty():
+                return None
+            output_size, _enable_evidence, _reason = (
+                self._ink_evidence_sampling_plan(
+                    read_extent,
+                    raster_extent,
+                )
+            )
+            return self._cache_request_identity(
+                read_extent,
+                output_size,
+                tile_origin,
+            )
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            # The source may disappear between the task manager callback and
+            # this main-thread snapshot. Treat that as stale, never as a
+            # reason to publish old pixels.
+            return None
+
+    def _publish_edge_cache(
+        self,
+        *,
+        rgb_image,
+        edges,
+        evidence,
+        cost_map,
+        read_extent,
+        output_size,
+        tile_origin,
+        cache_identity,
+        recovery_compatible=False,
+        recovery_disabled_reason="",
+    ):
+        """Publish one current immutable task result on the main thread."""
+
+        out_w, out_h = output_size
+        self.cached_rgb_image = rgb_image
+        self.cached_edges = np.ascontiguousarray(edges, dtype=np.uint8)
+        self.cached_ink_evidence = evidence
+        self._recovery_cache_compatible = bool(
+            evidence is not None and recovery_compatible
+        )
+        self._recovery_cache_disabled_reason = str(
+            recovery_disabled_reason or ""
+        )
+        self.cached_cost = cost_map
+        self.cache_extent = read_extent
+        self.cache_tile_origin = tuple(tile_origin)
+        self.cache_identity = tuple(cache_identity)
+        self.cache_transform = {
+            "x_min": read_extent.xMinimum(),
+            "y_max": read_extent.yMaximum(),
+            "px_w": read_extent.width() / out_w,
+            "px_h": read_extent.height() / out_h,
+            "width": out_w,
+            "height": out_h,
+            "source_tile_origin": tuple(tile_origin),
+        }
+        self.sam_image_ready = False
+        self.sam_warning_emitted = False
+        self.cache_dirty = False
+        if self.is_tracing and self.path_points:
+            self._request_livewire_tree(force=True)
+
+    def _on_ink_evidence_finished(
+        self,
+        task,
+        succeeded,
+        fallback_edges,
+        evidence,
+        cost_map,
+        evidence_error,
+        error,
+    ):
+        if self._ink_evidence_task is not task:
+            return
+        self._ink_evidence_task = None
+        current_identity = self._current_ink_cache_identity()
+        is_current = (
+            succeeded
+            and task.generation == self._ink_evidence_generation
+            and task.cache_identity == self._pending_cache_identity
+            and task.cache_identity == current_identity
+            and not getattr(self, "_disposed", False)
+        )
+        if not is_current:
+            if error is not None and not getattr(self, "_disposed", False):
+                self._emit_recovery_state(
+                    RECOVERY_STATE_INK_FALLBACK,
+                    f"Ink evidence failed; exact cursor remains available: {error}",
+                )
+            return
+
+        selected_edges = fallback_edges
+        if evidence is not None:
+            selected_edges = np.where(
+                np.asarray(evidence.centerline, dtype=bool),
+                255,
+                0,
+            ).astype(np.uint8)
+        if selected_edges is None:
+            self._clear_edge_cache()
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                "Ink evidence produced no champion; exact cursor remains active.",
+            )
+            return
+        if evidence is not None:
+            published_image = task.recovery_image
+            read_extent = QgsRectangle(*task.cache_extent)
+            output_size = task.output_size
+            tile_origin = task.tile_origin
+            published_identity = task.cache_identity
+        else:
+            # The v2 request is validated with its expanded source-grid
+            # identity above, but a failed/disabled v2 computation must
+            # publish the frozen 0.1.5 visible-extent cache byte-for-byte.
+            published_image = task.fallback_rgb_image
+            read_extent = QgsRectangle(*task.fallback_cache_extent)
+            output_size = task.fallback_output_size
+            tile_origin = (0, 0)
+            published_identity = task.fallback_cache_identity
+        self._publish_edge_cache(
+            rgb_image=published_image,
+            edges=selected_edges,
+            evidence=evidence,
+            cost_map=cost_map,
+            read_extent=read_extent,
+            output_size=output_size,
+            tile_origin=tile_origin,
+            cache_identity=published_identity,
+            recovery_compatible=task.recovery_compatible,
+            recovery_disabled_reason=task.recovery_disabled_reason,
+        )
+        if evidence_error is not None:
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                f"Continuous Ink evidence failed; Ink v1 was kept: {evidence_error}",
+            )
+        elif (
+            self.smart_recovery_requested
+            and not self._recovery_cache_compatible
+        ):
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK_FALLBACK,
+                self._recovery_cache_disabled_reason
+                or "Smart Recovery is unavailable for this raster; Ink v2 was kept.",
+            )
+        elif not self.smart_recovery_requested or self.smart_recovery_enabled:
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK,
+                "Ink evidence ready.",
+            )
+
+    def _ink_evidence_extent_and_origin(self, extent, raster_ext):
+        """Read complete anchored source tiles and their detector halo.
+
+        Ink v2 normalizes each 128px source-grid tile using a 16px contextual
+        response halo after a maximum 15px morphology radius. Reading only
+        ``visible + one halo`` makes the raw response at the normalization
+        boundary depend on crop-edge padding. Expand every intersected tile
+        to its complete core first, then add the combined 31px read context
+        and clip at the raster boundary. Viewports within the same tile set
+        consequently share the exact same image, origin and percentile
+        context.
+        """
+
+        visible = extent.intersect(raster_ext)
+        if visible.isEmpty():
+            return visible, (0, 0)
+        source_width = max(1, int(self.raster_layer.width()))
+        source_height = max(1, int(self.raster_layer.height()))
+        source_pixel_width = raster_ext.width() / source_width
+        source_pixel_height = raster_ext.height() / source_height
+        tile_size = self.INK_EVIDENCE_TILE_SOURCE_PIXELS
+        halo = self.INK_EVIDENCE_HALO_SOURCE_PIXELS
+
+        visible_x0 = max(
+            0,
+            int(math.floor(
+                (visible.xMinimum() - raster_ext.xMinimum())
+                / source_pixel_width
+            )),
+        )
+        visible_x1 = min(
+            source_width,
+            int(math.ceil(
+                (visible.xMaximum() - raster_ext.xMinimum())
+                / source_pixel_width
+            )),
+        )
+        visible_y0 = max(
+            0,
+            int(math.floor(
+                (raster_ext.yMaximum() - visible.yMaximum())
+                / source_pixel_height
+            )),
+        )
+        visible_y1 = min(
+            source_height,
+            int(math.ceil(
+                (raster_ext.yMaximum() - visible.yMinimum())
+                / source_pixel_height
+            )),
+        )
+
+        tile_x0 = (visible_x0 // tile_size) * tile_size
+        tile_x1 = min(
+            source_width,
+            ((visible_x1 + tile_size - 1) // tile_size) * tile_size,
+        )
+        tile_y0 = (visible_y0 // tile_size) * tile_size
+        tile_y1 = min(
+            source_height,
+            ((visible_y1 + tile_size - 1) // tile_size) * tile_size,
+        )
+        source_x0 = max(0, tile_x0 - halo)
+        source_x1 = min(source_width, tile_x1 + halo)
+        source_y0 = max(0, tile_y0 - halo)
+        source_y1 = min(source_height, tile_y1 + halo)
+        read_extent = QgsRectangle(
+            raster_ext.xMinimum() + source_x0 * source_pixel_width,
+            raster_ext.yMaximum() - source_y1 * source_pixel_height,
+            raster_ext.xMinimum() + source_x1 * source_pixel_width,
+            raster_ext.yMaximum() - source_y0 * source_pixel_height,
+        )
+        return read_extent.intersect(raster_ext), (source_x0, source_y0)
+
+    def _ink_evidence_sampling_plan(self, read_extent, raster_extent):
+        """Use v2 only when one cache pixel is exactly one source pixel.
+
+        Ink v2's 9/15/31px filters and 128px normalization tiles are defined
+        in the source raster grid. Passing a downsampled 1000px viewport with
+        a source-pixel tile origin would silently mix two coordinate systems.
+        Keep the normal bounded v1 cache for wide views, but opt into v2 only
+        when its halo-expanded source window itself fits the memory boundary.
+        """
+
+        source_width = max(1, int(self.raster_layer.width()))
+        source_height = max(1, int(self.raster_layer.height()))
+        source_pixel_width = raster_extent.width() / source_width
+        source_pixel_height = raster_extent.height() / source_height
+        exact_width = int(round(read_extent.width() / source_pixel_width))
+        exact_height = int(round(read_extent.height() / source_pixel_height))
+        exact_width = max(1, exact_width)
+        exact_height = max(1, exact_height)
+
+        source_grid_fits = (
+            exact_width <= self.CACHE_MAX_DIMENSION
+            and exact_height <= self.CACHE_MAX_DIMENSION
+            and exact_width * exact_height
+            <= self.CACHE_MAX_DIMENSION * self.CACHE_MAX_DIMENSION
+        )
+        if source_grid_fits:
+            # This equality is the detector contract: array indices, filter
+            # scales, tile origin, tile size and halo all share source pixels.
+            return (exact_width, exact_height), True, ""
+
+        output_size = compute_resampled_dimensions(
+            raster_extent.width(),
+            raster_extent.height(),
+            source_width,
+            source_height,
+            read_extent.width(),
+            read_extent.height(),
+            self.CACHE_MAX_DIMENSION,
+            min_dimension=1,
+        )
+        reason = (
+            "Zoom in to enable continuous Ink evidence at source resolution "
+            f"({exact_width}x{exact_height} source pixels exceeds "
+            f"{self.CACHE_MAX_DIMENSION}x{self.CACHE_MAX_DIMENSION}); "
+            "Ink v1 remains active."
+        )
+        return output_size, False, reason
+
     def update_edge_cache(self):
         """Cache edge detection for current view."""
         self._edge_cache_timer.stop()
@@ -2599,6 +3849,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self._clear_edge_cache()
             return
         if not self.cache_dirty and self.cached_edges is not None:
+            return
+        if self._ink_evidence_task is not None:
             return
         try:
             if self.edge_detector is None:
@@ -2612,13 +3864,184 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
             provider = self.raster_layer.dataProvider()
             raster_ext = self.raster_layer.extent()
-            read_ext = extent.intersect(raster_ext)
-
-            if read_ext.isEmpty():
+            visible_ext = extent.intersect(raster_ext)
+            if visible_ext.isEmpty():
                 self._clear_edge_cache()
                 return
+            use_ink_evidence = self.edge_method == EdgeDetector.METHOD_INK
+            if use_ink_evidence:
+                evidence_read_ext, tile_origin = (
+                    self._ink_evidence_extent_and_origin(
+                        extent,
+                        raster_ext,
+                    )
+                )
+                (
+                    (evidence_width, evidence_height),
+                    enable_ink_evidence,
+                    evidence_disabled_reason,
+                ) = self._ink_evidence_sampling_plan(
+                    evidence_read_ext,
+                    raster_ext,
+                )
+                if (
+                    evidence_width < self.CACHE_MIN_DIMENSION
+                    or evidence_height < self.CACHE_MIN_DIMENSION
+                ):
+                    enable_ink_evidence = False
+                    evidence_disabled_reason = (
+                        "Continuous Ink evidence needs at least "
+                        f"{self.CACHE_MIN_DIMENSION} source pixels per axis; "
+                        "Ink v1 remains active."
+                    )
 
-            # Determine output size using the source raster resolution on each axis.
+                # This is the frozen 0.1.5 cache boundary.  It intentionally
+                # remains the unexpanded visible extent with the historical
+                # resampling and per-block uint8 conversion.  The wider v2
+                # source context must never leak into a fallback result.
+                fallback_width, fallback_height = compute_resampled_dimensions(
+                    raster_ext.width(),
+                    raster_ext.height(),
+                    self.raster_layer.width(),
+                    self.raster_layer.height(),
+                    visible_ext.width(),
+                    visible_ext.height(),
+                    self.CACHE_MAX_DIMENSION,
+                    min_dimension=1,
+                )
+                if (
+                    fallback_width < self.CACHE_MIN_DIMENSION
+                    or fallback_height < self.CACHE_MIN_DIMENSION
+                ):
+                    self._clear_edge_cache()
+                    return
+                fallback_bands = read_raster_bands(
+                    provider,
+                    visible_ext,
+                    fallback_width,
+                    fallback_height,
+                    max_bands=self.CACHE_MAX_BANDS_FOR_RGB,
+                )
+                if not fallback_bands:
+                    self._clear_edge_cache()
+                    return
+                fallback_rgb_image = self._build_cached_rgb_image(
+                    fallback_bands
+                )
+                fallback_image = (
+                    fallback_rgb_image
+                    if len(fallback_bands) >= 3
+                    else fallback_bands[0]
+                )
+                fallback_cache_identity = self._cache_request_identity(
+                    visible_ext,
+                    (fallback_width, fallback_height),
+                    (0, 0),
+                )
+
+                evidence_image = fallback_image
+                recovery_image = fallback_rgb_image
+                recovery_compatible = False
+                recovery_disabled_reason = (
+                    "Smart Recovery requires native Byte raster samples; "
+                    "Ink remains active."
+                )
+                if enable_ink_evidence:
+                    (
+                        _evidence_display_bands,
+                        native_bands,
+                        native_integer_stable,
+                    ) = read_raster_bands_with_native(
+                        provider,
+                        evidence_read_ext,
+                        evidence_width,
+                        evidence_height,
+                        max_bands=self.CACHE_MAX_BANDS_FOR_RGB,
+                    )
+                    if not native_integer_stable:
+                        enable_ink_evidence = False
+                        evidence_disabled_reason = (
+                            "Continuous Ink evidence needs native integer "
+                            "raster DNs for pan-stable normalization; this "
+                            "source uses an unsupported or floating sample "
+                            "type. Ink v1 remains active."
+                        )
+                    else:
+                        if len(native_bands) >= 3:
+                            evidence_image = np.ascontiguousarray(
+                                np.stack(native_bands[:3], axis=-1)
+                            )
+                        else:
+                            evidence_image = np.ascontiguousarray(
+                                native_bands[0]
+                            )
+                        recovery_image = self._build_stable_integer_rgb_image(
+                            native_bands
+                        )
+                        recovery_compatible = all(
+                            np.asarray(band).dtype == np.dtype(np.uint8)
+                            for band in native_bands
+                        )
+                        if not recovery_compatible:
+                            recovery_disabled_reason = (
+                                "Smart Recovery currently supports only native "
+                                "Byte raster samples; Ink v2 remains active."
+                            )
+
+                request_identity = self._cache_request_identity(
+                    evidence_read_ext,
+                    (evidence_width, evidence_height),
+                    tile_origin,
+                )
+                self._cancel_ink_evidence_task()
+                self._cancel_livewire_task()
+                self._livewire_generation += 1
+                self._livewire_tree = None
+                self._cancel_recovery_task(clear_request=True)
+                self._recovery_generation += 1
+                self._recovery_encoding = None
+                self._recovery_encoding_cache_generation = None
+                self._cache_generation += 1
+                generation = self._ink_evidence_generation
+                self._pending_cache_identity = request_identity
+                task = _InkEvidenceTask(
+                    detector=self.edge_detector,
+                    fallback_image=fallback_image,
+                    fallback_rgb_image=fallback_rgb_image,
+                    fallback_cache_identity=fallback_cache_identity,
+                    fallback_cache_extent=(
+                        visible_ext.xMinimum(),
+                        visible_ext.yMinimum(),
+                        visible_ext.xMaximum(),
+                        visible_ext.yMaximum(),
+                    ),
+                    fallback_output_size=(fallback_width, fallback_height),
+                    evidence_image=evidence_image,
+                    recovery_image=recovery_image,
+                    recovery_compatible=recovery_compatible,
+                    recovery_disabled_reason=recovery_disabled_reason,
+                    tile_origin=tile_origin,
+                    enable_evidence=enable_ink_evidence,
+                    evidence_disabled_reason=evidence_disabled_reason,
+                    build_cost_map=self.auto_path and self.cv2 is not None,
+                    edge_weight=self.edge_weight,
+                    generation=generation,
+                    cache_identity=request_identity,
+                    cache_extent=(
+                        evidence_read_ext.xMinimum(),
+                        evidence_read_ext.yMinimum(),
+                        evidence_read_ext.xMaximum(),
+                        evidence_read_ext.yMaximum(),
+                    ),
+                    output_size=(evidence_width, evidence_height),
+                    callback=self._on_ink_evidence_finished,
+                )
+                self._ink_evidence_task = task
+                QgsApplication.taskManager().addTask(task)
+                return
+
+            read_ext = visible_ext
+            tile_origin = (0, 0)
             out_w, out_h = compute_resampled_dimensions(
                 raster_ext.width(),
                 raster_ext.height(),
@@ -2629,12 +4052,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 self.CACHE_MAX_DIMENSION,
                 min_dimension=1,
             )
-
             if out_w < self.CACHE_MIN_DIMENSION or out_h < self.CACHE_MIN_DIMENSION:
                 self._clear_edge_cache()
                 return
-
-            # Read bands
             bands = read_raster_bands(
                 provider,
                 read_ext,
@@ -2642,48 +4062,33 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 out_h,
                 max_bands=self.CACHE_MAX_BANDS_FOR_RGB,
             )
-
             if not bands:
                 self._clear_edge_cache()
                 return
-
-            self.cached_rgb_image = self._build_cached_rgb_image(bands)
-            self.sam_image_ready = False
-            self.sam_warning_emitted = False
-
-            # Convert to grayscale
-            if len(bands) >= 3:
-                image = self.cached_rgb_image
-            else:
-                image = bands[0]
-
-            # Detect edges
-            self.cached_edges = self.edge_detector.detect_edges(image)
-            self.cache_extent = read_ext
-
-            # Store transform info
-            self.cache_transform = {
-                'x_min': read_ext.xMinimum(),
-                'y_max': read_ext.yMaximum(),
-                'px_w': read_ext.width() / out_w,
-                'px_h': read_ext.height() / out_h,
-                'width': out_w,
-                'height': out_h
-            }
-
-            # Mouse-led tracing only needs the binary edge mask.  Distance
-            # transforms are reserved for explicit Auto Path mode, where A*
-            # actually consumes the cost map.
+            rgb_image = self._build_cached_rgb_image(bands)
+            image = rgb_image if len(bands) >= 3 else bands[0]
+            cache_identity = self._cache_request_identity(
+                read_ext,
+                (out_w, out_h),
+                tile_origin,
+            )
+            edges = self.edge_detector.detect_edges(image)
+            cost_map = None
             if self.auto_path and self.cv2 is not None:
-                self.cached_cost = self.edge_detector.get_edge_cost_map(
-                    self.cached_edges,
+                cost_map = self.edge_detector.get_edge_cost_map(
+                    edges,
                     self.edge_weight,
                 )
-            else:
-                self.cached_cost = None
-            self.cache_dirty = False
-            if self.is_tracing and self.path_points:
-                self._request_livewire_tree(force=True)
+            self._publish_edge_cache(
+                rgb_image=rgb_image,
+                edges=edges,
+                evidence=None,
+                cost_map=cost_map,
+                read_extent=read_ext,
+                output_size=(out_w, out_h),
+                tile_origin=tile_origin,
+                cache_identity=cache_identity,
+            )
 
         except Exception as e:
             print(f"Edge cache error: {e}")
@@ -3003,6 +4408,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def reset_tracing(self):
         """Reset all tracing state."""
+        self._cancel_recovery_task(clear_request=True)
+        self._recovery_generation += 1
+        self._recovery_preview_identity = None
         self.is_tracing = False
         self.path_points = []
         self.preview_path = []
@@ -3033,6 +4441,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.close_indicator.reset(POINT_GEOMETRY)
         self.checkpoint_markers.reset(POINT_GEOMETRY)
         self.snap_marker.reset(POINT_GEOMETRY)
+        if self.smart_recovery_requested:
+            state = (
+                RECOVERY_STATE_INK
+                if self.smart_recovery_enabled
+                else RECOVERY_STATE_INK_FALLBACK
+            )
+            self._emit_recovery_state(state)
 
     def dispose(self):
         """Release canvas-owned graphics and asynchronous work permanently."""
@@ -3042,6 +4457,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._disposed = True
         self._edge_cache_timer.stop()
         self._proposal_timer.stop()
+        self._cancel_ink_evidence_task()
         self._set_extent_cache_listener(False)
         self._set_coordinate_crs_listeners(False)
         self._set_source_lifecycle_listeners(False)
@@ -3074,6 +4490,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def activate(self):
         """Called when tool is activated."""
+        self._is_active = True
         self._refresh_crs_transforms()
         self._set_coordinate_crs_listeners(True)
         self._set_source_lifecycle_listeners(True)
@@ -3087,6 +4504,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def deactivate(self):
         """Called when tool is deactivated."""
+        # Flip the activity gate before cancelling tasks so a finished()
+        # callback queued in the same event-loop turn cannot republish.
+        self._is_active = False
         self._edge_cache_timer.stop()
         self._proposal_timer.stop()
         self._set_extent_cache_listener(False)
@@ -3094,4 +4514,5 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._set_source_lifecycle_listeners(False)
 
         self.reset_tracing()
+        self._clear_edge_cache()
         super().deactivate()

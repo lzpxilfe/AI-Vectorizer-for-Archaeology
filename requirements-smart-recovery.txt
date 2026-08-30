@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# Optional local CPU runtime for Smart Recovery. Model bytes are installed
+# separately through the explicit, hash-verified button in the QGIS dock.
+onnxruntime>=1.17.0,<2

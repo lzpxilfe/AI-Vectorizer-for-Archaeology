@@ -1,0 +1,1116 @@
+{
+  "schema_version": "archaeotrace-public-dataset-plan/1",
+  "dataset_id": "public-ink-livewire-8x6-v1",
+  "title": "Public Ink LiveWire recovery benchmark — unresolved 8 sheet / 48 crop plan",
+  "publication_ranking_eligible": false,
+  "threshold_status": "provisional",
+  "split_policy": {
+    "assignment_unit": "sheet",
+    "calibration_sheet_ids": [
+      "cal-01",
+      "cal-02",
+      "cal-03",
+      "cal-04"
+    ],
+    "holdout_sheet_ids": [
+      "hold-01",
+      "hold-02",
+      "hold-03",
+      "hold-04"
+    ],
+    "selection_seed": "archaeotrace-public-8x6-v1",
+    "frozen_holdout": true
+  },
+  "difficulty_strata": [
+    "clean_dark_curve",
+    "thick_or_scale",
+    "faded_or_broken",
+    "colored_line",
+    "text_or_number_crossing",
+    "dense_parallel",
+    "stain_fold_bleed",
+    "straight_grid_distractor"
+  ],
+  "sheets": [
+    {
+      "id": "cal-01",
+      "source_id": "source-cal-01",
+      "split": "calibration",
+      "origin_group": "usgs_htmc",
+      "source": {
+        "title": "Unresolved rights-cleared source slot cal-01",
+        "publisher": null,
+        "date_or_sheet": null,
+        "source_url": null,
+        "license": null,
+        "rights_status": "unresolved",
+        "rights_statement_url": null,
+        "text_snapshot": null,
+        "text_snapshot_sha256": null,
+        "source_raster": null,
+        "source_raster_sha256": null
+      },
+      "crops": [
+        {
+          "id": "cal-01-crop-01",
+          "slot": 1,
+          "difficulty_stratum": "clean_dark_curve",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-01-crop-02",
+          "slot": 2,
+          "difficulty_stratum": "thick_or_scale",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-01-crop-03",
+          "slot": 3,
+          "difficulty_stratum": "faded_or_broken",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-01-crop-04",
+          "slot": 4,
+          "difficulty_stratum": "colored_line",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-01-crop-05",
+          "slot": 5,
+          "difficulty_stratum": "text_or_number_crossing",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-01-crop-06",
+          "slot": 6,
+          "difficulty_stratum": "dense_parallel",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        }
+      ]
+    },
+    {
+      "id": "cal-02",
+      "source_id": "source-cal-02",
+      "split": "calibration",
+      "origin_group": "usgs_htmc",
+      "source": {
+        "title": "Unresolved rights-cleared source slot cal-02",
+        "publisher": null,
+        "date_or_sheet": null,
+        "source_url": null,
+        "license": null,
+        "rights_status": "unresolved",
+        "rights_statement_url": null,
+        "text_snapshot": null,
+        "text_snapshot_sha256": null,
+        "source_raster": null,
+        "source_raster_sha256": null
+      },
+      "crops": [
+        {
+          "id": "cal-02-crop-01",
+          "slot": 1,
+          "difficulty_stratum": "stain_fold_bleed",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-02-crop-02",
+          "slot": 2,
+          "difficulty_stratum": "straight_grid_distractor",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-02-crop-03",
+          "slot": 3,
+          "difficulty_stratum": "clean_dark_curve",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-02-crop-04",
+          "slot": 4,
+          "difficulty_stratum": "thick_or_scale",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-02-crop-05",
+          "slot": 5,
+          "difficulty_stratum": "faded_or_broken",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-02-crop-06",
+          "slot": 6,
+          "difficulty_stratum": "colored_line",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        }
+      ]
+    },
+    {
+      "id": "cal-03",
+      "source_id": "source-cal-03",
+      "split": "calibration",
+      "origin_group": "korea_rights_cleared",
+      "source": {
+        "title": "Unresolved rights-cleared source slot cal-03",
+        "publisher": null,
+        "date_or_sheet": null,
+        "source_url": null,
+        "license": null,
+        "rights_status": "unresolved",
+        "rights_statement_url": null,
+        "text_snapshot": null,
+        "text_snapshot_sha256": null,
+        "source_raster": null,
+        "source_raster_sha256": null
+      },
+      "crops": [
+        {
+          "id": "cal-03-crop-01",
+          "slot": 1,
+          "difficulty_stratum": "text_or_number_crossing",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-03-crop-02",
+          "slot": 2,
+          "difficulty_stratum": "dense_parallel",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-03-crop-03",
+          "slot": 3,
+          "difficulty_stratum": "stain_fold_bleed",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-03-crop-04",
+          "slot": 4,
+          "difficulty_stratum": "straight_grid_distractor",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-03-crop-05",
+          "slot": 5,
+          "difficulty_stratum": "clean_dark_curve",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-03-crop-06",
+          "slot": 6,
+          "difficulty_stratum": "thick_or_scale",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        }
+      ]
+    },
+    {
+      "id": "cal-04",
+      "source_id": "source-cal-04",
+      "split": "calibration",
+      "origin_group": "korea_rights_cleared",
+      "source": {
+        "title": "Unresolved rights-cleared source slot cal-04",
+        "publisher": null,
+        "date_or_sheet": null,
+        "source_url": null,
+        "license": null,
+        "rights_status": "unresolved",
+        "rights_statement_url": null,
+        "text_snapshot": null,
+        "text_snapshot_sha256": null,
+        "source_raster": null,
+        "source_raster_sha256": null
+      },
+      "crops": [
+        {
+          "id": "cal-04-crop-01",
+          "slot": 1,
+          "difficulty_stratum": "faded_or_broken",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-04-crop-02",
+          "slot": 2,
+          "difficulty_stratum": "colored_line",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-04-crop-03",
+          "slot": 3,
+          "difficulty_stratum": "text_or_number_crossing",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-04-crop-04",
+          "slot": 4,
+          "difficulty_stratum": "dense_parallel",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-04-crop-05",
+          "slot": 5,
+          "difficulty_stratum": "stain_fold_bleed",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "cal-04-crop-06",
+          "slot": 6,
+          "difficulty_stratum": "straight_grid_distractor",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        }
+      ]
+    },
+    {
+      "id": "hold-01",
+      "source_id": "source-hold-01",
+      "split": "holdout",
+      "origin_group": "usgs_htmc",
+      "source": {
+        "title": "Unresolved rights-cleared source slot hold-01",
+        "publisher": null,
+        "date_or_sheet": null,
+        "source_url": null,
+        "license": null,
+        "rights_status": "unresolved",
+        "rights_statement_url": null,
+        "text_snapshot": null,
+        "text_snapshot_sha256": null,
+        "source_raster": null,
+        "source_raster_sha256": null
+      },
+      "crops": [
+        {
+          "id": "hold-01-crop-01",
+          "slot": 1,
+          "difficulty_stratum": "clean_dark_curve",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-01-crop-02",
+          "slot": 2,
+          "difficulty_stratum": "thick_or_scale",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-01-crop-03",
+          "slot": 3,
+          "difficulty_stratum": "faded_or_broken",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-01-crop-04",
+          "slot": 4,
+          "difficulty_stratum": "colored_line",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-01-crop-05",
+          "slot": 5,
+          "difficulty_stratum": "text_or_number_crossing",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-01-crop-06",
+          "slot": 6,
+          "difficulty_stratum": "dense_parallel",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        }
+      ]
+    },
+    {
+      "id": "hold-02",
+      "source_id": "source-hold-02",
+      "split": "holdout",
+      "origin_group": "usgs_htmc",
+      "source": {
+        "title": "Unresolved rights-cleared source slot hold-02",
+        "publisher": null,
+        "date_or_sheet": null,
+        "source_url": null,
+        "license": null,
+        "rights_status": "unresolved",
+        "rights_statement_url": null,
+        "text_snapshot": null,
+        "text_snapshot_sha256": null,
+        "source_raster": null,
+        "source_raster_sha256": null
+      },
+      "crops": [
+        {
+          "id": "hold-02-crop-01",
+          "slot": 1,
+          "difficulty_stratum": "stain_fold_bleed",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-02-crop-02",
+          "slot": 2,
+          "difficulty_stratum": "straight_grid_distractor",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-02-crop-03",
+          "slot": 3,
+          "difficulty_stratum": "clean_dark_curve",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-02-crop-04",
+          "slot": 4,
+          "difficulty_stratum": "thick_or_scale",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-02-crop-05",
+          "slot": 5,
+          "difficulty_stratum": "faded_or_broken",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-02-crop-06",
+          "slot": 6,
+          "difficulty_stratum": "colored_line",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        }
+      ]
+    },
+    {
+      "id": "hold-03",
+      "source_id": "source-hold-03",
+      "split": "holdout",
+      "origin_group": "korea_rights_cleared",
+      "source": {
+        "title": "Unresolved rights-cleared source slot hold-03",
+        "publisher": null,
+        "date_or_sheet": null,
+        "source_url": null,
+        "license": null,
+        "rights_status": "unresolved",
+        "rights_statement_url": null,
+        "text_snapshot": null,
+        "text_snapshot_sha256": null,
+        "source_raster": null,
+        "source_raster_sha256": null
+      },
+      "crops": [
+        {
+          "id": "hold-03-crop-01",
+          "slot": 1,
+          "difficulty_stratum": "text_or_number_crossing",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-03-crop-02",
+          "slot": 2,
+          "difficulty_stratum": "dense_parallel",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-03-crop-03",
+          "slot": 3,
+          "difficulty_stratum": "stain_fold_bleed",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-03-crop-04",
+          "slot": 4,
+          "difficulty_stratum": "straight_grid_distractor",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-03-crop-05",
+          "slot": 5,
+          "difficulty_stratum": "clean_dark_curve",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-03-crop-06",
+          "slot": 6,
+          "difficulty_stratum": "thick_or_scale",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        }
+      ]
+    },
+    {
+      "id": "hold-04",
+      "source_id": "source-hold-04",
+      "split": "holdout",
+      "origin_group": "korea_rights_cleared",
+      "source": {
+        "title": "Unresolved rights-cleared source slot hold-04",
+        "publisher": null,
+        "date_or_sheet": null,
+        "source_url": null,
+        "license": null,
+        "rights_status": "unresolved",
+        "rights_statement_url": null,
+        "text_snapshot": null,
+        "text_snapshot_sha256": null,
+        "source_raster": null,
+        "source_raster_sha256": null
+      },
+      "crops": [
+        {
+          "id": "hold-04-crop-01",
+          "slot": 1,
+          "difficulty_stratum": "faded_or_broken",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-04-crop-02",
+          "slot": 2,
+          "difficulty_stratum": "colored_line",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-04-crop-03",
+          "slot": 3,
+          "difficulty_stratum": "text_or_number_crossing",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-04-crop-04",
+          "slot": 4,
+          "difficulty_stratum": "dense_parallel",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-04-crop-05",
+          "slot": 5,
+          "difficulty_stratum": "stain_fold_bleed",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        },
+        {
+          "id": "hold-04-crop-06",
+          "slot": 6,
+          "difficulty_stratum": "straight_grid_distractor",
+          "source_crop_xywh": null,
+          "source_tile_origin_xy": null,
+          "image": null,
+          "image_sha256": null,
+          "prompt": null,
+          "ordered_reference": null,
+          "ordered_reference_sha256": null,
+          "annotation": {
+            "reviewer_id": null,
+            "review_status": "unreviewed",
+            "adjudicator_id": null,
+            "adjudication_status": "pending"
+          },
+          "notes": null
+        }
+      ]
+    }
+  ]
+}

@@ -17,8 +17,11 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
   Python 3.8/3.10/3.12와 macOS QGIS 3.44.8에서 수행했습니다. QGIS
   3.22/3.44/4.2 package matrix는 CI에 구성되어 있지만 이 후보의 원격 run은 아직
   실행하지 않았습니다.
-- UI 추적 방식은 기본 `Ink Centerline`과 `Freehand`, `LSD`, `HED`, `MobileSAM`, `SAM (ViT-B)`, `Legacy Canny`입니다.
-- EfficientSAM-Ti ONNX는 비교용 benchmark 전용이며 UI 모델이나 제품 기본값이 아닙니다.
+- 기본 UI는 `Freehand`, 다중 스케일 `Ink Centerline`, 기본 OFF의
+  `Smart Recovery (Experimental)`입니다. LSD, HED, MobileSAM, SAM (ViT-B),
+  Legacy Canny와 기존 model index 0–5는 접힌 Advanced 영역에 보존됩니다.
+- Smart Recovery의 EfficientSAM-Ti ONNX는 Ink가 약한 구간의 soft corridor로만
+  사용하며 model 미설치·오류·취소 시 Ink 경로를 그대로 유지합니다.
 - 지도와 추적 처리는 로컬에서 수행됩니다. model 다운로드는 network를 사용합니다.
   SAM Check/Status는 유효한 local checkpoint가 있으면 size와 SHA-256을 offline
   확인하고, 파일이 없을 때만 고정 source의 availability를 조회합니다.
@@ -29,7 +32,10 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 ## 🎯 What You Can Do
 
 - ✏️ `Freehand` 모드로 순수 수동 디지타이징
-- 🖋️ 검은 지도 획을 한 픽셀 중심선으로 만든 뒤 기준점마다 한 번 계산하는 방향 인식 Live-Wire
+- 🖋️ 9·15·31 source-pixel과 RGB/명도에서 만든 연속 선 증거를 기준점마다 한 번
+  계산하는 방향 인식 Live-Wire
+- 🛟 검증된 local EfficientSAM으로 저신뢰 Ink 구간만 보완하고 안전하게 나아진
+  challenger만 채택하는 Smart Recovery
 - 🎚️ `0%` 정확한 커서부터 `100%` 완전 보조 경로까지 실제 좌표 비율로 혼합
 - 👁️ 클릭 한 번으로 채택될 정확한 경로를 같은 초록색 선으로 실시간 표시
 - 👁️ `Ink Centerline`/`LSD`/`HED`/`Legacy Canny` 검출 미리보기와 SAM 계열의 인터랙티브 초록색 경로 미리보기
@@ -43,12 +49,13 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 | UI option | 역할 | 필요한 런타임 | 상태 |
 | --- | --- | --- | --- |
 | `✏️ Freehand` | 사용자가 직접 선을 입력 | QGIS `NumPy`; 추가 pip·model 없음 | baseline |
-| `🖋 Ink Centerline` | 검은 획의 단일 중심선과 방향 인식 Live-Wire | QGIS `NumPy`; `SciPy`/`scikit-image`는 선택 최적화 | 기본 방식 |
-| `📐 LSD` | 선분 검출 결과를 Live-Wire에 결합 | `OpenCV`; `SciPy`는 Live-Wire 선택 최적화 | OpenCV 4.8–4.11 선언 범위 |
-| `🧠 HED` | 학습된 edge map으로 추적 보조 | `OpenCV 4.8–4.11` + 약 `56.1 MiB` model; `SciPy` 선택 | UI에서 다운로드 가능 |
-| `🎯 MobileSAM` | point-prompt mask와 edge/A*를 결합 | `OpenCV` + `PyTorch` + `MobileSAM` + 약 `38.8 MiB` weights | 선택 설치 |
-| `🧩 SAM (ViT-B)` | point-prompt mask와 edge/A*를 결합 | `OpenCV` + `PyTorch` + `segment_anything` + 약 `357.7 MiB` checkpoint | 선택 설치 |
-| `🔧 Legacy Canny` | 기존 그래디언트 경계 검출과 Live-Wire | `NumPy`; `OpenCV`/`SciPy` 선택 | 호환용 |
+| `🖋 Ink Centerline` | 다중 스케일·색상 연속 증거와 방향 인식 Live-Wire | QGIS `NumPy`; `SciPy`/`scikit-image`는 선택 최적화 | 기본 방식 |
+| `🛟 Smart Recovery` | 저신뢰 Ink 구간의 EfficientSAM corridor challenger | `onnxruntime>=1.17,<2` + 약 39.4 MiB split ONNX | 실험적·기본 OFF |
+| `📐 LSD` | 선분 검출 결과를 Live-Wire에 결합 | `OpenCV`; `SciPy`는 Live-Wire 선택 최적화 | Advanced / Legacy |
+| `🧠 HED` | 학습된 edge map으로 추적 보조 | `OpenCV 4.8–4.11` + 약 `56.1 MiB` model; `SciPy` 선택 | Advanced / Legacy |
+| `🎯 MobileSAM` | point-prompt mask와 edge/A*를 결합 | `OpenCV` + `PyTorch` + `MobileSAM` + 약 `38.8 MiB` weights | Advanced / Legacy |
+| `🧩 SAM (ViT-B)` | point-prompt mask와 edge/A*를 결합 | `OpenCV` + `PyTorch` + `segment_anything` + 약 `357.7 MiB` checkpoint | Advanced / Legacy |
+| `🔧 Legacy Canny` | 기존 그래디언트 경계 검출과 Live-Wire | `NumPy`; `OpenCV`/`SciPy` 선택 | Advanced / Legacy |
 
 > `0%`는 edge 감지와 model 실행을 건너뛰고 cursor를 그대로 사용합니다. `1~99%`는
 > 같은 완전 보조 경로와 cursor 경로를 좌표 비율로 혼합하고, `100%`는 전체 보조
@@ -56,8 +63,10 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 > 오추적할 수 있습니다. 초록색 경로를 확인하고 anchor나 Freehand로 교정하세요.
 > 실제 역사 지도 기준 dataset 전에는 model 간 정확도 순위를 주장하지 않습니다.
 
-> 현재 개발 소스의 EfficientSAM-Ti ONNX 경로는 합성·실데이터 비교를 위한 격리 benchmark 후보입니다. 고지도 정확도 근거가 쌓이기 전에는 제품 기본 모델이나 UI 선택지로 바꾸지 않습니다.
-> 이 후보의 모델 파일은 플러그인에 포함되지 않으며, benchmark는 고정 SHA-256 캐시·CPU provider readback·동일 prompt 및 반복 mask/logit 증거를 검증합니다.
+> Smart Recovery는 SAM mask를 최종 선으로 쓰거나 Ink와 이진 OR하지 않습니다. 시작·끝점,
+> 기존 탐색창·우회 한계, 강한 Ink 보존, 평행선·분기 전환과 개선량을 검사합니다.
+> 실제 재배포 가능 고지도 holdout 결과 전에는 기본 승격이나 정확도 우위를 주장하지
+> 않습니다. 모델 파일은 플러그인 ZIP에 포함되지 않습니다.
 
 ## 📦 Installation
 
@@ -91,6 +100,9 @@ OpenCV, SAM pip 스택과 `requirements-dev.txt`는 보안 유지 대상 Python
 # Optional: non-SAM edge mode의 방향 인식 Live-Wire와 더 빠른 morphology/thinning
 <QGIS_PYTHON> -m pip install scipy scikit-image
 
+# Optional: Smart Recovery local CPU runtime (plugin이 자동 실행하지 않음)
+<QGIS_PYTHON> -m pip install "onnxruntime>=1.17,<2"
+
 # Optional: MobileSAM/SAM download and update checks
 <QGIS_PYTHON> -m pip install requests
 
@@ -104,7 +116,8 @@ OpenCV, SAM pip 스택과 `requirements-dev.txt`는 보안 유지 대상 Python
 ```
 
 저장소 checkout의 격리된 Python 3.10+ 개발 환경에서는 기본
-`requirements.txt`, OpenCV용 `requirements-opencv.txt`, 백엔드별
+`requirements.txt`, Smart Recovery용 `requirements-smart-recovery.txt`, OpenCV용
+`requirements-opencv.txt`, 백엔드별
 `requirements-sam-mobile.txt` 또는 `requirements-sam-full.txt`를 사용할 수
 있습니다. `requirements-dev.txt`는 Python 3.10+ 테스트 전용입니다.
 
@@ -116,6 +129,14 @@ macOS QGIS.app 예시:
 
 ### 3. Download model weights in the plugin
 
+- `Smart Recovery`: 먼저 위 ONNX Runtime을 QGIS Python에 설치합니다. QGIS를 다시
+  시작한 뒤 `Smart Recovery (Experimental)`을 켜고 `Install Recovery Model`을
+  명시적으로 누릅니다. encoder 24,799,761 bytes와 decoder 16,565,728 bytes를 고정
+  URL에서 받아 SHA-256을 검증한 후에만 활성화됩니다. 자동 다운로드나 지도 업로드는
+  없습니다. 파일 검증과 ONNX session 준비는 background task에서 진행되어 그동안도
+  Ink tracing을 사용할 수 있습니다. Recovery는 native Byte raster에서만 실행하고
+  그 밖의 정수형에서는 Ink v2를 유지합니다. 상태는 `Ink`, `Recovering`, `Enhanced`,
+  `Ink fallback`으로 표시됩니다.
 - `HED`: `Step 3`에서 HED를 선택한 뒤 `Download HED`를 사용합니다.
 - `MobileSAM` / `SAM`: model을 선택하고 `Check Selected SAM Model`로 local 상태를
   확인한 뒤 필요한 경우 해당 `Download` 버튼을 사용합니다. local checkpoint가
@@ -157,7 +178,8 @@ first use.
 1. 래스터 지도를 선택합니다.
 2. 출력 라인 레이어를 새로 만들거나 기존 SHP를 고릅니다.
 3. 원하는 모델을 선택합니다.
-4. `Ink Centerline`/`LSD`/`HED`/`Legacy Canny`는 `Trace Preview`로 확인합니다. MobileSAM/SAM은 트레이싱을 시작한 뒤 초록색 경로 미리보기를 확인합니다.
+4. 기본 Ink의 초록색 경로와 Recovery 상태를 확인합니다. 기존 LSD/HED/SAM/Canny가
+   필요하면 `Advanced: legacy tracing models`를 펼칩니다.
 5. 클릭/드래그로 등고선을 추적합니다.
 6. `Enter` 또는 우클릭으로 QGIS 편집 버퍼에 추가합니다. 한 번의 Undo로 추가/연장을 되돌릴 수 있습니다.
 7. 시작점 근처를 다시 클릭하면 폐합 후 고도값을 입력할 수 있습니다.
@@ -212,7 +234,8 @@ first use.
 - Default `Ink Centerline` works after ZIP installation using QGIS' NumPy. SciPy enables the bounded direction-aware Live-Wire for every non-SAM edge mode; without it those modes use the local NumPy nearby-edge snap.
 - Trace additions and extensions stay in QGIS' edit buffer; one Undo reverts each operation, and `Save Layer Edits` commits it.
 - `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
-- EfficientSAM-Ti ONNX is benchmark-only and is not a product default or a UI option.
+- Smart Recovery is an experimental, default-OFF EfficientSAM-Ti corridor prior.
+  It never replaces a failed run with another backend and always preserves the Ink champion.
 - The DEM workflow requires saved elevation contours in a projected metre CRS; its output is a reviewable hypothesis, not an archaeological ground truth.
 
 ## 📚 Citation

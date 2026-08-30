@@ -22,8 +22,10 @@ from ai_vectorizer.core.efficientsam_spec import (
 )
 from ai_vectorizer.core import model_store
 from ai_vectorizer.core.model_store import (
+    DOWNLOAD_CHUNK_BYTES,
     MAX_ARTIFACT_BYTES,
     ModelCacheSafetyError,
+    ModelDownloadCancelled,
     ModelDownloadError,
     ModelIntegrityError,
     ModelNotFoundError,
@@ -265,6 +267,57 @@ class ModelStoreTests(unittest.TestCase):
             self.assertEqual(no_network.calls, [])
             self.assertEqual(reused.path("encoder"), verified.path("encoder"))
             self.assert_no_partial_files(root)
+
+    def test_fetch_honours_cancellation_before_cache_or_network_work(self):
+        spec, _payloads, by_url = self._pair()
+        transport = FakeTransport(by_url)
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "cache"
+
+            with self.assertRaises(ModelDownloadCancelled):
+                fetch_bundle(
+                    root,
+                    spec,
+                    transport=transport,
+                    cancel_check=lambda: True,
+                )
+
+            self.assertEqual(transport.calls, [])
+            self.assertFalse(root.exists())
+
+    def test_fetch_honours_midstream_cancellation_and_removes_partial(self):
+        payload = b"x" * (DOWNLOAD_CHUNK_BYTES + 17)
+        artifact = _artifact("encoder", payload)
+        spec = _bundle(artifact)
+        response = FakeResponse(payload, url=artifact.url)
+        transport = FakeTransport({artifact.url: lambda _request: response})
+
+        def cancelled_after_first_read():
+            return response._stream.tell() > 0
+
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(ModelDownloadCancelled):
+                fetch_bundle(
+                    folder,
+                    spec,
+                    transport=transport,
+                    cancel_check=cancelled_after_first_read,
+                )
+
+            self.assertTrue(response.closed)
+            self.assertFalse(_cache_path(folder, artifact).exists())
+            self.assert_no_partial_files(folder)
+
+    def test_fetch_rejects_noncallable_cancellation_probe(self):
+        spec, _payloads, by_url = self._pair()
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(TypeError):
+                fetch_bundle(
+                    folder,
+                    spec,
+                    transport=FakeTransport(by_url),
+                    cancel_check=True,
+                )
 
     def test_truncated_oversized_and_hash_mismatched_downloads_leave_no_object(self):
         cases = (

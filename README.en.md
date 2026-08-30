@@ -11,6 +11,8 @@ inference service.
 ## Current status
 
 - The plugin metadata is an experimental `0.1.5` release candidate.
+- New tracing work on `main` remains `Unreleased`. Development does not bump
+  metadata, retag, or replace the existing `0.1.5` release ZIP.
 - `0.1.5` is being prepared as the next release after `0.1.4` in the
   [QGIS plugin repository](https://plugins.qgis.org/plugins/ai_vectorizer/).
   The `0.1.5–0.1.7` values in Git history and the unpublished `0.1.8`
@@ -29,9 +31,12 @@ inference service.
 ## Features
 
 - Freehand tracing with no additional model
-- Default Ink Centerline detector for dark printed strokes
+- Default multi-scale Ink Centerline evidence for dark and colored printed strokes
+- Optional Smart Recovery that uses a verified EfficientSAM-Ti model only as a
+  corridor prior; it is experimental, default OFF, and keeps the Ink route on failure
 - Bounded, direction-aware Live-Wire with literal 0–100% coordinate blending
-- Optional LSD, HED, MobileSAM, SAM ViT-B, and Legacy Canny modes
+- LSD, HED, MobileSAM, SAM ViT-B, and Legacy Canny preserved under
+  `Advanced / Legacy methods`
 - A green preview of the path that the next click will accept
 - New features and contour extensions through the QGIS edit buffer and Undo
 - Elevation attributes and optional spot heights
@@ -45,8 +50,10 @@ behavior is [Features and architecture](docs/FEATURES_AND_ARCHITECTURE.md).
 
 ```text
 Raster
-  → Ink/LSD/HED/Canny edge map or MobileSAM/SAM point mask
-  → bounded Live-Wire or SAM-specific strict A*
+  → source-grid multi-scale Ink score and tangent/coherence
+  → bounded Live-Wire Ink champion
+  → optional EfficientSAM corridor challenger on uncertain segments
+  → challenger only when every safety check passes
   → human-reviewed green preview and anchors
   → QGIS edit buffer and Undo
   → elevation contours and optional spot heights
@@ -62,19 +69,22 @@ remains an explicit QGIS `Save Layer Edits` action.
 | Mode | Role | Additional runtime |
 | --- | --- | --- |
 | Freehand | Direct user input | No additional pip package or model |
-| Ink Centerline | Dark-stroke centerline and bounded Live-Wire | None; SciPy is optional |
-| LSD | OpenCV line segments and shared Live-Wire | OpenCV; SciPy optional |
-| HED | Caffe HED edge map and shared Live-Wire | OpenCV, a 56.1 MiB model; SciPy optional |
-| MobileSAM | Point mask, edge/skeleton guidance, and A* | OpenCV, PyTorch, backend, 38.8 MiB weights |
-| SAM ViT-B | Point mask, edge/skeleton guidance, and A* | OpenCV, PyTorch, backend, 357.7 MiB checkpoint |
-| Legacy Canny | Gradient edge and Live-Wire | OpenCV and SciPy optional |
+| Ink Centerline | Multi-scale/color line evidence and bounded Live-Wire | None; SciPy/scikit-image optional |
+| Smart Recovery | EfficientSAM corridor challenger for low-confidence Ink segments | ONNX Runtime and an explicitly installed, fixed-hash model |
+| LSD | OpenCV line segments and shared Live-Wire | Advanced/legacy; OpenCV; SciPy optional |
+| HED | Caffe HED edge map and shared Live-Wire | Advanced/legacy; OpenCV, a 56.1 MiB model; SciPy optional |
+| MobileSAM | Point mask, edge/skeleton guidance, and A* | Advanced/legacy; OpenCV, PyTorch, backend, 38.8 MiB weights |
+| SAM ViT-B | Point mask, edge/skeleton guidance, and A* | Advanced/legacy; OpenCV, PyTorch, backend, 357.7 MiB checkpoint |
+| Legacy Canny | Gradient edge and Live-Wire | Advanced/legacy; OpenCV and SciPy optional |
 
 NumPy from the QGIS Python environment is a common plugin prerequisite. Without
 SciPy, every non-SAM edge mode (Ink/LSD/HED/Canny) falls back from
 direction-aware Live-Wire to a bounded NumPy nearby-edge snap. A bounded search
 can still follow adjacent contours, text, or symbols;
-review the green path and correct it with anchors or Freehand. Assist at `0%`
-skips model and edge work.
+review the green path and correct it with anchors or Freehand. Smart Recovery
+never saves the SAM mask as a line or binary-ORs it with Ink; it accepts a
+challenger only after endpoint, detour, strong-Ink retention, and branch-switch
+checks. Assist at `0%` skips model and evidence work.
 
 The declared OpenCV range is 4.8–4.11:
 
@@ -91,8 +101,10 @@ shortcuts, and troubleshooting guidance.
 1. Use `Plugins > Manage and Install Plugins > Install from ZIP` and enable
    ArchaeoTrace.
 2. Select a georeferenced raster and a 2D line output layer.
-3. Choose the default Ink Centerline mode or another mode and assist strength.
-4. Inspect `Trace Preview` for edge modes or the interactive green path for SAM.
+3. Choose the default Ink Centerline or Freehand and an assist strength. Enable
+   Smart Recovery only when wanted.
+4. Inspect the green preview and the `Ink`, `Recovering`, `Enhanced`, or
+   `Ink fallback` state. Older methods are under `Advanced / Legacy methods`.
 5. Accept anchors with clicks; use `Enter` or right-click to add the result to
    the edit buffer. Closing near the first point allows elevation entry.
 6. Run `Save Layer Edits`, then use `Step 4 > Build DEM…` to review the grid and
@@ -102,7 +114,11 @@ shortcuts, and troubleshooting guidance.
 
 - Raster crops, vector geometry, and local inference results are not uploaded
   to a remote inference service. There is no default telemetry.
-- Network access occurs when the user downloads HED or SAM models. SAM
+- Network access occurs only when the user explicitly installs a Recovery model
+  or downloads HED/SAM models. Recovery never auto-downloads; the
+  content-addressed size, SHA-256, and ONNX session are prepared in a background
+  task while Ink remains available. Recovery runs only on native Byte rasters;
+  wider integer rasters retain Ink v2. SAM
   Check/Status verifies a valid local checkpoint offline and queries its pinned
   source only when the file is missing. The EfficientSAM benchmark uses network
   access only for an explicit `model fetch`.
@@ -142,9 +158,12 @@ as archaeological ground truth.
   translation, and dataset contributions
 - [Security](SECURITY.md): private reporting and safe diagnostics
 
-The benchmark harness currently contains synthetic contract fixtures only. It
-does not establish historical-map accuracy or superiority over another tool.
-See [benchmarks/README.md](benchmarks/README.md) for its evidence format.
+The harness registers independent Ink v1, Ink v2, EfficientSAM, and product-like
+Recovery method IDs. A rights-and-annotation validator and an 8-sheet/48-crop
+template are included, but the redistributable source maps and independent
+review are not yet populated, so `publication_ranking_eligible=false`. It does
+not establish historical-map accuracy or superiority over another tool. See
+[benchmarks/README.md](benchmarks/README.md) for its evidence format.
 
 ## Versioning, citation, and license
 
@@ -152,6 +171,20 @@ See [benchmarks/README.md](benchmarks/README.md) for its evidence format.
 development stays under `Unreleased`; metadata changes once when release
 preparation begins. See [CHANGELOG.md](CHANGELOG.md) and
 [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Validate current source through an isolated package; this does not touch the
+frozen `dist/ai_vectorizer-0.1.5.zip` or production release tree:
+
+```bash
+current_source_dir="$(mktemp -d)"
+current_source_zip="$current_source_dir/ai_vectorizer-unreleased.zip"
+python3 scripts/package_release.py --output "$current_source_zip"
+python3 scripts/package_release.py --check --output "$current_source_zip"
+```
+
+The metadata-derived production ZIP cannot be replaced when the current-source
+hash differs from its recorded frozen SHA-256. A deliberate release requires
+the exact metadata version through `--approve-release-overwrite VERSION`.
 
 Use [CITATION.cff](CITATION.cff) for citation metadata.
 

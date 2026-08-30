@@ -33,6 +33,7 @@ from .efficientsam_spec import (
 MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 DEFAULT_TIMEOUT_SECONDS = 120.0
+MAX_TRANSPORT_OPERATION_SECONDS = 10.0
 _ALLOWED_DOWNLOAD_HOSTS = frozenset({"raw.githubusercontent.com"})
 _USER_AGENT = "ArchaeoTrace-model-store/1"
 
@@ -60,6 +61,15 @@ class ModelCacheSafetyError(ModelStoreError):
 
 class ModelDownloadError(ModelStoreError):
     """Raised when an explicit network fetch cannot be completed safely."""
+
+
+class ModelDownloadCancelled(ModelDownloadError):
+    """Raised when the caller cancels an explicit model fetch."""
+
+
+def _raise_if_cancelled(cancel_check: Optional[Callable[[], bool]]) -> None:
+    if cancel_check is not None and bool(cancel_check()):
+        raise ModelDownloadCancelled("Model download was cancelled.")
 
 
 @dataclass(frozen=True)
@@ -634,7 +644,9 @@ def _download_artifact(
     *,
     transport: Callable,
     timeout_seconds: float,
+    cancel_check: Optional[Callable[[], bool]],
 ) -> Path:
+    _raise_if_cancelled(cancel_check)
     parent = _managed_parent(root, artifact, create=True)
     parent_information = _safe_parent_stat(parent)
     destination = _artifact_path(root, artifact)
@@ -661,7 +673,10 @@ def _download_artifact(
         )
         deadline = time.monotonic() + timeout_seconds
         try:
-            response = transport(request, timeout_seconds)
+            response = transport(
+                request,
+                min(timeout_seconds, MAX_TRANSPORT_OPERATION_SECONDS),
+            )
         except ModelStoreError:
             raise
         except Exception as exc:
@@ -676,6 +691,7 @@ def _download_artifact(
             with _quietly_closing_response(response):
                 _validate_response(response, artifact)
                 while True:
+                    _raise_if_cancelled(cancel_check)
                     if time.monotonic() > deadline:
                         raise ModelDownloadError(
                             f"Artifact {artifact.identifier!r} exceeded its download deadline."
@@ -691,6 +707,7 @@ def _download_artifact(
                         raise ModelDownloadError(
                             f"Could not read artifact {artifact.identifier!r}: {exc}"
                         ) from exc
+                    _raise_if_cancelled(cancel_check)
                     if not chunk:
                         break
                     if not isinstance(chunk, bytes):
@@ -717,6 +734,8 @@ def _download_artifact(
                 )
             output.flush()
             os.fsync(output.fileno())
+
+        _raise_if_cancelled(cancel_check)
 
         current_parent = _safe_parent_stat(parent)
         if not os.path.samestat(parent_information, current_parent):
@@ -749,6 +768,7 @@ def fetch_bundle(
     *,
     transport: Optional[Callable] = None,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    cancel_check: Optional[Callable[[], bool]] = None,
 ) -> VerifiedBundle:
     """Explicitly fetch missing artifacts, then return the verified bundle.
 
@@ -767,10 +787,14 @@ def fetch_bundle(
     selected_transport = transport or _default_transport
     if not callable(selected_transport):
         raise TypeError("transport must be callable.")
+    if cancel_check is not None and not callable(cancel_check):
+        raise TypeError("cancel_check must be callable or None.")
 
+    _raise_if_cancelled(cancel_check)
     root = _normal_root(cache_root)
     _create_safe_directory(root, "model cache root", parents=True)
     for artifact in spec.artifacts:
+        _raise_if_cancelled(cancel_check)
         status = _artifact_status(root, artifact)
         if status.state == STATE_READY:
             continue
@@ -783,7 +807,9 @@ def fetch_bundle(
             artifact,
             transport=selected_transport,
             timeout_seconds=float(timeout_seconds),
+            cancel_check=cancel_check,
         )
+    _raise_if_cancelled(cancel_check)
     return resolve_bundle(root, spec)
 
 
@@ -795,6 +821,7 @@ __all__ = [
     "MAX_ARTIFACT_BYTES",
     "ModelCacheSafetyError",
     "ModelDownloadError",
+    "ModelDownloadCancelled",
     "ModelIntegrityError",
     "ModelNotFoundError",
     "ModelStoreError",

@@ -27,7 +27,13 @@ import sys
 import tempfile
 from typing import Any, Mapping, Sequence
 
-from .evidence import prompt_sha256, sam_prompt_tensor_sha256
+from .evidence import (
+    PROMPT_EVIDENCE_SCHEMA_VERSION,
+    prompt_sha256,
+    recovery_prompt_tensor_sha256,
+    sam_prompt_tensor_sha256,
+    source_grid_input_sha256,
+)
 from .geometry import load_centerline_artifact
 from .manifest import BenchmarkManifest, MAX_MANIFEST_BYTES, load_manifest
 from .runner import validate_benchmark
@@ -35,6 +41,10 @@ from .worker import (
     EFFICIENTSAM_BACKEND,
     EFFICIENTSAM_ORT_SESSION_OPTIONS,
     EFFICIENTSAM_PREDICTION_EVIDENCE_VERSION,
+    INK_LIVEWIRE_SMOOTHING_PROFILE,
+    METHOD_INK_BACKENDS,
+    METHOD_RECOVERY_BACKENDS,
+    METHOD_SOURCE_GRID_BACKENDS,
     LATENCY_SCOPE,
     METHOD_EDGE_BACKENDS,
     METHOD_SAM_BACKENDS,
@@ -42,6 +52,8 @@ from .worker import (
     SUPPORTED_BACKENDS,
     WORKER_REQUEST_SCHEMA_VERSION,
     WORKER_RESULT_SCHEMA_VERSION,
+    _stable_recovery_prediction_evidence,
+    _validated_recovery_prediction_evidence,
 )
 
 
@@ -83,6 +95,38 @@ _REAL_WORKER_SOURCES = {
         "ai_vectorizer/core/efficientsam_spec.py",
         "ai_vectorizer/core/model_store.py",
         "ai_vectorizer/core/sam_trace_kernel.py",
+        "ai_vectorizer/core/trace_kernel.py",
+    ),
+    "ink": (
+        "benchmarks/__init__.py",
+        "benchmarks/evidence.py",
+        "benchmarks/geometry.py",
+        "benchmarks/manifest.py",
+        "benchmarks/worker.py",
+        "ai_vectorizer/__init__.py",
+        "ai_vectorizer/core/__init__.py",
+        "ai_vectorizer/core/edge_detector.py",
+        "ai_vectorizer/core/line_evidence.py",
+        "ai_vectorizer/core/livewire.py",
+        "ai_vectorizer/core/trace_kernel.py",
+    ),
+    "recovery": (
+        "benchmarks/__init__.py",
+        "benchmarks/evidence.py",
+        "benchmarks/geometry.py",
+        "benchmarks/manifest.py",
+        "benchmarks/worker.py",
+        "ai_vectorizer/__init__.py",
+        "ai_vectorizer/core/__init__.py",
+        "ai_vectorizer/core/edge_detector.py",
+        "ai_vectorizer/core/efficientsam_onnx.py",
+        "ai_vectorizer/core/efficientsam_spec.py",
+        "ai_vectorizer/core/line_evidence.py",
+        "ai_vectorizer/core/livewire.py",
+        "ai_vectorizer/core/model_store.py",
+        "ai_vectorizer/core/recovery_prompts.py",
+        "ai_vectorizer/core/sam_trace_kernel.py",
+        "ai_vectorizer/core/smart_recovery.py",
         "ai_vectorizer/core/trace_kernel.py",
     ),
 }
@@ -207,7 +251,14 @@ def _worker_source_paths(
     """Resolve the source files whose bytes define one generation run."""
 
     if worker_command is None:
-        family = "sam" if backend in METHOD_SAM_BACKENDS else "edge"
+        if backend in METHOD_RECOVERY_BACKENDS:
+            family = "recovery"
+        elif backend in METHOD_SAM_BACKENDS:
+            family = "sam"
+        elif backend in METHOD_INK_BACKENDS:
+            family = "ink"
+        else:
+            family = "edge"
         return {
             label: repository_root / label
             for label in _REAL_WORKER_SOURCES[family]
@@ -233,6 +284,16 @@ def _worker_source_paths(
             "worker_command must include at least one readable source-file argument."
         )
     return source_paths
+
+
+def _backend_family(backend: str) -> str:
+    if backend in METHOD_RECOVERY_BACKENDS:
+        return "recovery"
+    if backend in METHOD_SAM_BACKENDS:
+        return "sam"
+    if backend in METHOD_INK_BACKENDS:
+        return "ink"
+    return "edge"
 
 
 def _source_snapshot(source_paths: Mapping[str, Path]) -> dict[str, str]:
@@ -342,6 +403,11 @@ def _request_payload(
             "end_xy": list(prompt.end_xy),
             "positive_xy": [list(point) for point in prompt.positive_xy],
             "negative_xy": [list(point) for point in prompt.negative_xy],
+            **(
+                {"previous_xy": list(prompt.previous_xy)}
+                if prompt.previous_xy is not None
+                else {}
+            ),
         },
         "configuration": copy.deepcopy(method.configuration),
         "warmup_runs": warmup_runs,
@@ -352,6 +418,10 @@ def _request_payload(
         if model_cache is None:
             raise GenerationError("EfficientSAM generation requires --model-cache.")
         payload["model_cache"] = str(model_cache.absolute())
+    if backend in METHOD_SOURCE_GRID_BACKENDS:
+        payload["source_tile_origin_xy"] = list(
+            sample.source_tile_origin_xy
+        )
     return payload
 
 
@@ -492,6 +562,8 @@ def _verified_prediction(
     expected_input_sha256: str,
     expected_configuration_sha256: str,
     expected_prompt_sha256: str,
+    expected_source_tile_origin_xy: tuple[int, int],
+    expected_source_grid_input_sha256: str | None,
     expected_sam_prompt_tensor_sha256: str | None,
     expected_source_files_sha256: Mapping[str, str],
     expected_model_sha256: str | None,
@@ -578,15 +650,34 @@ def _verified_prediction(
         raise GenerationError(
             f"Worker {expected_request_id!r} changed prompt checksum evidence."
         )
+    if expected_backend in METHOD_SOURCE_GRID_BACKENDS:
+        if (
+            runtime.get("source_tile_origin_xy")
+            != list(expected_source_tile_origin_xy)
+            or runtime.get("source_grid_input_sha256")
+            != expected_source_grid_input_sha256
+        ):
+            raise GenerationError(
+                f"Worker {expected_request_id!r} changed source-grid input evidence."
+            )
+    elif (
+        "source_tile_origin_xy" in runtime
+        or "source_grid_input_sha256" in runtime
+    ):
+        raise GenerationError(
+            f"Worker {expected_request_id!r} added source-grid evidence to a "
+            "legacy backend."
+        )
     provider_backend = actual_backend or expected_backend
-    expected_provider_kind = (
-        "onnxruntime" if provider_backend in METHOD_SAM_BACKENDS else "opencv"
-    )
-    expected_provider_name = (
-        "CPUExecutionProvider"
-        if expected_provider_kind == "onnxruntime"
-        else "OpenCV CPU"
-    )
+    if provider_backend in METHOD_SAM_BACKENDS:
+        expected_provider_kind, expected_provider_name = (
+            "onnxruntime",
+            "CPUExecutionProvider",
+        )
+    elif provider_backend in METHOD_INK_BACKENDS:
+        expected_provider_kind, expected_provider_name = "python", "Python CPU"
+    else:
+        expected_provider_kind, expected_provider_name = "opencv", "OpenCV CPU"
     if (
         runtime.get("provider_kind") != expected_provider_kind
         or runtime.get("actual_provider") != expected_provider_name
@@ -727,7 +818,59 @@ def _verified_prediction(
         raise GenerationError(f"Worker {expected_request_id!r} changed determinism evidence.")
 
     validated_sam_samples: list[dict[str, Any]] = []
-    if expected_backend in METHOD_SAM_BACKENDS:
+    validated_recovery_samples: list[dict[str, Any]] = []
+    if expected_backend in METHOD_RECOVERY_BACKENDS:
+        raw_recovery_samples = runtime.get("recovery_prediction_samples")
+        if not isinstance(raw_recovery_samples, list):
+            raise GenerationError(
+                f"Worker {expected_request_id!r} omitted repeated recovery evidence."
+            )
+        try:
+            validated_recovery_samples = [
+                _validated_recovery_prediction_evidence(sample)
+                for sample in raw_recovery_samples
+            ]
+        except Exception as exc:
+            raise GenerationError(
+                f"Worker {expected_request_id!r} returned invalid recovery evidence: {exc}"
+            ) from exc
+        expected_sample_count = expected_warmup_runs + expected_measurement_runs
+        if successful and len(validated_recovery_samples) != expected_sample_count:
+            raise GenerationError(
+                f"Worker {expected_request_id!r} returned the wrong number of "
+                "recovery samples."
+            )
+        if not successful and len(validated_recovery_samples) > expected_sample_count:
+            raise GenerationError(
+                f"Worker {expected_request_id!r} exceeded requested recovery predictions."
+            )
+        measured_recovery_samples = validated_recovery_samples[
+            warmup_completed : warmup_completed + len(wall_samples)
+        ]
+        if len(measured_recovery_samples) != len(wall_samples):
+            raise GenerationError(
+                f"Worker {expected_request_id!r} returned inconsistent recovery samples."
+            )
+        for sample, wall_ns in zip(measured_recovery_samples, wall_samples):
+            segmentation = sample.get("segmentation_evidence")
+            if segmentation is not None and segmentation["decoder_wall_ns"] > wall_ns:
+                raise GenerationError(
+                    f"Worker {expected_request_id!r} returned inconsistent "
+                    "conditional decoder timing."
+                )
+        if successful and (
+            not _is_nonnegative_integer(runtime.get("image_file_decode_ns"))
+            or not _is_nonnegative_integer(runtime.get("ink_cache_fill_wall_ns"))
+            or not _is_nonnegative_integer(runtime.get("session_initialization_ns"))
+            or runtime.get("encoder_execution")
+            != "conditional_after_recovery_gate"
+            or runtime.get("recovery_provisional") is not True
+            or not _is_sha256(runtime.get("recovery_configuration_sha256"))
+        ):
+            raise GenerationError(
+                f"Worker {expected_request_id!r} omitted conditional recovery evidence."
+            )
+    elif expected_backend == EFFICIENTSAM_BACKEND:
         raw_sam_samples = runtime.get("sam_prediction_samples")
         if not isinstance(raw_sam_samples, list):
             raise GenerationError(
@@ -851,16 +994,33 @@ def _verified_prediction(
         raise GenerationError(f"Worker {expected_request_id!r} artifact hash changed while loading.")
     if artifact.width != expected_width or artifact.height != expected_height:
         raise GenerationError(f"Worker {expected_request_id!r} changed artifact dimensions.")
+    ink_or_recovery = (
+        expected_backend in METHOD_INK_BACKENDS
+        or expected_backend in METHOD_RECOVERY_BACKENDS
+    )
     expected_metadata = {
         "actual_backend": actual_backend,
         "configuration_sha256": expected_configuration_sha256,
         "input_sha256": expected_input_sha256,
         "prompt_sha256": expected_prompt_sha256,
         "requested_backend": expected_backend,
-        "smoothing": PRODUCT_SMOOTHING_PROFILE,
-        "trace_kernel": "ai_vectorizer.core.trace_kernel",
+        "smoothing": (
+            INK_LIVEWIRE_SMOOTHING_PROFILE
+            if ink_or_recovery
+            else PRODUCT_SMOOTHING_PROFILE
+        ),
+        "trace_kernel": (
+            "ai_vectorizer.core.livewire"
+            if expected_backend in METHOD_INK_BACKENDS
+            else "ai_vectorizer.core.trace_kernel"
+        ),
     }
-    if expected_backend in METHOD_SAM_BACKENDS:
+    if expected_backend in METHOD_SOURCE_GRID_BACKENDS:
+        expected_metadata.update(
+            source_tile_origin_xy=list(expected_source_tile_origin_xy),
+            source_grid_input_sha256=expected_source_grid_input_sha256,
+        )
+    if expected_backend == EFFICIENTSAM_BACKEND:
         expected_metadata.update(
             mask_trace_kernel="ai_vectorizer.core.sam_trace_kernel",
             model_bundle_id=expected_model_bundle_id,
@@ -869,6 +1029,19 @@ def _verified_prediction(
             sam_prompt_tensor_sha256=expected_sam_prompt_tensor_sha256,
             segmentation_evidence=_stable_sam_prediction_sample(
                 validated_sam_samples[expected_warmup_runs]
+            ),
+        )
+    elif expected_backend in METHOD_RECOVERY_BACKENDS:
+        expected_metadata.update(
+            livewire_kernel="ai_vectorizer.core.livewire",
+            mask_trace_kernel="ai_vectorizer.core.sam_trace_kernel",
+            recovery_kernel="ai_vectorizer.core.smart_recovery",
+            model_bundle_id=expected_model_bundle_id,
+            model_bundle_sha256=expected_model_sha256,
+            model_source_commit=expected_model_source_commit,
+            sam_prompt_tensor_sha256=expected_sam_prompt_tensor_sha256,
+            recovery_evidence=_stable_recovery_prediction_evidence(
+                validated_recovery_samples[expected_warmup_runs]
             ),
         )
     for key, expected_value in expected_metadata.items():
@@ -974,10 +1147,20 @@ def _validate_model_backed_samples(template: BenchmarkManifest) -> None:
         method.identifier in METHOD_SAM_BACKENDS for method in template.methods
     ):
         return
+    requires_fixed_sam_canvas = any(
+        method.identifier == EFFICIENTSAM_BACKEND for method in template.methods
+    )
+    requires_product_canvas = any(
+        method.identifier in METHOD_RECOVERY_BACKENDS for method in template.methods
+    )
     for sample in template.samples:
-        if (sample.width, sample.height) != (1024, 1024):
+        if requires_fixed_sam_canvas and (sample.width, sample.height) != (1024, 1024):
             raise GenerationError(
                 "M1.2 EfficientSAM samples must be exactly 1024x1024."
+            )
+        if requires_product_canvas and max(sample.width, sample.height) > 1000:
+            raise GenerationError(
+                "Ink-v2 recovery samples must fit the product 1000x1000 cache."
             )
         prompt = sample.prompt
         points = (
@@ -1072,11 +1255,15 @@ def generate_benchmark_dataset(
             + ", ".join(unknown_fallback_keys)
         )
     for backend, fallback in fallback_map.items():
+        if backend in METHOD_RECOVERY_BACKENDS and fallback is not None:
+            raise GenerationError(
+                "Smart Recovery does not permit an external fallback backend; "
+                "its only failure path is the identical Ink champion."
+            )
         if fallback is not None and (
             fallback not in SUPPORTED_BACKENDS
             or fallback == backend
-            or (fallback in METHOD_SAM_BACKENDS)
-            != (backend in METHOD_SAM_BACKENDS)
+            or _backend_family(fallback) != _backend_family(backend)
         ):
             raise GenerationError(
                 f"Invalid same-family fallback backend for {backend!r}: "
@@ -1146,6 +1333,15 @@ def generate_benchmark_dataset(
             raw_sample["image_sha256"] = sample.image_sha256
             raw_sample["reference"] = reference_relative
             raw_sample["reference_sha256"] = sample.reference_sha256
+            raw_prompt = raw_sample.get("prompt")
+            if not isinstance(raw_prompt, dict):
+                raise GenerationError(
+                    f"Template sample {sample.identifier!r} lost its prompt object."
+                )
+            # Every generated request uses worker-request /2. Persist that
+            # provenance in the published manifest even when previous_xy is
+            # omitted, so the worker and independent validator hash /2 alike.
+            raw_prompt["schema_version"] = PROMPT_EVIDENCE_SCHEMA_VERSION
             generated_predictions: dict[str, Any] = {}
 
             for method_id in method_ids:
@@ -1192,11 +1388,33 @@ def generate_benchmark_dataset(
                     expected_configuration_sha256=_configuration_sha256(
                         method.configuration
                     ),
-                    expected_prompt_sha256=prompt_sha256(sample.prompt),
-                    expected_sam_prompt_tensor_sha256=(
-                        sam_prompt_tensor_sha256(sample.prompt)
-                        if method_id in METHOD_SAM_BACKENDS
+                    expected_prompt_sha256=prompt_sha256(
+                        sample.prompt,
+                        schema_version=PROMPT_EVIDENCE_SCHEMA_VERSION,
+                    ),
+                    expected_source_tile_origin_xy=(
+                        sample.source_tile_origin_xy
+                    ),
+                    expected_source_grid_input_sha256=(
+                        source_grid_input_sha256(
+                            sample.image_sha256,
+                            sample.source_tile_origin_xy,
+                        )
+                        if method_id in METHOD_SOURCE_GRID_BACKENDS
                         else None
+                    ),
+                    expected_sam_prompt_tensor_sha256=(
+                        recovery_prompt_tensor_sha256(
+                            sample.prompt,
+                            width=sample.width,
+                            height=sample.height,
+                        )
+                        if method_id in METHOD_RECOVERY_BACKENDS
+                        else (
+                            sam_prompt_tensor_sha256(sample.prompt)
+                            if method_id == EFFICIENTSAM_BACKEND
+                            else None
+                        )
                     ),
                     expected_source_files_sha256=expected_sources_by_backend[method_id],
                     expected_model_sha256=method.model_sha256,

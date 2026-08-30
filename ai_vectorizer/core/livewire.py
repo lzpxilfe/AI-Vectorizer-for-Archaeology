@@ -15,6 +15,8 @@ from typing import Callable, Iterable, Optional, Sequence, Tuple
 
 import numpy as np
 
+from .line_evidence import LineEvidence
+
 
 Pixel = Tuple[int, int]
 FloatPixel = Tuple[float, float]
@@ -261,6 +263,7 @@ def build_livewire_tree(
     *,
     strength: float = 1.0,
     incoming_direction: Optional[Sequence[float]] = None,
+    evidence: Optional[LineEvidence] = None,
     config: LiveWireConfig = LiveWireConfig(),
     cancel_check: Optional[Callable[[], bool]] = None,
 ) -> LiveWireTree:
@@ -283,6 +286,11 @@ def build_livewire_tree(
             "edge image dimensions must not exceed "
             f"{MAX_LIVEWIRE_WINDOW_SIZE}x{MAX_LIVEWIRE_WINDOW_SIZE}"
         )
+    if evidence is not None:
+        if not isinstance(evidence, LineEvidence):
+            raise TypeError("evidence must be a LineEvidence instance or None")
+        if evidence.shape != tuple(int(value) for value in edge_array.shape):
+            raise ValueError("evidence dimensions must match edges")
 
     root_x = int(round(float(root[0])))
     root_y = int(round(float(root[1])))
@@ -311,7 +319,23 @@ def build_livewire_tree(
     x0, x1 = _bounded_window(window_center_x, width, config.max_window_size)
     y0, y1 = _bounded_window(window_center_y, height, config.max_window_size)
     crop_edges = np.ascontiguousarray(edge_array[y0:y1, x0:x1])
-    crop_gray = _to_grayscale(image, edge_array.shape)[y0:y1, x0:x1]
+    crop_evidence = None
+    if evidence is not None:
+        # Ink v2 has already paid for continuous support and direction
+        # estimation.  Validate the unused image boundary without repeating
+        # percentile normalisation, distance transforms, gradients, or the
+        # structure tensor in the bounded Live-Wire worker.
+        _validate_image_dimensions(image, edge_array.shape)
+        crop_gray = None
+        crop_evidence = (
+            evidence.center_score[y0:y1, x0:x1],
+            evidence.centerline[y0:y1, x0:x1],
+            evidence.tangent_x[y0:y1, x0:x1],
+            evidence.tangent_y[y0:y1, x0:x1],
+            evidence.coherence[y0:y1, x0:x1],
+        )
+    else:
+        crop_gray = _to_grayscale(image, edge_array.shape)[y0:y1, x0:x1]
     local_root = (root_x - x0, root_y - y0)
 
     _raise_if_cancelled(cancel_check)
@@ -320,6 +344,7 @@ def build_livewire_tree(
         crop_edges,
         ndimage,
         config,
+        crop_evidence,
     )
     _raise_if_cancelled(cancel_check)
 
@@ -428,7 +453,31 @@ def _to_grayscale(image: np.ndarray, expected_shape: Tuple[int, int]) -> np.ndar
     return np.ascontiguousarray(np.clip(normalized, 0.0, 1.0), dtype=np.float32)
 
 
-def _line_features(gray, edges, ndimage, config):
+def _validate_image_dimensions(
+    image: np.ndarray,
+    expected_shape: Tuple[int, int],
+) -> None:
+    """Validate the public image grid without deriving duplicate features."""
+
+    values = np.asarray(image)
+    if values.ndim == 2 and values.shape == expected_shape:
+        return
+    if (
+        values.ndim == 3
+        and values.shape[:2] == expected_shape
+        and values.shape[2] >= 3
+    ):
+        return
+    raise ValueError("image dimensions must match edges")
+
+
+def _line_features(gray, edges, ndimage, config, evidence=None):
+    if evidence is not None:
+        return _line_features_from_evidence(evidence)
+
+    # Keep the evidence=None implementation byte-for-byte compatible with the
+    # original Live-Wire feature extractor.  Only Ink v2 takes the precomputed
+    # fast path above.
     edge_mask = np.asarray(edges, dtype=np.float32) > config.edge_threshold
     distance = ndimage.distance_transform_edt(~edge_mask).astype(np.float32)
     edge_confidence = np.exp(-distance / config.edge_sigma).astype(np.float32)
@@ -483,6 +532,28 @@ def _line_features(gray, edges, ndimage, config):
     tangent_x = np.cos(tangent_angle).astype(np.float32)
     tangent_y = np.sin(tangent_angle).astype(np.float32)
     return line_confidence, tangent_x, tangent_y, coherence
+
+
+def _line_features_from_evidence(evidence):
+    """Expose immutable Ink v2 evidence as Live-Wire graph features."""
+
+    (
+        evidence_score,
+        evidence_centerline,
+        evidence_tangent_x,
+        evidence_tangent_y,
+        evidence_coherence,
+    ) = evidence
+    line_confidence = np.maximum(
+        np.asarray(evidence_score, dtype=np.float32),
+        np.asarray(evidence_centerline, dtype=bool).astype(np.float32),
+    )
+    return (
+        np.ascontiguousarray(line_confidence, dtype=np.float32),
+        np.ascontiguousarray(evidence_tangent_x, dtype=np.float32),
+        np.ascontiguousarray(evidence_tangent_y, dtype=np.float32),
+        np.ascontiguousarray(evidence_coherence, dtype=np.float32),
+    )
 
 
 def _build_sparse_graph(
