@@ -18,11 +18,13 @@ Unreleased 후속 검증: 2026-08-31
 - **공식 experimental 0.1.5: 이미 공개됨.** QGIS 저장소가 2026-08-26
   `0.1.5`를 게시했다. 이는 stable 승격이나 현재 `main`의 추가 기능 공개를
   뜻하지 않는다.
-- **현재 Unreleased source: 조건부 GO.** commit `30e18f6`에서 Linux/Windows
-  결정적 package와 QGIS 3.22.16/3.44.13/4.2.1 import·runtime-safety CI가
-  통과했고, 후속 worktree에서 macOS QGIS 3.44.8 clean-profile·Recovery
-  lifecycle smoke를 수행했다. 다만 현재 worktree의 최종 commit, package SHA와
-  CI run은 아래의 pending evidence를 채우기 전까지 확정된 것이 아니다.
+- **현재 Unreleased source: 조건부 GO.** commit `8420773`의 plugin tree에서
+  결정적으로 만든 ZIP은 SHA-256 `65c0277c…`이며, Linux/Windows package와
+  QGIS 3.22.16/3.44.13/4.2.1 import·runtime-safety
+  [CI run 33343315402](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33343315402)이
+  모두 통과했다. 같은 ZIP으로 macOS QGIS 3.44.8 clean-profile·Recovery
+  lifecycle smoke도 수행했다. 이는 현재 Unreleased 후보의 artifact identity와
+  실행 계약을 결속하지만 stable 공개 조건까지 충족했다는 뜻은 아니다.
 - **Stable 공개 전환: NO-GO.** Windows clean-profile GUI, 다국어/HiDPI,
   `0.1.4 → 0.1.5` upgrade와 실제 역사 지도 독립 검수가 아직 완료되지 않았다.
   `experimental=True`를 유지하며, 실제 역사 지도 benchmark 전에는 제품 정확도나
@@ -144,10 +146,10 @@ guard의 `d292…` 해시는 이 로컬 후보를 우연히 덮어쓰지 않게 
 | 최종 local worktree, Python 3.8 contract | `272 passed, 8 skipped` (총 280 tests); 전체 source/test compile 통과 |
 | 최종 local plugin security | CI pin `Bandit 1.8.6`과 `detect-secrets 1.5.0` reviewed baseline 통과; Ruff fatal rules·`git diff --check` 통과 |
 | 공개 benchmark 첫 묶음 | USGS HTMC 1 sheet, source-pixel crop 6개, draft reference 6개 asset/hash 검증 통과; 독립 검수 전이라 ranking 불가 |
-| current-source ZIP pre-attestation | `65c0277c7ea90946e9538164a5f57c29cea6e23cd5ae564370c5191e652e451f`, 1,687,674 bytes, 35 entries; 두 build byte-identical·`--check` 통과 |
+| attested current-source ZIP | commit `84207734aaaa58ee0eaea713993889e60ddd2623` plugin tree와 byte-identical한 `65c0277c7ea90946e9538164a5f57c29cea6e23cd5ae564370c5191e652e451f`, 1,687,674 bytes, 35 entries; 두 build byte-identical·`--check` 통과 |
 | macOS clean-profile final ZIP | 위 exact ZIP을 QGIS 3.44.8에 격리 설치해 Freehand·정확한 0%·Ink v2·rapid/cache click deferral·Enhanced WYSIWYG 저장 통과; 사용자 profile/model cache 미접촉 |
 | Smart Recovery final lifecycle | 격리 QGIS 3.44.8에서 공식 EfficientSAM-Ti split SHA 검증·CPUExecutionProvider 실제 추론, model 없음/정상/runtime 없음/손상, 명시적 Repair 재다운로드와 inference 실패 Ink 보존 확인 |
-| 현재 Unreleased attestation | **PENDING:** 구현 commit, 위 ZIP SHA-256, 새 CI run URL을 후속 evidence-only commit에서 결속 |
+| 현재 Unreleased attestation | commit `84207734aaaa58ee0eaea713993889e60ddd2623` + 위 ZIP SHA-256 + [CI run 33343315402](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33343315402): Python 3.8/3.10/3.12, dependency/security, Linux/Windows package, QGIS 3.22.16/3.44.13/4.2.1 모두 green |
 
 이번 로컬 환경의 직접 `pip-audit --strict -r` 수집기는 uv-managed Python의 내부
 `ensurepip` SIGABRT로 끝나 취약점 판정 증거로 사용하지 않았다. 대신 각 requirements를
@@ -223,8 +225,8 @@ packages에 둔다.
 - [x] 로컬 `d292…` 후보는 commit `89b9f20` plugin tree와 29/29 동기화
 - [x] 로컬 `d292…` 후보의 두 build가 byte-identical이고 QGIS 3.44 import/runtime 통과
 - [x] commit `30e18f6` current-source Linux = Windows = QGIS matrix SHA-256 확인
-- [x] pre-attestation Unreleased ZIP 두 build byte-identical, SHA `65c0277c…`, 35 entries
-- [ ] 현재 Unreleased 최종 commit·ZIP SHA-256·새 CI run URL 결속
+- [x] attested Unreleased ZIP 두 build byte-identical, SHA `65c0277c…`, 35 entries
+- [x] 현재 Unreleased commit `8420773`·ZIP SHA-256·CI run `33343315402` 결속
 - [ ] SBOM과 서명/attestation 적용 또는 미적용 사유 기록
 
 ### Runtime and upgrade
@@ -232,6 +234,7 @@ packages에 둔다.
 - [x] Python 3.8 source/no-dependency, Python 3.10/3.12 full suite
 - [x] macOS QGIS 3.44.8 offscreen API/runtime 및 실제 DEM pipeline
 - [x] commit `30e18f6` digest-pinned QGIS 3.22/3.44/4.2 remote jobs green
+- [x] commit `8420773` exact package의 QGIS 3.22/3.44/4.2 remote jobs green
 - [x] macOS QGIS 3.44.8 clean-profile exact `65c0277c…` ZIP load/map-tool smoke
 - [x] macOS QGIS 3.44.8 실제 EfficientSAM inference·손상 model Repair lifecycle
 - [ ] Windows clean profile GUI와 HiDPI/한국어·영어 smoke
