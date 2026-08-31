@@ -27,8 +27,9 @@ inference service.
   `3.8+`. Local checks cover Python 3.8/3.10/3.12 and macOS QGIS 3.44.8.
   The `0.1.6` feature source has passed QGIS 3.22.16/3.44.13/4.2.1 package
   import and runtime-safety checks plus deterministic Linux/Windows ZIP builds.
-  The exact version-bump commit, ZIP, and CI run are bound in the
-  [0.1.6 release-readiness record](docs/RELEASE_READINESS_0.1.6.md).
+  The exact version-bump commit, ZIP, and CI run will be bound in the
+  [0.1.6 release-readiness record](docs/RELEASE_READINESS_0.1.6.md) after the
+  candidate CI completes.
 - If you manually installed an older unpublished `0.1.7–0.1.8` source or ZIP,
   QGIS may not treat `0.1.6` as an update. Remove that plugin before installing
   the `0.1.6` ZIP. Verified model files remain outside the plugin directory.

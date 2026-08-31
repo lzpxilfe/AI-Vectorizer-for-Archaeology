@@ -127,6 +127,7 @@ class DependencyDeclarationTests(unittest.TestCase):
         version = parsed_metadata["version"]
         self.assertRegex(version, r"^[0-9]+\.[0-9]+\.[0-9]+$")
         self.assertEqual(clean_profile_smoke.DEFAULT_EXPECTED_VERSION, version)
+        self.assertEqual(parsed_metadata["experimental"], "True")
         self.assertIn("0-100% cursor/path", parsed_metadata["about"])
         self.assertIn("External dependencies:", parsed_metadata["about"])
         self.assertIn("pip stacks require Python 3.10", parsed_metadata["about"])
@@ -158,6 +159,10 @@ class DependencyDeclarationTests(unittest.TestCase):
         self.assertIn(version, release_evidence)
         self.assertIn(
             package_release.FROZEN_RELEASE_SHA256[version], release_evidence
+        )
+        self.assertEqual(
+            package_release.bytes_hash(package_release.build_release_zip_bytes()),
+            package_release.FROZEN_RELEASE_SHA256[version],
         )
         self.assertIn("Frozen repository-local candidate", release_evidence)
 
