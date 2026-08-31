@@ -664,6 +664,8 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         tool.smart_recovery_requested = True
         tool.smart_recovery_enabled = True
         tool._current_recovery_state = "Enhanced"
+        tool._recovery_task = None
+        tool._recovery_request = None
         tool.recovery_state_callback = mock.Mock()
 
         self.assertFalse(tool.retry_current_segment())
@@ -723,6 +725,8 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         tool._cache_generation = 4
         tool._disposed = False
         tool.is_tracing = True
+        tool._pending_livewire_accept_point = None
+        tool._pending_livewire_recovery_identity = None
 
         self.assertFalse(tool.retry_current_segment())
         self.assertEqual(tool._current_recovery_state, "Recovering")
@@ -777,8 +781,11 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         tool.smart_recovery_enabled = True
         tool._recovery_cache_compatible = True
         tool._recovery_cache_disabled_reason = ""
+        tool._current_recovery_state = "Ink"
         tool._livewire_disabled = False
         tool._livewire_tree = SimpleNamespace(root=(1, 1))
+        tool._pending_livewire_accept_point = None
+        tool._pending_livewire_recovery_identity = None
         tool._recovery_pixel_path = lambda: ((1.0, 1.0), (5.0, 4.0))
         tool.map_to_pixel_float = lambda _point: (5.0, 4.0)
         tool._current_livewire_anchor_pixel = lambda: (1, 1)
@@ -828,6 +835,8 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         tool.is_tracing = True
         tool.smart_recovery_enabled = True
         tool.preview_path = ["immutable Ink champion"]
+        tool._pending_livewire_accept_point = None
+        tool._pending_livewire_recovery_identity = None
         tool._emit_recovery_state = mock.Mock()
 
         error = RuntimeError("injected ONNX failure")
@@ -1193,6 +1202,7 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         tool._ink_evidence_generation = 3
         tool._pending_cache_identity = ("request",)
         tool._disposed = False
+        tool.language = "en"
         tool._pending_livewire_accept_point = QgsPointXY(4, 5)
         tool._current_ink_cache_identity = lambda: ("request",)
         tool._resolve_pending_livewire_fallback = mock.Mock(return_value=True)
