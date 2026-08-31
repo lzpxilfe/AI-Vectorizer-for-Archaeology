@@ -28,8 +28,8 @@ identity는 [`RELEASE_READINESS_0.1.5.md`](RELEASE_READINESS_0.1.5.md)에 보존
 | ZIP entries | 35 |
 | metadata | `0.1.6`, QGIS `3.22–4.99`, `experimental=True` |
 | model weight/native binary | 포함하지 않음 |
-| exact source commit | **PENDING:** version-bump 구현 commit이 원격에 올라간 뒤 결속 |
-| exact CI | **PENDING:** 위 commit의 전체 matrix가 끝난 뒤 결속 |
+| exact source commit | `f48111a5217153480c46831c35f5b1dc4f0c31ec` |
+| exact CI | [run 33344520364](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33344520364) |
 
 ZIP은 1980-01-01 timestamp, 정렬된 entry, 고정 mode와 저장 압축을 사용합니다.
 같은 plugin tree의 두 빌드는 byte-identical이어야 하며 Linux, Windows와 각 QGIS
@@ -81,10 +81,14 @@ module 책임은 [`FEATURES_AND_ARCHITECTURE.md`](FEATURES_AND_ARCHITECTURE.md),
 - `0.1.6` worktree macOS QGIS 3.44.8 runtime safety: `56/56`
 - 위 exact ZIP을 macOS QGIS 3.44.8 clean profile에 설치해 metadata `0.1.6`,
   Freehand, 정확한 0%, Ink v2, rapid/cache click deferral와 Enhanced WYSIWYG 저장 통과
+- exact candidate commit `f48111a`의
+  [CI run 33344520364](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33344520364):
+  Python 3.8/3.10/3.12, dependency/security, Linux/Windows byte-identical package,
+  QGIS 3.22.16/3.44.13/4.2.1 packaged-plugin import·runtime safety 모두 green
 
-위 기능 CI는 `0.1.6` 숫자를 넣기 전 plugin tree의 동작 증거입니다. 따라서 version
-bump commit 자체의 exact ZIP·원격 CI는 위 표의 PENDING을 채우기 전까지 별도
-attestation으로 주장하지 않습니다.
+기능 CI와 버전 지정 뒤 exact candidate CI를 분리해 기록했습니다. 후자는 실제 현재
+builder가 동결 `0.1.6` SHA-256과 같은 payload를 생성하는지 직접 검사하고, 각 QGIS
+job이 Linux release job과 같은 ZIP을 import한 뒤 runtime 회귀를 실행합니다.
 
 ## Remaining gates
 

@@ -31,10 +31,11 @@
   아니었으며 이력은 rewrite하지 않습니다.
 - metadata 대상은 QGIS `3.22–4.99`, source 계약은 Python `3.8+`입니다. 로컬에서는
   Python 3.8/3.10/3.12와 macOS QGIS 3.44.8을 확인했습니다. 후속
-  `0.1.6` 기능 소스의 원격 CI에서는 QGIS 3.22.16/3.44.13/4.2.1 package
-  import·runtime safety와 Linux/Windows 결정적 ZIP이 통과했습니다. 버전을 바꾼
-  정확한 후보 commit·ZIP·CI는
-  [`0.1.6 release-readiness 기록`](docs/RELEASE_READINESS_0.1.6.md)에 결속합니다.
+  exact `0.1.6` 후보 commit `f48111a`의 원격 CI에서는 QGIS
+  3.22.16/3.44.13/4.2.1 package import·runtime safety와 Linux/Windows 결정적 ZIP이
+  [통과했습니다](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33344520364).
+  후보 commit·ZIP·CI는
+  [`0.1.6 release-readiness 기록`](docs/RELEASE_READINESS_0.1.6.md)에 결속했습니다.
 - 과거 미공개 개발판 `0.1.7–0.1.8`을 설치했다면 QGIS가 `0.1.6`을 자동 update로
   인식하지 않을 수 있습니다. 기존 plugin을 제거한 뒤 `0.1.6` ZIP을 설치하세요.
   QGIS profile의 검증된 model 파일은 plugin 밖에 보존됩니다.
