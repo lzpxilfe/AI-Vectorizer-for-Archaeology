@@ -11,29 +11,27 @@ inference service.
 ## Current status
 
 - The [QGIS plugin repository](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.5/)
-  published experimental `0.1.5` on 2026-08-26. Current source keeps that
-  version number and `experimental=True`.
+  published experimental `0.1.5` on 2026-08-26. Current source is the
+  experimental `0.1.6` candidate with Ink v2 and Smart Recovery. It has not
+  been published as a QGIS version, GitHub Release, or tag.
 - The official QGIS `0.1.5` ZIP is 1,483,635 bytes with SHA-256
   `24f1def6acd63d483ea6bf7c20b944f56507ead52190667ec4f35562fca6c964`.
   The repository's `dist/ai_vectorizer-0.1.5.zip` is an earlier local candidate
   from commit `89b9f20` (SHA-256 `d2925198…`), not the
   official download.
-- Ink v2, Smart Recovery, and later fixes on `main` remain `Unreleased`.
-  Development does not bump metadata, retag, or republish a same-version QGIS
+- Ink v2, Smart Recovery, and later fixes on `main` are now grouped into the
+  `0.1.6` candidate. Further development does not bump metadata, retag, or republish a same-version QGIS
   artifact. The `0.1.5–0.1.7` values in Git history and the unpublished `0.1.8`
   worktree did not represent additional QGIS releases; history is preserved.
 - The metadata target is QGIS `3.22–4.99`, and the source contract is Python
   `3.8+`. Local checks cover Python 3.8/3.10/3.12 and macOS QGIS 3.44.8.
-  Follow-up current-source commit `30e18f6` is
-  [green](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33339770178)
-  for QGIS 3.22.16/3.44.13/4.2.1 package import and runtime-safety checks, plus
-  deterministic Linux/Windows ZIP builds. That run does not attest the
-  published `0.1.5` ZIP or the current uncommitted worktree. See the
-  [release-readiness record](docs/RELEASE_READINESS_0.1.5.md) for exact evidence.
-- If you manually installed an unpublished `0.1.6–0.1.8` source or ZIP, QGIS
-  may not treat `0.1.5` as an update. Remove that plugin and install the official
-  `0.1.5` ZIP. Verified model files are kept outside the plugin directory in the
-  QGIS profile.
+  The `0.1.6` feature source has passed QGIS 3.22.16/3.44.13/4.2.1 package
+  import and runtime-safety checks plus deterministic Linux/Windows ZIP builds.
+  The exact version-bump commit, ZIP, and CI run are bound in the
+  [0.1.6 release-readiness record](docs/RELEASE_READINESS_0.1.6.md).
+- If you manually installed an older unpublished `0.1.7–0.1.8` source or ZIP,
+  QGIS may not treat `0.1.6` as an update. Remove that plugin before installing
+  the `0.1.6` ZIP. Verified model files remain outside the plugin directory.
 
 ## Features
 
@@ -150,7 +148,7 @@ The default grid limit is 25 million cells. Staged outputs are validated before
 the DEM and hillshade pair is published.
 
 Linear TIN is sensitive to sparse, incorrect, and out-of-range contours.
-Version `0.1.5` does not yet produce topology QA, uncertainty/NoData layers, or
+The `0.1.6` candidate does not yet produce topology QA, uncertainty/NoData layers, or
 a provenance sidecar. Treat the output as a terrain hypothesis for review, not
 as archaeological ground truth.
 
@@ -161,8 +159,10 @@ as archaeological ground truth.
 - [Roadmap](ROADMAP.md): implemented work, next stages, and deliberate non-goals
 - [Open-source development plan](docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md): principles
   and delivery gates
-- [Release readiness](docs/RELEASE_READINESS_0.1.5.md): verification evidence and
+- [0.1.6 release readiness](docs/RELEASE_READINESS_0.1.6.md): current candidate evidence and
   residual risk
+- [0.1.5 historical readiness](docs/RELEASE_READINESS_0.1.5.md): published and
+  frozen artifact identities
 - [Contributing](CONTRIBUTING.md): development setup, test tiers, documentation,
   translation, and dataset contributions
 - [Security](SECURITY.md): private reporting and safe diagnostics
@@ -183,7 +183,7 @@ preparation begins. See [CHANGELOG.md](CHANGELOG.md) and
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Validate current source through an isolated package; this does not touch the
-repository-local `dist/ai_vectorizer-0.1.5.zip` or candidate release tree:
+repository-local `0.1.5` or `0.1.6` candidate ZIP/release trees:
 
 ```bash
 current_source_dir="$(mktemp -d)"

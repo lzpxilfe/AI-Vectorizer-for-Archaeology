@@ -53,13 +53,14 @@ MAX_SOURCE_DATE_EPOCH = 4354819198  # 2107-12-31 23:59:58 UTC.
 MAX_UPLOAD_BYTES = 20_000_000
 ZIP_FILE_MODE = 0o100644
 ZIP_COMPRESSION = zipfile.ZIP_STORED
-# Repository-local release candidates are immutable inputs while development
-# is kept under ``Unreleased`` without a metadata bump.  These hashes are not
+# Repository-local release candidates are immutable inputs after their version
+# is assigned. These hashes are not
 # necessarily the identity of an artifact already published by an external
 # repository.  A differing source build must never replace the local filename
 # unless the operator explicitly confirms the metadata version.
 FROZEN_RELEASE_SHA256 = {
     "0.1.5": "d2925198dc2192bbb7eebe579bb48207c860179a94d4216df77e746d0451789a",
+    "0.1.6": "fffceee8607bdb19178b224e2c94493791d0175a1e35039368f0a41fa7447b7a",
 }
 
 
@@ -291,25 +292,25 @@ def _assert_production_write_allowed(
     *,
     approved_version: Optional[str],
 ) -> None:
-    """Protect a frozen metadata-derived local filename from dev builds."""
-    production_zip = zip_path(version)
-    if not _same_path(target_zip, production_zip):
-        return
+    """Protect every frozen local candidate, including older version paths."""
 
-    frozen_hash = FROZEN_RELEASE_SHA256.get(version)
     payload_hash = bytes_hash(payload)
-    if frozen_hash is None or payload_hash == frozen_hash:
-        return
-    if approved_version == version:
-        return
-
-    raise ValueError(
-        f"Refusing to replace frozen local candidate {production_zip.name}: "
-        f"current source builds "
-        f"SHA-256 {payload_hash}, not frozen {frozen_hash}. Build Unreleased source "
-        "with --output PATH, or use "
-        f"--approve-release-overwrite {version} only for a deliberate release."
-    )
+    for frozen_version, frozen_hash in FROZEN_RELEASE_SHA256.items():
+        frozen_zip = zip_path(frozen_version)
+        if not _same_path(target_zip, frozen_zip):
+            continue
+        if payload_hash == frozen_hash:
+            return
+        if approved_version == frozen_version and version == frozen_version:
+            return
+        raise ValueError(
+            f"Refusing to replace frozen local candidate {frozen_zip.name}: "
+            f"metadata {version} source builds SHA-256 {payload_hash}, not frozen "
+            f"{frozen_hash}. Build current source with --output PATH outside every "
+            "frozen candidate, or use "
+            f"--approve-release-overwrite {frozen_version} only while metadata is "
+            f"exactly {frozen_version}."
+        )
 
 
 def build_release_zip(

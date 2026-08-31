@@ -1,9 +1,11 @@
 # Ink Centerline v2와 Smart Recovery
 
-이 문서는 `Unreleased` 개발 소스에 추가된 차세대 추적 경로를 설명합니다. QGIS
-저장소에 2026-08-26 공개된 experimental `0.1.5` artifact와 metadata는 그대로
-유지됩니다. 공식 ZIP·repository-local 사전 후보·현재 source ZIP은
-[`RELEASE_READINESS_0.1.5.md`](RELEASE_READINESS_0.1.5.md)에서 분리합니다. 새 정확도
+이 문서는 experimental `0.1.6` 후보의 차세대 추적 경로를 설명합니다. QGIS
+저장소에 2026-08-26 공개된 experimental `0.1.5` artifact와 Ink v1 기준선은
+그대로 보존합니다. 현재 후보 ZIP은
+[`RELEASE_READINESS_0.1.6.md`](RELEASE_READINESS_0.1.6.md), 공식 0.1.5와 과거
+repository-local 후보는 [`RELEASE_READINESS_0.1.5.md`](RELEASE_READINESS_0.1.5.md)에서
+분리합니다. 새 정확도
 수치나 다른 서비스보다
 우수하다는 주장은 공개 실지도 holdout이 완성되고 사전 정의된 gate를 통과하기 전에는
 하지 않습니다.

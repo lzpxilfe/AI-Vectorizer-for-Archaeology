@@ -6,8 +6,15 @@
 
 ## Unreleased
 
-다음 공개판에 들어갈 변경을 이 아래에 먼저 기록합니다. 일상 개발 중에는 plugin
-metadata 버전을 올리지 않습니다.
+`0.1.6` 후보를 고정한 뒤의 사용자 변경은 아직 없습니다. 다음 변경은 이 아래에
+먼저 기록하고, 일상 개발 중에는 plugin metadata 버전을 다시 올리지 않습니다.
+
+## 0.1.6 — experimental release candidate (not yet published)
+
+2026-08-31에 현재 Ink v2·Smart Recovery 소스의 metadata를 `0.1.6`으로
+정렬했습니다. 이는 설치·검증을 위한 후보이며 아직 QGIS plugin 저장소, GitHub
+Release 또는 tag로 게시한 릴리스가 아닙니다. 공개일은 정확히 같은 ZIP을 실제로
+게시할 때만 추가합니다.
 
 ### Added
 
@@ -79,7 +86,7 @@ metadata 버전을 올리지 않습니다.
 
 Git history의 `0.1.5–0.1.7`과 미공개 worktree의 `0.1.8` 표시는 추가 QGIS
 릴리스가 아닌 개발 metadata였습니다. 이력은 rewrite하지 않으며,
-Ink v2·Smart Recovery와 공개 이후 수정은 위 `Unreleased`에서 관리합니다.
+Ink v2·Smart Recovery와 공개 이후 수정은 위 `0.1.6` 후보에서 관리합니다.
 
 ### Added
 

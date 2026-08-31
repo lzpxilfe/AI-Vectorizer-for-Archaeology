@@ -9,9 +9,12 @@ import zipfile
 from scripts import qgis_clean_profile_smoke as clean_smoke
 
 
+CURRENT_VERSION = clean_smoke.DEFAULT_EXPECTED_VERSION
+
+
 class CleanProfileInstallerTests(unittest.TestCase):
     @staticmethod
-    def _write_archive(path: Path, *, version: str = "0.1.5") -> None:
+    def _write_archive(path: Path, *, version: str = CURRENT_VERSION) -> None:
         with zipfile.ZipFile(path, "w") as archive:
             archive.writestr(
                 "ai_vectorizer/metadata.txt",
@@ -33,7 +36,7 @@ class CleanProfileInstallerTests(unittest.TestCase):
                 profile_root,
             )
 
-            self.assertEqual(version, "0.1.5")
+            self.assertEqual(version, CURRENT_VERSION)
             self.assertEqual(
                 plugin_dir,
                 (
@@ -79,7 +82,7 @@ class CleanProfileInstallerTests(unittest.TestCase):
             with zipfile.ZipFile(archive, "w") as output:
                 output.writestr(
                     "ai_vectorizer/metadata.txt",
-                    "[general]\nversion=0.1.5\n",
+                    f"[general]\nversion={CURRENT_VERSION}\n",
                 )
                 output.writestr("ai_vectorizer/../escape.py", "bad")
 
@@ -96,7 +99,7 @@ class CleanProfileInstallerTests(unittest.TestCase):
             with zipfile.ZipFile(symlink_archive, "w") as output:
                 output.writestr(
                     "ai_vectorizer/metadata.txt",
-                    "[general]\nversion=0.1.5\n",
+                    f"[general]\nversion={CURRENT_VERSION}\n",
                 )
                 member = zipfile.ZipInfo("ai_vectorizer/link")
                 member.create_system = 3
@@ -112,7 +115,7 @@ class CleanProfileInstallerTests(unittest.TestCase):
             with zipfile.ZipFile(collision_archive, "w") as output:
                 output.writestr(
                     "ai_vectorizer/metadata.txt",
-                    "[general]\nversion=0.1.5\n",
+                    f"[general]\nversion={CURRENT_VERSION}\n",
                 )
                 output.writestr("ai_vectorizer/Module.py", "first")
                 output.writestr("ai_vectorizer/module.py", "second")
@@ -130,7 +133,7 @@ class CleanProfileInstallerTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 clean_smoke.SmokeFailure,
-                "Expected metadata version 0.1.5",
+                f"Expected metadata version {CURRENT_VERSION}",
             ):
                 clean_smoke.install_archive(archive, root / "isolated")
 

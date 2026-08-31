@@ -13,7 +13,7 @@ body:
     attributes:
       label: Environment
       description: OS, QGIS version, Python version, and ArchaeoTrace version or commit.
-      placeholder: macOS 15, QGIS 3.44.8, Python 3.12, ArchaeoTrace 0.1.5
+      placeholder: macOS 15, QGIS 3.44.8, Python 3.12, ArchaeoTrace 0.1.6
     validations:
       required: true
   - type: textarea

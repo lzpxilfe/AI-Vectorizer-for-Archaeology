@@ -3,13 +3,17 @@
 최초 로컬 검토: 2026-08-23 · 공식 QGIS upload: 2026-08-26 ·
 Unreleased 후속 검증: 2026-08-31
 
+> 이 문서는 공식·동결 `0.1.5`와 `0.1.6` 승격 직전 소스의 역사적 snapshot입니다.
+> 현재 experimental `0.1.6` 후보는
+> [`RELEASE_READINESS_0.1.6.md`](RELEASE_READINESS_0.1.6.md)를 확인하세요.
+
 이 문서는 서로 다른 세 대상을 분리한다.
 
 1. 공식 QGIS 저장소에 이미 게시된 experimental `0.1.5` ZIP
 2. commit `89b9f20`에서 만든 repository-local 사전 후보
    `dist/ai_vectorizer-0.1.5.zip`
-3. 같은 metadata 숫자를 유지하지만 Ink v2·Smart Recovery·후속 수정을
-   포함한 현재 `Unreleased` source
+3. 검증 당시 같은 metadata 숫자를 유지했지만 Ink v2·Smart Recovery·후속 수정을
+   포함했고, 이후 `0.1.6` 후보로 승격된 source
 
 ## Decision
 
@@ -18,7 +22,7 @@ Unreleased 후속 검증: 2026-08-31
 - **공식 experimental 0.1.5: 이미 공개됨.** QGIS 저장소가 2026-08-26
   `0.1.5`를 게시했다. 이는 stable 승격이나 현재 `main`의 추가 기능 공개를
   뜻하지 않는다.
-- **현재 Unreleased source: 조건부 GO.** commit `8420773`의 plugin tree에서
+- **0.1.6 승격 직전 Unreleased source: 조건부 GO.** commit `8420773`의 plugin tree에서
   결정적으로 만든 ZIP은 SHA-256 `65c0277c…`이며, Linux/Windows package와
   QGIS 3.22.16/3.44.13/4.2.1 import·runtime-safety
   [CI run 33343315402](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33343315402)이

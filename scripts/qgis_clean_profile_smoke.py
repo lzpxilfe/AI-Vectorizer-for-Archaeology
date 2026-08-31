@@ -39,6 +39,7 @@ RESULT_PATH_ENV = "ARCHAEOTRACE_CLEAN_RESULT_PATH"
 MAX_ARCHIVE_BYTES = 20_000_000
 MAX_EXPANDED_BYTES = 40_000_000
 DEFAULT_TIMEOUT_SECONDS = 120
+DEFAULT_EXPECTED_VERSION = "0.1.6"
 
 
 class SmokeFailure(RuntimeError):
@@ -104,7 +105,7 @@ def install_archive(
     archive_path: Path,
     profile_root: Path,
     *,
-    expected_version: str = "0.1.5",
+    expected_version: str = DEFAULT_EXPECTED_VERSION,
 ) -> tuple[Path, str]:
     """Install *archive_path* only into an empty, caller-owned profile root."""
 
@@ -727,7 +728,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         type=Path,
         help="Optional empty diagnostic root; omission uses and removes mkdtemp.",
     )
-    parser.add_argument("--expected-version", default="0.1.5")
+    parser.add_argument("--expected-version", default=DEFAULT_EXPECTED_VERSION)
     parser.add_argument(
         "--timeout",
         type=int,

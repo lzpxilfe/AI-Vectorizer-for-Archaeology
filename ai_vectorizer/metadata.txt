@@ -6,23 +6,24 @@ name=ArchaeoTrace
 qgisMinimumVersion=3.22
 qgisMaximumVersion=4.99
 description=Local-first contour tracing for historical maps with optional AI assistance and experimental DEM reconstruction.
-version=0.1.5
+version=0.1.6
 author=lzpxilfe(balguljang2)
 email=lzpxilfe@gmail.com
 
 about=ArchaeoTrace helps users digitize elevation contours from scanned historical maps and review locally generated terrain hypotheses.
 
     Features:
-    - Ink Centerline default with a bounded 320px direction-aware Live-Wire
+    - Multi-scale 9/15/31px Ink Centerline with a bounded 320px direction-aware Live-Wire
     - Literal 0-100%% cursor/path coordinate blending; green preview shows the path accepted by the next click
-    - Manual and guided tracing with Freehand, Ink, LSD, HED, and Legacy Canny
-    - Optional point-prompt tracing with MobileSAM and SAM (ViT-B)
+    - Optional Smart Recovery for weak Ink segments; default OFF with an explicitly installed EfficientSAM-Ti model
+    - Freehand plus LSD, HED, MobileSAM, SAM (ViT-B), and Legacy Canny under Advanced / Legacy methods
     - Elevation attributes and optional spot-height capture
     - Experimental linear-TIN DEM and hillshade generation from saved elevation data
-    - Developer-only reproducible benchmarks; EfficientSAM is not a UI option or default model
+    - Developer-only reproducible benchmarks with publication ranking disabled until independent review
 
     External dependencies: default Ink and Freehand use NumPy supplied by QGIS.
-    SciPy and scikit-image are optional Ink optimizations. LSD, HED, and SAM
+    SciPy and scikit-image are optional Ink optimizations. Smart Recovery requires
+    ONNX Runtime and separately installed fixed-hash weights. LSD, HED, and SAM
     require OpenCV; MobileSAM and full SAM additionally require requests,
     PyTorch, their pinned backend package, and separately downloaded weights.
     Installation commands and platform notes are in the linked homepage README.
@@ -39,11 +40,12 @@ repository=https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology
 # End of mandatory metadata
 
 # Recommended items:
-changelog=0.1.5
-    - Prepared QGIS 4 compatibility guards and a QGIS 3/4 packaged-plugin CI matrix.
-    - Kept Ink Centerline as the no-model default with a NumPy fallback.
-    - Hardened model downloads, edit-buffer undo, dependencies, and deterministic packaging.
-    - Added the experimental contour-to-DEM workflow and benchmark safeguards.
+changelog=0.1.6
+    - Added multi-scale, color-aware Ink Centerline v2 while preserving the 0.1.5 Ink fallback.
+    - Added optional Smart Recovery using a verified EfficientSAM-Ti corridor challenger; default OFF.
+    - Preserved Freehand and legacy methods, exact 0%% cursor tracing, QGIS edit-buffer Undo, and fail-closed Ink fallback.
+    - Hardened cancellable model repair, stale-task handling, deterministic packaging, and QGIS 3/4 runtime tests.
+    - Staged the first rights-verified USGS benchmark sheet and six draft crops without enabling rankings.
 hasProcessingProvider=no
 # Tags are comma separated with spaces allowed
 tags=AI, vectorization, contour, historical maps, archaeology, digitizing

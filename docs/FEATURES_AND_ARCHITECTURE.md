@@ -1,14 +1,15 @@
 # ArchaeoTrace features and architecture
 
 이 문서는 ArchaeoTrace의 공식 experimental `0.1.5` 기준선과 현재
-`Unreleased` source에 들어 있는
+experimental `0.1.6` 후보에 들어 있는
 기능, 각 기능이 구현된 방식,
 현재 안전 경계와 아직 구현되지 않은 계획을 한곳에 정리합니다. ArchaeoTrace는
 고지도 등고선을 사용자가 검수하며 벡터화하고, 고도 의미를 부여한 뒤 검토 가능한
 DEM과 hillshade까지 만드는 오픈소스 QGIS 플러그인입니다. 계정이나 원격 추론 서비스는
 필요하지 않으며 지도와 추적 계산은 로컬에서 처리합니다.
-공식 QGIS 0.1.5 download, repository-local `d292…` 사전 후보와 현재
-Unreleased ZIP의 정확한 identity는
+현재 0.1.6 후보 ZIP의 정확한 identity는
+[`RELEASE_READINESS_0.1.6.md`](RELEASE_READINESS_0.1.6.md), 공식 QGIS 0.1.5
+download와 repository-local `d292…` 사전 후보는
 [`RELEASE_READINESS_0.1.5.md`](RELEASE_READINESS_0.1.5.md)에 분리해 기록합니다.
 
 ## Status at a glance
@@ -290,6 +291,6 @@ layer removal·unload 상태 전이를 테스트로 고정하는 방향입니다
 
 개발 순서와 아직 없는 기능의 합격 기준은 [`../ROADMAP.md`](../ROADMAP.md), 현재
 릴리스 검증 증거와 잔여 위험은
-[`RELEASE_READINESS_0.1.5.md`](RELEASE_READINESS_0.1.5.md), 오픈소스 개발 원칙과
+[`RELEASE_READINESS_0.1.6.md`](RELEASE_READINESS_0.1.6.md), 오픈소스 개발 원칙과
 작업 gate는 [`OPEN_SOURCE_DEVELOPMENT_PLAN.md`](OPEN_SOURCE_DEVELOPMENT_PLAN.md)에
 있습니다.

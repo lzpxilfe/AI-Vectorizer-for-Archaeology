@@ -13,12 +13,12 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 ## 🚧 Current Source Status
 
 - 공식 QGIS 저장소에 experimental `0.1.5`가 2026-08-26 공개됐습니다.
-  현재 checkout과 개발 ZIP도 metadata 숫자 `0.1.5`, `experimental=True`를
-  유지하지만, 아래 Ink v2·Smart Recovery 설명은 공식 0.1.5 이후의
-  `Unreleased` source에 해당합니다.
-- 동결 정책에 따라 `metadata.txt` 속 `about`/요약 문구는 공식 0.1.5
-  baseline을 그대로 보존합니다. 현재 `Unreleased` UI와 사용법은 이 문서가
-  source of truth이며, 같은 version 숫자로 QGIS에 다시 게시하지 않습니다.
+  현재 checkout과 설치 후보는 metadata `0.1.6`, `experimental=True`이며 아래
+  Ink v2·Smart Recovery를 포함합니다. `0.1.6`은 아직 QGIS 저장소나 GitHub
+  Release에 게시되지 않은 검증 후보입니다.
+- 공식 `0.1.5` artifact와 Ink v1 fallback은 보존합니다. 현재 `0.1.6` UI와 사용법은
+  이 문서가 source of truth이며, 정확한 후보 ZIP·commit·CI 범위는 repository의
+  `docs/RELEASE_READINESS_0.1.6.md`에 기록합니다.
 - QGIS `3.22–4.99`와 Python `3.8+` source 호환성을 대상으로 합니다. 로컬 검증은
   Python 3.8/3.10/3.12와 macOS QGIS 3.44.8에서 수행했습니다. 원격 CI의 QGIS
   3.22.16/3.44.13/4.2.1 package import·runtime safety와 Linux/Windows 결정적 ZIP도
@@ -31,9 +31,9 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 - 지도와 추적 처리는 로컬에서 수행됩니다. model 다운로드는 network를 사용합니다.
   SAM Check/Status는 유효한 local checkpoint가 있으면 size와 SHA-256을 offline
   확인하고, 파일이 없을 때만 고정 source의 availability를 조회합니다.
-- source나 ZIP으로 개발판 `0.1.6–0.1.8`을 설치했다면 QGIS가 `0.1.5`를 자동 update로
-  보지 않을 수 있습니다. 기존 plugin을 제거하고 공식 `0.1.5` ZIP을 다시
-  설치하세요. profile에 저장된 검증 model은 plugin 폴더 밖에 유지됩니다.
+- 과거 미공개 개발판 `0.1.7–0.1.8`을 설치했다면 QGIS가 `0.1.6`을 자동 update로
+  보지 않을 수 있습니다. 기존 plugin을 제거한 뒤 `0.1.6` ZIP을 설치하세요.
+  profile에 저장된 검증 model은 plugin 폴더 밖에 유지됩니다.
 
 ## 🎯 What You Can Do
 
@@ -91,10 +91,10 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 OpenCV는 검증한 4.8–4.11 범위로 제한하지만 이 제한만으로 QGIS의 공유
 NumPy ABI가 고정되지는 않습니다. 설치 전에 pip의 변경 계획을 확인하세요.
 
-QGIS 3.22/Python 3.8은 기본 ZIP 경로의 source·무의존성 계약 대상입니다. 후속
-current-source commit `30e18f6`은 QGIS 3.22.16 원격 import·runtime-safety CI를
-통과했지만, 그 결과는 이미 게시된 공식 0.1.5 ZIP을 소급해 증명한 것이
-아닙니다. Python 3.8은 EOL이며 최신 보안
+QGIS 3.22/Python 3.8은 기본 ZIP 경로의 source·무의존성 계약 대상입니다. `0.1.6`
+후보는 QGIS 3.22.16/3.44.13/4.2.1에서 exact package import·runtime-safety CI를
+통과해야 하며 결과는 repository의 release-readiness 기록에 결속합니다. 이 검증은
+이미 게시된 공식 0.1.5 ZIP을 소급해 증명하지 않습니다. Python 3.8은 EOL이며 최신 보안
 수정이 적용된 Pillow/pytest
 의존성 계열을 설치할 수 없습니다. 이 릴리스의 선택적 SciPy/scikit-image,
 OpenCV, SAM pip 스택과 `requirements-dev.txt`는 보안 유지 대상 Python
@@ -239,7 +239,7 @@ first use.
 ## 🇬🇧 English Summary
 
 - ArchaeoTrace is a local-first QGIS plugin for tracing elevation contours on historical maps and building reviewable terrain hypotheses.
-- The QGIS repository published experimental `0.1.5` on 2026-08-26. This guide describes additional `Unreleased` source while the metadata number and baseline summary remain frozen.
+- The QGIS repository published experimental `0.1.5` on 2026-08-26. This guide describes the unpublished experimental `0.1.6` candidate with Ink v2 and Smart Recovery.
 - Cursor movement performs only a predecessor lookup after one asynchronous tree build per accepted anchor; the green line is the exact one-click result.
 - Assist is literal from 0% (exact cursor, no model work), through coordinate blending, to 100% (the full Live-Wire route).
 - `Freehand` needs no additional pip package, external model, or OpenCV, but uses NumPy from the QGIS Python environment.

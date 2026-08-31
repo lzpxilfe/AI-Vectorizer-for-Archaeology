@@ -16,29 +16,28 @@
 ## Current source status
 
 - [공식 QGIS plugin 저장소](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.5/)에
-  experimental `0.1.5`가 2026-08-26 공개됐습니다. 현재 source도 version
-  숫자와 `experimental=True`를 그대로 유지합니다.
+  experimental `0.1.5`가 2026-08-26 공개됐습니다. 현재 source는 Ink v2와
+  Smart Recovery를 포함한 `0.1.6` experimental 후보입니다. 아직 QGIS 저장소,
+  GitHub Release 또는 tag로 게시하지 않았습니다.
 - 공식 QGIS `0.1.5` ZIP은 1,483,635 bytes, SHA-256
   `24f1def6acd63d483ea6bf7c20b944f56507ead52190667ec4f35562fca6c964`입니다.
   repository의 `dist/ai_vectorizer-0.1.5.zip`은 그보다 이전
   commit `89b9f20`에서 만든 로컬 후보(SHA-256 `d2925198…`)이며 공식
   다운로드와 같은 artifact가 아닙니다.
-- 현재 `main`의 Ink v2·Smart Recovery와 후속 수정은 모두
-  `Unreleased`입니다. 개발 중 metadata 숫자나 기존 tag를 바꾸거나, 같은
-  version으로 QGIS artifact를 다시 게시하지 않습니다. Git history의
+- 현재 `main`의 Ink v2·Smart Recovery와 후속 수정은 `0.1.6` 후보로 묶었습니다.
+  이후 개발 중에는 metadata 숫자나 기존 tag를 다시 바꾸거나, 같은 version으로
+  QGIS artifact를 재게시하지 않습니다. Git history의
   `0.1.5–0.1.7`과 미공개 worktree의 `0.1.8` 표시도 추가 QGIS 릴리스가
   아니었으며 이력은 rewrite하지 않습니다.
 - metadata 대상은 QGIS `3.22–4.99`, source 계약은 Python `3.8+`입니다. 로컬에서는
   Python 3.8/3.10/3.12와 macOS QGIS 3.44.8을 확인했습니다. 후속
-  current-source commit `30e18f6`의 원격 CI에서는 QGIS
-  3.22.16/3.44.13/4.2.1 package import·runtime safety와 Linux/Windows 결정적 ZIP이
-  [green](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33339770178)이었습니다.
-  이 run은 공식 0.1.5 ZIP이나 현재 미커밋 worktree를 증명하지 않습니다. 정확한
-  artifact·commit 범위는
-  [`release-readiness 기록`](docs/RELEASE_READINESS_0.1.5.md)을 확인하세요.
-- 개발판 `0.1.6–0.1.8`을 source나 ZIP으로 직접 설치했다면 낮은 버전 번호가 자동
-  update로 인식되지 않을 수 있습니다. 기존 plugin을 제거한 뒤 공식 `0.1.5` ZIP을
-  다시 설치하세요. QGIS profile의 검증된 model 파일은 plugin 밖에 보존됩니다.
+  `0.1.6` 기능 소스의 원격 CI에서는 QGIS 3.22.16/3.44.13/4.2.1 package
+  import·runtime safety와 Linux/Windows 결정적 ZIP이 통과했습니다. 버전을 바꾼
+  정확한 후보 commit·ZIP·CI는
+  [`0.1.6 release-readiness 기록`](docs/RELEASE_READINESS_0.1.6.md)에 결속합니다.
+- 과거 미공개 개발판 `0.1.7–0.1.8`을 설치했다면 QGIS가 `0.1.6`을 자동 update로
+  인식하지 않을 수 있습니다. 기존 plugin을 제거한 뒤 `0.1.6` ZIP을 설치하세요.
+  QGIS profile의 검증된 model 파일은 plugin 밖에 보존됩니다.
 
 ## Main features
 
@@ -176,7 +175,8 @@ centerline, 실행 환경, 입력·출력 SHA-256, 시간·RAM과 topology 지�
 | [`docs/INK_V2_SMART_RECOVERY.md`](docs/INK_V2_SMART_RECOVERY.md) | Ink v2 증거, Recovery gate·fallback과 공개 benchmark 계약 |
 | [`ROADMAP.md`](ROADMAP.md) | 구현됨·다음 단계·의도적인 비목표 |
 | [`docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md`](docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md) | 오픈소스 원칙과 작업 gate |
-| [`docs/RELEASE_READINESS_0.1.5.md`](docs/RELEASE_READINESS_0.1.5.md) | 실행 검증, artifact identity와 잔여 위험 |
+| [`docs/RELEASE_READINESS_0.1.6.md`](docs/RELEASE_READINESS_0.1.6.md) | 현재 후보의 실행 검증, artifact identity와 잔여 위험 |
+| [`docs/RELEASE_READINESS_0.1.5.md`](docs/RELEASE_READINESS_0.1.5.md) | 공식 0.1.5와 동결 후보의 역사적 기록 |
 | [`benchmarks/`](benchmarks/) | 격리 worker, manifest, 지표와 synthetic fixture |
 | [`tests/`](tests/) | pure core, packaging와 QGIS safety 회귀 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 개발 환경, test tier, 문서·data 기여 규칙 |
@@ -191,8 +191,8 @@ centerline, 실행 환경, 입력·출력 SHA-256, 시간·RAM과 topology 지�
 [`CHANGELOG.md`](CHANGELOG.md)와 [`CONTRIBUTING.md`](CONTRIBUTING.md)에 있습니다.
 
 개발 중인 현재 source는 공개 artifact 이름과 분리된 임시 ZIP으로 검증하세요.
-이 명령은 repository에 보존된 로컬 `dist/ai_vectorizer-0.1.5.zip`이나
-`ai_vectorizer 0.1.5/`를 건드리지 않습니다.
+이 명령은 repository-local `0.1.5`·`0.1.6` 후보 ZIP이나 release tree를
+건드리지 않습니다.
 
 ```bash
 current_source_dir="$(mktemp -d)"
@@ -206,7 +206,8 @@ SHA-256과 현재 source build가 다르면 기본 명령으로 덮어쓸 수 �
 보호 해시는 공식 QGIS 다운로드의 identity가 아니니 두 artifact를 혼동하지
 마세요. 새 release를 승인할 때만 metadata와 같은 버전을
 `--approve-release-overwrite VERSION`에 명시해야 합니다.
-`Unreleased` 구현에서 새 tag, GitHub Release 또는 QGIS upload를 만들지 않습니다.
+후속 `Unreleased` 구현에서 새 tag, GitHub Release 또는 QGIS upload를 만들지
+않습니다. `0.1.6`을 실제 게시하는 동작도 별도 승인과 동일 ZIP 검증이 필요합니다.
 
 ## Contributing and citation
 

@@ -12,7 +12,8 @@ ArchaeoTrace의 목표는 서버나 유료 서비스에 사용자 자료를 보�
 - 자동화 단계마다 고고학적 해석과 표고의 불확실성을 노출합니다.
 
 공식 QGIS 저장소에는 experimental `0.1.5`가 공개되어 있고, 현재 `main`의
-후속 기능은 version 숫자를 유지한 `Unreleased` source입니다. 추적 추론과 지도
+후속 기능은 experimental `0.1.6` 후보입니다. 아직 별도 QGIS/GitHub Release나
+tag로 게시하지 않았습니다. 추적 추론과 지도
 데이터는 로컬에 머뭅니다. 모델 다운로드는
 네트워크를 사용하고, SAM 상태 확인은 유효한 로컬 checkpoint가 없을 때만 고정된
 source의 availability를 조회합니다. 유효한 로컬 checkpoint는 오프라인에서 크기와
@@ -43,13 +44,15 @@ ArchaeoTrace는 기능 수를 늘리기보다 다음 고고학 작업의 수직 
 전에는 우선순위에 넣지 않습니다. 기능·구현 경계는
 [`docs/FEATURES_AND_ARCHITECTURE.md`](docs/FEATURES_AND_ARCHITECTURE.md), 개발 원칙과
 Gate A–E는 [`docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md`](docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md),
-`0.1.5`의 검증 결과와 남은 release blocker는
+현재 `0.1.6` 후보의 검증 결과와 남은 release blocker는
+[`docs/RELEASE_READINESS_0.1.6.md`](docs/RELEASE_READINESS_0.1.6.md), 공식
+`0.1.5`의 역사적 artifact 기록은
 [`docs/RELEASE_READINESS_0.1.5.md`](docs/RELEASE_READINESS_0.1.5.md)에 분리합니다.
 
 ## Release and community-readiness gate
 
 공식 `0.1.5`는 새 모델을 기본으로 추가하지 않은 experimental release입니다.
-현재 `Unreleased`와 다음 release는 데이터 무결성, 모델 공급망, QGIS 편집
+현재 `0.1.6` 후보와 다음 release는 데이터 무결성, 모델 공급망, QGIS 편집
 수명주기, Python/QGIS 호환성, 재현 패키징을 닫아야 합니다. 진입 조건은
 다음과 같습니다.
 
@@ -82,10 +85,9 @@ Gate A–E는 [`docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md`](docs/OPEN_SOURCE_DEVELOPM
 
 ## M0.5 — Human-led Ink Centerline + direction-aware Live-Wire
 
-상태: `Unreleased` source에서 metadata `0.1.5` 유지·검증 (macOS QGIS 3.44.8
-clean-profile 실제 map-tool 저장과 commit `30e18f6`의 QGIS
-3.22.16/3.44.13/4.2.1 원격 package/runtime-safety CI 통과; 공식 0.1.5 ZIP을
-소급한 검증은 아님)
+상태: metadata `0.1.6` experimental 후보 (macOS QGIS 3.44.8 clean-profile 실제
+map-tool 저장과 QGIS 3.22.16/3.44.13/4.2.1 원격 package/runtime-safety 계약을
+통과한 기능 소스이며, 버전이 반영된 exact ZIP 증거는 0.1.6 readiness 기록에 결속)
 
 완료:
 
@@ -126,7 +128,7 @@ USGS 실도엽 1장·crop 6개 staged, 나머지 7장과 독립 검수 대기
 - sample×method별 fresh process, 1 CPU thread, OpenCL 차단, 반복 해시·시간·RSS 직접 기록
 - worker의 입력·설정·소스·반복 출력 해시와 artifact 메타데이터를 대조한 뒤 검증된 manifest를 no-replace 원자 게시하는 `benchmarks generate` 흐름
 - 실제 OpenCV 4 통합 회귀와 OpenCV 5 반환 배열 모양의 합성 계약 테스트
-  (OpenCV 5 runtime 자체는 `0.1.5` 지원·검증 범위가 아님)
+  (OpenCV 5 runtime 자체는 `0.1.6` 지원·검증 범위가 아님)
 - 고정 commit·크기·SHA-256을 코드 계약으로 둔 EfficientSAM-Ti split ONNX model store
 - 명시적 fetch만 네트워크를 사용하고 실행은 content-addressed cache를 매번 재검증하는 offline 경계
 - encoder/decoder별 CPUExecutionProvider·단일 thread·sequential/graph-opt 설정과 OpenCV 상태를 실제 readback으로 attest하는 split adapter

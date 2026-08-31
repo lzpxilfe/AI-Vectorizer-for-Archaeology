@@ -18,10 +18,12 @@ from unittest import mock
 import litmus_sam_status as litmus
 import package_plugin
 from scripts import package_release
+from scripts import qgis_clean_profile_smoke as clean_profile_smoke
 
 
 ROOT = Path(__file__).resolve().parents[1]
 TEST_VERSION = "9.8.7"
+OTHER_TEST_VERSION = "9.8.8"
 
 
 class DependencyDeclarationTests(unittest.TestCase):
@@ -124,6 +126,7 @@ class DependencyDeclarationTests(unittest.TestCase):
         parsed_metadata = dict(parser.items("general"))
         version = parsed_metadata["version"]
         self.assertRegex(version, r"^[0-9]+\.[0-9]+\.[0-9]+$")
+        self.assertEqual(clean_profile_smoke.DEFAULT_EXPECTED_VERSION, version)
         self.assertIn("0-100% cursor/path", parsed_metadata["about"])
         self.assertIn("External dependencies:", parsed_metadata["about"])
         self.assertIn("pip stacks require Python 3.10", parsed_metadata["about"])
@@ -135,8 +138,8 @@ class DependencyDeclarationTests(unittest.TestCase):
         self.assertIsNotNone(citation_version)
         self.assertEqual(citation_version.group(1), version)
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertIn(f"## {version} — experimental QGIS release", changelog)
-        self.assertIn("date-released: 2026-08-26", citation)
+        self.assertIn(f"## {version} — experimental release candidate", changelog)
+        self.assertNotIn("date-released:", citation)
 
         for relative_path in (
             "README.md",
@@ -152,14 +155,23 @@ class DependencyDeclarationTests(unittest.TestCase):
         release_record = ROOT / "docs" / f"RELEASE_READINESS_{version}.md"
         self.assertTrue(release_record.is_file())
         release_evidence = release_record.read_text(encoding="utf-8")
-        self.assertIn(
-            "24f1def6acd63d483ea6bf7c20b944f56507ead52190667ec4f35562fca6c964",
-            release_evidence,
-        )
+        self.assertIn(version, release_evidence)
         self.assertIn(
             package_release.FROZEN_RELEASE_SHA256[version], release_evidence
         )
         self.assertIn("Frozen repository-local candidate", release_evidence)
+
+        historical_evidence = (
+            ROOT / "docs" / "RELEASE_READINESS_0.1.5.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "24f1def6acd63d483ea6bf7c20b944f56507ead52190667ec4f35562fca6c964",
+            historical_evidence,
+        )
+        self.assertIn(
+            package_release.FROZEN_RELEASE_SHA256["0.1.5"],
+            historical_evidence,
+        )
         self.assertFalse((ROOT / "docs" / "COMPETITIVE_EXECUTION_PLAN.md").exists())
 
     def test_public_docs_have_resolvable_local_links_and_no_commercial_scorecard(self):
@@ -349,6 +361,49 @@ class ReleasePackagingTests(unittest.TestCase):
                 [path.name for path in dist_dir.iterdir()],
                 [production_zip.name],
             )
+
+    def test_new_metadata_cannot_overwrite_an_older_frozen_candidate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            plugin_dir = root / "ai_vectorizer"
+            plugin_dir.mkdir()
+            (plugin_dir / "metadata.txt").write_text(
+                f"[general]\nversion={OTHER_TEST_VERSION}\n",
+                encoding="utf-8",
+            )
+            (plugin_dir / "config.py").write_text(
+                "RELEASE_CANDIDATE = True\n",
+                encoding="utf-8",
+            )
+            dist_dir = root / "dist"
+            dist_dir.mkdir()
+            frozen_zip = dist_dir / f"ai_vectorizer-{TEST_VERSION}.zip"
+            frozen_payload = b"older frozen release bytes"
+            frozen_zip.write_bytes(frozen_payload)
+
+            with mock.patch.multiple(
+                package_release,
+                ROOT=root,
+                PLUGIN_DIR=plugin_dir,
+                DIST_DIR=dist_dir,
+                TOP_LEVEL_ITEMS=("metadata.txt", "config.py"),
+                FROZEN_RELEASE_SHA256={
+                    TEST_VERSION: package_release.bytes_hash(frozen_payload)
+                },
+            ):
+                for approval in (None, OTHER_TEST_VERSION, TEST_VERSION):
+                    with self.subTest(approval=approval):
+                        with self.assertRaisesRegex(
+                            ValueError,
+                            "Refusing to replace frozen",
+                        ):
+                            package_release.build_release_zip(
+                                OTHER_TEST_VERSION,
+                                output_path=frozen_zip,
+                                approved_version=approval,
+                            )
+
+            self.assertEqual(frozen_zip.read_bytes(), frozen_payload)
 
     def test_explicit_unreleased_output_is_checked_without_touching_frozen_artifacts(self):
         with tempfile.TemporaryDirectory() as temporary:

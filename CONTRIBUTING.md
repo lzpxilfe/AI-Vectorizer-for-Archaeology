@@ -9,7 +9,8 @@ ArchaeoTrace는 연구·현장 자료를 안전하게 다루는 QGIS plugin이�
 - 실제 기능과 module map: [`docs/FEATURES_AND_ARCHITECTURE.md`](docs/FEATURES_AND_ARCHITECTURE.md)
 - 다음 단계와 비목표: [`ROADMAP.md`](ROADMAP.md)
 - 안전 경계와 공개 gate: [`docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md`](docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md)
-- 현재 검증 증거: [`docs/RELEASE_READINESS_0.1.5.md`](docs/RELEASE_READINESS_0.1.5.md)
+- 현재 검증 증거: [`docs/RELEASE_READINESS_0.1.6.md`](docs/RELEASE_READINESS_0.1.6.md)
+- 공식 0.1.5 역사 기록: [`docs/RELEASE_READINESS_0.1.5.md`](docs/RELEASE_READINESS_0.1.5.md)
 
 계획 기능을 이미 구현된 것처럼 문서화하지 마세요. 합성 fixture 결과를 실제 역사
 지도 정확도나 사용자 작업 속도 근거로 사용하지 않습니다.
@@ -46,7 +47,7 @@ Windows에서는 `.venv\Scripts\python.exe`를 사용하세요. 선택 SAM backe
    ```
 
    metadata-derived 기본 경로는 공식 QGIS artifact가 아닌 repository-local
-   `0.1.5` 후보를 동결한 자리입니다. 일반 `Unreleased` 검증에서는 위처럼
+   후보를 동결한 자리입니다. 현재 `0.1.6` 이후의 일반 `Unreleased` 검증에서는 위처럼
    반드시 별도 `--output` ZIP을 사용하세요.
 
 2. Python 3.8 source 계약

@@ -3,8 +3,9 @@
 최초 기준일: 2026-08-23 · 현황 갱신: 2026-08-31
 
 현재 코드의 기능과 설계는 [`FEATURES_AND_ARCHITECTURE.md`](FEATURES_AND_ARCHITECTURE.md),
-공식 experimental `0.1.5`와 현재 `Unreleased` source의 실행 증거·차단 조건은
-[`RELEASE_READINESS_0.1.5.md`](RELEASE_READINESS_0.1.5.md)에 기록합니다.
+현재 experimental `0.1.6` 후보의 실행 증거·차단 조건은
+[`RELEASE_READINESS_0.1.6.md`](RELEASE_READINESS_0.1.6.md), 공식 `0.1.5` 기록은
+[`RELEASE_READINESS_0.1.5.md`](RELEASE_READINESS_0.1.5.md)에 분리합니다.
 
 ## Why this project exists
 
@@ -17,7 +18,7 @@ ArchaeoTrace는 고지도에서 등고선을 복원하는 사람이 계정, 원�
          → 위상·표고 QA → DEM/hillshade → 불확실성·재현 기록
 ```
 
-공식 `0.1.5` 이후의 현재 `Unreleased` source에는 로컬 추적, QGIS 편집
+공식 `0.1.5` 이후의 현재 `0.1.6` 후보에는 로컬 추적, QGIS 편집
 버퍼, 고도·표고점 저장과 실험적
 TIN DEM/hillshade까지 구현되어 있습니다. 위상 QA, uncertainty/NoData,
 DEM provenance sidecar는 아직 구현되지 않았으므로 현재 기능처럼 소개하지 않습니다.
@@ -73,7 +74,7 @@ DEM provenance sidecar는 아직 구현되지 않았으므로 현재 기능처�
 - ZIP SHA-256, commit, CI run, 검증 범위와 남은 위험을 한 릴리스 기록에 묶습니다.
 
 공식 QGIS plugin 저장소는 experimental `0.1.5`를 2026-08-26 게시했습니다.
-공식 ZIP, repository-local `d292…` 사전 후보와 현재 `Unreleased` ZIP은
+공식 ZIP, repository-local `d292…` 사전 후보와 현재 `0.1.6` 후보 ZIP은
 서로 다른 artifact입니다. 정확한 hash·source 관계는 release-readiness 기록에
 분리합니다. Git history의 `0.1.5–0.1.7`과 미공개 worktree의 `0.1.8` 표시는
 추가 QGIS 릴리스가 아닌 개발 metadata였으며 이력은 rewrite하지 않습니다.
