@@ -72,6 +72,25 @@ keep the original Ink route. Passing the smoke gate only proves integration on
 a controlled adversarial fixture; it is not a quality claim and cannot replace
 the licensed 8-sheet / 48-crop historical-map holdout below.
 
+## Neutral label-gap manual shadow
+
+The companion neutral/dark-contour fixture confirms that the coloured bridge
+does **not** silently guess across a label. It then supplies a recorded,
+user-confirmed pair of endpoints and visible local tangents to the pure
+geometry `manual_gap_bridge` core. This is the contract used by the explicit
+`⤴ Bridge label gap` preview in QGIS; it is not OCR, endpoint detection, or a
+model result.
+
+```bash
+manual_gap_dir="$(mktemp -d)"
+python3 -m benchmarks.manual_gap_shadow --output-dir "$manual_gap_dir"
+```
+
+The result records both the failing neutral Ink control and the separate
+manual bridge. The manual result is meaningful only because the anchors were
+explicit user input; it must never be cited as an automatic detector score or
+historical-map ranking.
+
 ## DexiNed shadow experiment (rejected CPU candidate)
 
 `benchmarks.dexined_shadow` is an explicit local experiment around the OpenCV

@@ -136,8 +136,13 @@ def _paint_digit(
                     )
 
 
-def build_complex_trace_case() -> ComplexTraceCase:
-    """Return the fixed map-like image used by the candidate smoke gate."""
+def _build_complex_trace_case(
+    *,
+    name: str,
+    target_color: Sequence[int],
+    faded_color: Sequence[int],
+) -> ComplexTraceCase:
+    """Build one deterministic map-like image for an explicitly named case."""
 
     height = width = 256
     generator = np.random.default_rng(20260907)
@@ -159,13 +164,13 @@ def build_complex_trace_case() -> ComplexTraceCase:
     _paint_path(
         image,
         reference,
-        (185, 226, 226),
+        target_color,
         2,
         omitted_x=NUMERIC_LABEL_GAP_X,
         omitted_ranges=((174, 182),),
     )
     faded = tuple(point for point in reference if 82 <= point[0] <= 116)
-    _paint_path(image, faded, (207, 231, 231), 2)
+    _paint_path(image, faded, faded_color, 2)
 
     # Pale survey grid and an elevation label occupy the target's blank label
     # gap.  The target reference remains independently specified above, so the
@@ -187,12 +192,37 @@ def build_complex_trace_case() -> ComplexTraceCase:
 
     image.setflags(write=False)
     return ComplexTraceCase(
-        name="coloured-faded-text-parallel-stain-v1",
+        name=name,
         image_rgb=image,
         start_xy=reference[0],
         end_xy=reference[-1],
         reference_xy=reference,
         parallel_xy=parallel,
+    )
+
+
+def build_complex_trace_case() -> ComplexTraceCase:
+    """Return the fixed coloured map-like image used by the Ink smoke gate."""
+
+    return _build_complex_trace_case(
+        name="coloured-faded-text-parallel-stain-v1",
+        target_color=(185, 226, 226),
+        faded_color=(207, 231, 231),
+    )
+
+
+def build_neutral_label_gap_case() -> ComplexTraceCase:
+    """Return the dark-contour variant for an explicit manual-gap experiment.
+
+    This intentionally removes the colour distinction which lets the automatic
+    Ink v2 bridge fail closed.  The matching manual shadow can then evaluate a
+    user-confirmed bridge without pretending a detector can infer the answer.
+    """
+
+    return _build_complex_trace_case(
+        name="neutral-faded-text-parallel-stain-v1",
+        target_color=(102, 84, 70),
+        faded_color=(130, 112, 98),
     )
 
 

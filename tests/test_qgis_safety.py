@@ -537,6 +537,41 @@ class QgisSafetySourceTests(unittest.TestCase):
         self.assertIn("self._manual_avoidance_regions = []", reset)
         self.assertIn("self.manual_avoidance_band.reset", reset)
 
+    def test_manual_gap_bridge_is_explicit_preview_only_and_model_free(self):
+        bridge = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "preview_manual_gap_bridge",
+            "SmartTraceTool",
+        )
+        tangent = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "_manual_gap_bridge_tangent",
+            "SmartTraceTool",
+        )
+        press = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "canvasPressEvent",
+            "SmartTraceTool",
+        )
+        reset = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "reset_tracing",
+            "SmartTraceTool",
+        )
+        dialog = _source("ai_vectorizer/ui/main_dialog.py")
+
+        self.assertIn("build_manual_gap_bridge", bridge)
+        self.assertIn("_manual_gap_bridge_preview_target", bridge)
+        self.assertIn("self.preview_path = map_points[1:]", bridge)
+        self.assertNotIn("save_to_layer", bridge)
+        self.assertNotIn("sam_engine", bridge)
+        self.assertIn("centerline", tangent)
+        self.assertIn("self._manual_gap_bridge_preview_matches", press)
+        self.assertIn("self._commit_visible_livewire_segment", press)
+        self.assertIn("_manual_gap_bridge_preview_target = None", reset)
+        self.assertIn("manual_gap_bridge_btn", dialog)
+        self.assertIn("preview_manual_gap_bridge", dialog)
+
     def test_dem_processing_uses_exact_selected_project_layer(self):
         reference = _function_source(
             "ai_vectorizer/core/dem_pipeline.py",

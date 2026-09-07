@@ -52,6 +52,10 @@ from ..core.livewire import (
     is_livewire_available,
 )
 from ..core.line_evidence import crop_line_evidence
+from ..core.manual_gap_bridge import (
+    ManualGapBridgeError,
+    build_manual_gap_bridge,
+)
 from ..core.trace_guidance import (
     TraceGuidance,
     crop_trace_guidance,
@@ -684,6 +688,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     MANUAL_AVOIDANCE_WIDTH = 2
     MANUAL_AVOIDANCE_MAX_REGIONS = 12
     MANUAL_AVOIDANCE_FEATHER_PIXELS = 2.0
+    MANUAL_GAP_BRIDGE_TANGENT_RADIUS_PIXELS = 3
     SPOT_LAYER_OWNERSHIP_PROPERTY = "ArchaeoTrace/ownedSpotHeightLayer"
     A_STAR_NEIGHBORS = [
         (-1, 0), (1, 0), (0, -1), (0, 1),
@@ -1042,6 +1047,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         )
         self._manual_avoidance_regions = []
         self._manual_avoidance_draft_start = None
+        self._manual_gap_bridge_preview_target = None
+        self._manual_gap_bridge_preview_generation = None
 
         # Spot Height Layer (Point)
         self.spot_height_layer = None
@@ -1320,6 +1327,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._pending_livewire_accept_point = None
         self._pending_livewire_auto_accept = False
         self._pending_livewire_recovery_identity = None
+        self._manual_gap_bridge_preview_target = None
+        self._manual_gap_bridge_preview_generation = None
         self.cached_edges = None
         self.cached_cost = None
         self.cached_ink_evidence = None
@@ -1585,6 +1594,147 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self._manual_avoidance_regions.pop()
         self._refresh_after_manual_avoidance_change(
             "Manual avoidance guidance changed; Ink remains champion."
+        )
+        return True
+
+    def _manual_gap_bridge_tangent(self, pixel_point):
+        """Read a local tangent near an explicit manual bridge endpoint.
+
+        The user's map point remains the actual bridge endpoint.  This small
+        lookup supplies only its visible local direction; it never searches
+        for, joins, or commits another contour endpoint.
+        """
+
+        evidence = self.cached_ink_evidence
+        if evidence is None:
+            return None
+        height, width = evidence.shape
+        center_x = int(round(float(pixel_point[0])))
+        center_y = int(round(float(pixel_point[1])))
+        radius = int(self.MANUAL_GAP_BRIDGE_TANGENT_RADIUS_PIXELS)
+        candidate = None
+        for y in range(max(0, center_y - radius), min(height, center_y + radius + 1)):
+            for x in range(max(0, center_x - radius), min(width, center_x + radius + 1)):
+                if not evidence.centerline[y, x]:
+                    continue
+                tangent_x = float(evidence.tangent_x[y, x])
+                tangent_y = float(evidence.tangent_y[y, x])
+                if math.hypot(tangent_x, tangent_y) <= 1e-6:
+                    continue
+                distance_squared = (x - center_x) ** 2 + (y - center_y) ** 2
+                rank = (float(evidence.coherence[y, x]), -distance_squared)
+                if candidate is None or rank > candidate[0]:
+                    candidate = (rank, (tangent_x, tangent_y))
+        return None if candidate is None else candidate[1]
+
+    def _manual_gap_bridge_preview_matches(self, point):
+        target = getattr(self, "_manual_gap_bridge_preview_target", None)
+        if (
+            target is None
+            or getattr(self, "_manual_gap_bridge_preview_generation", None)
+            != self._cache_generation
+        ):
+            return False
+        return math.hypot(point.x() - target.x(), point.y() - target.y()) <= (
+            self.canvas.mapUnitsPerPixel() * self.PROPOSAL_ACCEPT_TOLERANCE_PIXELS
+        )
+
+    def preview_manual_gap_bridge(self):
+        """Show an explicit neutral-contour gap bridge; a second click commits it."""
+
+        if (
+            not self.is_tracing
+            or self.freehand
+            or self.edge_method != EdgeDetector.METHOD_INK
+            or self.edge_weight <= 0.0
+            or not self.path_points
+            or self.cached_ink_evidence is None
+        ):
+            self._push_message(
+                self._tr(
+                    "Ink 증거가 준비된 추적 중에만 라벨 공백 연결을 미리 볼 수 있습니다.",
+                    "Label-gap bridging needs an active trace with ready Ink evidence.",
+                ),
+                MESSAGE_INFO,
+                4,
+            )
+            return False
+        if self._pending_livewire_accept_point is not None:
+            self._push_message(
+                self._tr(
+                    "대기 중인 Ink 지점이 끝난 뒤 라벨 공백을 연결하세요.",
+                    "Wait for the pending Ink point before bridging a label gap.",
+                ),
+                MESSAGE_INFO,
+                3,
+            )
+            return False
+        target_map = self._livewire_request_point or self.last_hover_pos
+        if target_map is None:
+            self._push_message(
+                self._tr(
+                    "공백 반대편 등고선 위에 커서를 올린 뒤 다시 누르세요.",
+                    "Move the cursor onto the contour beyond the gap, then try again.",
+                ),
+                MESSAGE_INFO,
+                4,
+            )
+            return False
+        try:
+            start_pixel = tuple(
+                float(value) for value in self.map_to_pixel_float(self.path_points[-1])
+            )
+            end_pixel = tuple(
+                float(value) for value in self.map_to_pixel_float(target_map)
+            )
+            height, width = self.cached_ink_evidence.shape
+            if not (
+                0.0 <= start_pixel[0] < width
+                and 0.0 <= start_pixel[1] < height
+                and 0.0 <= end_pixel[0] < width
+                and 0.0 <= end_pixel[1] < height
+            ):
+                raise ManualGapBridgeError("bridge endpoints leave the Ink cache")
+            start_tangent = self._manual_gap_bridge_tangent(start_pixel)
+            end_tangent = self._manual_gap_bridge_tangent(end_pixel)
+            if start_tangent is None or end_tangent is None:
+                raise ManualGapBridgeError("Ink could not read both endpoint directions")
+            bridge = build_manual_gap_bridge(
+                start_pixel,
+                end_pixel,
+                start_tangent,
+                end_tangent,
+            )
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self._push_message(
+                self._tr(
+                    f"라벨 공백 연결을 만들지 않았습니다: {exc}",
+                    f"Label-gap bridge was not created: {exc}",
+                ),
+                MESSAGE_WARNING,
+                5,
+            )
+            return False
+
+        map_points = [self.pixel_to_map(x, y) for x, y in bridge.points_xy]
+        if len(map_points) < 2:
+            return False
+        map_points[0] = QgsPointXY(self.path_points[-1])
+        map_points[-1] = QgsPointXY(target_map)
+        self._invalidate_recovery("Manual label-gap bridge is awaiting confirmation.")
+        self.preview_path = map_points[1:]
+        self.preview_is_global = False
+        self.preview_target = None
+        self._manual_gap_bridge_preview_target = QgsPointXY(target_map)
+        self._manual_gap_bridge_preview_generation = self._cache_generation
+        self._render_preview()
+        self._push_message(
+            self._tr(
+                "라벨 공백 연결 미리보기입니다. 같은 끝점을 클릭하면 확정합니다.",
+                "Label-gap bridge preview shown. Click the same endpoint to accept it.",
+            ),
+            MESSAGE_INFO,
+            5,
         )
         return True
 
@@ -3137,6 +3287,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.preview_path = []
         self.preview_is_global = False
         self.preview_target = None
+        self._manual_gap_bridge_preview_target = None
+        self._manual_gap_bridge_preview_generation = None
         self._render_preview()
 
     def _schedule_auto_path_preview(self, point):
@@ -3420,6 +3572,17 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         point = self.toMapCoordinates(event.pos())
         event_modifiers = event.modifiers() if hasattr(event, "modifiers") else 0
 
+        if self._manual_gap_bridge_preview_target is not None:
+            if self._manual_gap_bridge_preview_matches(point):
+                self._manual_gap_bridge_preview_target = None
+                self._manual_gap_bridge_preview_generation = None
+                self._commit_visible_livewire_segment(
+                    point,
+                    sample_pos=event.pos(),
+                )
+                return
+            self._clear_preview(stop_timer=False)
+
         if (
             self.is_tracing
             and event_modifiers
@@ -3660,6 +3823,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 self._redraw_manual_avoidance_band()
             return
+
+        if self._manual_gap_bridge_preview_target is not None:
+            if self._manual_gap_bridge_preview_matches(current_point):
+                return
+            self._clear_preview(stop_timer=False)
 
         if self.last_map_point is None:
             self.last_map_point = current_point
@@ -5221,6 +5389,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._pending_livewire_recovery_identity = None
         self._manual_avoidance_regions = []
         self._manual_avoidance_draft_start = None
+        self._manual_gap_bridge_preview_target = None
+        self._manual_gap_bridge_preview_generation = None
         self.cached_trace_guidance = None
         self.checkpoints = []
         self.start_point = None

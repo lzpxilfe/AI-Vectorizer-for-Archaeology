@@ -1418,6 +1418,49 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         self.assertEqual(points[:2].tolist(), [[20.0, 20.0], [60.0, 20.0]])
         self.assertNotIn([4.0, 8.0], points.tolist())
 
+    def test_manual_gap_bridge_stays_preview_only_until_explicit_acceptance(self):
+        import numpy as np
+
+        from ai_vectorizer.core.edge_detector import EdgeDetector
+        from ai_vectorizer.core.line_evidence import LineEvidence
+
+        tool = self.SmartTraceTool.__new__(self.SmartTraceTool)
+        centerline = np.zeros((72, 168), dtype=bool)
+        centerline[31, 8:61] = True
+        centerline[31, 109:160] = True
+        tangent_x = centerline.astype(np.float32)
+        tool.cached_ink_evidence = LineEvidence(
+            center_score=centerline.astype(np.float32),
+            centerline=centerline,
+            tangent_x=tangent_x,
+            tangent_y=np.zeros_like(tangent_x),
+            coherence=centerline.astype(np.float32),
+        )
+        anchor = QgsPointXY(60, 31)
+        target = QgsPointXY(109, 31)
+        tool.is_tracing = True
+        tool.freehand = False
+        tool.edge_method = EdgeDetector.METHOD_INK
+        tool.edge_weight = 1.0
+        tool.path_points = [anchor]
+        tool._livewire_request_point = target
+        tool.last_hover_pos = target
+        tool._pending_livewire_accept_point = None
+        tool._cache_generation = 7
+        tool.map_to_pixel_float = lambda point: (point.x(), point.y())
+        tool.pixel_to_map = lambda x, y: QgsPointXY(x, y)
+        tool._invalidate_recovery = mock.Mock()
+        tool._render_preview = mock.Mock()
+        tool._push_message = mock.Mock()
+        tool._tr = lambda _ko, en: en
+        tool.canvas = SimpleNamespace(mapUnitsPerPixel=lambda: 1.0)
+
+        self.assertTrue(tool.preview_manual_gap_bridge())
+        self.assertEqual(tool.path_points, [anchor])
+        self.assertEqual(tool.preview_path[-1], target)
+        self.assertTrue(tool._manual_gap_bridge_preview_matches(target))
+        tool._invalidate_recovery.assert_called_once()
+
     def test_recovery_task_crops_matching_guidance_and_rejects_a_stale_shape(self):
         import numpy as np
 

@@ -87,6 +87,19 @@ Live-Wire의 `evidence=None`은 기존 계산을 그대로 사용합니다. evid
 gap은 이전 Ink route를 그대로 사용합니다. 이는 문자 인식, model download, telemetry,
 또는 mask OR가 아닙니다.
 
+### Manual neutral-contour bridge (Unreleased)
+
+검은·갈색 등고선은 색만으로 같은 선의 양끝을 판정할 수 없으므로 자동 bridge를 만들지
+않습니다. 대신 사용자는 공백 전 anchor를 확정하고 반대편 선 위에 커서를 둔 뒤
+`⤴ 라벨 공백 연결`을 누릅니다. core는 그 두 **명시적** map endpoint를 source pixel로
+변환하고, 각 endpoint의 반경 3px 내 Ink centerline tangent만 읽어 최대 128px의
+Hermite preview를 만듭니다. tangent가 없거나 bridge가 1.25배 이상 우회하면 거부합니다.
+
+이 preview는 green segment일 뿐입니다. 사용자가 같은 반대편 endpoint를 다시 클릭해야
+일반 anchor처럼 edit buffer 후보에 들어가며, 다른 곳으로 움직이거나 클릭하면 버려지고
+Ink preview가 다시 계산됩니다. raster·OCR·model·network는 이 동작에 사용되지 않으며,
+`LineEvidence`와 Smart Recovery의 champion/challenger 정책도 바꾸지 않습니다.
+
 ## Manual Avoid Guidance (Unreleased)
 
 Ink 경로가 문자·기호·오염 얼룩을 따라가려 할 때, 추적 중 `Alt`를 누른 채 두 번

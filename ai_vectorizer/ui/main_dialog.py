@@ -501,6 +501,14 @@ class AIVectorizerDock(QDockWidget):
                 getattr(self.active_tool, "smart_recovery_enabled", False)
             )
         )
+        if hasattr(self, "manual_gap_bridge_btn"):
+            self.manual_gap_bridge_btn.setEnabled(
+                not enabled
+                and self.active_tool is not None
+                and callable(
+                    getattr(self.active_tool, "preview_manual_gap_bridge", None)
+                )
+            )
         self._update_dem_button_for_tracing(not enabled)
 
     def _set_idle_ui(self, prompt=False):
@@ -1039,6 +1047,19 @@ class AIVectorizerDock(QDockWidget):
             return False
         return bool(retry())
 
+    def preview_manual_gap_bridge(self):
+        preview = getattr(self.active_tool, "preview_manual_gap_bridge", None)
+        if not callable(preview):
+            self._set_status_label(
+                self._tr(
+                    "먼저 Ink 트레이싱을 시작하세요",
+                    "Start Ink tracing before bridging a label gap",
+                ),
+                "warning",
+            )
+            return False
+        return bool(preview())
+
     @classmethod
     def _configure_hed_storage(cls):
         """Keep HED assets beside SAM weights so ZIP upgrades preserve them."""
@@ -1235,6 +1256,10 @@ class AIVectorizerDock(QDockWidget):
         self.recovery_retry_btn.setEnabled(False)
         self.recovery_retry_btn.setVisible(False)
         recovery_actions.addWidget(self.recovery_retry_btn)
+        self.manual_gap_bridge_btn = QPushButton()
+        self.manual_gap_bridge_btn.clicked.connect(self.preview_manual_gap_bridge)
+        self.manual_gap_bridge_btn.setEnabled(False)
+        recovery_actions.addWidget(self.manual_gap_bridge_btn)
         step3_layout.addLayout(recovery_actions)
 
         self.recovery_runtime_guide = QLabel()
@@ -1444,6 +1469,18 @@ class AIVectorizerDock(QDockWidget):
             self._tr(
                 "확정되지 않은 현재 Ink 구간에 복구를 한 번 다시 요청합니다.",
                 "Explicitly retry recovery for the current uncommitted Ink segment.",
+            )
+        )
+        self.manual_gap_bridge_btn.setText(
+            self._tr(
+                "⤴ 라벨 공백 연결",
+                "⤴ Bridge label gap",
+            )
+        )
+        self.manual_gap_bridge_btn.setToolTip(
+            self._tr(
+                "공백 전 anchor를 확정하고 반대편 등고선 위에 커서를 둔 뒤 누르세요. 초록 미리보기를 같은 끝점에서 다시 클릭해야 확정됩니다.",
+                "Confirm an anchor before the gap, hover the contour beyond it, then click. Click the same endpoint again to accept the green preview.",
             )
         )
         self.recovery_runtime_guide.setText(

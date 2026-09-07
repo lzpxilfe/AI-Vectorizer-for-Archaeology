@@ -100,6 +100,13 @@ Freehand로 교정하세요. Smart Recovery는 SAM mask를 선으로 저장하�
 않습니다. 끝점·우회·강한 Ink 보존·평행선 전환 검사를 통과한 경로만 채택합니다.
 assist `0%`에서는 model과 evidence 계산을 모두 생략합니다.
 
+숫자가 등고선을 **실제로 끊은** 검은·갈색 지도에서는 공백 직전의 anchor를 먼저
+확정하고, 반대편에 커서를 올린 뒤 `⤴ 라벨 공백 연결`을 누를 수 있습니다. 이 기능은
+OCR·모델·자동 endpoint 탐색을 하지 않습니다. 두 사용자 endpoint와 근처 Ink tangent로
+만든 green Hermite preview를 보여 주며, 같은 끝점을 한 번 더 클릭할 때에만 해당 구간을
+저장 후보에 넣습니다. 방향을 읽지 못하거나 공백이 3–128px 범위를 벗어나면 기존 Ink
+preview를 유지합니다.
+
 OpenCV 선택 기능의 선언 범위는 `OpenCV 4.8–4.11`입니다.
 
 ```bash

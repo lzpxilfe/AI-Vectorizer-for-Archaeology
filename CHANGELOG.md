@@ -20,6 +20,10 @@
   continuity bridge. 시작 anchor와 양쪽 centerline endpoint가 같은 비중성 색·방향을
   보일 때에만 Live-Wire 내부의 연속 score를 보강하며, `LineEvidence.centerline`과
   0.1.5 Ink 경로는 변경하지 않습니다.
+- 검은·갈색 등고선의 숫자 공백에 쓰는 명시적 `⤴ 라벨 공백 연결` preview. 공백 전
+  anchor를 확정하고 반대편 선에 커서를 둔 뒤 사용자가 버튼과 같은 끝점의 두 번째
+  클릭으로 채택해야 하며, 이미지 분석·OCR·model 없이 두 사용자 endpoint와 local
+  tangent만으로 제한된 Hermite segment를 만듭니다.
 
 ### Safety
 
@@ -30,6 +34,9 @@
 - continuity bridge는 grayscale/neutral anchor, 색 불일치, 방향 불일치, 12px보다
   짧거나 96px보다 긴 공백, 복잡하게 갈라진 색 endpoint에서 동작하지 않습니다. 이때
   기존 Ink champion을 그대로 유지하며 virtual support를 이진 mask와 OR하지 않습니다.
+- manual gap bridge는 3–128px 사이의 명시적 endpoint만 받고, local tangent를 읽지
+  못하거나 detour가 1.25배를 넘으면 preview조차 만들지 않습니다. 저장은 같은
+  endpoint를 다시 클릭해 사용자가 green preview를 확인한 뒤에만 일어납니다.
 
 ## 0.1.6 — experimental release candidate (not yet published)
 

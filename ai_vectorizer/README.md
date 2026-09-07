@@ -74,6 +74,12 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 > 실제 재배포 가능 고지도 holdout 결과 전에는 기본 승격이나 정확도 우위를 주장하지
 > 않습니다. 모델 파일은 플러그인 ZIP에 포함되지 않습니다.
 
+> 검은·갈색 등고선이 숫자 때문에 실제로 끊겼다면, 공백 전 anchor를 확정하고 반대편
+> 선에 커서를 둔 뒤 `⤴ 라벨 공백 연결`을 누르세요. OCR·model·자동 endpoint 탐색 없이
+> 두 사용자 endpoint와 반경 3px의 local Ink tangent로 green bridge preview만 만듭니다.
+> 같은 끝점을 다시 클릭할 때만 채택되며, 방향을 읽지 못하거나 3–128px 범위를 벗어난
+> 공백은 Ink preview를 그대로 유지합니다.
+
 ## 📦 Installation
 
 ### 1. Install the plugin
