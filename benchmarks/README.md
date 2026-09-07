@@ -27,6 +27,80 @@ three hashes. `benchmark_latest.json` is the single atomically replaced pointer
 to the active run, so an interrupted write cannot mix report generations. It
 needs only Python's standard library.
 
+## Complex synthetic candidate smoke gate
+
+Before connecting a new detector or segmentation model to QGIS, run the
+deterministic complex Ink challenge. It calls the real legacy Ink and Ink v2
+detector/Live-Wire APIs, rather than mocking an edge map. One 256×256 fixture
+combines a coloured/faded thick contour, a scan break, and a contour segment
+deliberately left blank for the `289` elevation label (not merely painted over
+by glyphs), plus grid crossings, a nearby darker parallel contour, paper grain,
+stains and speckles.
+
+```bash
+challenge_dir="$(mktemp -d)"
+python3 -m benchmarks.complex_synthetic --output-dir "$challenge_dir"
+```
+
+The command produces `complex-trace-challenge.ppm` for visual inspection and
+`result.json` with input/path hashes, endpoint preservation, target p95
+distance, bidirectional 4px coverage, **numeric-label-gap** coverage, and
+nearby-parallel switch fraction for `ink-livewire-v1` and `ink-livewire-v2`.
+It is deliberately marked
+`historical_map_evidence=false` and `publication_ranking_eligible=false`.
+
+A candidate adapter must receive the same image and start/end prompt, must not
+read the known reference, and must emit an ordered final path before it can be
+compared using these fields. To score an already-produced local candidate path,
+pass an array of `[x, y]` values (or `{"points_xy": [...]}`) explicitly:
+
+```bash
+candidate_dir="$(mktemp -d)"
+python3 -m benchmarks.complex_synthetic --output-dir "$candidate_dir" \
+  --candidate-path work/my-candidate-points.json
+```
+
+The strict smoke gate requires preserved endpoints, p95 ≤ 4px, both path→ref
+and ref→path 4px coverage ≥ 0.92, label-gap coverage ≥ 0.85, and
+parallel-switch fraction ≤ 0.03. The current Ink v2 baseline is intentionally
+run and reported too, but does **not** pass this hard fixture yet; it improves
+on legacy Ink while exposing its unresolved label-gap and parallel-line risks.
+Passing the smoke gate only proves integration on a controlled adversarial
+fixture; it is not a quality claim and cannot replace the licensed 8-sheet /
+48-crop historical-map holdout below.
+
+## DexiNed shadow experiment (rejected CPU candidate)
+
+`benchmarks.dexined_shadow` is an explicit local experiment around the OpenCV
+DexiNed ONNX artifact, not a plugin backend, dependency, model downloader, or
+fallback. It accepts only the documented fixed revision and SHA-256, opens a
+one-thread CPU-only ONNX Runtime session, and treats its final edge response as
+continuous support to Ink v2. Ink's centerline and tangent field remain
+authoritative; a DexiNed threshold is never ORed into a final line.
+
+On 2026-09-07 this exact 47,235,563-byte SHA-256-pinned artifact was verified
+and attempted with ONNX Runtime 1.29.0 on CPU. Session construction and shape
+checks succeeded, but inference failed at `DequantizeLinear` because the
+artifact's quantization block size is unsupported by that CPU path. The runner
+writes a structured rejected result and exits 2; it does not try OpenCV DNN,
+another provider, or another model. Therefore DexiNed is **not** a current
+product candidate.
+
+To repeat the negative result with a user-supplied local artifact (the command
+does not download it):
+
+```bash
+uv run --with 'onnxruntime>=1.17,<2' python -m benchmarks.dexined_shadow \
+  --model /path/to/edge_detection_dexined_2024sep.onnx \
+  --output-dir "$(mktemp -d)"
+```
+
+The model's upstream license, fixed input/output shape, and source provenance
+must be reviewed at the [OpenCV DexiNed model card](https://huggingface.co/opencv/edge_detection_dexined)
+before anyone changes the pinned experiment. A different exported artifact is
+a new candidate and needs its own identity, compatibility test, and scoring
+record; it must not be treated as a transparent replacement.
+
 ## Isolated Canny/LSD product-path smoke check
 
 The workers need NumPy, OpenCV, and scikit-image. A disposable environment
