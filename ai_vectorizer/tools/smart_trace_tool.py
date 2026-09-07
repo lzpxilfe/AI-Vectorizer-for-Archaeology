@@ -55,6 +55,7 @@ from ..core.line_evidence import crop_line_evidence
 from ..core.manual_gap_bridge import (
     ManualGapBridgeError,
     build_manual_gap_bridge,
+    sample_manual_gap_bridge_tangents,
     sample_manual_gap_tangent,
 )
 from ..core.trace_guidance import (
@@ -1615,6 +1616,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             radius_pixels=self.MANUAL_GAP_BRIDGE_TANGENT_RADIUS_PIXELS,
         )
 
+    def _contextual_manual_gap_bridge_tangents(self, start_pixel, end_pixel):
+        """Read outward contour directions when a label distorts a local tensor."""
+
+        return sample_manual_gap_bridge_tangents(
+            self.cached_ink_evidence,
+            start_pixel,
+            end_pixel,
+        )
+
     def _manual_gap_bridge_preview_is_current(self):
         snapshot = self.__dict__.get("_manual_gap_bridge_preview_snapshot")
         if (
@@ -1722,14 +1732,27 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 raise ManualGapBridgeError("bridge endpoints leave the Ink cache")
             start_tangent = self._manual_gap_bridge_tangent(start_pixel)
             end_tangent = self._manual_gap_bridge_tangent(end_pixel)
-            if start_tangent is None or end_tangent is None:
-                raise ManualGapBridgeError("Ink could not read both endpoint directions")
-            bridge = build_manual_gap_bridge(
-                start_pixel,
-                end_pixel,
-                start_tangent,
-                end_tangent,
-            )
+            try:
+                if start_tangent is None or end_tangent is None:
+                    raise ManualGapBridgeError("Ink could not read both endpoint directions")
+                bridge = build_manual_gap_bridge(
+                    start_pixel,
+                    end_pixel,
+                    start_tangent,
+                    end_tangent,
+                )
+            except ManualGapBridgeError as direct_error:
+                contextual_tangents = self._contextual_manual_gap_bridge_tangents(
+                    start_pixel, end_pixel,
+                )
+                if contextual_tangents is None:
+                    raise direct_error
+                bridge = build_manual_gap_bridge(
+                    start_pixel,
+                    end_pixel,
+                    contextual_tangents[0],
+                    contextual_tangents[1],
+                )
             pixel_points = blend_path_with_cursor(
                 bridge.points_xy, start_pixel, end_pixel, self.edge_weight,
             )

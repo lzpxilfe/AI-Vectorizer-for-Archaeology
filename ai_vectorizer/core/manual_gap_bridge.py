@@ -21,6 +21,11 @@ _MAX_TANGENT_RADIUS = 32.0
 _MIN_TANGENT_COHERENCE = 0.15
 _MIN_TANGENT_SCORE = 0.15
 _MAX_TANGENT_DISAGREEMENT_RADIANS = math.radians(35.0)
+_DEFAULT_CONTEXT_TANGENT_RADIUS = 12.0
+_MIN_CONTEXT_SUPPORT_PIXELS = 5
+_MIN_CONTEXT_SPAN_PIXELS = 4.0
+_MIN_CONTEXT_AXIS_RATIO = 0.80
+_CONTEXT_CONE_TANGENT = math.tan(math.radians(40.0))
 
 
 class ManualGapBridgeError(ValueError):
@@ -225,6 +230,127 @@ def sample_manual_gap_tangent(
     if max(angles) - min(angles) > _MAX_TANGENT_DISAGREEMENT_RADIANS:
         return None
     return _unit_direction((sum_x, sum_y), "sampled tangent")
+
+
+def _contextual_endpoint_tangent(
+    evidence,
+    anchor: Point,
+    chord: Point,
+    outward: Point,
+    *,
+    support_radius_pixels: float,
+):
+    """Fit a one-sided local centreline rather than a glyph-shaped tensor.
+
+    A printed number can overlap the three-pixel neighbourhood of a genuine
+    contour endpoint and rotate its gradient tensor.  The anchor pair gives a
+    modest, explicit piece of extra information: each contour must continue
+    *away* from the blank.  This helper only considers centerline support in
+    that one-sided cone.  It deliberately does not search along the chord into
+    the blank, where numeral strokes belong, and it rejects diffuse support
+    rather than choosing a direction from it.
+    """
+
+    import numpy as np
+
+    height, width = evidence.shape
+    px, py = anchor
+    radius = support_radius_pixels
+    x0, x1 = max(0, math.ceil(px - radius)), min(width, math.floor(px + radius) + 1)
+    y0, y1 = max(0, math.ceil(py - radius)), min(height, math.floor(py + radius) + 1)
+    selection = np.s_[y0:y1, x0:x1]
+    ys, xs = np.nonzero(
+        evidence.centerline[selection]
+        & (evidence.center_score[selection] >= _MIN_TANGENT_SCORE)
+    )
+    candidates = []
+    for local_y, local_x in zip(ys.tolist(), xs.tolist()):
+        x, y = x0 + local_x, y0 + local_y
+        dx, dy = x - px, y - py
+        distance = math.hypot(dx, dy)
+        if distance > radius:
+            continue
+        projection = dx * outward[0] + dy * outward[1]
+        if projection < 0.5:
+            continue
+        lateral = abs(dx * outward[1] - dy * outward[0])
+        # A one-pixel allowance preserves discretized shallow curves at the
+        # anchor.  Beyond it, the fixed cone blocks a nearby parallel contour.
+        if lateral > 1.0 + projection * _CONTEXT_CONE_TANGENT:
+            continue
+        candidates.append((x, y, distance, projection))
+    if len(candidates) < _MIN_CONTEXT_SUPPORT_PIXELS:
+        return None
+
+    distances = [candidate[2] for candidate in candidates]
+    projections = [candidate[3] for candidate in candidates]
+    if min(distances) > 3.0 or max(projections) - min(projections) < _MIN_CONTEXT_SPAN_PIXELS:
+        return None
+
+    points = np.asarray([(x, y) for x, y, _distance, _projection in candidates], dtype=np.float64)
+    # Nearer centreline support should matter most, but a single endpoint pixel
+    # must not dictate an orientation after a glyph has contaminated it.
+    weights = np.asarray(
+        [1.0 / (1.0 + distance) ** 2 for _x, _y, distance, _projection in candidates],
+        dtype=np.float64,
+    )
+    centre = np.average(points, axis=0, weights=weights)
+    offsets = points - centre
+    covariance = (offsets * weights[:, None]).T @ offsets / float(weights.sum())
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    major = float(eigenvalues[-1])
+    minor = max(0.0, float(eigenvalues[0]))
+    if major <= 1e-9 or major / (major + minor) < _MIN_CONTEXT_AXIS_RATIO:
+        return None
+    tangent = (float(eigenvectors[0, -1]), float(eigenvectors[1, -1]))
+    tangent = _unit_direction(tangent, "contextual sampled tangent")
+    if abs(tangent[0] * chord[0] + tangent[1] * chord[1]) < math.sqrt(0.5):
+        return None
+    return tangent
+
+
+def sample_manual_gap_bridge_tangents(
+    evidence,
+    start_xy: Sequence[float],
+    end_xy: Sequence[float],
+    *,
+    support_radius_pixels: float = _DEFAULT_CONTEXT_TANGENT_RADIUS,
+) -> Optional[Tuple[Point, Point]]:
+    """Return two conservative, chord-contextual endpoint directions.
+
+    This is a fallback for an explicitly requested bridge, not an automatic
+    endpoint finder.  It uses the already-confirmed endpoint pair only to
+    inspect the visible contour leading away from the blank.  Both sides need
+    a nearby, elongated one-sided centerline; otherwise it returns ``None``.
+    In particular, it cannot turn a numeral within the blank or a parallel
+    contour outside the cone into an accepted bridge.
+    """
+
+    start = _point(start_xy, "start_xy")
+    end = _point(end_xy, "end_xy")
+    radius = _finite_number(support_radius_pixels, "support_radius_pixels")
+    if not _DEFAULT_CONTEXT_TANGENT_RADIUS <= radius <= _MAX_TANGENT_RADIUS:
+        raise ManualGapBridgeError("context tangent radius must be between 12 and 32 pixels")
+    try:
+        from .line_evidence import LineEvidence
+    except ImportError as exc:
+        raise ManualGapBridgeError("NumPy is required to sample Ink directions") from exc
+    if not isinstance(evidence, LineEvidence):
+        raise ManualGapBridgeError("evidence must be a LineEvidence snapshot")
+    height, width = evidence.shape
+    for point in (start, end):
+        if not (0.0 <= point[0] < width and 0.0 <= point[1] < height):
+            raise ManualGapBridgeError("manual bridge endpoint leaves the Ink cache")
+    chord = _unit_direction((end[0] - start[0], end[1] - start[1]), "manual bridge chord")
+    start_tangent = _contextual_endpoint_tangent(
+        evidence, start, chord, (-chord[0], -chord[1]), support_radius_pixels=radius,
+    )
+    end_tangent = _contextual_endpoint_tangent(
+        evidence, end, chord, chord, support_radius_pixels=radius,
+    )
+    if start_tangent is None or end_tangent is None:
+        return None
+    return start_tangent, end_tangent
 
 
 def build_manual_gap_bridge(

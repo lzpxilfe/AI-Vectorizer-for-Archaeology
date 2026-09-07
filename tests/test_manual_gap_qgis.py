@@ -350,10 +350,30 @@ class ManualGapQgisTests(unittest.TestCase):
             self.target, request_tree=False, schedule_recovery=False
         )
 
-    def test_detector_driven_glyph_adjacent_endpoint_retains_ink_champion(self):
+    def test_detector_driven_glyph_adjacent_endpoint_uses_outward_contour_support(self):
         from benchmarks.manual_gap_shadow import build_manual_gap_shadow_cases
 
         self._prepare_detector_driven_case(build_manual_gap_shadow_cases()[0])
+        champion = self._coordinates(self.tool.preview_path)
+        confirmed = self._coordinates(self.tool.path_points)
+        self.assertTrue(champion)
+
+        bridge = self._preview()
+
+        self.assertNotEqual(bridge, champion)
+        self.assertGreater(len(bridge), 2)
+        self.assertEqual(bridge[-1], (164.0, 113.0))
+        self.assertEqual(self._coordinates(self.tool.path_points), confirmed)
+        self.assertTrue(self.tool._manual_gap_bridge_preview_matches(self.target))
+
+        self.tool.canvasPressEvent(self._mouse_event())
+
+        self.assertEqual(self._coordinates(self.tool.path_points), confirmed + bridge)
+
+    def test_detector_driven_glyph_parallel_negative_control_preserves_ink(self):
+        from benchmarks.manual_gap_shadow import build_manual_gap_shadow_cases
+
+        self._prepare_detector_driven_case(build_manual_gap_shadow_cases()[6])
         champion = self._coordinates(self.tool.preview_path)
         confirmed = self._coordinates(self.tool.path_points)
         self.assertTrue(champion)

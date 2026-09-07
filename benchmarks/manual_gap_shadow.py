@@ -30,6 +30,7 @@ from ai_vectorizer.core.manual_gap_bridge import (
     DEFAULT_MANUAL_GAP_BRIDGE_CONFIG,
     ManualGapBridgeError,
     build_manual_gap_bridge,
+    sample_manual_gap_bridge_tangents,
     sample_manual_gap_tangent,
 )
 from ai_vectorizer.core.trace_kernel import smooth_pixel_path
@@ -130,6 +131,36 @@ def build_manual_gap_shadow_cases() -> Tuple[ManualGapShadowCase, ...]:
             canonical_end_xy=(170.0, 128.0),
             fixture_family="clear-gap-positive-control",
         ))
+    # This negative control intentionally has no target contour at either
+    # anchor.  A dark, parallel contour and the numeric glyphs are real Ink
+    # evidence, so a successful bridge here would prove the fallback had
+    # started inventing a route instead of requiring outward support.
+    ambiguous_image = np.full((256, 256, 3), 238, dtype=np.uint8)
+    ambiguous_reference = tuple((x, 128) for x in range(16, 241))
+    ambiguous_parallel = tuple((x, 142) for x in range(16, 241))
+    _paint_path(ambiguous_image, ambiguous_parallel, (64, 64, 64), 1)
+    for digit, x in zip("289", (127, 137, 147)):
+        _paint_digit(ambiguous_image, digit, x, 119, scale=2)
+    ambiguous_gray = np.rint(
+        np.mean(ambiguous_image.astype(np.float32), axis=2)
+    ).astype(np.uint8)
+    ambiguous_image = np.repeat(ambiguous_gray[..., None], 3, axis=2)
+    ambiguous_base = ComplexTraceCase(
+        name="gray-glyph-parallel-no-contour-v1", image_rgb=ambiguous_image,
+        start_xy=ambiguous_reference[0], end_xy=ambiguous_reference[-1],
+        reference_xy=ambiguous_reference, parallel_xy=ambiguous_parallel,
+    )
+    for quarter_turns in (0, 1):
+        image = np.ascontiguousarray(np.rot90(ambiguous_image, quarter_turns))
+        image.setflags(write=False)
+        cases.append(ManualGapShadowCase(
+            name="gray-glyph-parallel-no-contour-{}deg-v1".format(quarter_turns * 90),
+            image_rgb=image, reference_case=ambiguous_base, grayscale=True,
+            quarter_turns=quarter_turns,
+            canonical_start_xy=(116.0, 128.0),
+            canonical_end_xy=(164.0, 128.0),
+            fixture_family="glyph-parallel-negative-control",
+        ))
     return tuple(cases)
 
 
@@ -215,6 +246,7 @@ def run_manual_gap_case(case: ManualGapShadowCase) -> Dict[str, object]:
     end_tangent = sample_manual_gap_tangent(evidence, end, radius_pixels=TANGENT_RADIUS_PIXELS)
     bridge = None
     reason = None
+    tangent_source = "sample_manual_gap_tangent(ink_evidence)"
     try:
         if start_tangent is None or end_tangent is None:
             raise ManualGapBridgeError("supported unambiguous endpoint tangents unavailable")
@@ -224,8 +256,27 @@ def run_manual_gap_case(case: ManualGapShadowCase) -> Dict[str, object]:
         )
         effective_path = blend_path_with_cursor(bridge.points_xy, start, end, STRENGTH)
     except ManualGapBridgeError as exc:
-        reason = str(exc)
-        effective_path = list(control)
+        contextual_tangents = sample_manual_gap_bridge_tangents(evidence, start, end)
+        if contextual_tangents is None:
+            reason = str(exc)
+            effective_path = list(control)
+        else:
+            try:
+                start_tangent, end_tangent = contextual_tangents
+                bridge = build_manual_gap_bridge(
+                    start, end, start_tangent, end_tangent,
+                    config=DEFAULT_MANUAL_GAP_BRIDGE_CONFIG,
+                )
+                effective_path = blend_path_with_cursor(
+                    bridge.points_xy, start, end, STRENGTH,
+                )
+                tangent_source = (
+                    "sample_manual_gap_bridge_tangents(ink_evidence, explicit_anchors)"
+                )
+            except ManualGapBridgeError:
+                bridge = None
+                reason = str(exc)
+                effective_path = list(control)
 
     # Full-trace context uses different endpoints and is deliberately outside
     # the paired intervention comparison.
@@ -270,7 +321,7 @@ def run_manual_gap_case(case: ManualGapShadowCase) -> Dict[str, object]:
             "requires_explicit_user_anchors": True,
             "automatic_endpoint_selection": False,
             "model_or_ocr_used": False,
-            "tangent_source": "sample_manual_gap_tangent(ink_evidence)",
+            "tangent_source": tangent_source,
             "sampled_start_tangent_xy": None if start_tangent is None else list(start_tangent),
             "sampled_end_tangent_xy": None if end_tangent is None else list(end_tangent),
             "status": "preview" if bridge is not None else "ink_fallback",

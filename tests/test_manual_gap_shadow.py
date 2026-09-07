@@ -11,36 +11,40 @@ from ai_vectorizer.core.edge_detector import EdgeDetector
 from ai_vectorizer.core.livewire import blend_path_with_cursor
 from ai_vectorizer.core.manual_gap_bridge import (
     build_manual_gap_bridge,
+    sample_manual_gap_bridge_tangents,
     sample_manual_gap_tangent,
 )
 from benchmarks.manual_gap_shadow import (
     build_manual_gap_shadow_cases,
     main,
     run_manual_gap_case,
-    run_neutral_manual_gap_shadow,
 )
 
 
-def test_original_shadow_rejects_ambiguous_glyphs_and_keeps_same_segment_control():
-    result = run_neutral_manual_gap_shadow()
+@pytest.mark.parametrize("case_index", [0, 1, 2, 3])
+def test_glyph_adjacent_shadow_uses_one_sided_contour_evidence(case_index):
+    case = build_manual_gap_shadow_cases()[case_index]
+    result = run_manual_gap_case(case)
 
     assert result["historical_map_evidence"] is False
     assert result["publication_ranking_eligible"] is False
     assert result["human_usability_study"] is False
-    assert result["prompt"] == {
-        "start_xy": [116.0, 118.0], "end_xy": [164.0, 113.0], "previous_xy": None,
-    }
     control = result["ink_same_segment_control"]
     manual = result["manual_gap_bridge_product_kernel_v2"]
     assert control["score"]["candidate_smoke_gate"]["passed"] is False
     assert manual["requires_explicit_user_anchors"] is True
     assert manual["automatic_endpoint_selection"] is False
     assert manual["model_or_ocr_used"] is False
-    assert manual["status"] == "ink_fallback"
-    assert manual["reason"]
-    assert manual["bridge_points_xy"] is None
-    assert manual["effective_points_xy"] == control["points_xy"]
-    assert manual["route_sha256"] == control["route_sha256"]
+    assert manual["status"] == "preview"
+    assert manual["reason"] is None
+    assert manual["tangent_source"] == (
+        "sample_manual_gap_bridge_tangents(ink_evidence, explicit_anchors)"
+    )
+    assert manual["bridge_points_xy"] is not None
+    assert manual["score"]["endpoint_preserved"] is True
+    assert manual["score"]["candidate_smoke_gate"]["passed"] is True
+    assert manual["score"]["numeric_label_gap_coverage_within_4px"] == 1.0
+    assert manual["score"]["parallel_switch_fraction"] == 0.0
     assert result["full_trace_context"]["included_in_paired_comparison"] is False
     assert result["full_trace_context"]["prompt"]["start_xy"] != result["prompt"]["start_xy"]
 
@@ -69,6 +73,37 @@ def test_clear_gap_runs_same_sampled_tangent_and_blend_as_product(case_index):
     assert result["ink_same_segment_control"]["score"]["candidate_smoke_gate"]["passed"] is True
 
 
+def test_glyph_case_product_fallback_uses_the_same_contextual_sampler():
+    case = build_manual_gap_shadow_cases()[0]
+    result = run_manual_gap_case(case)
+    evidence = EdgeDetector.detect_ink_evidence(case.image_rgb, tile_origin=(0, 0))
+    start, end = result["prompt"]["start_xy"], result["prompt"]["end_xy"]
+    tangents = sample_manual_gap_bridge_tangents(evidence, start, end)
+    bridge = build_manual_gap_bridge(start, end, *tangents)
+    expected = blend_path_with_cursor(bridge.points_xy, start, end, 1.0)
+    manual = result["manual_gap_bridge_product_kernel_v2"]
+
+    assert manual["sampled_start_tangent_xy"] == list(tangents[0])
+    assert manual["sampled_end_tangent_xy"] == list(tangents[1])
+    assert manual["effective_points_xy"] == [[float(x), float(y)] for x, y in expected]
+
+
+@pytest.mark.parametrize("case_index", [6, 7])
+def test_glyph_parallel_negative_control_refuses_to_invent_a_bridge(case_index):
+    case = build_manual_gap_shadow_cases()[case_index]
+    result = run_manual_gap_case(case)
+    evidence = EdgeDetector.detect_ink_evidence(case.image_rgb, tile_origin=(0, 0))
+    start, end = result["prompt"]["start_xy"], result["prompt"]["end_xy"]
+    manual = result["manual_gap_bridge_product_kernel_v2"]
+    control = result["ink_same_segment_control"]
+
+    assert sample_manual_gap_bridge_tangents(evidence, start, end) is None
+    assert manual["status"] == "ink_fallback"
+    assert manual["bridge_points_xy"] is None
+    assert manual["effective_points_xy"] == control["points_xy"]
+    assert manual["route_sha256"] == control["route_sha256"]
+
+
 def test_reference_changes_cannot_change_generated_bridge_or_control():
     case = build_manual_gap_shadow_cases()[4]
     original = run_manual_gap_case(case)
@@ -90,7 +125,7 @@ def test_reference_changes_cannot_change_generated_bridge_or_control():
 
 def test_gray_and_rotated_fixtures_preserve_lossless_prompt_coordinates():
     cases = build_manual_gap_shadow_cases()
-    assert len(cases) == 6
+    assert len(cases) == 8
     for case in cases:
         if case.grayscale:
             np.testing.assert_array_equal(case.image_rgb[..., 0], case.image_rgb[..., 1])
@@ -99,6 +134,7 @@ def test_gray_and_rotated_fixtures_preserve_lossless_prompt_coordinates():
             assert case.to_reference_xy(case.to_image_xy(point)) == point
     np.testing.assert_array_equal(cases[1].image_rgb, np.rot90(cases[0].image_rgb))
     np.testing.assert_array_equal(cases[3].image_rgb, np.rot90(cases[2].image_rgb))
+    np.testing.assert_array_equal(cases[7].image_rgb, np.rot90(cases[6].image_rgb))
 
 
 def test_shadow_cli_writes_deterministic_routes_prompts_and_source_provenance(tmp_path, capsys):
@@ -109,7 +145,7 @@ def test_shadow_cli_writes_deterministic_routes_prompts_and_source_provenance(tm
         emitted = json.loads(capsys.readouterr().out)
         persisted = json.loads((output / "result.json").read_text(encoding="utf-8"))
         assert emitted == persisted
-        assert len(list(output.glob("*.ppm"))) == 6
+        assert len(list(output.glob("*.ppm"))) == 8
         for case in persisted["cases"]:
             assert (output / (case["challenge_id"] + ".ppm")).read_bytes().startswith(b"P6\n")
             for field, hash_field in (("prompt", "prompt_sha256"), ("configuration", "configuration_sha256")):

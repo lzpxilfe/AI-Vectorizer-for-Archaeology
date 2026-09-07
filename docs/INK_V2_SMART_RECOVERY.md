@@ -92,11 +92,14 @@ gap은 이전 Ink route를 그대로 사용합니다. 이는 문자 인식, mode
 검은·갈색 등고선은 색만으로 같은 선의 양끝을 판정할 수 없으므로 자동 bridge를 만들지
 않습니다. 대신 사용자는 공백 전 anchor를 확정하고 반대편 선 위에 커서를 둔 뒤
 `G`를 누릅니다 (`⤴ 라벨 공백 연결`, 실험적). 제품과 benchmark는 같은
-`sample_manual_gap_tangent()`를 사용합니다. 반경 3 source pixel 원 안에서 score와
+`sample_manual_gap_tangent()`를 먼저 사용합니다. 반경 3 source pixel 원 안에서 score와
 coherence가 충분한 가까운 중심선을 우선하고, 비슷한 거리의 방향이 35° 이상 충돌하면
-거부합니다. 강한 글자가 가까운 등고선을 밀어내지 않도록 거리부터 비교합니다.
-공백 진행 방향과 45° 넘게 어긋난 tangent도 거부합니다. 3–128px의 Hermite 곡선에
-현재 보조 강도를 적용하며, 1.25배 우회 제한과 cache 경계를 검사합니다.
+거부합니다. 이 단계가 숫자 획 때문에 실패하면 `sample_manual_gap_bridge_tangents()`가
+두 명시적 endpoint에서 **공백 반대편**만 향하는 12px one-sided 중심선 지지를 검사합니다.
+공백 안의 숫자 쪽은 탐색하지 않고, 양쪽 모두 가까운 지지, 4px 이상 span, 80% 이상의
+주축 집중도와 45° 이내의 chord 정렬을 만족할 때만 fallback 방향을 사용합니다. 따라서
+평행선만 있거나 지지가 퍼지면 여전히 거부합니다. 3–128px의 Hermite 곡선에 현재 보조
+강도를 적용하며, 1.25배 우회 제한과 cache 경계를 검사합니다.
 
 이 preview는 green segment일 뿐입니다. 사용자가 같은 반대편 endpoint를 다시 클릭해야
 일반 anchor처럼 edit buffer 후보에 들어갑니다. 끝점 허용 오차는 화면 2px와 원본 2px

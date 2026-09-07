@@ -10,6 +10,7 @@ from ai_vectorizer.core.manual_gap_bridge import (
     ManualGapBridgeConfig,
     ManualGapBridgeError,
     build_manual_gap_bridge,
+    sample_manual_gap_bridge_tangents,
     sample_manual_gap_tangent,
 )
 
@@ -225,6 +226,47 @@ def test_sampler_rejects_invalid_radius_and_out_of_cache_endpoints():
             sample_manual_gap_tangent(evidence, point)
     with pytest.raises(ManualGapBridgeError, match="LineEvidence"):
         sample_manual_gap_tangent(None, (5, 5))
+
+
+def test_contextual_pair_uses_one_sided_contour_support_not_inner_glyphs():
+    intended = [
+        (x, 10, (1, 0), 1, 1)
+        for x in tuple(range(4, 11)) + tuple(range(30, 37))
+    ]
+    # These imitate number strokes within the explicitly selected blank.  They
+    # have strong evidence but lie on the wrong side of each endpoint.
+    glyph = [(x, y, (0, 1), 1, 1) for x in range(12, 29) for y in (7, 8)]
+    tangents = sample_manual_gap_bridge_tangents(
+        _evidence(tuple(intended + glyph), size=48), (10, 10), (30, 10),
+    )
+
+    assert tangents is not None
+    assert abs(tangents[0][0]) > 0.99
+    assert abs(tangents[0][1]) < 0.01
+    assert abs(tangents[1][0]) > 0.99
+    assert abs(tangents[1][1]) < 0.01
+
+
+def test_contextual_pair_rejects_inner_glyphs_and_remote_parallel_support():
+    glyph = [(x, y, (1, 0), 1, 1) for x in range(12, 29) for y in (7, 8)]
+    parallel = [
+        (x, 18, (1, 0), 1, 1)
+        for x in tuple(range(1, 11)) + tuple(range(30, 40))
+    ]
+    evidence = _evidence(tuple(glyph + parallel), size=48)
+
+    assert sample_manual_gap_bridge_tangents(evidence, (10, 10), (30, 10)) is None
+
+
+def test_contextual_pair_rejects_invalid_or_degenerate_requests():
+    evidence = _evidence(((5, 5, (1, 0), 1, 1),))
+    for radius in (True, "12", 11, 33, float("nan")):
+        with pytest.raises(ManualGapBridgeError):
+            sample_manual_gap_bridge_tangents(
+                evidence, (5, 5), (8, 5), support_radius_pixels=radius,
+            )
+    with pytest.raises(ManualGapBridgeError, match="non-zero"):
+        sample_manual_gap_bridge_tangents(evidence, (5, 5), (5, 5))
 
 
 def test_geometry_import_and_build_do_not_require_numpy():
