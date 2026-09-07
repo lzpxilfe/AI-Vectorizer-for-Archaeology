@@ -52,7 +52,11 @@ from ..core.livewire import (
     is_livewire_available,
 )
 from ..core.line_evidence import crop_line_evidence
-from ..core.trace_guidance import crop_trace_guidance, guidance_from_boxes
+from ..core.trace_guidance import (
+    TraceGuidance,
+    crop_trace_guidance,
+    guidance_from_boxes,
+)
 from ..core.recovery_prompts import (
     RecoveryPromptError,
     build_recovery_prompt_tensors,
@@ -473,6 +477,15 @@ class _RecoveryPreviewTask(QgsTask):
                 raise ValueError(
                     "Recovery corridor must match the full Ink evidence grid"
                 )
+            if self.guidance is not None:
+                if not isinstance(self.guidance, TraceGuidance):
+                    raise TypeError(
+                        "Recovery guidance must be a TraceGuidance instance"
+                    )
+                if self.guidance.shape != evidence_shape:
+                    raise ValueError(
+                        "Recovery guidance must match the full Ink evidence grid"
+                    )
             x0, y0, x1, y1 = self.window_bounds
             height, width = evidence_shape
             if not (0 <= x0 < x1 <= width and 0 <= y0 < y1 <= height):

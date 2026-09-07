@@ -1418,7 +1418,7 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         self.assertEqual(points[:2].tolist(), [[20.0, 20.0], [60.0, 20.0]])
         self.assertNotIn([4.0, 8.0], points.tolist())
 
-    def test_recovery_task_crops_to_livewire_window_and_preserves_endpoints(self):
+    def test_recovery_task_crops_matching_guidance_and_rejects_a_stale_shape(self):
         import numpy as np
 
         from ai_vectorizer.core.line_evidence import LineEvidence
@@ -1482,6 +1482,13 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
                 for x, y in task.challenger_path
             )
         )
+
+        # A stale full-cache guide must not happen to fit just this window:
+        # the error is contained in the task and the UI keeps its Ink champion.
+        task.guidance = TraceGuidance(np.zeros((11, 12), dtype=np.float32))
+        self.assertFalse(task.run())
+        self.assertIsInstance(task.error, ValueError)
+        self.assertIn("full Ink evidence grid", str(task.error))
 
     def test_resume_updates_geometry_and_elevation_together(self):
         layer = QgsVectorLayer("LineString?crs=EPSG:3857", "contours", "memory")

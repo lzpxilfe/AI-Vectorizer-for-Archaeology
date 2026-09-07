@@ -526,6 +526,7 @@ class QgisSafetySourceTests(unittest.TestCase):
         self.assertIn("guidance=self.cached_trace_guidance", request)
         self.assertIn("crop_trace_guidance(self.guidance", recovery_task)
         self.assertIn("guidance=bounded_guidance", recovery_task)
+        self.assertIn("full Ink evidence grid", recovery_task)
         self.assertIn("guidance=self.cached_trace_guidance", recovery_request)
         self.assertIn("not self.freehand", supported)
         self.assertIn("self.edge_weight > 0.0", supported)
