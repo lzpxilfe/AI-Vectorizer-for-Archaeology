@@ -1423,6 +1423,7 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
 
         from ai_vectorizer.core.line_evidence import LineEvidence
         from ai_vectorizer.core.trace_kernel import TraceConfig
+        from ai_vectorizer.core.trace_guidance import TraceGuidance
         from ai_vectorizer.tools.smart_trace_tool import _RecoveryPreviewTask
 
         score = np.ones((12, 12), dtype=np.float32)
@@ -1450,6 +1451,7 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
             image=np.zeros((12, 12, 3), dtype=np.uint8),
             encoding=None,
             evidence=evidence,
+            guidance=TraceGuidance(np.zeros_like(score)),
             champion_path=((4.0, 5.0), (5.0, 6.0), (7.0, 7.0)),
             start_pixel=(4.0, 5.0),
             target_pixel=(7.0, 7.0),

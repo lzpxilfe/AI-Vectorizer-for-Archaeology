@@ -104,11 +104,13 @@ cache shape를 검증하고 immutable snapshot을 worker에 전달합니다. `Li
 CRS로 잠시 보관해 pan/zoom 뒤 새 cache transform에서 다시 rasterize합니다. map data나
 선택 정보는 저장·upload·telemetry로 보내지 않습니다.
 
-현재 EfficientSAM challenger는 이 guidance를 전달받지 않습니다. 사용자 의도를
-보존하기 위해 회피 영역이 있을 때 Smart Recovery는 실행하지 않고 Ink champion을
-유지합니다. 이 QGIS-independent contract는 추후 optional local OCR/text-risk provider를
-정확히 같은 soft prior로 benchmark할 기반이지만, model delivery나 automatic provider
-activation은 아직 구현하지 않았습니다.
+Smart Recovery가 켜진 경우에도 EfficientSAM challenger는 같은 guidance crop을 corridor
+cost map에만 전달받습니다. 따라서 사용자 의도는 challenger 계산에도 유지되지만, guidance는
+hard mask가 아니고 EfficientSAM mask를 최종 선으로 저장하거나 Ink와 OR하지 않습니다.
+오류·취소·arbiter 거부에서는 기존 Ink champion을 그대로 유지합니다. 이 QGIS-independent
+contract는 추후 optional local OCR/text-risk provider를 정확히 같은 soft prior로
+benchmark할 기반이지만, model delivery나 automatic provider activation은 아직 구현하지
+않았습니다.
 
 ### Smart Recovery (Experimental)
 

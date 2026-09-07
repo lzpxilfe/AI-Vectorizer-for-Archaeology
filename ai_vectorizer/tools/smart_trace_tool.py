@@ -52,7 +52,7 @@ from ..core.livewire import (
     is_livewire_available,
 )
 from ..core.line_evidence import crop_line_evidence
-from ..core.trace_guidance import guidance_from_boxes
+from ..core.trace_guidance import crop_trace_guidance, guidance_from_boxes
 from ..core.recovery_prompts import (
     RecoveryPromptError,
     build_recovery_prompt_tensors,
@@ -408,6 +408,7 @@ class _RecoveryPreviewTask(QgsTask):
         image,
         encoding,
         evidence,
+        guidance,
         champion_path,
         start_pixel,
         target_pixel,
@@ -426,6 +427,7 @@ class _RecoveryPreviewTask(QgsTask):
         self.image = image
         self.encoding = encoding
         self.evidence = evidence
+        self.guidance = guidance
         self.champion_path = tuple(tuple(point) for point in champion_path)
         self.start_pixel = tuple(start_pixel)
         self.target_pixel = tuple(target_pixel)
@@ -498,6 +500,11 @@ class _RecoveryPreviewTask(QgsTask):
                 self.evidence,
                 self.window_bounds,
             )
+            bounded_guidance = (
+                crop_trace_guidance(self.guidance, self.window_bounds)
+                if self.guidance is not None
+                else None
+            )
             bounded_corridor = np.ascontiguousarray(
                 corridor[y0:y1, x0:x1],
                 dtype=np.float32,
@@ -505,6 +512,7 @@ class _RecoveryPreviewTask(QgsTask):
             cost_map = build_corridor_cost_map(
                 bounded_evidence,
                 bounded_corridor,
+                guidance=bounded_guidance,
             )
             if self.isCanceled():
                 return False
@@ -2762,6 +2770,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             image=self.cached_rgb_image,
             encoding=encoding,
             evidence=self.cached_ink_evidence,
+            guidance=self.cached_trace_guidance,
             champion_path=request["champion_path"],
             start_pixel=request["start_pixel"],
             target_pixel=request["target_pixel"],
@@ -2789,15 +2798,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """Gate a challenger only after the Ink champion is available."""
 
         if not self.smart_recovery_enabled:
-            return False
-        if getattr(self, "_manual_avoidance_regions", ()):
-            # Recovery currently has no user-guidance input contract. Never
-            # let an optional challenger overwrite a deliberate local
-            # selection; the Ink champion remains authoritative.
-            self._emit_recovery_state(
-                RECOVERY_STATE_INK,
-                "Manual avoidance guidance is active; Smart Recovery kept Ink.",
-            )
             return False
         if not self._recovery_cache_compatible:
             self._emit_recovery_state(

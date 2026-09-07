@@ -84,11 +84,11 @@ NumPy 계약입니다. `avoidance_score`는 `[0,1]` 범위의 **soft cost**이�
 때 그것을 선호합니다. 이 선택은 raster CRS로만 잠시 보관되고 현재 cache의 픽셀
 격자로 다시 투영되므로 pan/zoom에 따라 stale array를 재사용하지 않습니다.
 
-현재 Manual Avoid Guidance는 Ink Live-Wire만 대상으로 하며, 0% assist, Freehand,
-SAM-backed Auto Path를 변경하지 않습니다. EfficientSAM challenger는 아직 이 guidance
-계약을 입력으로 받지 않기 때문에, 사용자가 회피 영역을 활성화한 구간에서는
-Smart Recovery가 Ink champion을 그대로 유지합니다. 이것은 임의의 challenger가
-의도적인 사용자 제약을 무시하는 것을 막는 보수적 경계입니다.
+Manual Avoid Guidance는 0% assist, Freehand, SAM-backed Auto Path를 변경하지 않습니다.
+Smart Recovery를 사용하면 같은 immutable guidance crop을 corridor cost map에도 더해
+challenger가 사용자의 회피 선택을 무시하지 않게 합니다. 이 비용은 Live-Wire와 마찬가지로
+finite soft prior일 뿐 hard barrier가 아니며, model mask를 선으로 저장하거나 Ink와 OR하지
+않습니다. 따라서 Recovery 오류·취소·arbiter 거부에서는 기존 Ink champion이 그대로 남습니다.
 
 이 추상화는 향후 PP-OCR 같은 text detector의 optional local output도 같은 soft
 prior로 평가할 수 있게 만들지만, 이번 변경은 OCR model·자동 다운로드·원격 추론·

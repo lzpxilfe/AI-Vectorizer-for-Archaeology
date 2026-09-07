@@ -19,10 +19,10 @@
 
 ### Safety
 
-- manual guidance는 Freehand/0% assist/SAM 경로를 바꾸지 않으며, 현재
-  Smart Recovery challenger가 사용자의 회피 선택을 덮어쓰지 않도록 해당 구간에서는
-  Ink champion을 유지합니다. 지도·selection은 저장·업로드·telemetry로 전송되지
-  않습니다.
+- manual guidance는 Freehand/0% assist/SAM 경로를 바꾸지 않습니다. Recovery를 켠
+  경우에도 같은 immutable soft cost를 challenger corridor에 전달하며, model mask를
+  선으로 저장하거나 hard exclusion으로 쓰지 않습니다. 지도·selection은 저장·업로드·
+  telemetry로 전송되지 않습니다.
 
 ## 0.1.6 — experimental release candidate (not yet published)
 

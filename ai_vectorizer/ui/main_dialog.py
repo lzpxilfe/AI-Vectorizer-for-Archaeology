@@ -2662,7 +2662,7 @@ class AIVectorizerDock(QDockWidget):
 <ul>
 <li>Zoom in until contour lines are clearly visible for better snapping.</li>
 <li>The assist slider is literal: 0% is the exact cursor, intermediate values blend geometry, and 100% uses the full Live-Wire route.</li>
-<li>An orange Ink avoid region is a soft local cost hint, never a hard wall or uploaded map data. Smart Recovery keeps Ink while one is active.</li>
+<li>An orange Ink avoid region is a soft local cost hint, never a hard wall or uploaded map data. Smart Recovery uses the same hint when it evaluates its corridor challenger.</li>
 <li>The green line is the exact path that one click will accept. Auto Path is required only for SAM proposals.</li>
 <li>Smart Recovery reports Ink, Recovering, Enhanced, or Ink fallback. It never auto-downloads its model.</li>
 <li>If SAM/HED is unavailable, start with Ink Centerline.</li>
@@ -2714,7 +2714,7 @@ class AIVectorizerDock(QDockWidget):
 <ul>
 <li>등고선이 명확히 보일 정도로 확대하면 스냅 품질이 좋아집니다.</li>
 <li>AI 개입 슬라이더는 실제 비율입니다. 0%는 정확한 커서, 중간값은 경로 혼합, 100%는 Live-Wire 전체 경로입니다.</li>
-<li>주황색 Ink 회피 영역은 hard wall이나 업로드 데이터가 아닌 local soft cost이며, 활성화 중 Smart Recovery는 Ink를 유지합니다.</li>
+<li>주황색 Ink 회피 영역은 hard wall이나 업로드 데이터가 아닌 local soft cost이며, Smart Recovery도 corridor challenger를 평가할 때 같은 힌트를 사용합니다.</li>
 <li>초록색 선이 클릭 한 번으로 채택될 정확한 경로입니다. Auto Path는 SAM 제안에만 필요합니다.</li>
 <li>Smart Recovery는 Ink, Recovering, Enhanced, Ink fallback 상태를 표시하며 model을 자동 download하지 않습니다.</li>
 <li>SAM/HED가 준비되지 않았다면 Ink Centerline부터 시작하세요.</li>

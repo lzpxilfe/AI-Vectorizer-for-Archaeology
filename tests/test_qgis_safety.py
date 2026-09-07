@@ -480,7 +480,7 @@ class QgisSafetySourceTests(unittest.TestCase):
         self.assertIn("self.path_points = confirmed_path", save_candidate)
         self.assertNotIn("self.path_points.extend", take_auto_path)
 
-    def test_manual_avoidance_stays_soft_session_only_and_preserves_ink(self):
+    def test_manual_avoidance_stays_soft_session_only_and_reaches_recovery(self):
         livewire_task = _function_source(
             "ai_vectorizer/tools/smart_trace_tool.py",
             "run",
@@ -489,6 +489,16 @@ class QgisSafetySourceTests(unittest.TestCase):
         request = _function_source(
             "ai_vectorizer/tools/smart_trace_tool.py",
             "_request_livewire_tree",
+            "SmartTraceTool",
+        )
+        recovery_task = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "run",
+            "_RecoveryPreviewTask",
+        )
+        recovery_request = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "_start_recovery_request",
             "SmartTraceTool",
         )
         supported = _function_source(
@@ -514,13 +524,15 @@ class QgisSafetySourceTests(unittest.TestCase):
 
         self.assertIn("guidance=self.guidance", livewire_task)
         self.assertIn("guidance=self.cached_trace_guidance", request)
+        self.assertIn("crop_trace_guidance(self.guidance", recovery_task)
+        self.assertIn("guidance=bounded_guidance", recovery_task)
+        self.assertIn("guidance=self.cached_trace_guidance", recovery_request)
         self.assertIn("not self.freehand", supported)
         self.assertIn("self.edge_weight > 0.0", supported)
         self.assertIn("EdgeDetector.METHOD_INK", supported)
         self.assertIn("guidance_from_boxes", refresh)
         self.assertIn("np.any(guidance.avoidance_score > 0.0)", refresh)
-        self.assertIn("Manual avoidance guidance is active", schedule)
-        self.assertIn("RECOVERY_STATE_INK", schedule)
+        self.assertNotIn("Manual avoidance guidance is active", schedule)
         self.assertIn("self._manual_avoidance_regions = []", reset)
         self.assertIn("self.manual_avoidance_band.reset", reset)
 

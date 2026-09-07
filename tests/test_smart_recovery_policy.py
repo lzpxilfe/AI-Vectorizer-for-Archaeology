@@ -12,6 +12,7 @@ from ai_vectorizer.core.smart_recovery import (
     evaluate_route,
     recovery_gate,
 )
+from ai_vectorizer.core.trace_guidance import TraceGuidance
 
 
 def _evidence(score):
@@ -93,11 +94,56 @@ def test_corridor_is_a_soft_prior_and_cannot_erase_strong_ink():
     assert cost[3, 4] < cost[2, 4]
 
 
+def test_manual_guidance_is_an_optional_soft_recovery_cost():
+    score = np.zeros((7, 9), dtype=np.float32)
+    score[3, 1:8] = 0.95
+    evidence = _evidence(score)
+    corridor = np.ones_like(score)
+
+    unguided = build_corridor_cost_map(evidence, corridor)
+    zero_guidance = build_corridor_cost_map(
+        evidence,
+        corridor,
+        guidance=TraceGuidance(np.zeros_like(score)),
+    )
+    np.testing.assert_array_equal(unguided, zero_guidance)
+
+    guidance_score = np.zeros_like(score)
+    guidance_score[3, 4] = 1.0
+    guided = build_corridor_cost_map(
+        evidence,
+        corridor,
+        guidance=TraceGuidance(guidance_score),
+    )
+    assert guided[3, 4] == pytest.approx(
+        unguided[3, 4] + DEFAULT_RECOVERY_CONFIG.guidance_cost_weight
+    )
+    assert guided[3, 4] > unguided[3, 4]
+    assert np.all(np.isfinite(guided))
+    assert np.all(guided >= 1.0)
+
+
+def test_manual_guidance_rejects_wrong_type_or_shape():
+    score = np.zeros((4, 5), dtype=np.float32)
+    evidence = _evidence(score)
+    corridor = np.ones_like(score)
+    with pytest.raises(TypeError, match="TraceGuidance"):
+        build_corridor_cost_map(evidence, corridor, guidance=np.zeros_like(score))
+    with pytest.raises(ValueError, match="guidance must match"):
+        build_corridor_cost_map(
+            evidence,
+            corridor,
+            guidance=TraceGuidance(np.zeros((3, 5), dtype=np.float32)),
+        )
+
+
 def test_recovery_configuration_and_cost_map_fail_closed_on_unsafe_numbers():
     with pytest.raises(ValueError, match="maximum_detour_ratio"):
         RecoveryConfig(maximum_detour_ratio=True).validate()
     with pytest.raises(ValueError, match="score thresholds"):
         RecoveryConfig(maximum_mean_support_regret=1.1).validate()
+    with pytest.raises(ValueError, match="recovery tuning values"):
+        RecoveryConfig(guidance_cost_weight=-1.0).validate()
 
     evidence = _evidence(np.zeros((4, 5), dtype=np.float32))
     with pytest.raises(ValueError, match=r"\[0, 1\]"):

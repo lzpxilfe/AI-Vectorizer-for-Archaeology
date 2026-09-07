@@ -17,6 +17,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
+from .trace_guidance import TraceGuidance
+
 
 RECOVERY_POLICY_ID = "smart-recovery-gate-v1-provisional"
 
@@ -43,6 +45,7 @@ class RecoveryConfig:
     maximum_branch_density_gain: float = 0.05
     corridor_outside_penalty: float = 2.0
     ink_missing_penalty: float = 4.5
+    guidance_cost_weight: float = 6.0
 
     def validate(self) -> "RecoveryConfig":
         if not isinstance(self.policy_id, str) or not self.policy_id:
@@ -77,6 +80,7 @@ class RecoveryConfig:
             self.maximum_route_separation_p95,
             self.corridor_outside_penalty,
             self.ink_missing_penalty,
+            self.guidance_cost_weight,
         )
         if any(
             not finite_real(value) or value < 0.0
@@ -426,13 +430,17 @@ def build_corridor_cost_map(
     evidence: Any,
     corridor_score: Any,
     *,
+    guidance: Optional[TraceGuidance] = None,
     config: RecoveryConfig = DEFAULT_RECOVERY_CONFIG,
 ) -> np.ndarray:
     """Fuse a semantic corridor with continuous Ink evidence for A*.
 
     A boolean mask is accepted, but it is interpreted as a corridor score and
     never ORed into the centerline.  Strong Ink remains cheap even outside the
-    corridor so a semantic mask cannot erase a reliable traced section.
+    corridor so a semantic mask cannot erase a reliable traced section.  An
+    optional ``TraceGuidance`` adds the same kind of finite, soft avoidance
+    cost used by Ink Live-Wire; it never turns a selected area into a hard
+    barrier or makes an otherwise valid route unreachable.
     """
 
     config = config.validate()
@@ -458,6 +466,13 @@ def build_corridor_cost_map(
         + config.ink_missing_penalty * (1.0 - ink64)
         + config.corridor_outside_penalty * (1.0 - corridor64) * outside_weight
     )
+    if guidance is not None:
+        if not isinstance(guidance, TraceGuidance):
+            raise TypeError("guidance must be a TraceGuidance instance or None")
+        if guidance.shape != ink.shape:
+            raise ValueError("guidance must match evidence.center_score")
+        guidance64 = guidance.avoidance_score.astype(np.float64, copy=False)
+        cost = cost + config.guidance_cost_weight * guidance64
     float32_max = float(np.finfo(np.float32).max)
     if not np.isfinite(cost).all() or np.any(cost > float32_max):
         raise ValueError("recovery penalties overflow the float32 cost-map contract")
