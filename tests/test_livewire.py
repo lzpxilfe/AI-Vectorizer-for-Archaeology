@@ -367,6 +367,144 @@ def test_direction_aware_route_bridges_gap_without_switching_contours():
     assert max(deviations) < 8.0
 
 
+def test_colored_anchor_bridge_crosses_a_label_gap_without_mutating_evidence():
+    height, width = 72, 168
+    image = np.full((height, width, 3), (232, 220, 196), dtype=np.uint8)
+    centerline = np.zeros((height, width), dtype=bool)
+    target_y = 31
+    parallel_y = target_y + 12
+    target_color = np.array((175, 225, 225), dtype=np.uint8)
+    for x in range(8, 160):
+        image[parallel_y, x] = (55, 45, 35)
+        centerline[parallel_y, x] = True
+        if not 61 <= x <= 108:
+            image[target_y, x] = target_color
+            centerline[target_y, x] = True
+
+    tangent_x = centerline.astype(np.float32)
+    tangent_y = np.zeros_like(tangent_x)
+    coherence = centerline.astype(np.float32)
+    evidence = LineEvidence(
+        center_score=centerline.astype(np.float32),
+        centerline=centerline,
+        tangent_x=tangent_x,
+        tangent_y=tangent_y,
+        coherence=coherence,
+    )
+    original_score = evidence.center_score.copy()
+    original_centerline = evidence.centerline.copy()
+    root = (8, target_y)
+    target = (159, target_y)
+    edges = np.zeros((height, width), dtype=np.uint8)
+    common = {
+        "strength": 1.0,
+        "incoming_direction": (1.0, 0.0),
+        "evidence": evidence,
+    }
+
+    no_bridge = build_livewire_tree(
+        image,
+        edges,
+        root,
+        config=LiveWireConfig(
+            max_window_size=160,
+            target_snap_radius=0,
+            continuity_bridge_score=0.0,
+        ),
+        **common,
+    ).trace(target)
+    bridged = build_livewire_tree(
+        image,
+        edges,
+        root,
+        config=LiveWireConfig(max_window_size=160, target_snap_radius=0),
+        **common,
+    ).trace(target)
+
+    assert max(y for _x, y in no_bridge) >= parallel_y
+    assert max(y for _x, y in bridged) < parallel_y - 4
+    assert bridged[0] == (float(root[0]), float(root[1]))
+    assert bridged[-1] == (float(target[0]), float(target[1]))
+    # The virtual support is private to this graph build; consumers retaining
+    # the immutable detector evidence still see only observed centreline ink.
+    np.testing.assert_array_equal(evidence.center_score, original_score)
+    np.testing.assert_array_equal(evidence.centerline, original_centerline)
+
+
+def test_colored_anchor_bridge_fails_closed_for_a_neutral_anchor():
+    height, width = 48, 112
+    image = np.full((height, width, 3), 225, dtype=np.uint8)
+    centerline = np.zeros((height, width), dtype=bool)
+    centerline[24, 6:42] = True
+    centerline[24, 70:106] = True
+    tangent_x = centerline.astype(np.float32)
+    evidence = LineEvidence(
+        center_score=centerline.astype(np.float32),
+        centerline=centerline,
+        tangent_x=tangent_x,
+        tangent_y=np.zeros_like(tangent_x),
+        coherence=centerline.astype(np.float32),
+    )
+    runtime, _error = livewire_module._get_livewire_runtime()
+    ndimage, _sparse, _dijkstra = runtime
+    support, _x, _y, _coherence = livewire_module._colored_continuity_bridge_support(
+        evidence.centerline,
+        evidence.tangent_x,
+        evidence.tangent_y,
+        livewire_module._continuity_rgb_crop(
+            image,
+            centerline.shape,
+            0,
+            height,
+            0,
+            width,
+        ),
+        (6, 24),
+        ndimage,
+        LiveWireConfig(),
+    )
+
+    assert not support.any()
+
+
+def test_colored_anchor_bridge_fails_closed_for_a_color_mismatch():
+    height, width = 48, 112
+    image = np.full((height, width, 3), (232, 220, 196), dtype=np.uint8)
+    centerline = np.zeros((height, width), dtype=bool)
+    centerline[24, 6:42] = True
+    centerline[24, 70:106] = True
+    image[24, 6:42] = (170, 225, 225)
+    image[24, 70:106] = (225, 165, 165)
+    tangent_x = centerline.astype(np.float32)
+    evidence = LineEvidence(
+        center_score=centerline.astype(np.float32),
+        centerline=centerline,
+        tangent_x=tangent_x,
+        tangent_y=np.zeros_like(tangent_x),
+        coherence=centerline.astype(np.float32),
+    )
+    runtime, _error = livewire_module._get_livewire_runtime()
+    ndimage, _sparse, _dijkstra = runtime
+    support, _x, _y, _coherence = livewire_module._colored_continuity_bridge_support(
+        evidence.centerline,
+        evidence.tangent_x,
+        evidence.tangent_y,
+        livewire_module._continuity_rgb_crop(
+            image,
+            centerline.shape,
+            0,
+            height,
+            0,
+            width,
+        ),
+        (6, 24),
+        ndimage,
+        LiveWireConfig(),
+    )
+
+    assert not support.any()
+
+
 def test_livewire_window_bounds_wandering_and_falls_back_outside():
     image = np.full((300, 300), 255, dtype=np.uint8)
     edges = np.zeros_like(image)
@@ -433,6 +571,12 @@ def test_invalid_root_is_rejected_before_graph_build():
         LiveWireConfig(edge_sigma=float("nan")),
         LiveWireConfig(line_cost_weight=float("nan")),
         LiveWireConfig(avoidance_cost_weight=float("nan")),
+        LiveWireConfig(continuity_bridge_max_gap_pixels=float("nan")),
+        LiveWireConfig(
+            continuity_bridge_min_gap_pixels=20.0,
+            continuity_bridge_max_gap_pixels=10.0,
+        ),
+        LiveWireConfig(continuity_bridge_score=1.1),
         LiveWireConfig(max_window_size=32.5),
         LiveWireConfig(max_window_size=2048),
     ),

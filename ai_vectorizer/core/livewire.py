@@ -52,6 +52,13 @@ class LiveWireConfig:
     target_snap_penalty: float = 4.0
     max_detour_ratio: float = 3.0
     min_direct_distance_for_detour_check: float = 8.0
+    continuity_bridge_min_gap_pixels: float = 12.0
+    continuity_bridge_max_gap_pixels: float = 96.0
+    continuity_bridge_min_chroma: float = 0.08
+    continuity_bridge_max_color_distance: float = 0.16
+    continuity_bridge_min_direction_alignment: float = 0.75
+    continuity_bridge_score: float = 0.90
+    continuity_bridge_max_tangent_slope: float = 0.25
 
     def validate(self) -> "LiveWireConfig":
         if (
@@ -83,6 +90,13 @@ class LiveWireConfig:
             self.target_snap_penalty,
             self.max_detour_ratio,
             self.min_direct_distance_for_detour_check,
+            self.continuity_bridge_min_gap_pixels,
+            self.continuity_bridge_max_gap_pixels,
+            self.continuity_bridge_min_chroma,
+            self.continuity_bridge_max_color_distance,
+            self.continuity_bridge_min_direction_alignment,
+            self.continuity_bridge_score,
+            self.continuity_bridge_max_tangent_slope,
         )
         try:
             all_finite = all(
@@ -118,6 +132,24 @@ class LiveWireConfig:
             raise ValueError("max_detour_ratio must be at least 1")
         if self.min_direct_distance_for_detour_check < 0:
             raise ValueError("min_direct_distance_for_detour_check cannot be negative")
+        if self.continuity_bridge_min_gap_pixels < 0:
+            raise ValueError("continuity bridge minimum gap cannot be negative")
+        if self.continuity_bridge_max_gap_pixels < self.continuity_bridge_min_gap_pixels:
+            raise ValueError(
+                "continuity bridge maximum gap must not be smaller than minimum"
+            )
+        if not 0.0 <= self.continuity_bridge_min_chroma <= 1.0:
+            raise ValueError("continuity bridge minimum chroma must be in [0, 1]")
+        if not (
+            0.0 <= self.continuity_bridge_max_color_distance <= math.sqrt(3.0)
+        ):
+            raise ValueError("continuity bridge color distance is invalid")
+        if not 0.0 <= self.continuity_bridge_min_direction_alignment <= 1.0:
+            raise ValueError("continuity bridge direction alignment must be in [0, 1]")
+        if not 0.0 <= self.continuity_bridge_score <= 1.0:
+            raise ValueError("continuity bridge score must be in [0, 1]")
+        if self.continuity_bridge_max_tangent_slope < 0.0:
+            raise ValueError("continuity bridge tangent slope cannot be negative")
         return self
 
 
@@ -330,6 +362,7 @@ def build_livewire_tree(
     y0, y1 = _bounded_window(window_center_y, height, config.max_window_size)
     crop_edges = np.ascontiguousarray(edge_array[y0:y1, x0:x1])
     crop_evidence = None
+    crop_rgb = None
     if evidence is not None:
         # Ink v2 has already paid for continuous support and direction
         # estimation.  Validate the unused image boundary without repeating
@@ -343,6 +376,14 @@ def build_livewire_tree(
             evidence.tangent_x[y0:y1, x0:x1],
             evidence.tangent_y[y0:y1, x0:x1],
             evidence.coherence[y0:y1, x0:x1],
+        )
+        crop_rgb = _continuity_rgb_crop(
+            image,
+            edge_array.shape,
+            y0,
+            y1,
+            x0,
+            x1,
         )
     else:
         crop_gray = _to_grayscale(image, edge_array.shape)[y0:y1, x0:x1]
@@ -358,6 +399,8 @@ def build_livewire_tree(
         ndimage,
         config,
         crop_evidence,
+        crop_rgb=crop_rgb,
+        local_root=local_root,
     )
     _raise_if_cancelled(cancel_check)
 
@@ -485,9 +528,24 @@ def _validate_image_dimensions(
     raise ValueError("image dimensions must match edges")
 
 
-def _line_features(gray, edges, ndimage, config, evidence=None):
+def _line_features(
+    gray,
+    edges,
+    ndimage,
+    config,
+    evidence=None,
+    *,
+    crop_rgb=None,
+    local_root=None,
+):
     if evidence is not None:
-        return _line_features_from_evidence(evidence)
+        return _line_features_from_evidence(
+            evidence,
+            ndimage=ndimage,
+            crop_rgb=crop_rgb,
+            local_root=local_root,
+            config=config,
+        )
 
     # Keep the evidence=None implementation byte-for-byte compatible with the
     # original Live-Wire feature extractor.  Only Ink v2 takes the precomputed
@@ -548,7 +606,14 @@ def _line_features(gray, edges, ndimage, config, evidence=None):
     return line_confidence, tangent_x, tangent_y, coherence
 
 
-def _line_features_from_evidence(evidence):
+def _line_features_from_evidence(
+    evidence,
+    *,
+    ndimage,
+    crop_rgb,
+    local_root,
+    config,
+):
     """Expose immutable Ink v2 evidence as Live-Wire graph features."""
 
     (
@@ -562,12 +627,263 @@ def _line_features_from_evidence(evidence):
         np.asarray(evidence_score, dtype=np.float32),
         np.asarray(evidence_centerline, dtype=bool).astype(np.float32),
     )
+    tangent_x = np.ascontiguousarray(evidence_tangent_x, dtype=np.float32)
+    tangent_y = np.ascontiguousarray(evidence_tangent_y, dtype=np.float32)
+    coherence = np.ascontiguousarray(evidence_coherence, dtype=np.float32)
+    bridge_score, bridge_tangent_x, bridge_tangent_y, bridge_coherence = (
+        _colored_continuity_bridge_support(
+            np.asarray(evidence_centerline, dtype=bool),
+            tangent_x,
+            tangent_y,
+            crop_rgb,
+            local_root,
+            ndimage,
+            config,
+        )
+    )
+    use_bridge_direction = bridge_score > line_confidence
+    line_confidence = np.maximum(line_confidence, bridge_score)
+    tangent_x = np.where(use_bridge_direction, bridge_tangent_x, tangent_x)
+    tangent_y = np.where(use_bridge_direction, bridge_tangent_y, tangent_y)
+    coherence = np.where(use_bridge_direction, bridge_coherence, coherence)
     return (
         np.ascontiguousarray(line_confidence, dtype=np.float32),
-        np.ascontiguousarray(evidence_tangent_x, dtype=np.float32),
-        np.ascontiguousarray(evidence_tangent_y, dtype=np.float32),
-        np.ascontiguousarray(evidence_coherence, dtype=np.float32),
+        np.ascontiguousarray(tangent_x, dtype=np.float32),
+        np.ascontiguousarray(tangent_y, dtype=np.float32),
+        np.ascontiguousarray(coherence, dtype=np.float32),
     )
+
+
+def _continuity_rgb_crop(image, expected_shape, y0, y1, x0, x1):
+    """Return a conservative normalized RGB crop, or ``None``.
+
+    The optional continuity bridge is deliberately unavailable for gray,
+    malformed, or ambiguous-range imagery.  It must never infer a coloured
+    contour from a grayscale label merely to make a route look connected.
+    """
+
+    values = np.asarray(image)
+    if (
+        values.ndim != 3
+        or values.shape[:2] != expected_shape
+        or values.shape[2] < 3
+    ):
+        return None
+    try:
+        rgb = np.asarray(values[..., :3], dtype=np.float32)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not np.isfinite(rgb).all():
+        return None
+    if np.issubdtype(values.dtype, np.integer):
+        if np.issubdtype(values.dtype, np.bool_):
+            return None
+        limits = np.iinfo(values.dtype)
+        scale = float(limits.max) - float(limits.min)
+        if scale <= 0.0:
+            return None
+        rgb = (rgb - np.float32(limits.min)) / np.float32(scale)
+    else:
+        low = float(rgb.min())
+        high = float(rgb.max())
+        if 0.0 <= low and high <= 1.0:
+            pass
+        elif 0.0 <= low and high <= 255.0:
+            rgb = rgb / np.float32(255.0)
+        else:
+            return None
+    rgb = np.clip(rgb, 0.0, 1.0)
+    return np.ascontiguousarray(rgb[y0:y1, x0:x1], dtype=np.float32)
+
+
+def _skeleton_endpoints(centerline):
+    """Return unambiguous 8-connected skeleton endpoints.
+
+    Counting foreground groups instead of raw neighbours keeps diagonal
+    centreline pixels from appearing as spurious endpoints at a junction.
+    """
+
+    active = np.asarray(centerline, dtype=bool)
+    padded = np.pad(active, 1, mode="constant", constant_values=False)
+    neighbours = (
+        padded[:-2, 1:-1],
+        padded[:-2, 2:],
+        padded[1:-1, 2:],
+        padded[2:, 2:],
+        padded[2:, 1:-1],
+        padded[2:, :-2],
+        padded[1:-1, :-2],
+        padded[:-2, :-2],
+    )
+    groups = np.zeros(active.shape, dtype=np.uint8)
+    for current, following in zip(neighbours, neighbours[1:] + neighbours[:1]):
+        groups += (~current & following).astype(np.uint8)
+    return active & (groups == 1)
+
+
+def _colored_continuity_bridge_support(
+    centerline,
+    tangent_x,
+    tangent_y,
+    crop_rgb,
+    local_root,
+    ndimage,
+    config,
+):
+    """Infer one small coloured-contour bridge from the user's anchor.
+
+    This is intentionally narrower than generic gap filling.  It considers
+    only an endpoint in the root's own centreline component and an endpoint
+    in another component.  Both must match the *anchor's* non-neutral colour
+    and be mutually aligned with the connecting direction.  Text, black
+    contours, neutral grids, absent orientation, and ambiguous root pixels
+    therefore fail closed.  The result is continuous graph support only: the
+    immutable ``LineEvidence.centerline`` is never changed or binary-ORed.
+    """
+
+    shape = tuple(int(value) for value in np.asarray(centerline).shape)
+    zeros = np.zeros(shape, dtype=np.float32)
+    if (
+        crop_rgb is None
+        or local_root is None
+        or tuple(int(value) for value in crop_rgb.shape[:2]) != shape
+        or min(shape, default=0) < 2
+    ):
+        return zeros, zeros.copy(), zeros.copy(), zeros.copy()
+    root_x, root_y = (int(local_root[0]), int(local_root[1]))
+    height, width = shape
+    if not (0 <= root_x < width and 0 <= root_y < height):
+        return zeros, zeros.copy(), zeros.copy(), zeros.copy()
+    anchor_color = crop_rgb[root_y, root_x]
+    if (
+        float(anchor_color.max() - anchor_color.min())
+        < config.continuity_bridge_min_chroma
+    ):
+        return zeros, zeros.copy(), zeros.copy(), zeros.copy()
+
+    active = np.asarray(centerline, dtype=bool)
+    if not active[root_y, root_x]:
+        return zeros, zeros.copy(), zeros.copy(), zeros.copy()
+    labels, _component_count = ndimage.label(
+        active,
+        structure=np.ones((3, 3), dtype=np.uint8),
+    )
+    root_label = int(labels[root_y, root_x])
+    if root_label <= 0:
+        return zeros, zeros.copy(), zeros.copy(), zeros.copy()
+
+    endpoint_y, endpoint_x = np.nonzero(_skeleton_endpoints(active))
+    endpoint_records = []
+    for y, x in zip(endpoint_y.tolist(), endpoint_x.tolist()):
+        if x == 0 or y == 0 or x == width - 1 or y == height - 1:
+            continue
+        color = crop_rgb[y, x]
+        if (
+            float(color.max() - color.min())
+            < config.continuity_bridge_min_chroma
+        ):
+            continue
+        if (
+            float(np.linalg.norm(color - anchor_color))
+            > config.continuity_bridge_max_color_distance
+        ):
+            continue
+        tangent = np.array((tangent_x[y, x], tangent_y[y, x]), dtype=np.float64)
+        tangent_length = float(np.hypot(tangent[0], tangent[1]))
+        if tangent_length <= 1e-6:
+            continue
+        endpoint_records.append(
+            (x, y, int(labels[y, x]), color, tangent / tangent_length)
+        )
+
+    root_endpoints = [item for item in endpoint_records if item[2] == root_label]
+    other_endpoints = [item for item in endpoint_records if item[2] != root_label]
+    # A dense coloured crossing leaves too many plausible continuations for a
+    # local, anchor-only rule to decide safely.  Refuse it rather than allowing
+    # a quadratic endpoint pairing pass or inventing a preferred branch.
+    if len(root_endpoints) > 16 or len(other_endpoints) > 64:
+        return zeros, zeros.copy(), zeros.copy(), zeros.copy()
+    candidate = None
+    for source in root_endpoints:
+        for target in other_endpoints:
+            delta = np.array(
+                (target[0] - source[0], target[1] - source[1]),
+                dtype=np.float64,
+            )
+            distance = float(np.hypot(delta[0], delta[1]))
+            if not (
+                config.continuity_bridge_min_gap_pixels
+                <= distance
+                <= config.continuity_bridge_max_gap_pixels
+            ):
+                continue
+            direction = delta / distance
+            source_alignment = abs(float(np.dot(source[4], direction)))
+            target_alignment = abs(float(np.dot(target[4], direction)))
+            alignment = min(source_alignment, target_alignment)
+            if alignment < config.continuity_bridge_min_direction_alignment:
+                continue
+            color_distance = float(np.linalg.norm(source[3] - target[3]))
+            if color_distance > config.continuity_bridge_max_color_distance:
+                continue
+            rank = (alignment, -color_distance, -distance)
+            if candidate is None or rank > candidate[0]:
+                candidate = (rank, source, target, direction, distance, alignment)
+    if candidate is None:
+        return zeros, zeros.copy(), zeros.copy(), zeros.copy()
+
+    _rank, source, target, direction, distance, alignment = candidate
+    normal = np.array((-direction[1], direction[0]), dtype=np.float64)
+
+    def tangent_slope(tangent):
+        oriented = tangent if float(np.dot(tangent, direction)) >= 0.0 else -tangent
+        forward = max(float(np.dot(oriented, direction)), 1e-6)
+        slope = float(np.dot(oriented, normal)) / forward
+        limit = config.continuity_bridge_max_tangent_slope
+        return max(-limit, min(limit, slope))
+
+    source_slope = tangent_slope(source[4])
+    target_slope = tangent_slope(target[4])
+    points = []
+    point_count = max(2, int(math.ceil(distance)) + 1)
+    source_point = np.array((source[0], source[1]), dtype=np.float64)
+    target_point = np.array((target[0], target[1]), dtype=np.float64)
+    for index in range(point_count):
+        fraction = float(index) / float(point_count - 1)
+        h00 = 2.0 * fraction**3 - 3.0 * fraction**2 + 1.0
+        h10 = fraction**3 - 2.0 * fraction**2 + fraction
+        h01 = -2.0 * fraction**3 + 3.0 * fraction**2
+        h11 = fraction**3 - fraction**2
+        point = (
+            h00 * source_point
+            + h10 * distance * (direction + normal * source_slope)
+            + h01 * target_point
+            + h11 * distance * (direction + normal * target_slope)
+        )
+        x, y = int(round(float(point[0]))), int(round(float(point[1])))
+        if 0 <= x < width and 0 <= y < height and (x, y) not in points:
+            points.append((x, y))
+    if len(points) < 2:
+        return zeros, zeros.copy(), zeros.copy(), zeros.copy()
+
+    bridge_score = zeros.copy()
+    bridge_tangent_x = zeros.copy()
+    bridge_tangent_y = zeros.copy()
+    bridge_coherence = zeros.copy()
+    bridge_coherence_value = np.float32(alignment)
+    for index, (x, y) in enumerate(points):
+        previous = points[max(0, index - 1)]
+        following = points[min(len(points) - 1, index + 1)]
+        vector_x = float(following[0] - previous[0])
+        vector_y = float(following[1] - previous[1])
+        vector_length = math.hypot(vector_x, vector_y)
+        if vector_length <= 1e-6:
+            continue
+        bridge_score[y, x] = np.float32(config.continuity_bridge_score)
+        bridge_tangent_x[y, x] = np.float32(vector_x / vector_length)
+        bridge_tangent_y[y, x] = np.float32(vector_y / vector_length)
+        bridge_coherence[y, x] = bridge_coherence_value
+    return bridge_score, bridge_tangent_x, bridge_tangent_y, bridge_coherence
 
 
 def _build_sparse_graph(

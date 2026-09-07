@@ -16,6 +16,10 @@
 - Ink 추적 중 `Alt`+두 번 클릭으로 문자·기호·얼룩 회피 사각형을 표시하는
   session-only Manual Avoid Guidance. `Alt+Backspace`는 마지막 영역을,
   `Alt+Shift+Backspace`는 모든 영역을 제거합니다.
+- 색 있는 등고선이 숫자 라벨 때문에 실제로 끊긴 경우를 위한 anchor-bound
+  continuity bridge. 시작 anchor와 양쪽 centerline endpoint가 같은 비중성 색·방향을
+  보일 때에만 Live-Wire 내부의 연속 score를 보강하며, `LineEvidence.centerline`과
+  0.1.5 Ink 경로는 변경하지 않습니다.
 
 ### Safety
 
@@ -23,6 +27,9 @@
   경우에도 같은 immutable soft cost를 challenger corridor에 전달하며, model mask를
   선으로 저장하거나 hard exclusion으로 쓰지 않습니다. 지도·selection은 저장·업로드·
   telemetry로 전송되지 않습니다.
+- continuity bridge는 grayscale/neutral anchor, 색 불일치, 방향 불일치, 12px보다
+  짧거나 96px보다 긴 공백, 복잡하게 갈라진 색 endpoint에서 동작하지 않습니다. 이때
+  기존 Ink champion을 그대로 유지하며 virtual support를 이진 mask와 OR하지 않습니다.
 
 ## 0.1.6 — experimental release candidate (not yet published)
 

@@ -71,6 +71,22 @@ Live-Wire의 `evidence=None`은 기존 계산을 그대로 사용합니다. evid
 명암 정규화, Gaussian/Sobel과 구조 텐서를 다시 계산하지 않습니다. 기존 320px 제한
 창, 진행 방향 bias, endpoint snap, 최대 우회율과 0–100% geometry blend는 유지됩니다.
 
+### Colored contour continuity bridge (Unreleased)
+
+등고선의 일부가 `289` 같은 표고 숫자 아래에서 **실제로 인쇄되지 않은** 경우,
+검은 글자와 가까운 평행선이 빈 구간보다 싸게 평가될 수 있습니다. Ink v2 Live-Wire는
+이 경우에만 anchor-bound virtual support를 후보로 만듭니다. anchor가 비중성 RGB 색을
+가져야 하고, anchor가 속한 centerline component의 endpoint와 다른 component endpoint가
+같은 색·축 방향을 보이며 12–96 source pixel 사이여야 합니다. 많은 후보 endpoint가
+있는 교차부는 모호하므로 자동으로 포기합니다.
+
+선택되면 두 endpoint의 제한된 tangent를 이용한 작은 Hermite bridge를 **Live-Wire 비용
+창 내부에만** 연속 score로 추가합니다. `LineEvidence` 배열, detector의 binary
+`centerline`, 저장될 vector line, 0.1.5 `evidence=None` 경로는 전혀 바꾸지 않습니다.
+따라서 preview와 확정은 같은 tree를 쓰고, grayscale/neutral contour·색 불일치·oversized
+gap은 이전 Ink route를 그대로 사용합니다. 이는 문자 인식, model download, telemetry,
+또는 mask OR가 아닙니다.
+
 ## Manual Avoid Guidance (Unreleased)
 
 Ink 경로가 문자·기호·오염 얼룩을 따라가려 할 때, 추적 중 `Alt`를 누른 채 두 번

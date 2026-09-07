@@ -63,11 +63,14 @@ python3 -m benchmarks.complex_synthetic --output-dir "$candidate_dir" \
 The strict smoke gate requires preserved endpoints, p95 ≤ 4px, both path→ref
 and ref→path 4px coverage ≥ 0.92, label-gap coverage ≥ 0.85, and
 parallel-switch fraction ≤ 0.03. The current Ink v2 baseline is intentionally
-run and reported too, but does **not** pass this hard fixture yet; it improves
-on legacy Ink while exposing its unresolved label-gap and parallel-line risks.
-Passing the smoke gate only proves integration on a controlled adversarial
-fixture; it is not a quality claim and cannot replace the licensed 8-sheet /
-48-crop historical-map holdout below.
+run and must pass this fixture. Its bridge is conservative: it activates only
+when a non-neutral coloured anchor and two differently connected, directionally
+aligned endpoints agree in colour; it adds continuous Live-Wire support only
+and never edits `LineEvidence.centerline` or ORs a binary line. Gray/neutral
+contours, an ambiguous anchor, a colour mismatch, or an oversized gap simply
+keep the original Ink route. Passing the smoke gate only proves integration on
+a controlled adversarial fixture; it is not a quality claim and cannot replace
+the licensed 8-sheet / 48-crop historical-map holdout below.
 
 ## DexiNed shadow experiment (rejected CPU candidate)
 

@@ -28,20 +28,16 @@ def test_complex_challenge_exercises_real_ink_v1_and_v2_paths():
     assert v2["evidence_centerline_pixels"] > 200
     assert v2["evidence_score_p95"] > 0.0
 
-    # This fixture is deliberately hard enough that the current v2 baseline
-    # does not pass the candidate gate yet.  It must still improve materially
-    # over v1 and surface the unresolved parallel-line risk in evidence.
+    # V2's anchored coloured-contour bridge must materially improve over v1
+    # without turning the label gap into a parallel-contour switch.
     assert v2["target_p95_distance_px"] < v1["target_p95_distance_px"]
     assert (
         v2["reference_coverage_within_4px"]
         > v1["reference_coverage_within_4px"]
     )
     assert v2["parallel_switch_fraction"] < v1["parallel_switch_fraction"]
-    assert v2["candidate_smoke_gate"]["passed"] is False
-    assert (
-        "numeric_label_gap_coverage_below_0.85"
-        in v2["candidate_smoke_gate"]["reasons"]
-    )
+    assert v2["numeric_label_gap_coverage_within_4px"] >= 0.85
+    assert v2["candidate_smoke_gate"]["passed"] is True
 
 
 def test_complex_challenge_is_deterministic_and_cli_emits_inspectable_artifacts(tmp_path, capsys):
