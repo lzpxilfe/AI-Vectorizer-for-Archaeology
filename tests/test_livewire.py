@@ -5,6 +5,7 @@ import pytest
 
 import ai_vectorizer.core.livewire as livewire_module
 from ai_vectorizer.core.line_evidence import LineEvidence
+from ai_vectorizer.core.trace_guidance import TraceGuidance, guidance_from_boxes
 from ai_vectorizer.core.livewire import (
     LiveWireCancelled,
     LiveWireConfig,
@@ -108,6 +109,112 @@ def test_explicit_none_evidence_is_v1_compatible():
     )
     np.testing.assert_array_equal(historical.distances, explicit_none.distances)
     assert historical.trace(desired[-5]) == explicit_none.trace(desired[-5])
+
+
+def test_explicit_none_guidance_is_v1_compatible():
+    image, edges, desired, _ = _dense_contour_fixture()
+    root = desired[4]
+    kwargs = {
+        "strength": 1.0,
+        "incoming_direction": (1.0, 0.0),
+        "config": LiveWireConfig(max_window_size=160, target_snap_radius=3),
+    }
+
+    historical = build_livewire_tree(image, edges, root, **kwargs)
+    explicit_none = build_livewire_tree(
+        image,
+        edges,
+        root,
+        guidance=None,
+        **kwargs,
+    )
+
+    np.testing.assert_array_equal(historical.predecessors, explicit_none.predecessors)
+    np.testing.assert_array_equal(historical.distances, explicit_none.distances)
+    assert historical.trace(desired[-5]) == explicit_none.trace(desired[-5])
+
+
+def _draw_centerline(mask, start, end):
+    steps = int(max(abs(end[0] - start[0]), abs(end[1] - start[1])))
+    for index in range(steps + 1):
+        fraction = index / max(1, steps)
+        x = int(round(start[0] + (end[0] - start[0]) * fraction))
+        y = int(round(start[1] + (end[1] - start[1]) * fraction))
+        mask[y, x] = True
+
+
+def test_soft_guidance_prefers_an_ink_detour_without_creating_a_wall():
+    image = np.full((64, 64), 255, dtype=np.uint8)
+    edges = np.zeros((64, 64), dtype=np.uint8)
+    centerline = np.zeros(edges.shape, dtype=bool)
+    root = (4, 32)
+    target = (59, 32)
+
+    # A direct stroke is shorter, while a complete upper stroke offers a
+    # realistic alternate route around a marked label/noise rectangle.
+    _draw_centerline(centerline, root, target)
+    _draw_centerline(centerline, root, (13, 19))
+    _draw_centerline(centerline, (13, 19), (50, 19))
+    _draw_centerline(centerline, (50, 19), target)
+    evidence = LineEvidence(
+        center_score=centerline.astype(np.float32),
+        centerline=centerline,
+    )
+    config = LiveWireConfig(
+        max_window_size=64,
+        target_snap_radius=0,
+        direction_cost_weight=0.0,
+        heading_cost_weight=0.0,
+        avoidance_cost_weight=10.0,
+    )
+
+    direct = build_livewire_tree(
+        image,
+        edges,
+        root,
+        evidence=evidence,
+        config=config,
+    ).trace(target)
+    guided = build_livewire_tree(
+        image,
+        edges,
+        root,
+        evidence=evidence,
+        guidance=guidance_from_boxes(
+            edges.shape,
+            [(19, 28, 45, 36)],
+            feather_pixels=0.0,
+        ),
+        config=config,
+    ).trace(target)
+
+    assert min(y for _x, y in direct) >= 31.0
+    assert min(y for _x, y in guided) <= 22.0
+    assert guided[0] == (float(root[0]), float(root[1]))
+    assert guided[-1] == (float(target[0]), float(target[1]))
+
+
+def test_guidance_type_dimensions_and_zero_strength_are_safe():
+    image = np.full((32, 32), 255, dtype=np.uint8)
+    edges = np.zeros_like(image)
+    with pytest.raises(TypeError, match="TraceGuidance"):
+        build_livewire_tree(image, edges, (4, 4), guidance={})
+    with pytest.raises(ValueError, match="guidance dimensions"):
+        build_livewire_tree(
+            image,
+            edges,
+            (4, 4),
+            guidance=TraceGuidance(np.zeros((16, 16), dtype=np.float32)),
+        )
+
+    tree = build_livewire_tree(
+        image,
+        edges,
+        (4, 4),
+        strength=0.0,
+        guidance=TraceGuidance(np.ones(edges.shape, dtype=np.float32)),
+    )
+    assert tree.trace((27.5, 23.25)) == [(4.0, 4.0), (27.5, 23.25)]
 
 
 def test_direct_centerline_evidence_can_supply_a_missing_route():
@@ -325,6 +432,7 @@ def test_invalid_root_is_rejected_before_graph_build():
     (
         LiveWireConfig(edge_sigma=float("nan")),
         LiveWireConfig(line_cost_weight=float("nan")),
+        LiveWireConfig(avoidance_cost_weight=float("nan")),
         LiveWireConfig(max_window_size=32.5),
         LiveWireConfig(max_window_size=2048),
     ),

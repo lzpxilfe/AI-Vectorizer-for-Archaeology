@@ -1555,12 +1555,14 @@ class AIVectorizerDock(QDockWidget):
             self._tr(
                 "• 드래그: 선 그리기 / 클릭: 체크포인트\n"
                 "• 그리는 중 Ctrl+Z: 마지막 체크포인트로 되돌리기\n"
+                "• Ink: Alt+클릭 두 번: 문자/잡음 회피 영역 · Alt+Backspace: 마지막 제거\n"
                 "• 저장 후 Ctrl+Z: QGIS 편집 작업 되돌리기\n"
                 "• Esc: 현재 그리기 취소 / Del: 전체 취소\n"
                 "• 시작점 클릭: 폴리곤 닫기 → 해발값\n"
                 "• 우클릭/Enter: 저장",
                 "• Drag: draw line / Click: checkpoint\n"
                 "• While tracing Ctrl+Z: undo to last checkpoint\n"
+                "• Ink: Alt+click two corners: avoid text/noise · Alt+Backspace: remove last\n"
                 "• After save Ctrl+Z: undo the QGIS edit command\n"
                 "• Esc: cancel current trace / Del: cancel all\n"
                 "• Click start point: close polygon -> elevation\n"
@@ -1569,8 +1571,12 @@ class AIVectorizerDock(QDockWidget):
         )
         self.controls_label.setToolTip(
             self._tr(
-                "클릭으로 체크포인트 저장\n그리는 중에는 체크포인트, 저장 후에는 QGIS 작업을 Ctrl+Z로 되돌립니다",
-                "Click to place checkpoints\nCtrl+Z undoes a checkpoint while tracing and the QGIS edit after saving",
+                "클릭으로 체크포인트 저장\n"
+                "Ink에서는 Alt+클릭 두 번으로 문자/잡음 회피 영역을 표시할 수 있습니다\n"
+                "그리는 중에는 체크포인트, 저장 후에는 QGIS 작업을 Ctrl+Z로 되돌립니다",
+                "Click to place checkpoints\n"
+                "In Ink, Alt+click two corners to mark a text/noise avoid region\n"
+                "Ctrl+Z undoes a checkpoint while tracing and the QGIS edit after saving",
             )
         )
 
@@ -2648,6 +2654,7 @@ class AIVectorizerDock(QDockWidget):
 <li><b>Right Click / Enter</b>: save current line.</li>
 <li><b>Esc / Delete</b>: cancel current trace.</li>
 <li><b>Ctrl+Z</b>: undo a checkpoint while tracing; after save, undo the complete QGIS edit command.</li>
+<li><b>Ink Alt+click twice</b>: mark a text/noise avoid rectangle. <b>Alt+Backspace</b> removes the latest; <b>Alt+Shift+Backspace</b> clears all.</li>
 <li><b>Click near start point</b>: close loop and enter elevation.</li>
 </ul>
 
@@ -2655,6 +2662,7 @@ class AIVectorizerDock(QDockWidget):
 <ul>
 <li>Zoom in until contour lines are clearly visible for better snapping.</li>
 <li>The assist slider is literal: 0% is the exact cursor, intermediate values blend geometry, and 100% uses the full Live-Wire route.</li>
+<li>An orange Ink avoid region is a soft local cost hint, never a hard wall or uploaded map data. Smart Recovery keeps Ink while one is active.</li>
 <li>The green line is the exact path that one click will accept. Auto Path is required only for SAM proposals.</li>
 <li>Smart Recovery reports Ink, Recovering, Enhanced, or Ink fallback. It never auto-downloads its model.</li>
 <li>If SAM/HED is unavailable, start with Ink Centerline.</li>
@@ -2698,6 +2706,7 @@ class AIVectorizerDock(QDockWidget):
 <li><b>우클릭 / Enter</b>: 현재 선 저장</li>
 <li><b>Esc / Delete</b>: 현재 그리기 취소</li>
 <li><b>Ctrl+Z</b>: 그리는 중에는 체크포인트, 저장 후에는 전체 QGIS 편집 명령 되돌리기</li>
+<li><b>Ink에서 Alt+두 번 클릭</b>: 문자·잡음 회피 사각형 표시. <b>Alt+Backspace</b>는 마지막, <b>Alt+Shift+Backspace</b>는 모두 제거</li>
 <li><b>시작점 근처 클릭</b>: 닫힌 루프 생성 후 해발값 입력</li>
 </ul>
 
@@ -2705,6 +2714,7 @@ class AIVectorizerDock(QDockWidget):
 <ul>
 <li>등고선이 명확히 보일 정도로 확대하면 스냅 품질이 좋아집니다.</li>
 <li>AI 개입 슬라이더는 실제 비율입니다. 0%는 정확한 커서, 중간값은 경로 혼합, 100%는 Live-Wire 전체 경로입니다.</li>
+<li>주황색 Ink 회피 영역은 hard wall이나 업로드 데이터가 아닌 local soft cost이며, 활성화 중 Smart Recovery는 Ink를 유지합니다.</li>
 <li>초록색 선이 클릭 한 번으로 채택될 정확한 경로입니다. Auto Path는 SAM 제안에만 필요합니다.</li>
 <li>Smart Recovery는 Ink, Recovering, Enhanced, Ink fallback 상태를 표시하며 model을 자동 download하지 않습니다.</li>
 <li>SAM/HED가 준비되지 않았다면 Ink Centerline부터 시작하세요.</li>

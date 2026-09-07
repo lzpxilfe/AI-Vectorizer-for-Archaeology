@@ -41,6 +41,7 @@ inference service.
 - Optional Smart Recovery that uses a verified EfficientSAM-Ti model only as a
   corridor prior; it is experimental, default OFF, and keeps the Ink route on failure
 - Bounded, direction-aware Live-Wire with literal 0–100% coordinate blending
+- Session-only manual avoid regions for text, symbols, or stains in Ink tracing
 - LSD, HED, MobileSAM, SAM ViT-B, and Legacy Canny preserved under
   `Advanced / Legacy methods`
 - A green preview of the path that the next click will accept
@@ -111,9 +112,12 @@ shortcuts, and troubleshooting guidance.
    Smart Recovery only when wanted.
 4. Inspect the green preview and the `Ink`, `Recovering`, `Enhanced`, or
    `Ink fallback` state. Older methods are under `Advanced / Legacy methods`.
-5. Accept anchors with clicks; use `Enter` or right-click to add the result to
+5. In Ink tracing, Alt+click two corners to mark text/noise to avoid. The orange
+   region is a soft local cost hint, not a hard wall; `Alt+Backspace` removes the
+   latest region and `Alt+Shift+Backspace` clears all regions for that trace.
+6. Accept anchors with clicks; use `Enter` or right-click to add the result to
    the edit buffer. Closing near the first point allows elevation entry.
-6. Run `Save Layer Edits`, then use `Step 4 > Build DEM…` to review the grid and
+7. Run `Save Layer Edits`, then use `Step 4 > Build DEM…` to review the grid and
    output paths.
 
 ## Data and safety boundary

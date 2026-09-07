@@ -52,6 +52,7 @@ from ..core.livewire import (
     is_livewire_available,
 )
 from ..core.line_evidence import crop_line_evidence
+from ..core.trace_guidance import guidance_from_boxes
 from ..core.recovery_prompts import (
     RecoveryPromptError,
     build_recovery_prompt_tensors,
@@ -349,6 +350,7 @@ class _LiveWireTreeTask(QgsTask):
         image,
         edges,
         evidence,
+        guidance,
         anchor_pixel,
         incoming_direction,
         strength,
@@ -360,6 +362,7 @@ class _LiveWireTreeTask(QgsTask):
         self.image = image
         self.edges = edges
         self.evidence = evidence
+        self.guidance = guidance
         self.anchor_pixel = tuple(anchor_pixel)
         self.incoming_direction = incoming_direction
         self.strength = float(strength)
@@ -382,6 +385,7 @@ class _LiveWireTreeTask(QgsTask):
                 config=self.config,
                 cancel_check=self.isCanceled,
                 evidence=self.evidence,
+                guidance=self.guidance,
             )
             return not self.isCanceled()
         except LiveWireCancelled:
@@ -652,6 +656,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     SNAP_MARKER_COLOR = (255, 0, 255, 200)
     SNAP_MARKER_WIDTH = 15
     SNAP_MARKER_ICON = _rubber_band_icon("ICON_X")
+    # A manual selection is a deliberately soft route-cost hint. It is kept
+    # in raster CRS only for the current trace, so pan/zoom can rebuild it on
+    # the next immutable cache without persisting user map data.
+    MANUAL_AVOIDANCE_COLOR = (255, 152, 0, 220)
+    MANUAL_AVOIDANCE_WIDTH = 2
+    MANUAL_AVOIDANCE_MAX_REGIONS = 12
+    MANUAL_AVOIDANCE_FEATHER_PIXELS = 2.0
     SPOT_LAYER_OWNERSHIP_PROPERTY = "ArchaeoTrace/ownedSpotHeightLayer"
     A_STAR_NEIGHBORS = [
         (-1, 0), (1, 0), (0, -1), (0, 1),
@@ -1002,6 +1013,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             icon=self.SNAP_MARKER_ICON,
         )
 
+        self.manual_avoidance_band = QgsRubberBand(self.canvas, LINE_GEOMETRY)
+        self._configure_band(
+            self.manual_avoidance_band,
+            self.MANUAL_AVOIDANCE_COLOR,
+            self.MANUAL_AVOIDANCE_WIDTH,
+        )
+        self._manual_avoidance_regions = []
+        self._manual_avoidance_draft_start = None
+
         # Spot Height Layer (Point)
         self.spot_height_layer = None
 
@@ -1032,6 +1052,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.cache_transform = None  # Pixel <-> Map transform
         self.cached_rgb_image = None
         self.cached_ink_evidence = None
+        self.cached_trace_guidance = None
         self._recovery_cache_compatible = False
         self._recovery_cache_disabled_reason = (
             "Smart Recovery is waiting for a native Byte Ink v2 cache."
@@ -1281,6 +1302,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.cached_edges = None
         self.cached_cost = None
         self.cached_ink_evidence = None
+        self.cached_trace_guidance = None
         self.cache_extent = None
         self.cache_tile_origin = None
         self.cache_identity = None
@@ -1312,6 +1334,238 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 RECOVERY_STATE_INK_FALLBACK,
                 "Ink evidence refresh was cancelled; exact cursor remains active.",
             )
+
+    def _manual_avoidance_is_supported(self):
+        """Return whether this trace can apply a bounded Ink guidance map."""
+
+        return bool(
+            self.is_tracing
+            and not self.freehand
+            and not self.use_sam
+            and self.edge_weight > 0.0
+            and self.edge_method == EdgeDetector.METHOD_INK
+        )
+
+    def _manual_avoidance_unavailable_detail(self):
+        if self.freehand or self.edge_weight <= 0.0:
+            return self._tr(
+                "회피 영역은 AI 개입 강도가 0보다 큰 Ink 추적에서만 사용할 수 있습니다.",
+                "Avoid regions require Ink tracing with assist above 0%.",
+            )
+        if self.use_sam:
+            return self._tr(
+                "회피 영역은 현재 Ink Live-Wire 경로에서만 사용할 수 있습니다.",
+                "Avoid regions currently apply only to the Ink Live-Wire route.",
+            )
+        return self._tr(
+            "회피 영역은 Ink Centerline 모드에서만 사용할 수 있습니다.",
+            "Avoid regions currently apply only in Ink Centerline mode.",
+        )
+
+    def _manual_avoidance_cache_boxes(self):
+        """Project session-local raster rectangles into the current cache."""
+
+        transform = self.cache_transform
+        if transform is None:
+            return []
+        boxes = []
+        for first, second in self._manual_avoidance_regions:
+            try:
+                first_x = (first.x() - transform["x_min"]) / transform["px_w"]
+                first_y = (transform["y_max"] - first.y()) / transform["px_h"]
+                second_x = (
+                    (second.x() - transform["x_min"])
+                    / transform["px_w"]
+                )
+                second_y = (
+                    (transform["y_max"] - second.y())
+                    / transform["px_h"]
+                )
+            except (AttributeError, KeyError, TypeError, ValueError, ZeroDivisionError):
+                continue
+            # The user picked map coordinates, whereas guide boxes are
+            # evaluated at cache-pixel centres. Include a half pixel on each
+            # side so a click on a thin label still has a visible effect.
+            boxes.append(
+                (
+                    min(first_x, second_x) - 0.5,
+                    min(first_y, second_y) - 0.5,
+                    max(first_x, second_x) + 0.5,
+                    max(first_y, second_y) + 0.5,
+                )
+            )
+        return boxes
+
+    def _refresh_trace_guidance(self):
+        """Build the immutable current-cache snapshot for the worker."""
+
+        self.cached_trace_guidance = None
+        if self.cached_edges is None or self.cache_transform is None:
+            return None
+        boxes = self._manual_avoidance_cache_boxes()
+        if not boxes:
+            return None
+        try:
+            guidance = guidance_from_boxes(
+                self.cached_edges.shape,
+                boxes,
+                feather_pixels=self.MANUAL_AVOIDANCE_FEATHER_PIXELS,
+            )
+        except (TypeError, ValueError, OverflowError) as exc:
+            print(f"Manual avoidance guidance was ignored: {exc}")
+            return None
+        # A selection can fall completely outside a newly panned cache. Do
+        # not pass an all-zero optional array: absence keeps the frozen v1
+        # graph path byte-for-byte unchanged for that cache.
+        if np.any(guidance.avoidance_score > 0.0):
+            self.cached_trace_guidance = guidance
+        return self.cached_trace_guidance
+
+    def _manual_avoidance_outline(self, first, second):
+        try:
+            left, right = sorted((float(first.x()), float(second.x())))
+            bottom, top = sorted((float(first.y()), float(second.y())))
+            corners = (
+                QgsPointXY(left, bottom),
+                QgsPointXY(left, top),
+                QgsPointXY(right, top),
+                QgsPointXY(right, bottom),
+                QgsPointXY(left, bottom),
+            )
+            return [self._raster_point_to_map(point) for point in corners]
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return None
+
+    def _redraw_manual_avoidance_band(self, draft_end=None):
+        """Render confirmed and in-progress session-only rectangles."""
+
+        band = getattr(self, "manual_avoidance_band", None)
+        if band is None:
+            return
+        outlines = []
+        for first, second in self._manual_avoidance_regions:
+            outline = self._manual_avoidance_outline(first, second)
+            if outline is not None:
+                outlines.append(outline)
+        draft_start = self._manual_avoidance_draft_start
+        if draft_start is not None and draft_end is not None:
+            outline = self._manual_avoidance_outline(draft_start, draft_end)
+            if outline is not None:
+                outlines.append(outline)
+
+        try:
+            band.reset(LINE_GEOMETRY)
+            if not outlines:
+                return
+            multi_line = getattr(QgsGeometry, "fromMultiPolylineXY", None)
+            if callable(multi_line):
+                band.setToGeometry(multi_line(outlines), None)
+            else:  # pragma: no cover - compatibility with very old bindings
+                for outline in outlines:
+                    band.addGeometry(QgsGeometry.fromPolylineXY(outline), None)
+        except RuntimeError:
+            # Canvas teardown can happen between a queued move event and its
+            # draw. The trace itself stays valid; dispose() will detach the
+            # remaining scene item if QGIS still owns it.
+            return
+
+    def _refresh_after_manual_avoidance_change(self, detail):
+        self._refresh_trace_guidance()
+        self._redraw_manual_avoidance_band()
+        self._invalidate_recovery(detail)
+        self._clear_preview(stop_timer=False)
+        self._request_livewire_tree(force=True)
+
+    def _handle_manual_avoidance_click(self, map_point):
+        """Collect two Alt-click corners without changing the trace anchor."""
+
+        if not self._manual_avoidance_is_supported():
+            self._push_message(
+                self._manual_avoidance_unavailable_detail(),
+                MESSAGE_INFO,
+                4,
+            )
+            return True
+        if self._pending_livewire_accept_point is not None:
+            self._push_message(
+                self._tr(
+                    "대기 중인 Ink 지점이 끝난 뒤 회피 영역을 추가하세요.",
+                    "Wait for the pending Ink point before adding an avoid region.",
+                ),
+                MESSAGE_INFO,
+                3,
+            )
+            return True
+        try:
+            raster_point = self._map_point_to_raster(map_point)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self._push_message(
+                self._tr(
+                    f"회피 영역 좌표를 변환하지 못했습니다: {exc}",
+                    f"Could not transform the avoid-region coordinate: {exc}",
+                ),
+                MESSAGE_WARNING,
+                4,
+            )
+            return True
+
+        if self._manual_avoidance_draft_start is None:
+            self._manual_avoidance_draft_start = QgsPointXY(raster_point)
+            self._redraw_manual_avoidance_band()
+            self._push_message(
+                self._tr(
+                    "회피 영역의 반대쪽 모서리를 Alt+클릭하세요.",
+                    "Alt+click the opposite corner of the avoid region.",
+                ),
+                MESSAGE_INFO,
+                4,
+            )
+            return True
+
+        if len(self._manual_avoidance_regions) >= self.MANUAL_AVOIDANCE_MAX_REGIONS:
+            self._push_message(
+                self._tr(
+                    "현재 선에는 회피 영역을 최대 12개까지 둘 수 있습니다.",
+                    "This trace supports at most 12 avoid regions.",
+                ),
+                MESSAGE_WARNING,
+                4,
+            )
+            return True
+
+        first = self._manual_avoidance_draft_start
+        self._manual_avoidance_draft_start = None
+        self._manual_avoidance_regions.append((first, QgsPointXY(raster_point)))
+        self._refresh_after_manual_avoidance_change(
+            "Manual avoidance guidance is active; Ink remains champion."
+        )
+        self._push_message(
+            self._tr(
+                "회피 영역을 적용했습니다. Ink 경로를 다시 계산합니다.",
+                "Avoid region applied; rebuilding the Ink route.",
+            ),
+            MESSAGE_INFO,
+            3,
+        )
+        return True
+
+    def _remove_manual_avoidance(self, *, clear_all=False):
+        """Remove the draft or latest session-only manual guide."""
+
+        if self._manual_avoidance_draft_start is not None:
+            self._manual_avoidance_draft_start = None
+            self._redraw_manual_avoidance_band()
+            return True
+        if not self._manual_avoidance_regions:
+            return False
+        if clear_all:
+            self._manual_avoidance_regions = []
+        else:
+            self._manual_avoidance_regions.pop()
+        self._refresh_after_manual_avoidance_change(
+            "Manual avoidance guidance changed; Ink remains champion."
+        )
+        return True
 
     @staticmethod
     def _ensure_edit_session(layer):
@@ -2042,6 +2296,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             image=self.cached_rgb_image,
             edges=self.cached_edges,
             evidence=self.cached_ink_evidence,
+            guidance=self.cached_trace_guidance,
             anchor_pixel=anchor_pixel,
             incoming_direction=self._livewire_incoming_direction(anchor_pixel),
             strength=self.edge_weight,
@@ -2534,6 +2789,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """Gate a challenger only after the Ink champion is available."""
 
         if not self.smart_recovery_enabled:
+            return False
+        if getattr(self, "_manual_avoidance_regions", ()):
+            # Recovery currently has no user-guidance input contract. Never
+            # let an optional challenger overwrite a deliberate local
+            # selection; the Ink champion remains authoritative.
+            self._emit_recovery_state(
+                RECOVERY_STATE_INK,
+                "Manual avoidance guidance is active; Smart Recovery kept Ink.",
+            )
             return False
         if not self._recovery_cache_compatible:
             self._emit_recovery_state(
@@ -3141,6 +3405,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return
 
         point = self.toMapCoordinates(event.pos())
+        event_modifiers = event.modifiers() if hasattr(event, "modifiers") else 0
+
+        if (
+            self.is_tracing
+            and event_modifiers
+            & _qt_value("AltModifier", "KeyboardModifier")
+        ):
+            self._handle_manual_avoidance_click(point)
+            return
 
         if not self.is_tracing:
             self._invalidate_recovery("Ink tracing started.")
@@ -3362,6 +3635,18 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self.close_indicator.addPoint(self.start_point)
         else:
             self.close_indicator.reset(POINT_GEOMETRY)
+
+        # A two-corner manual avoidance selection owns mouse movement until
+        # its second Alt+click. It must not alter the accepted anchor or the
+        # green preview while the user is framing text/noise.
+        if self._manual_avoidance_draft_start is not None:
+            try:
+                self._redraw_manual_avoidance_band(
+                    self._map_point_to_raster(current_point)
+                )
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                self._redraw_manual_avoidance_band()
+            return
 
         if self.last_map_point is None:
             self.last_map_point = current_point
@@ -3606,6 +3891,36 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts for undo and save."""
+
+        is_manual_avoidance_undo = (
+            event.key() == _qt_value("Key_Backspace", "Key")
+            and event.modifiers()
+            & _qt_value("AltModifier", "KeyboardModifier")
+        )
+        if is_manual_avoidance_undo:
+            if self.is_tracing:
+                clear_all = bool(
+                    event.modifiers()
+                    & _qt_value("ShiftModifier", "KeyboardModifier")
+                )
+                changed = self._remove_manual_avoidance(clear_all=clear_all)
+                if changed:
+                    self._push_message(
+                        self._tr(
+                            "모든 회피 영역을 지웠습니다."
+                            if clear_all
+                            else "마지막 회피 영역을 지웠습니다.",
+                            "Cleared all avoid regions."
+                            if clear_all
+                            else "Removed the last avoid region.",
+                        ),
+                        MESSAGE_INFO,
+                        3,
+                    )
+                event.accept()
+            else:
+                event.ignore()
+            return
 
         is_checkpoint_undo = (
             event.key() == _qt_value("Key_Z", "Key")
@@ -4067,6 +4382,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             "height": out_h,
             "source_tile_origin": tuple(tile_origin),
         }
+        self._refresh_trace_guidance()
         self.sam_image_ready = False
         self.sam_warning_emitted = False
         self.cache_dirty = False
@@ -4890,6 +5206,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._pending_livewire_accept_point = None
         self._pending_livewire_auto_accept = False
         self._pending_livewire_recovery_identity = None
+        self._manual_avoidance_regions = []
+        self._manual_avoidance_draft_start = None
+        self.cached_trace_guidance = None
         self.checkpoints = []
         self.start_point = None
         self.last_map_point = None
@@ -4905,6 +5224,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.close_indicator.reset(POINT_GEOMETRY)
         self.checkpoint_markers.reset(POINT_GEOMETRY)
         self.snap_marker.reset(POINT_GEOMETRY)
+        self.manual_avoidance_band.reset(LINE_GEOMETRY)
         if self.smart_recovery_requested:
             state = (
                 RECOVERY_STATE_INK
@@ -4942,6 +5262,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             "close_indicator",
             "checkpoint_markers",
             "snap_marker",
+            "manual_avoidance_band",
         ):
             item = getattr(self, attribute_name, None)
             if item is None:

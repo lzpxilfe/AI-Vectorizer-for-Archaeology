@@ -16,6 +16,7 @@ from typing import Callable, Iterable, Optional, Sequence, Tuple
 import numpy as np
 
 from .line_evidence import LineEvidence
+from .trace_guidance import TraceGuidance
 
 
 Pixel = Tuple[int, int]
@@ -44,6 +45,7 @@ class LiveWireConfig:
     tensor_sigma: float = 1.4
     line_cost_weight: float = 4.5
     direction_cost_weight: float = 5.0
+    avoidance_cost_weight: float = 6.0
     heading_cost_weight: float = 3.0
     heading_decay_pixels: float = 22.0
     target_snap_radius: int = 6
@@ -75,6 +77,7 @@ class LiveWireConfig:
             self.tensor_sigma,
             self.line_cost_weight,
             self.direction_cost_weight,
+            self.avoidance_cost_weight,
             self.heading_cost_weight,
             self.heading_decay_pixels,
             self.target_snap_penalty,
@@ -103,6 +106,7 @@ class LiveWireConfig:
         if min(
             self.line_cost_weight,
             self.direction_cost_weight,
+            self.avoidance_cost_weight,
             self.heading_cost_weight,
         ) < 0:
             raise ValueError("cost weights cannot be negative")
@@ -264,6 +268,7 @@ def build_livewire_tree(
     strength: float = 1.0,
     incoming_direction: Optional[Sequence[float]] = None,
     evidence: Optional[LineEvidence] = None,
+    guidance: Optional[TraceGuidance] = None,
     config: LiveWireConfig = LiveWireConfig(),
     cancel_check: Optional[Callable[[], bool]] = None,
 ) -> LiveWireTree:
@@ -291,6 +296,11 @@ def build_livewire_tree(
             raise TypeError("evidence must be a LineEvidence instance or None")
         if evidence.shape != tuple(int(value) for value in edge_array.shape):
             raise ValueError("evidence dimensions must match edges")
+    if guidance is not None:
+        if not isinstance(guidance, TraceGuidance):
+            raise TypeError("guidance must be a TraceGuidance instance or None")
+        if guidance.shape != tuple(int(value) for value in edge_array.shape):
+            raise ValueError("guidance dimensions must match edges")
 
     root_x = int(round(float(root[0])))
     root_y = int(round(float(root[1])))
@@ -336,6 +346,9 @@ def build_livewire_tree(
         )
     else:
         crop_gray = _to_grayscale(image, edge_array.shape)[y0:y1, x0:x1]
+    crop_guidance = None
+    if guidance is not None:
+        crop_guidance = guidance.avoidance_score[y0:y1, x0:x1]
     local_root = (root_x - x0, root_y - y0)
 
     _raise_if_cancelled(cancel_check)
@@ -354,6 +367,7 @@ def build_livewire_tree(
         tangent_x,
         tangent_y,
         coherence,
+        crop_guidance,
         local_root,
         1.0 if strength > 0.0 else 0.0,
         normalized_incoming,
@@ -562,6 +576,7 @@ def _build_sparse_graph(
     tangent_x,
     tangent_y,
     coherence,
+    avoidance_score,
     local_root,
     strength,
     incoming_direction,
@@ -629,6 +644,14 @@ def _build_sparse_graph(
             config.line_cost_weight * (1.0 - mean_line)
             + config.direction_cost_weight * direction_penalty
         )
+        if avoidance_score is not None:
+            source_avoidance = avoidance_score[source_y, source_x]
+            target_avoidance = avoidance_score[target_y, target_x_slice]
+            assist_penalty = assist_penalty + (
+                config.avoidance_cost_weight
+                * (source_avoidance + target_avoidance)
+                * 0.5
+            )
         if heading is not None:
             signed_alignment = max(-1.0, min(1.0, unit_x * heading[0] + unit_y * heading[1]))
             heading_penalty = (1.0 - signed_alignment) ** 2

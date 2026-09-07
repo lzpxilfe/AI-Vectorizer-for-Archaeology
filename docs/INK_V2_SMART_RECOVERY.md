@@ -71,6 +71,30 @@ Live-Wire의 `evidence=None`은 기존 계산을 그대로 사용합니다. evid
 명암 정규화, Gaussian/Sobel과 구조 텐서를 다시 계산하지 않습니다. 기존 320px 제한
 창, 진행 방향 bias, endpoint snap, 최대 우회율과 0–100% geometry blend는 유지됩니다.
 
+## Manual Avoid Guidance (Unreleased)
+
+Ink 경로가 문자·기호·오염 얼룩을 따라가려 할 때, 추적 중 `Alt`를 누른 채 두 번
+클릭해 사각형을 지정할 수 있습니다. 주황색 outline은 현재 선에만 존재하는
+session-only 선택이며, `Alt+Backspace`로 마지막 선택을, `Alt+Shift+Backspace`로
+모든 선택을 지웁니다.
+
+`core/trace_guidance.py`의 `TraceGuidance`는 `LineEvidence`와 별개의 immutable
+NumPy 계약입니다. `avoidance_score`는 `[0,1]` 범위의 **soft cost**이고 hard mask가
+아닙니다. Live-Wire는 이 영역을 통과할 수 있으나, Ink 지지가 비슷한 우회로가 있을
+때 그것을 선호합니다. 이 선택은 raster CRS로만 잠시 보관되고 현재 cache의 픽셀
+격자로 다시 투영되므로 pan/zoom에 따라 stale array를 재사용하지 않습니다.
+
+현재 Manual Avoid Guidance는 Ink Live-Wire만 대상으로 하며, 0% assist, Freehand,
+SAM-backed Auto Path를 변경하지 않습니다. EfficientSAM challenger는 아직 이 guidance
+계약을 입력으로 받지 않기 때문에, 사용자가 회피 영역을 활성화한 구간에서는
+Smart Recovery가 Ink champion을 그대로 유지합니다. 이것은 임의의 challenger가
+의도적인 사용자 제약을 무시하는 것을 막는 보수적 경계입니다.
+
+이 추상화는 향후 PP-OCR 같은 text detector의 optional local output도 같은 soft
+prior로 평가할 수 있게 만들지만, 이번 변경은 OCR model·자동 다운로드·원격 추론·
+사용자 지도 수집을 추가하지 않습니다. 그런 provider는 별도 pin/라이선스/benchmark
+gate와 parallel-line failure 검증을 통과한 뒤에만 연결합니다.
+
 ## Recovery gate와 안전 arbiter
 
 `core/smart_recovery.py`는 모델이나 QGIS를 import하지 않는 정책 계층입니다.

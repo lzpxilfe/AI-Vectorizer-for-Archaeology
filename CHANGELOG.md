@@ -6,8 +6,23 @@
 
 ## Unreleased
 
-`0.1.6` 후보를 고정한 뒤의 사용자 변경은 아직 없습니다. 다음 변경은 이 아래에
-먼저 기록하고, 일상 개발 중에는 plugin metadata 버전을 다시 올리지 않습니다.
+다음 변경은 아직 동결된 `0.1.6` 후보의 metadata·tag·ZIP을 바꾸지 않습니다.
+
+### Added
+
+- `TraceGuidance`: line evidence와 분리된 QGIS-independent, immutable soft
+  avoidance score 계약. Ink Live-Wire는 선택 영역을 hard wall이나 mask OR로
+  쓰지 않고 비용만 높여 더 좋은 중심선 우회로가 있을 때만 선택합니다.
+- Ink 추적 중 `Alt`+두 번 클릭으로 문자·기호·얼룩 회피 사각형을 표시하는
+  session-only Manual Avoid Guidance. `Alt+Backspace`는 마지막 영역을,
+  `Alt+Shift+Backspace`는 모든 영역을 제거합니다.
+
+### Safety
+
+- manual guidance는 Freehand/0% assist/SAM 경로를 바꾸지 않으며, 현재
+  Smart Recovery challenger가 사용자의 회피 선택을 덮어쓰지 않도록 해당 구간에서는
+  Ink champion을 유지합니다. 지도·selection은 저장·업로드·telemetry로 전송되지
+  않습니다.
 
 ## 0.1.6 — experimental release candidate (not yet published)
 

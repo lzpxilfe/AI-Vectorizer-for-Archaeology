@@ -49,6 +49,8 @@
   `Smart Recovery (Experimental)`; 기본 OFF, 명시적 설치, 실패 시 같은 Ink 경로 유지
 - 🎚️ `0%` 정확한 cursor부터 `100%` 전체 보조 경로까지 좌표를 실제로 혼합하는
   assist slider
+- 🟧 Ink 추적 중 `Alt`+두 번 클릭으로 문자·기호·얼룩을 부드럽게 피하는
+  session-only 회피 영역
 - 📐 접힌 `Advanced / Legacy methods`에 보존한 `LSD`, `HED`, `MobileSAM`,
   `SAM (ViT-B)`, `Legacy Canny`
 - 👁️ 클릭했을 때 채택될 경로를 보여 주는 초록색 preview와 anchor 기반 교정

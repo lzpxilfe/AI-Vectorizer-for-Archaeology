@@ -160,10 +160,25 @@ class DependencyDeclarationTests(unittest.TestCase):
         self.assertIn(
             package_release.FROZEN_RELEASE_SHA256[version], release_evidence
         )
-        self.assertEqual(
-            package_release.bytes_hash(package_release.build_release_zip_bytes()),
-            package_release.FROZEN_RELEASE_SHA256[version],
-        )
+        # A versioned candidate is an immutable historical payload. Normal
+        # development continues under Unreleased with the same metadata until
+        # a deliberately prepared next release changes it, so current source
+        # must be verified through an isolated output instead of being forced
+        # to remain byte-identical to the frozen candidate.
+        with tempfile.TemporaryDirectory() as temporary:
+            current_source_zip = Path(temporary) / "ai_vectorizer-unreleased.zip"
+            self.assertEqual(
+                package_release.run_build(version, output_path=current_source_zip),
+                0,
+            )
+            self.assertEqual(
+                package_release.run_check(version, archive_path=current_source_zip),
+                0,
+            )
+            self.assertEqual(
+                package_release.file_hash(current_source_zip),
+                package_release.bytes_hash(package_release.build_release_zip_bytes()),
+            )
         self.assertIn("Frozen repository-local candidate", release_evidence)
 
         historical_evidence = (

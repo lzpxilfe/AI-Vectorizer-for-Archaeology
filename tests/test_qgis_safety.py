@@ -480,6 +480,50 @@ class QgisSafetySourceTests(unittest.TestCase):
         self.assertIn("self.path_points = confirmed_path", save_candidate)
         self.assertNotIn("self.path_points.extend", take_auto_path)
 
+    def test_manual_avoidance_stays_soft_session_only_and_preserves_ink(self):
+        livewire_task = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "run",
+            "_LiveWireTreeTask",
+        )
+        request = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "_request_livewire_tree",
+            "SmartTraceTool",
+        )
+        supported = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "_manual_avoidance_is_supported",
+            "SmartTraceTool",
+        )
+        refresh = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "_refresh_trace_guidance",
+            "SmartTraceTool",
+        )
+        schedule = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "_schedule_smart_recovery",
+            "SmartTraceTool",
+        )
+        reset = _function_source(
+            "ai_vectorizer/tools/smart_trace_tool.py",
+            "reset_tracing",
+            "SmartTraceTool",
+        )
+
+        self.assertIn("guidance=self.guidance", livewire_task)
+        self.assertIn("guidance=self.cached_trace_guidance", request)
+        self.assertIn("not self.freehand", supported)
+        self.assertIn("self.edge_weight > 0.0", supported)
+        self.assertIn("EdgeDetector.METHOD_INK", supported)
+        self.assertIn("guidance_from_boxes", refresh)
+        self.assertIn("np.any(guidance.avoidance_score > 0.0)", refresh)
+        self.assertIn("Manual avoidance guidance is active", schedule)
+        self.assertIn("RECOVERY_STATE_INK", schedule)
+        self.assertIn("self._manual_avoidance_regions = []", reset)
+        self.assertIn("self.manual_avoidance_band.reset", reset)
+
     def test_dem_processing_uses_exact_selected_project_layer(self):
         reference = _function_source(
             "ai_vectorizer/core/dem_pipeline.py",

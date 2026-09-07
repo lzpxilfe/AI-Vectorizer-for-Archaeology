@@ -210,6 +210,8 @@ first use.
 ## ⌨️ Shortcuts
 
 - 트레이싱 중 `Ctrl+Z` / `Backspace`: 마지막 체크포인트로 되돌리기
+- Ink 추적 중 `Alt`+두 번 클릭: 문자·기호·얼룩 회피 영역. `Alt+Backspace`: 마지막
+  영역 제거, `Alt+Shift+Backspace`: 모든 영역 제거
 - 저장 후 `Ctrl+Z`: QGIS 편집 스택에서 방금 추가·연장한 작업 되돌리기
 - `Esc` / `Delete`: 현재 트레이싱 취소
 - `Enter` / 우클릭: 현재 선 저장

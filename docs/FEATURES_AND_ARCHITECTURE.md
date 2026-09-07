@@ -17,6 +17,7 @@ download와 repository-local `d292…` 사전 후보는
 | 영역 | 현재 source 상태 | 설명 |
 | --- | --- | --- |
 | 수동·반자동 선 추적 | 구현 | Freehand, 다중 스케일 Ink Centerline; 기존 방법은 Advanced / Legacy에 보존 |
+| Manual Avoid Guidance | Unreleased 실험 | Ink Live-Wire의 문자·기호·얼룩 회피를 위한 session-only soft cost; 외부 OCR/model 없음 |
 | Smart Recovery | 실험적·기본 OFF | 검증된 EfficientSAM-Ti를 Ink 저신뢰 구간의 corridor prior로만 사용하고 실패 시 Ink 유지 |
 | QGIS 편집 통합 | 구현 | 새 피처, 기존 피처 연장, 고도 필드·값 변경을 편집 버퍼와 한 번의 Undo로 관리 |
 | 표고 데이터 | 구현 | 등고선 숫자 고도와 선택적 Spot Heights 저장 |
@@ -36,6 +37,7 @@ download와 repository-local `d292…` 사전 후보는
 QgsRasterLayer
   → 크기·자료형 제한이 있는 uint8 raster cache
   → source-grid 다중 스케일 LineEvidence
+  → (선택) session-only TraceGuidance soft avoidance
   → bounded Live-Wire Ink champion
   → (선택) 저신뢰 판정 → EfficientSAM corridor prior → strict challenger
   → 안전 arbiter가 champion/challenger 중 선택
@@ -87,6 +89,26 @@ SciPy가 없으면 모든 non-SAM edge mode(Ink/LSD/HED/Canny)가 제한 창의 
 nearby-edge snap으로 돌아가며, 기본 ZIP 설치만으로도 Ink와 Canny를 사용할 수
 있습니다. `0%` 보조는 엣지와 모델 작업을 건너뛰고 정확한 커서 좌표를 사용하고,
 `100%`는 전체 보조 경로를 사용하며 중간값은 두 경로의 실제 좌표를 혼합합니다.
+
+### Manual Avoid Guidance — Unreleased experiment
+
+Ink 추적 중 `Alt`+두 번 클릭으로 문자·기호·얼룩이 있는 사각형을 지정할 수 있습니다.
+선택은 주황색 outline으로만 표시되고 trace가 끝나면 사라집니다. `Alt+Backspace`는
+마지막 영역을, `Alt+Shift+Backspace`는 모두 지웁니다.
+
+`core/trace_guidance.py`의 `TraceGuidance`는 finite `[0,1]` `avoidance_score`와
+cache shape를 검증하고 immutable snapshot을 worker에 전달합니다. `LiveWireConfig`의
+`avoidance_cost_weight`는 선택 영역 이동 비용을 높일 뿐 도달 불가능한 hard wall을
+만들지 않습니다. 따라서 중심선이 실제로 영역을 통과해야 할 때는 경로가 유지되고,
+지지가 비슷한 우회 중심선이 있을 때만 그 우회로가 선택됩니다. 사용자 선택은 raster
+CRS로 잠시 보관해 pan/zoom 뒤 새 cache transform에서 다시 rasterize합니다. map data나
+선택 정보는 저장·upload·telemetry로 보내지 않습니다.
+
+현재 EfficientSAM challenger는 이 guidance를 전달받지 않습니다. 사용자 의도를
+보존하기 위해 회피 영역이 있을 때 Smart Recovery는 실행하지 않고 Ink champion을
+유지합니다. 이 QGIS-independent contract는 추후 optional local OCR/text-risk provider를
+정확히 같은 soft prior로 benchmark할 기반이지만, model delivery나 automatic provider
+activation은 아직 구현하지 않았습니다.
 
 ### Smart Recovery (Experimental)
 
