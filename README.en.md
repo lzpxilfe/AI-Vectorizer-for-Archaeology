@@ -93,6 +93,14 @@ never saves the SAM mask as a line or binary-ORs it with Ink; it accepts a
 challenger only after endpoint, detour, strong-Ink retention, and branch-switch
 checks. Assist at `0%` skips model and evidence work.
 
+For a contour interrupted by an elevation label, confirm an anchor before the
+gap, hover the continuation, and press `G` to request an experimental bridge.
+It samples nearby Ink directions and applies the assist slider to the curve.
+Click its endpoint to accept, or press `Esc` or click elsewhere to cancel;
+hovering keeps the proposal visible. Conflicting local directions or tangents
+incompatible with the gap retain the existing Ink preview. Validation so far
+uses synthetic examples, not a historical-map accuracy study.
+
 The declared OpenCV range is 4.8–4.11:
 
 ```bash

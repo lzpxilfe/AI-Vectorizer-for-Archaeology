@@ -505,6 +505,10 @@ class AIVectorizerDock(QDockWidget):
             self.manual_gap_bridge_btn.setEnabled(
                 not enabled
                 and self.active_tool is not None
+                and not getattr(self.active_tool, "freehand", True)
+                and not getattr(self.active_tool, "use_sam", False)
+                and getattr(self.active_tool, "edge_method", None) == "ink"
+                and getattr(self.active_tool, "edge_weight", 0.0) > 0.0
                 and callable(
                     getattr(self.active_tool, "preview_manual_gap_bridge", None)
                 )
@@ -1259,8 +1263,8 @@ class AIVectorizerDock(QDockWidget):
         self.manual_gap_bridge_btn = QPushButton()
         self.manual_gap_bridge_btn.clicked.connect(self.preview_manual_gap_bridge)
         self.manual_gap_bridge_btn.setEnabled(False)
-        recovery_actions.addWidget(self.manual_gap_bridge_btn)
         step3_layout.addLayout(recovery_actions)
+        step3_layout.addWidget(self.manual_gap_bridge_btn)
 
         self.recovery_runtime_guide = QLabel()
         self.recovery_runtime_guide.setWordWrap(True)
@@ -1473,14 +1477,14 @@ class AIVectorizerDock(QDockWidget):
         )
         self.manual_gap_bridge_btn.setText(
             self._tr(
-                "⤴ 라벨 공백 연결",
-                "⤴ Bridge label gap",
+                "⤴ 라벨 공백 연결 (G, 실험적)",
+                "⤴ Bridge label gap (G, Experimental)",
             )
         )
         self.manual_gap_bridge_btn.setToolTip(
             self._tr(
-                "공백 전 anchor를 확정하고 반대편 등고선 위에 커서를 둔 뒤 누르세요. 초록 미리보기를 같은 끝점에서 다시 클릭해야 확정됩니다.",
-                "Confirm an anchor before the gap, hover the contour beyond it, then click. Click the same endpoint again to accept the green preview.",
+                "공백 전 anchor를 확정하고 반대편 선 위에서 G를 누르세요. 미리보기 끝점 클릭으로 확정, Esc 또는 다른 위치 클릭으로 취소합니다. 보조 강도가 곡률에 적용됩니다.",
+                "Confirm an anchor before the gap, hover beyond it, and press G. Click the preview endpoint to accept; Esc or another target cancels. Assist strength controls the curve.",
             )
         )
         self.recovery_runtime_guide.setText(

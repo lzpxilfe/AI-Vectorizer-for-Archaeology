@@ -27,6 +27,13 @@
 
 ### Safety
 
+- 라벨 공백 연결의 제품·benchmark 방향 추정을 통일했습니다. 가까운 선 방향의 충돌과
+  공백에 수직인 방향을 거부하며, 종전 고정 tangent 기하 점수를 제품 성능과 구분합니다.
+- 수동 미리보기를 늦은 Live-Wire 결과가 덮어쓰던 경합을 수정했습니다. 확정은 같은
+  cache·anchor·표시 경로에서 화면/원본 2px 안의 끝점 클릭만 허용합니다. `G`로 요청하고
+  `Esc`로 미리보기만 취소하며, hover·Alt 선택은 미리보기를 확정하지 않습니다.
+- 수동 bridge에도 assist 강도를 적용하고, 지도 좌표 변환 실패와 cache 밖 곡선에서
+  기존 preview를 보존합니다.
 - manual guidance는 Freehand/0% assist/SAM 경로를 바꾸지 않습니다. Recovery를 켠
   경우에도 같은 immutable soft cost를 challenger corridor에 전달하며, model mask를
   선으로 저장하거나 hard exclusion으로 쓰지 않습니다. 지도·selection은 저장·업로드·

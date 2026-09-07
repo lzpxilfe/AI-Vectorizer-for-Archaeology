@@ -91,14 +91,26 @@ gap은 이전 Ink route를 그대로 사용합니다. 이는 문자 인식, mode
 
 검은·갈색 등고선은 색만으로 같은 선의 양끝을 판정할 수 없으므로 자동 bridge를 만들지
 않습니다. 대신 사용자는 공백 전 anchor를 확정하고 반대편 선 위에 커서를 둔 뒤
-`⤴ 라벨 공백 연결`을 누릅니다. core는 그 두 **명시적** map endpoint를 source pixel로
-변환하고, 각 endpoint의 반경 3px 내 Ink centerline tangent만 읽어 최대 128px의
-Hermite preview를 만듭니다. tangent가 없거나 bridge가 1.25배 이상 우회하면 거부합니다.
+`G`를 누릅니다 (`⤴ 라벨 공백 연결`, 실험적). 제품과 benchmark는 같은
+`sample_manual_gap_tangent()`를 사용합니다. 반경 3 source pixel 원 안에서 score와
+coherence가 충분한 가까운 중심선을 우선하고, 비슷한 거리의 방향이 35° 이상 충돌하면
+거부합니다. 강한 글자가 가까운 등고선을 밀어내지 않도록 거리부터 비교합니다.
+공백 진행 방향과 45° 넘게 어긋난 tangent도 거부합니다. 3–128px의 Hermite 곡선에
+현재 보조 강도를 적용하며, 1.25배 우회 제한과 cache 경계를 검사합니다.
 
 이 preview는 green segment일 뿐입니다. 사용자가 같은 반대편 endpoint를 다시 클릭해야
-일반 anchor처럼 edit buffer 후보에 들어가며, 다른 곳으로 움직이거나 클릭하면 버려지고
-Ink preview가 다시 계산됩니다. raster·OCR·model·network는 이 동작에 사용되지 않으며,
-`LineEvidence`와 Smart Recovery의 champion/challenger 정책도 바꾸지 않습니다.
+일반 anchor처럼 edit buffer 후보에 들어갑니다. 끝점 허용 오차는 화면 2px와 원본 2px
+둘 다 만족해야 합니다. 커서 이동 중에도 유지되며 `Esc` 또는 다른 위치 클릭으로
+취소합니다. proposal은 cache generation, 확정 anchor와 표시된 전체 경로에 결속됩니다.
+늦은 Live-Wire 결과는 tree만 보관하고 proposal을 덮어쓰지 않으며, proposal을 확인하는
+동안에는 Smart Recovery 재시도를 시작하지 않습니다. 기존 Ink evidence를 읽으며 추가
+model·OCR·network 호출은 없습니다.
+
+이전 `manual_gap_shadow`의 0.67px 결과는 고정 tangent를 넣은 기하 테스트였습니다.
+현재 benchmark는 실제 evidence에서 방향을 추정하고 동일 endpoint 구간끼리 비교합니다.
+기존의 글자에 붙은 prompt는 방향 충돌로 거부될 수 있으며, 이때 Ink 원래 경로와 hash가
+동일한지 검사합니다. 합성 테스트 통과는 고지도 holdout이나 사용자 작업 속도 검증을
+대체하지 않습니다.
 
 ## Manual Avoid Guidance (Unreleased)
 

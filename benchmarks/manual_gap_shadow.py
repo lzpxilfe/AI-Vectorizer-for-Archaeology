@@ -1,167 +1,326 @@
-"""Explicit neutral-contour label-gap experiment, outside the QGIS product.
+"""Reproducible product-kernel checks for explicitly requested label-gap bridges.
 
-The coloured Ink v2 bridge intentionally fails closed on neutral contours.
-This shadow experiment records what happens when a user explicitly confirms
-the two ends of one dark contour around a printed elevation label.  It does not
-inspect a reference while generating the bridge, run a model, alter a QGIS
-preview, or select endpoints automatically.
+The fixed manual prompts are inputs, not inferred annotations. Both methods
+receive the same start/end points; the bridge samples directions from the same
+Ink evidence using the helper called by QGIS. Rejection retains the Ink path.
+References are consulted only when scoring the completed paths. These synthetic
+checks are neither historical-map accuracy evidence nor a human usability study.
 """
 
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict, dataclass
 import hashlib
+from importlib.metadata import version
 import json
 from pathlib import Path
+import platform
 from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 
 from ai_vectorizer.core.edge_detector import EdgeDetector
-from ai_vectorizer.core.livewire import LiveWireConfig, build_livewire_tree
-from ai_vectorizer.core.manual_gap_bridge import build_manual_gap_bridge
+from ai_vectorizer.core.livewire import (
+    LiveWireConfig,
+    blend_path_with_cursor,
+    build_livewire_tree,
+)
+from ai_vectorizer.core.manual_gap_bridge import (
+    DEFAULT_MANUAL_GAP_BRIDGE_CONFIG,
+    ManualGapBridgeError,
+    build_manual_gap_bridge,
+    sample_manual_gap_tangent,
+)
+from ai_vectorizer.core.trace_kernel import smooth_pixel_path
 from benchmarks.complex_synthetic import (
+    ComplexTraceCase,
     _path_metrics,
+    _paint_digit,
+    _paint_path,
     _write_ppm,
     build_neutral_label_gap_case,
     candidate_smoke_gate,
 )
 
 
-# These are a recorded manual prompt, not labels inferred by a detector.  They
-# deliberately sit just outside the blank 289 label and describe the visible
-# incoming/outgoing contour directions in source-pixel coordinates.
+# Preserve the original recorded prompt, including difficult near-glyph points.
+# No tangent or reference-derived slope is supplied to the bridge.
 MANUAL_START_XY = (116.0, 118.0)
 MANUAL_END_XY = (164.0, 113.0)
-MANUAL_START_TANGENT_XY = (1.0, -0.25)
-MANUAL_END_TANGENT_XY = (1.0, 0.25)
+TANGENT_RADIUS_PIXELS = 3
+STRENGTH = 1.0
+SMOOTH_WINDOW_SIZE = 5
+LIVEWIRE_CONFIG = LiveWireConfig(max_window_size=320, target_snap_radius=6)
 
 
-def _endpoint_preserved(
-    path: Sequence[Sequence[float]],
-    start: Tuple[float, float],
-    end: Tuple[float, float],
-) -> bool:
-    return bool(
-        path
-        and tuple(float(value) for value in path[0]) == start
-        and tuple(float(value) for value in path[-1]) == end
+@dataclass(frozen=True)
+class ManualGapShadowCase:
+    name: str
+    image_rgb: np.ndarray
+    reference_case: ComplexTraceCase
+    grayscale: bool
+    quarter_turns: int
+    canonical_start_xy: Tuple[float, float] = MANUAL_START_XY
+    canonical_end_xy: Tuple[float, float] = MANUAL_END_XY
+    fixture_family: str = "glyph-adjacent-original"
+
+    def to_image_xy(self, point: Sequence[float]) -> Tuple[float, float]:
+        x, y = float(point[0]), float(point[1])
+        return (y, self.image_rgb.shape[0] - 1.0 - x) if self.quarter_turns else (x, y)
+
+    def to_reference_xy(self, point: Sequence[float]) -> Tuple[float, float]:
+        x, y = float(point[0]), float(point[1])
+        return (self.image_rgb.shape[0] - 1.0 - y, x) if self.quarter_turns else (x, y)
+
+
+def build_manual_gap_shadow_cases() -> Tuple[ManualGapShadowCase, ...]:
+    """Return brown/achromatic fixtures at two predeclared sheet orientations.
+
+    The original fixture's so-called neutral ink is brown. The gray variants
+    make every R/G/B value equal. Rotation applies losslessly to the complete
+    sheet and prompts, including the printed label, rather than interpolating
+    the raster or selecting easier endpoint pixels.
+    """
+
+    base = build_neutral_label_gap_case()
+    cases = []
+    for grayscale in (False, True):
+        for quarter_turns in (0, 1):
+            image = base.image_rgb.copy()
+            if grayscale:
+                gray = np.rint(np.mean(image.astype(np.float32), axis=2)).astype(np.uint8)
+                image = np.repeat(gray[..., None], 3, axis=2)
+            image = np.ascontiguousarray(np.rot90(image, quarter_turns))
+            image.setflags(write=False)
+            color = "gray" if grayscale else "brown"
+            cases.append(ManualGapShadowCase(
+                name="{}-label-gap-{}deg-v2".format(color, quarter_turns * 90),
+                image_rgb=image,
+                reference_case=base,
+                grayscale=grayscale,
+                quarter_turns=quarter_turns,
+            ))
+    # A positive control places both explicit anchors on visible, straight
+    # contour sections six pixels back from the blank. Digits remain inside
+    # the gap. The simple input validates evidence sampling + preview creation
+    # without pretending that every glyph-adjacent endpoint is recoverable.
+    clear_image = np.full((256, 256, 3), 238, dtype=np.uint8)
+    reference = tuple((x, 128) for x in range(16, 241))
+    parallel = tuple((x, 152) for x in range(16, 241))
+    _paint_path(clear_image, reference, (80, 80, 80), 1, omitted_x=(118, 162))
+    _paint_path(clear_image, parallel, (64, 64, 64), 1)
+    for digit, x in zip("289", (127, 137, 147)):
+        _paint_digit(clear_image, digit, x, 119, scale=2)
+    gray = np.rint(np.mean(clear_image.astype(np.float32), axis=2)).astype(np.uint8)
+    clear_image = np.repeat(gray[..., None], 3, axis=2)
+    clear_base = ComplexTraceCase(
+        name="gray-clear-label-gap-v2", image_rgb=clear_image,
+        start_xy=reference[0], end_xy=reference[-1],
+        reference_xy=reference, parallel_xy=parallel,
     )
+    for quarter_turns in (0, 1):
+        image = np.ascontiguousarray(np.rot90(clear_image, quarter_turns))
+        image.setflags(write=False)
+        cases.append(ManualGapShadowCase(
+            name="gray-clear-label-gap-{}deg-v2".format(quarter_turns * 90),
+            image_rgb=image, reference_case=clear_base, grayscale=True,
+            quarter_turns=quarter_turns,
+            canonical_start_xy=(110.0, 128.0),
+            canonical_end_xy=(170.0, 128.0),
+            fixture_family="clear-gap-positive-control",
+        ))
+    return tuple(cases)
 
 
-def _score_segment(
-    path: Sequence[Sequence[float]],
-    reference: Sequence[Tuple[int, int]],
-    parallel: Sequence[Tuple[int, int]],
-    start: Tuple[float, float],
-    end: Tuple[float, float],
-) -> Dict[str, object]:
-    metrics = _path_metrics(path, reference, parallel)
-    metrics["endpoint_preserved"] = _endpoint_preserved(path, start, end)
+def _json_sha256(value: object) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _points_json(points: Sequence[Sequence[float]]) -> list:
+    return [[float(x), float(y)] for x, y in points]
+
+
+def _source_hashes() -> Dict[str, str]:
+    root = Path(__file__).resolve().parents[1]
+    files = (
+        "benchmarks/manual_gap_shadow.py",
+        "benchmarks/complex_synthetic.py",
+        "ai_vectorizer/core/edge_detector.py",
+        "ai_vectorizer/core/line_evidence.py",
+        "ai_vectorizer/core/livewire.py",
+        "ai_vectorizer/core/manual_gap_bridge.py",
+        "ai_vectorizer/core/trace_kernel.py",
+    )
+    return {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in files}
+
+
+def _configuration() -> Dict[str, object]:
+    return {
+        "livewire": asdict(LIVEWIRE_CONFIG),
+        "manual_gap_bridge": asdict(DEFAULT_MANUAL_GAP_BRIDGE_CONFIG),
+        "tangent_radius_pixels": TANGENT_RADIUS_PIXELS,
+        "strength": STRENGTH,
+        "livewire_smooth_window_size": SMOOTH_WINDOW_SIZE,
+        "tile_origin_xy": [0, 0],
+    }
+
+
+def _score_path(case, path, start, end, *, full_trace=False):
+    reference = case.reference_case.reference_xy
+    parallel = case.reference_case.parallel_xy
+    if not full_trace:
+        reference = tuple(p for p in reference if case.canonical_start_xy[0] <= p[0] <= case.canonical_end_xy[0])
+        parallel = tuple(p for p in parallel if case.canonical_start_xy[0] <= p[0] <= case.canonical_end_xy[0])
+    # A rigid inverse rotation makes the existing x-interval label-gap metric
+    # applicable. Distances are unchanged; emitted routes stay in image pixels.
+    metrics = _path_metrics([case.to_reference_xy(point) for point in path], reference, parallel)
+    metrics["scoring_frame"] = "canonical_unrotated_source_pixels"
+    metrics["endpoint_preserved"] = bool(
+        path and tuple(path[0]) == tuple(start) and tuple(path[-1]) == tuple(end)
+    )
     metrics["candidate_smoke_gate"] = candidate_smoke_gate(metrics)
     return metrics
 
 
-def run_neutral_manual_gap_shadow() -> Dict[str, object]:
-    """Compare neutral Ink control with a recorded explicit manual bridge."""
-
-    case = build_neutral_label_gap_case()
-    detector = EdgeDetector(method=EdgeDetector.METHOD_INK)
-    evidence = detector.detect_ink_evidence(case.image_rgb, tile_origin=(0, 0))
-    edges = np.where(evidence.centerline, 255, 0).astype(np.uint8)
+def _ink_path(case, evidence, start, end, incoming_direction=None):
     tree = build_livewire_tree(
         case.image_rgb,
-        edges,
-        case.start_xy,
-        strength=1.0,
-        incoming_direction=(1.0, 0.0),
+        np.where(evidence.centerline, 255, 0).astype(np.uint8),
+        start,
+        strength=STRENGTH,
+        incoming_direction=incoming_direction,
         evidence=evidence,
-        config=LiveWireConfig(max_window_size=320, target_snap_radius=3),
+        config=LIVEWIRE_CONFIG,
     )
-    neutral_ink_path = tree.trace(case.end_xy)
-    neutral_ink_metrics = _path_metrics(
-        neutral_ink_path,
-        case.reference_xy,
-        case.parallel_xy,
-    )
-    neutral_ink_metrics["endpoint_preserved"] = _endpoint_preserved(
-        neutral_ink_path,
-        tuple(float(value) for value in case.start_xy),
-        tuple(float(value) for value in case.end_xy),
-    )
-    neutral_ink_metrics["candidate_smoke_gate"] = candidate_smoke_gate(
-        neutral_ink_metrics
-    )
+    kernel_path = tree.trace(end)
+    path = list(kernel_path)
+    # Match the QGIS cursor-preview smoothing, preserving the routed endpoints.
+    if len(path) > SMOOTH_WINDOW_SIZE:
+        path = list(smooth_pixel_path(path, window_size=SMOOTH_WINDOW_SIZE))
+        path[0], path[-1] = kernel_path[0], kernel_path[-1]
+    return path, kernel_path
 
-    bridge = build_manual_gap_bridge(
-        MANUAL_START_XY,
-        MANUAL_END_XY,
-        MANUAL_START_TANGENT_XY,
-        MANUAL_END_TANGENT_XY,
-    )
-    reference_segment = tuple(
-        point
-        for point in case.reference_xy
-        if MANUAL_START_XY[0] <= point[0] <= MANUAL_END_XY[0]
-    )
-    parallel_segment = tuple(
-        point
-        for point in case.parallel_xy
-        if MANUAL_START_XY[0] <= point[0] <= MANUAL_END_XY[0]
-    )
-    manual_metrics = _score_segment(
-        bridge.points_xy,
-        reference_segment,
-        parallel_segment,
-        MANUAL_START_XY,
-        MANUAL_END_XY,
-    )
+
+def run_manual_gap_case(case: ManualGapShadowCase) -> Dict[str, object]:
+    """Run a fixed case without consulting its reference during path generation."""
+
+    evidence = EdgeDetector.detect_ink_evidence(case.image_rgb, tile_origin=(0, 0))
+    start = case.to_image_xy(case.canonical_start_xy)
+    end = case.to_image_xy(case.canonical_end_xy)
+    prompt = {"start_xy": list(start), "end_xy": list(end), "previous_xy": None}
+    control, raw_control = _ink_path(case, evidence, start, end)
+    start_tangent = sample_manual_gap_tangent(evidence, start, radius_pixels=TANGENT_RADIUS_PIXELS)
+    end_tangent = sample_manual_gap_tangent(evidence, end, radius_pixels=TANGENT_RADIUS_PIXELS)
+    bridge = None
+    reason = None
+    try:
+        if start_tangent is None or end_tangent is None:
+            raise ManualGapBridgeError("supported unambiguous endpoint tangents unavailable")
+        bridge = build_manual_gap_bridge(
+            start, end, start_tangent, end_tangent,
+            config=DEFAULT_MANUAL_GAP_BRIDGE_CONFIG,
+        )
+        effective_path = blend_path_with_cursor(bridge.points_xy, start, end, STRENGTH)
+    except ManualGapBridgeError as exc:
+        reason = str(exc)
+        effective_path = list(control)
+
+    # Full-trace context uses different endpoints and is deliberately outside
+    # the paired intervention comparison.
+    full_start = case.to_image_xy(case.reference_case.start_xy)
+    full_end = case.to_image_xy(case.reference_case.end_xy)
+    full_incoming = (0.0, -1.0) if case.quarter_turns else (1.0, 0.0)
+    full_path, _ = _ink_path(case, evidence, full_start, full_end, full_incoming)
+    config = _configuration()
+    control_json = _points_json(control)
+    effective_json = _points_json(effective_path)
     return {
         "challenge_id": case.name,
+        "fixture_family": case.fixture_family,
         "historical_map_evidence": False,
         "publication_ranking_eligible": False,
+        "human_usability_study": False,
         "image_sha256": hashlib.sha256(case.image_rgb.tobytes()).hexdigest(),
-        "ink_livewire_v2_neutral_control": {
-            "evidence_centerline_pixels": int(np.count_nonzero(evidence.centerline)),
-            **neutral_ink_metrics,
+        "image_shape": list(case.image_rgb.shape),
+        "reference_sha256": _json_sha256({
+            "ordered_reference_xy": case.reference_case.reference_xy,
+            "parallel_xy": case.reference_case.parallel_xy,
+        }),
+        "runtime": {
+            "python": platform.python_version(),
+            "numpy": np.__version__,
+            "scipy": version("scipy"),
         },
-        "manual_gap_bridge_shadow_v1": {
+        "transform": {"grayscale": case.grayscale, "counterclockwise_degrees": 90 * case.quarter_turns},
+        "prompt": prompt,
+        "prompt_sha256": _json_sha256(prompt),
+        "configuration": config,
+        "configuration_sha256": _json_sha256(config),
+        "source_sha256": _source_hashes(),
+        "evidence_centerline_pixels": int(np.count_nonzero(evidence.centerline)),
+        "ink_same_segment_control": {
+            "points_xy": control_json,
+            "kernel_points_xy": _points_json(raw_control),
+            "route_sha256": _json_sha256(control_json),
+            "score": _score_path(case, control, start, end),
+        },
+        "manual_gap_bridge_product_kernel_v2": {
             "requires_explicit_user_anchors": True,
             "automatic_endpoint_selection": False,
             "model_or_ocr_used": False,
-            "start_xy": list(MANUAL_START_XY),
-            "end_xy": list(MANUAL_END_XY),
-            "start_tangent_xy": list(MANUAL_START_TANGENT_XY),
-            "end_tangent_xy": list(MANUAL_END_TANGENT_XY),
-            "gap_length_pixels": bridge.gap_length_pixels,
-            "path_length_pixels": bridge.path_length_pixels,
-            "detour_ratio": bridge.detour_ratio,
-            "score": manual_metrics,
+            "tangent_source": "sample_manual_gap_tangent(ink_evidence)",
+            "sampled_start_tangent_xy": None if start_tangent is None else list(start_tangent),
+            "sampled_end_tangent_xy": None if end_tangent is None else list(end_tangent),
+            "status": "preview" if bridge is not None else "ink_fallback",
+            "reason": reason,
+            "bridge_points_xy": None if bridge is None else _points_json(bridge.points_xy),
+            "effective_points_xy": effective_json,
+            "route_sha256": _json_sha256(effective_json),
+            "gap_length_pixels": None if bridge is None else bridge.gap_length_pixels,
+            "detour_ratio": None if bridge is None else bridge.detour_ratio,
+            "score": _score_path(case, effective_path, start, end),
+        },
+        "full_trace_context": {
+            "included_in_paired_comparison": False,
+            "prompt": {"start_xy": list(full_start), "end_xy": list(full_end), "incoming_direction_xy": list(full_incoming)},
+            "points_xy": _points_json(full_path),
+            "score": _score_path(case, full_path, full_start, full_end, full_trace=True),
         },
     }
 
 
+def run_neutral_manual_gap_shadow() -> Dict[str, object]:
+    """Compatibility entry point for the original (brown, not gray) fixture."""
+
+    return run_manual_gap_case(build_manual_gap_shadow_cases()[0])
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--output-dir",
-        required=True,
-        help="new or empty directory for the JSON evidence and PPM fixture",
-    )
+    parser.add_argument("--output-dir", required=True, help="new or empty directory for JSON and lossless PPM fixtures")
     args = parser.parse_args(argv)
     destination = Path(args.output_dir)
     destination.mkdir(parents=True, exist_ok=True)
     if any(destination.iterdir()):
         raise SystemExit("--output-dir must be empty")
 
-    case = build_neutral_label_gap_case()
-    result = run_neutral_manual_gap_shadow()
-    _write_ppm(destination / "neutral-manual-gap-challenge.ppm", case.image_rgb)
+    cases = build_manual_gap_shadow_cases()
+    result = {
+        "suite_id": "manual-gap-product-parity-v2",
+        "historical_map_evidence": False,
+        "publication_ranking_eligible": False,
+        "human_usability_study": False,
+        "cases": [run_manual_gap_case(case) for case in cases],
+    }
+    for case in cases:
+        _write_ppm(destination / (case.name + ".ppm"), case.image_rgb)
     (destination / "result.json").write_text(
-        json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False) + "\n",
         encoding="utf-8",
     )
-    print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True, allow_nan=False))
     return 0
 
 

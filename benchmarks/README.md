@@ -74,22 +74,31 @@ the licensed 8-sheet / 48-crop historical-map holdout below.
 
 ## Neutral label-gap manual shadow
 
-The companion neutral/dark-contour fixture confirms that the coloured bridge
-does **not** silently guess across a label. It then supplies a recorded,
-user-confirmed pair of endpoints and visible local tangents to the pure
-geometry `manual_gap_bridge` core. This is the contract used by the explicit
-`⤴ Bridge label gap` preview in QGIS; it is not OCR, endpoint detection, or a
-model result.
+`manual-gap-product-parity-v2` uses the same evidence tangent sampler,
+Hermite builder, and assist blend as the `G` / `Bridge label gap` action in
+QGIS. The Ink control receives exactly the same endpoints and uses the
+product's 320px window, 6px endpoint snap and five-point preview smoothing.
+The old full-trace comparison is retained only as separate context.
 
 ```bash
 manual_gap_dir="$(mktemp -d)"
 python3 -m benchmarks.manual_gap_shadow --output-dir "$manual_gap_dir"
 ```
 
-The result records both the failing neutral Ink control and the separate
-manual bridge. The manual result is meaningful only because the anchors were
-explicit user input; it must never be cited as an automatic detector score or
-historical-map ranking.
+Six lossless fixtures cover brown ink, genuinely achromatic ink, and 90°
+rotations, plus two clear-gap positive controls. Fixed synthetic endpoint
+prompts simulate user input; tangents are measured from Ink, not supplied from
+the known reference. Original near-label prompts are preserved even when the
+sampler refuses them. A refusal must retain the control's exact route/hash.
+Clear-gap cases validate execution, but Ink already succeeds on them; they do
+not establish a difficult-case accuracy improvement.
+
+`result.json` records emitted paths, sampled directions, reference/prompt/
+configuration/source hashes, dependency versions and the outcome of each
+case. Rotated routes are scored in the canonical reference frame. The previous
+0.67px manual-shadow result used hardcoded idealized tangents; it was a
+geometry demonstration, not an end-to-end product score. No run in this suite
+is historical-map evidence or a human usability study.
 
 ## DexiNed shadow experiment (rejected CPU candidate)
 

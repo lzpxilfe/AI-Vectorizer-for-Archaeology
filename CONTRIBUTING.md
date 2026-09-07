@@ -64,6 +64,8 @@ Windows에서는 `.venv\Scripts\python.exe`를 사용하세요. 선택 SAM backe
 
    결정적 ZIP을 새 임시 경로에 풀고 실제 QGIS Python으로
    `scripts/qgis_import_smoke.py`와 `tests/test_qgis_runtime_safety.py`를 실행합니다.
+   수동 라벨 공백 preview 변경은 `tests/test_manual_gap_qgis.py`도 실제 QGIS Python으로
+   실행합니다. QGIS 런타임 suite는 일반 Python의 skip 결과로 대체하지 않습니다.
    새 feature, 기존 contour 연장, 한 번의 Undo, layer removal, unload와 실제
    TIN→GeoTIFF→hillshade를 변경 범위에 맞게 확인합니다.
 

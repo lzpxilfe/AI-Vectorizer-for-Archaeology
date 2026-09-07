@@ -287,7 +287,9 @@ jobs:
           export PYTHONPATH="$GITHUB_WORKSPACE${PYTHONPATH:+:$PYTHONPATH}"
           python3 - <<'PY'
           import tests.test_qgis_runtime_safety as runtime_suite
-          if not runtime_suite.HAS_QGIS:
+          import tests.test_manual_gap_qgis as bridge_suite
+          if not runtime_suite.HAS_QGIS or not bridge_suite.HAS_QGIS:
               raise SystemExit("QGIS bindings/API imports were skipped in the QGIS job")
           PY
           python3 -m unittest tests.test_qgis_runtime_safety -v
+          python3 -m unittest tests.test_manual_gap_qgis -v

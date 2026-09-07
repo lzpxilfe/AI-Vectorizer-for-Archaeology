@@ -565,7 +565,7 @@ class QgisSafetySourceTests(unittest.TestCase):
         self.assertIn("self.preview_path = map_points[1:]", bridge)
         self.assertNotIn("save_to_layer", bridge)
         self.assertNotIn("sam_engine", bridge)
-        self.assertIn("centerline", tangent)
+        self.assertIn("sample_manual_gap_tangent", tangent)
         self.assertIn("self._manual_gap_bridge_preview_matches", press)
         self.assertIn("self._commit_visible_livewire_segment", press)
         self.assertIn("_manual_gap_bridge_preview_target = None", reset)
