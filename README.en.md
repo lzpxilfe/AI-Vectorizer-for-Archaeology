@@ -42,6 +42,8 @@ inference service.
   corridor prior; it is experimental, default OFF, and keeps the Ink route on failure
 - Bounded, direction-aware Live-Wire with literal 0–100% coordinate blending
 - Session-only manual avoid regions for text, symbols, or stains in Ink tracing
+- An explicit, reviewed `Label-gap bridge` preview for black/brown contours
+  actually interrupted by numeric labels
 - LSD, HED, MobileSAM, SAM ViT-B, and Legacy Canny preserved under
   `Advanced / Legacy methods`
 - A green preview of the path that the next click will accept
@@ -93,13 +95,25 @@ never saves the SAM mask as a line or binary-ORs it with Ink; it accepts a
 challenger only after endpoint, detour, strong-Ink retention, and branch-switch
 checks. Assist at `0%` skips model and evidence work.
 
-For a contour interrupted by an elevation label, confirm an anchor before the
-gap, hover the continuation, and press `G` to request an experimental bridge.
-It samples nearby Ink directions and applies the assist slider to the curve.
-Click its endpoint to accept, or press `Esc` or click elsewhere to cancel;
-hovering keeps the proposal visible. Conflicting local directions or tangents
-incompatible with the gap retain the existing Ink preview. Validation so far
-uses synthetic examples, not a historical-map accuracy study.
+## Experimental: label-gap bridge
+
+This is a reviewed, explicit action for a black or brown contour that a numeric
+label has **actually interrupted**. It is not automatic reconnection.
+
+```text
+Confirm the pre-gap anchor → hover the continuation → G → review green preview → click that endpoint
+```
+
+| Evidence at the explicit endpoints | Result |
+| --- | --- |
+| Outward Ink support on both sides agrees with the gap | A bounded, assist-weighted curve preview |
+| A glyph corrupts the 3px local direction field | Re-check only the outward 12px centerline support |
+| No intended contour, only a parallel line/glyph, or diffuse direction | **Keep the existing Ink preview; create no bridge** |
+
+Click the displayed endpoint to accept. `Esc` or a click elsewhere cancels only
+the proposal, while hovering preserves it. There is no OCR, model, or automatic
+endpoint selection. The behavior is product-path tested on synthetic fixtures;
+it is not evidence of historical-map accuracy or user-time improvement.
 
 The declared OpenCV range is 4.8–4.11:
 
