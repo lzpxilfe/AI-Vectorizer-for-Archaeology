@@ -110,6 +110,22 @@ def _qt_value(legacy_name, scope_name):
     return getattr(getattr(Qt, scope_name), legacy_name)
 
 
+def _qt_flag_int(value):
+    """Normalize Qt 5 integers and Qt 6 enum/QFlags values for bit tests."""
+
+    raw_value = getattr(value, "value", value)
+    return int(raw_value)
+
+
+def _has_keyboard_modifier(modifiers, name):
+    """Return whether a Qt keyboard modifier is present across PyQt bindings."""
+
+    return bool(
+        _qt_flag_int(modifiers)
+        & _qt_flag_int(_qt_value(name, "KeyboardModifier"))
+    )
+
+
 def _geometry_type(legacy_name, modern_name):
     legacy = getattr(QgsWkbTypes, legacy_name, None)
     if legacy is not None:
@@ -3645,7 +3661,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return
 
         point = self.toMapCoordinates(event.pos())
-        event_modifiers = event.modifiers() if hasattr(event, "modifiers") else 0
+        event_modifiers = _qt_flag_int(
+            event.modifiers() if hasattr(event, "modifiers") else 0
+        )
 
         accept_manual_bridge = False
         if self.__dict__.get("_manual_gap_bridge_preview_target") is not None:
@@ -3660,8 +3678,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         if (
             self.is_tracing
-            and event_modifiers
-            & _qt_value("AltModifier", "KeyboardModifier")
+            and _has_keyboard_modifier(event_modifiers, "AltModifier")
         ):
             self._handle_manual_avoidance_click(point)
             return
@@ -3915,11 +3932,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         # MODE CHECK: Dragging vs Hovering
         is_manual_mode = (
-            event.modifiers()
-            & (
-                _qt_value("ShiftModifier", "KeyboardModifier")
-                | _qt_value("ControlModifier", "KeyboardModifier")
-            )
+            _has_keyboard_modifier(event.modifiers(), "ShiftModifier")
+            or _has_keyboard_modifier(event.modifiers(), "ControlModifier")
         )
         interaction_mode = resolve_interaction_mode(
             freehand=self.freehand,
@@ -4154,7 +4168,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         if (
             event.key() == _qt_value("Key_G", "Key")
-            and not event.modifiers()
+            and not _qt_flag_int(event.modifiers())
             and self.is_tracing
         ):
             self.preview_manual_gap_bridge()
@@ -4173,14 +4187,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return
         is_manual_avoidance_undo = (
             event.key() == _qt_value("Key_Backspace", "Key")
-            and event.modifiers()
-            & _qt_value("AltModifier", "KeyboardModifier")
+            and _has_keyboard_modifier(event.modifiers(), "AltModifier")
         )
         if is_manual_avoidance_undo:
             if self.is_tracing:
                 clear_all = bool(
-                    event.modifiers()
-                    & _qt_value("ShiftModifier", "KeyboardModifier")
+                    _has_keyboard_modifier(event.modifiers(), "ShiftModifier")
                 )
                 changed = self._remove_manual_avoidance(clear_all=clear_all)
                 if changed:
@@ -4203,7 +4215,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         is_checkpoint_undo = (
             event.key() == _qt_value("Key_Z", "Key")
-            and event.modifiers() & _qt_value("ControlModifier", "KeyboardModifier")
+            and _has_keyboard_modifier(event.modifiers(), "ControlModifier")
         ) or event.key() == _qt_value("Key_Backspace", "Key")
         if is_checkpoint_undo:
             if self.is_tracing:

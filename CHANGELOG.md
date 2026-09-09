@@ -27,6 +27,9 @@
 
 ### Safety
 
+- QGIS 4/PyQt6에서 test event가 반환한 정수 modifier와 scoped `KeyboardModifier`
+  enum을 직접 비트 연산하던 오류를 수정했습니다. 이제 마우스·키보드 단축키와
+  manual avoidance는 Qt5 정수와 Qt6 enum/QFlags를 같은 정수 mask로 비교합니다.
 - 라벨 공백 연결의 제품·benchmark 방향 추정을 통일했습니다. 가까운 선 방향의 충돌과
   공백에 수직인 방향을 거부하며, 종전 고정 tangent 기하 점수를 제품 성능과 구분합니다.
 - 숫자 획이 3px 방향장을 오염시켜도, 두 명시적 anchor에서 공백 반대편으로 이어지는

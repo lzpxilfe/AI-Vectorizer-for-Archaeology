@@ -117,6 +117,18 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
                 if QVariant is not None and hasattr(QVariant, "Double"):
                     self.assertEqual(resolver("Double"), QVariant.Double)
 
+    def test_keyboard_modifier_helpers_allow_int_events_with_qt6_enums(self):
+        from ai_vectorizer.tools import smart_trace_tool
+
+        qt6_alt = SimpleNamespace(value=0b0100)
+        with mock.patch.object(smart_trace_tool, "_qt_value", return_value=qt6_alt):
+            self.assertTrue(
+                smart_trace_tool._has_keyboard_modifier(0b1100, "AltModifier")
+            )
+            self.assertFalse(
+                smart_trace_tool._has_keyboard_modifier(0b0010, "AltModifier")
+            )
+
     def _tool(self, layer, raster_crs=None):
         crs = raster_crs or self.crs
 
