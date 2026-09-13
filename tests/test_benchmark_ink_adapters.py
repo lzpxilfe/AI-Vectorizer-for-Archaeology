@@ -1,6 +1,7 @@
 from dataclasses import asdict
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 import benchmarks.worker as worker
 
@@ -305,6 +306,17 @@ class InkAdapterContractTests(unittest.TestCase):
         self.assertIsNotNone(record["challenger_sha256"])
         self.assertEqual(record["selection"]["reason"], "accepted")
         self.assertIsNotNone(record["segmentation_evidence"])
+
+        partial_configuration = {**_recovery_configuration(), "edge_weight": 0.1}
+        with mock.patch.object(FakeRecovery, "arbitrate_routes", wraps=FakeRecovery.arbitrate_routes) as arbitration:
+            partial = pipeline.predict(image, prompt, partial_configuration)
+        self.assertAlmostEqual(partial[1][1], 2.1)
+        self.assertEqual(partial[0], prompt.start_xy)
+        self.assertEqual(partial[-1], prompt.end_xy)
+        self.assertEqual(arbitration.call_args.args[1], partial)
+        self.assertEqual(
+            pipeline.prediction_evidence()["challenger_sha256"], worker._route_sha256(partial),
+        )
 
     def test_recovery_a_star_is_cropped_to_exact_champion_tree_bounds(self):
         evidence = LineEvidence(

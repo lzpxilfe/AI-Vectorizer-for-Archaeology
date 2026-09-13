@@ -278,7 +278,30 @@ def _same_file_snapshot(expected: os.stat_result, current: os.stat_result) -> bo
     )
 
 
-def publish_output_files(pairs: tuple[tuple[str, str], ...]) -> None:
+def snapshot_output_files(paths):
+    """Capture destinations, including absent files and raster sidecars.
+
+    Capture before asking to overwrite, and retain this snapshot for the
+    entire asynchronous build. Publication must not refresh that approval.
+    """
+
+    snapshots = []
+    for primary in paths:
+        primary = os.fsdecode(os.fspath(primary))
+        for path in (primary,) + tuple(primary + suffix for suffix in RASTER_SIDECAR_SUFFIXES):
+            try:
+                information = os.lstat(path)
+            except FileNotFoundError:
+                information = None
+            except OSError as exc:
+                raise DemSpecificationError(f"Could not inspect terrain output: {path}: {exc}") from exc
+            if information is not None and not stat.S_ISREG(information.st_mode):
+                raise DemSpecificationError(f"Terrain output must be a regular file: {path}")
+            snapshots.append((path, information))
+    return tuple(snapshots)
+
+
+def publish_output_files(pairs: tuple[tuple[str, str], ...], *, expected_destinations=None) -> None:
     """Atomically replace output files and restore prior files on failure."""
 
     try:
@@ -367,6 +390,19 @@ def publish_output_files(pairs: tuple[tuple[str, str], ...]) -> None:
                 f"Existing terrain output must be a regular file: {destination_path}"
             )
         destination_snapshots[destination_path] = destination_information
+
+    if expected_destinations is not None:
+        approved = dict(expected_destinations)
+        if set(approved) != set(destination_paths):
+            raise DemSpecificationError("Approved terrain outputs do not match publication destinations.")
+        for path in destination_paths:
+            expected = approved[path]
+            current = destination_snapshots.get(path)
+            if (expected is None) != (current is None) or (
+                expected is not None and current is not None
+                and not _same_file_snapshot(expected, current)
+            ):
+                raise DemSpecificationError(f"Terrain output changed since approval: {path}")
 
     token = uuid.uuid4().hex
     backups = {}

@@ -1545,6 +1545,40 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         self.assertIsInstance(task.error, ValueError)
         self.assertIn("full Ink evidence grid", str(task.error))
 
+    def test_recovery_arbitrates_the_strength_blended_route(self):
+        import numpy as np
+        from ai_vectorizer.core.line_evidence import LineEvidence
+        from ai_vectorizer.core.trace_kernel import TraceConfig
+        from ai_vectorizer.tools import smart_trace_tool as module
+
+        evidence = LineEvidence(np.ones((30, 30), dtype=np.float32), np.ones((30, 30), dtype=bool))
+        engine = SimpleNamespace(
+            encode=lambda _image: "encoding",
+            predict=lambda *_args: SimpleNamespace(mask=np.ones((30, 30), dtype=np.float32)),
+        )
+        arc = ((3.0, 5.0), (13.0, 13.0), (23.0, 5.0))
+        for strength in (0.0, 0.1, 0.5, 1.0):
+            with self.subTest(strength=strength):
+                task = module._RecoveryPreviewTask(
+                    engine=engine, image=np.zeros((30, 30, 3), dtype=np.uint8), encoding=None,
+                    evidence=evidence, guidance=None, champion_path=(arc[0], arc[-1]),
+                    start_pixel=arc[0], target_pixel=arc[-1], prompt_points=np.array([arc[0], arc[-1]]),
+                    prompt_labels=np.array([1, 1]), window_bounds=(0, 0, 30, 30),
+                    cache_generation=1, request_generation=1, preview_identity=("strength",),
+                    smooth_window_size=1, trace_config=TraceConfig(), callback=lambda *_args: None,
+                    strength=strength,
+                )
+                result = SimpleNamespace(points_xy=arc, reached_target=True)
+                with mock.patch.object(module, "find_path", return_value=result), mock.patch.object(
+                    module, "arbitrate_routes", wraps=module.arbitrate_routes,
+                ) as arbitrate:
+                    self.assertTrue(task.run(), task.error)
+                evaluated = arbitrate.call_args.args[1]
+                self.assertEqual(evaluated, task.challenger_path)
+                self.assertEqual(evaluated[0], arc[0])
+                self.assertEqual(evaluated[-1], arc[-1])
+                self.assertAlmostEqual(max(y for _x, y in evaluated) - 5.0, 8.0 * strength)
+
     def test_resume_updates_geometry_and_elevation_together(self):
         layer = QgsVectorLayer("LineString?crs=EPSG:3857", "contours", "memory")
         feature = QgsFeature(layer.fields())
@@ -1558,6 +1592,7 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         tool.path_points = [QgsPointXY(1, 0), QgsPointXY(2, 0)]
         tool.resume_feature_id = added[0].id()
         tool.resume_at_start = False
+        tool._resume_geometry_wkb = bytes(layer.getFeature(added[0].id()).geometry().asWkb())
 
         self.assertTrue(tool.save_to_layer(closed=False, elevation=20.0))
         self.assertTrue(layer.isEditable())
@@ -1572,6 +1607,95 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         self.assertEqual(layer.fields().indexOf("elevation"), -1)
         restored = layer.getFeature(added[0].id())
         self.assertEqual(restored.geometry().asPolyline()[-1], QgsPointXY(1, 0))
+
+    def test_extension_rejects_moved_reversed_deleted_or_reshaped_source(self):
+        from ai_vectorizer.tools.smart_trace_tool import _qt_value
+        for mutation in ("moved", "reversed", "deleted", "reshaped"):
+            with self.subTest(mutation=mutation):
+                layer = QgsVectorLayer("LineString?crs=EPSG:3857", "contours", "memory")
+                feature = QgsFeature(layer.fields())
+                feature.setGeometry(QgsGeometry.fromWkt("LINESTRING(0 0, 10 0)"))
+                ok, added = layer.dataProvider().addFeatures([feature])
+                self.assertTrue(ok)
+                fid = added[0].id()
+                tool = self._tool(layer)
+                # Exercise the actual start-click binding, not a hand-made snapshot.
+                tool.toMapCoordinates = lambda _pos: QgsPointXY(10, 0)
+                tool.canvasPressEvent(SimpleNamespace(
+                    button=lambda: _qt_value("LeftButton", "MouseButton"),
+                    pos=lambda: object(), modifiers=lambda: 0,
+                ))
+                self.assertEqual(tool.resume_feature_id, fid)
+                tool.path_points.extend([QgsPointXY(15, 0), QgsPointXY(20, 0)])
+                confirmed = list(tool.path_points)
+                layer.startEditing()
+                if mutation == "deleted":
+                    layer.deleteFeature(fid)
+                else:
+                    wkt = {
+                        "moved": "LINESTRING(0 100, 10 100)",
+                        "reversed": "LINESTRING(10 0, 0 0)",
+                        "reshaped": "LINESTRING(0 0, 5 3, 10 0)",
+                    }[mutation]
+                    layer.changeGeometry(fid, QgsGeometry.fromWkt(wkt))
+                before = [(f.id(), bytes(f.geometry().asWkb())) for f in layer.getFeatures()]
+                undo_index = layer.undoStack().index()
+                self.assertFalse(tool.save_to_layer(elevation=100.0))
+                self.assertEqual(before, [(f.id(), bytes(f.geometry().asWkb())) for f in layer.getFeatures()])
+                self.assertEqual(layer.undoStack().index(), undo_index)
+                self.assertEqual(tool.path_points, confirmed)
+                tool.dispose()
+
+    def test_pixel_centres_round_trip_without_half_pixel_offset(self):
+        layer = QgsVectorLayer("LineString?crs=EPSG:3857", "contours", "memory")
+        tool = self._tool(layer)
+        tool.cache_transform = {"x_min": 100, "y_max": 500, "px_w": 10, "px_h": 20}
+        for col, row in ((0, 0), (1, 1), (2, 3)):
+            expected = QgsPointXY(100 + (col + 0.5) * 10, 500 - (row + 0.5) * 20)
+            self.assertEqual(tool.pixel_to_map(col, row), expected)
+            self.assertEqual(tool.map_to_pixel_float(expected), (col, row))
+            self.assertEqual(tool.map_to_pixel(expected), (col, row))
+        self.assertEqual(tool.map_to_pixel(QgsPointXY(99.9, 500.1)), (-1, -1))
+        self.assertEqual(tool.map_to_pixel(QgsPointXY(100, 500)), (0, 0))
+        tool._manual_avoidance_regions = [(QgsPointXY(115, 470), QgsPointXY(115, 470))]
+        self.assertEqual(tool._manual_avoidance_cache_boxes(), [(0.5, 0.5, 1.5, 1.5)])
+
+    def test_provider_pixel_centres_survive_cache_crs_conversion_and_save(self):
+        import numpy as np
+        from osgeo import gdal, osr
+        from ai_vectorizer.core.raster_utils import read_raster_bands
+        with tempfile.TemporaryDirectory() as folder:
+            raster_path = str(Path(folder) / "source.tif")
+            dataset = gdal.GetDriverByName("GTiff").Create(raster_path, 8, 8, 1, gdal.GDT_Byte)
+            dataset.SetGeoTransform((100, 10, 0, 500, 0, -20))
+            spatial_ref = osr.SpatialReference()
+            spatial_ref.ImportFromEPSG(3857)
+            dataset.SetProjection(spatial_ref.ExportToWkt())
+            values = np.full((8, 8), 240, dtype=np.uint8)
+            values[3, 1:7] = 10
+            dataset.GetRasterBand(1).WriteArray(values)
+            dataset = None
+            raster = QgsRasterLayer(raster_path, "source")
+            layer = QgsVectorLayer("LineString?crs=EPSG:3857", "output", "memory")
+            self.canvas.setDestinationCrs(QgsCoordinateReferenceSystem("EPSG:4326"))
+            tool = self.SmartTraceTool(self.canvas, raster, layer, freehand=True, language="en")
+            bands = read_raster_bands(raster.dataProvider(), raster.extent(), 8, 8)
+            np.testing.assert_array_equal(bands[0], values)
+            tool._publish_edge_cache(
+                rgb_image=np.repeat(bands[0][..., None], 3, axis=2),
+                edges=np.where(values == 10, 255, 0).astype(np.uint8), evidence=None,
+                cost_map=None, read_extent=raster.extent(), output_size=(8, 8),
+                tile_origin=(0, 0), cache_identity=("pixel-center-review",),
+            )
+            tool.path_points = [tool.pixel_to_map(col, 3) for col in range(1, 7)]
+            self.assertTrue(tool.save_to_layer(elevation=10.0))
+            saved = next(layer.getFeatures()).geometry().asPolyline()
+            for col, point in zip(range(1, 7), saved):
+                self.assertAlmostEqual(point.x(), 100 + (col + 0.5) * 10, places=6)
+                self.assertAlmostEqual(point.y(), 430, places=6)
+            tool.dispose()
+            tool.raster_layer = None
+            del raster
 
     def test_new_feature_is_added_as_one_undoable_edit_command(self):
         layer = QgsVectorLayer("LineString?crs=EPSG:3857", "contours", "memory")
@@ -2181,6 +2305,35 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         self.assertIn("loaded in QGIS", failures[0])
         self.assertFalse(Path(dem_work_path).exists())
         self.assertFalse(Path(hillshade_work_path).exists())
+
+    def test_dem_completion_does_not_overwrite_files_created_since_request(self):
+        from ai_vectorizer.core import dem_pipeline
+        from ai_vectorizer.core.dem_spec import snapshot_output_files
+        with tempfile.TemporaryDirectory() as folder:
+            dem, hill = Path(folder) / "dem.tif", Path(folder) / "hill.tif"
+            dem_work, hill_work = Path(folder) / "dem.work.tif", Path(folder) / "hill.work.tif"
+            runner = dem_pipeline.DemPipelineRunner()
+            runner._request = SimpleNamespace(
+                dem_path=str(dem), hillshade_path=str(hill), crs_authid="EPSG:3857",
+                output_snapshots=snapshot_output_files((dem, hill)),
+            )
+            dem_work.write_bytes(b"staged dem")
+            hill_work.write_bytes(b"staged hill")
+            dem.write_bytes(b"created by another task")
+            runner._dem_work_path, runner._hillshade_work_path = str(dem_work), str(hill_work)
+            runner._dem_dimensions = (10, 10)
+            failures, successes = [], []
+            runner.failed.connect(failures.append)
+            runner.succeeded.connect(lambda *_args: successes.append(True))
+            with mock.patch.object(runner, "_validate_raster", return_value=(10, 10)):
+                runner._on_hillshade_finished(True, {}, None)
+            self.assertFalse(successes)
+            self.assertEqual(len(failures), 1)
+            self.assertIn("since approval", failures[0])
+            self.assertEqual(dem.read_bytes(), b"created by another task")
+            self.assertFalse(hill.exists())
+            self.assertFalse(dem_work.exists())
+            self.assertFalse(hill_work.exists())
 
     def test_timers_are_tool_owned_and_deactivated_emits_once(self):
         layer = QgsVectorLayer("LineString?crs=EPSG:3857", "contours", "memory")

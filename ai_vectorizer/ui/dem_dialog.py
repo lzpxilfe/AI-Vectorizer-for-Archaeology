@@ -410,8 +410,8 @@ class DemBuildDialog(QDialog):
 
         existing = [
             path
-            for path in (request.dem_path, request.hillshade_path)
-            if os.path.exists(path)
+            for path, snapshot in request.output_snapshots
+            if snapshot is not None
         ]
         loaded = self._loaded_output_paths(
             (request.dem_path, request.hillshade_path)

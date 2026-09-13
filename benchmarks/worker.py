@@ -50,7 +50,7 @@ WORKER_ADAPTER_VERSION = "archaeotrace-worker/2"
 OPENCV_ADAPTER_VERSION = "opencv-edge-worker/1"
 EFFICIENTSAM_ADAPTER_VERSION = "efficientsam-ti-onnx-worker/1"
 INK_LIVEWIRE_ADAPTER_VERSION = "ink-livewire-worker/2"
-RECOVERY_ADAPTER_VERSION = "ink-v2-effsam-recovery-worker/1"
+RECOVERY_ADAPTER_VERSION = "ink-v2-effsam-recovery-worker/2"
 PRODUCT_SMOOTHING_PROFILE = "smart-trace-v1-historical"
 INK_LIVEWIRE_SMOOTHING_PROFILE = "smart-trace-livewire-v1"
 RECOVERY_EVIDENCE_SCHEMA_VERSION = "archaeotrace-ink-effsam-recovery/1"
@@ -2995,6 +2995,12 @@ class _InkV2EfficientSAMRecoveryPipeline(_InkLiveWirePipeline):
             challenger[-1] = (
                 float(prompt.end_xy[0]),
                 float(prompt.end_xy[1]),
+            )
+            from ai_vectorizer.core.livewire import blend_path_with_cursor
+
+            challenger = blend_path_with_cursor(
+                challenger, prompt.start_xy, prompt.end_xy,
+                _ink_livewire_contract(configuration),
             )
             selection = self._smart_recovery.arbitrate_routes(
                 champion,

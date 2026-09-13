@@ -44,6 +44,7 @@ from .dem_spec import (
     normalize_tiff_path,
     paths_refer_to_same_file,
     publish_output_files,
+    snapshot_output_files,
 )
 
 
@@ -90,6 +91,7 @@ class DemBuildRequest:
     contour_stats: ElevationStats
     spot_stats: ElevationStats | None
     dependent_layers: tuple[object, ...]
+    output_snapshots: tuple
 
 
 def _geometry_type_value(name: str, modern_name: str):
@@ -403,6 +405,7 @@ def build_dem_request(
         contour_stats=contour_stats,
         spot_stats=spot_stats,
         dependent_layers=tuple(dependent_layers),
+        output_snapshots=snapshot_output_files((dem_path, hillshade_path)),
     )
 
 
@@ -580,11 +583,11 @@ class DemPipelineRunner(QObject):
         return dimensions
 
     @staticmethod
-    def _publish_outputs(pairs: tuple[tuple[str, str], ...]) -> None:
+    def _publish_outputs(pairs: tuple[tuple[str, str], ...], *, expected_destinations=None) -> None:
         """Replace final rasters while restoring previous files on failure."""
 
         try:
-            publish_output_files(pairs)
+            publish_output_files(pairs, expected_destinations=expected_destinations)
         except DemSpecificationError as exc:
             raise DemInputError(str(exc)) from exc
 
@@ -878,7 +881,8 @@ class DemPipelineRunner(QObject):
                 (
                     (self._dem_work_path, self._request.dem_path),
                     (self._hillshade_work_path, self._request.hillshade_path),
-                )
+                ),
+                expected_destinations=self._request.output_snapshots,
             )
         except DemInputError as exc:
             self._cleanup_work_files()

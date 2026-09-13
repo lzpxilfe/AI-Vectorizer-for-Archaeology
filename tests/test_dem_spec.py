@@ -24,6 +24,48 @@ from ai_vectorizer.core.dem_spec import (
 
 
 class DemSpecificationTests(unittest.TestCase):
+    def test_output_approval_rejects_files_changed_during_build_before_any_replace(self):
+        for mutation in ("appeared", "modified", "replaced", "deleted", "sidecar"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as folder:
+                dem, hill = Path(folder) / "dem.tif", Path(folder) / "hill.tif"
+                work_dem, work_hill = Path(folder) / "dem.work.tif", Path(folder) / "hill.work.tif"
+                work_dem.write_bytes(b"new dem")
+                work_hill.write_bytes(b"new hill")
+                dem.write_bytes(b"approved dem")
+                if mutation not in ("appeared", "sidecar"):
+                    hill.write_bytes(b"approved hill")
+                approved = dem_spec_module.snapshot_output_files((dem, hill))
+                if mutation == "appeared":
+                    hill.write_bytes(b"another task")
+                elif mutation == "modified":
+                    hill.write_bytes(b"changed by another task")
+                elif mutation == "replaced":
+                    replacement = Path(folder) / "replacement.tif"
+                    replacement.write_bytes(b"approved hill")
+                    os.replace(replacement, hill)
+                elif mutation == "deleted":
+                    hill.unlink()
+                else:
+                    Path(str(hill) + ".msk").write_bytes(b"new mask")
+                current = {p.name: p.read_bytes() for p in Path(folder).iterdir()}
+                with self.assertRaisesRegex(DemSpecificationError, "since approval"):
+                    publish_output_files(
+                        ((work_dem, dem), (work_hill, hill)), expected_destinations=approved,
+                    )
+                self.assertEqual(current, {p.name: p.read_bytes() for p in Path(folder).iterdir()})
+
+    def test_unchanged_approved_outputs_and_sidecars_can_be_published(self):
+        with tempfile.TemporaryDirectory() as folder:
+            final, work = Path(folder) / "dem.tif", Path(folder) / "work.tif"
+            final.write_bytes(b"approved")
+            mask = Path(str(final) + ".msk")
+            mask.write_bytes(b"old mask")
+            approved = dem_spec_module.snapshot_output_files((final,))
+            work.write_bytes(b"new dem")
+            publish_output_files(((work, final),), expected_destinations=approved)
+            self.assertEqual(final.read_bytes(), b"new dem")
+            self.assertFalse(mask.exists())
+
     def test_estimate_grid_rounds_up(self):
         estimate = estimate_grid(100.1, 50.1, 10)
 

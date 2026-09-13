@@ -447,6 +447,7 @@ class _RecoveryPreviewTask(QgsTask):
         smooth_window_size,
         trace_config,
         callback,
+        strength=1.0,
     ):
         super().__init__("ArchaeoTrace Smart Recovery", _task_can_cancel())
         self.engine = engine
@@ -466,6 +467,7 @@ class _RecoveryPreviewTask(QgsTask):
         self.smooth_window_size = int(smooth_window_size)
         self.trace_config = trace_config
         self.callback = callback
+        self.strength = float(strength)
         self.selection = None
         self.trace_result = None
         self.challenger_path = None
@@ -576,7 +578,9 @@ class _RecoveryPreviewTask(QgsTask):
                 challenger_path[-1] = tuple(
                     float(value) for value in self.target_pixel
                 )
-            self.challenger_path = tuple(challenger_path)
+            self.challenger_path = tuple(blend_path_with_cursor(
+                challenger_path, self.start_pixel, self.target_pixel, self.strength,
+            )) if challenger_path else ()
             self.selection = arbitrate_routes(
                 self.champion_path,
                 self.challenger_path,
@@ -1174,6 +1178,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         # Resume/Merge State
         self.resume_feature_id = None
+        self._resume_geometry_wkb = None
         self.resume_at_start = False  # True if appending to Start of existing line
 
         # Stability (Anti-Pulse)
@@ -1427,15 +1432,15 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         boxes = []
         for first, second in self._manual_avoidance_regions:
             try:
-                first_x = (first.x() - transform["x_min"]) / transform["px_w"]
-                first_y = (transform["y_max"] - first.y()) / transform["px_h"]
+                first_x = (first.x() - transform["x_min"]) / transform["px_w"] - 0.5
+                first_y = (transform["y_max"] - first.y()) / transform["px_h"] - 0.5
                 second_x = (
                     (second.x() - transform["x_min"])
-                    / transform["px_w"]
+                    / transform["px_w"] - 0.5
                 )
                 second_y = (
                     (transform["y_max"] - second.y())
-                    / transform["px_h"]
+                    / transform["px_h"] - 0.5
                 )
             except (AttributeError, KeyError, TypeError, ValueError, ZeroDivisionError):
                 continue
@@ -3028,6 +3033,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 request["window_bounds"]
             ),
             callback=self._on_recovery_preview_finished,
+            strength=self.edge_weight,
         )
         self._recovery_task = task
         self._emit_recovery_state(
@@ -3692,6 +3698,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
             self.resume_feature_id = feat_id
             self.resume_at_start = is_start
+            self._resume_geometry_wkb = (
+                bytes(self.vector_layer.getFeature(feat_id).geometry().asWkb())
+                if feat_id is not None else None
+            )
 
             if snapped_start:
                 place_point = snapped_start
@@ -5163,30 +5173,30 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self._clear_edge_cache()
 
     def map_to_pixel(self, map_point):
-        """Convert map coordinates to pixel coordinates."""
+        """Select the containing raster cell from centre-based coordinates."""
         px, py = self.map_to_pixel_float(map_point)
-        return int(px), int(py)
+        return math.floor(px + 0.5), math.floor(py + 0.5)
 
     def map_to_pixel_float(self, map_point):
-        """Convert map coordinates without losing sub-pixel cursor motion."""
+        """Return centre-based indices: the first cell centre is (0, 0)."""
         if self.cache_transform is None:
             raise ValueError("Edge cache is not initialized.")
 
         raster_point = self._map_point_to_raster(map_point)
         t = self.cache_transform
-        px = (raster_point.x() - t['x_min']) / t['px_w']
-        py = (t['y_max'] - raster_point.y()) / t['px_h']
+        px = (raster_point.x() - t['x_min']) / t['px_w'] - 0.5
+        py = (t['y_max'] - raster_point.y()) / t['px_h'] - 0.5
         return float(px), float(py)
 
     def pixel_to_map(self, px, py):
-        """Convert pixel coordinates to map coordinates."""
+        """Convert centre-based image coordinates through the raster CRS."""
         if self.cache_transform is None:
             raise ValueError("Edge cache is not initialized.")
 
         t = self.cache_transform
         raster_point = QgsPointXY(
-            t['x_min'] + px * t['px_w'],
-            t['y_max'] - py * t['px_h'],
+            t['x_min'] + (px + 0.5) * t['px_w'],
+            t['y_max'] - (py + 0.5) * t['px_h'],
         )
         return self._raster_point_to_map(raster_point)
 
@@ -5255,6 +5265,16 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if self.resume_feature_id is not None and not closed:
             # We are extending an existing feature
             existing_feat = self.vector_layer.getFeature(self.resume_feature_id)
+            snapshot = self.__dict__.get("_resume_geometry_wkb")
+            if (
+                not existing_feat.isValid() or snapshot is None
+                or bytes(existing_feat.geometry().asWkb()) != snapshot
+            ):
+                self._push_message(self._tr(
+                    "연장 대상 선이 변경되거나 삭제되어 저장하지 않았습니다. 추적을 다시 시작하세요.",
+                    "The line being extended changed or was deleted. Restart the trace before saving.",
+                ), MESSAGE_WARNING)
+                return False
             if existing_feat.isValid() and existing_feat.geometry():
                 try:
                     existing_geom = self._layer_geometry_to_map(
@@ -5511,6 +5531,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.last_sample_pos = None
         self.last_preview_pos = None
         self.resume_feature_id = None
+        self._resume_geometry_wkb = None
         self.resume_at_start = False
         self.preview_band.reset(LINE_GEOMETRY)
         self.confirm_band.reset(LINE_GEOMETRY)
