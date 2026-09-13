@@ -85,13 +85,21 @@ manual_gap_dir="$(mktemp -d)"
 python3 -m benchmarks.manual_gap_shadow --output-dir "$manual_gap_dir"
 ```
 
-Six lossless fixtures cover brown ink, genuinely achromatic ink, and 90°
-rotations, plus two clear-gap positive controls. Fixed synthetic endpoint
+Twelve lossless fixtures cover brown/achromatic glyph-adjacent ink (four),
+clear gaps (two), missing contours with glyphs and a remote parallel line (two),
+and disconnected or forked outward support (four), including 90° rotations.
+Fixed synthetic endpoint
 prompts simulate user input; tangents are measured from Ink, not supplied from
 the known reference. Original near-label prompts are preserved even when the
 sampler refuses them. A refusal must retain the control's exact route/hash.
 Clear-gap cases validate execution, but Ink already succeeds on them; they do
 not establish a difficult-case accuracy improvement.
+
+The contextual fallback fits only the nearest 8-connected outward stroke.
+Separate fragments cannot combine their lengths, equally near components are
+ambiguous, and sustained lateral splits reject a fork. The four new negative
+fixtures retain the original difficult prompts while altering only the raster
+outside the gap. See [the connectivity validation record](../docs/MANUAL_GAP_CONNECTIVITY_2026-09-13.md).
 
 `result.json` records emitted paths, sampled directions, reference/prompt/
 configuration/source hashes, dependency versions and the outcome of each

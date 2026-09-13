@@ -27,6 +27,10 @@
 
 ### Safety
 
+- 라벨 공백의 바깥쪽 방향 추정에서 분리된 잡점·짧은 선 조각·가까운 평행선을
+  하나의 방향으로 평균내던 경우를 차단했습니다. 가장 가까운 8-connected 중심선
+  하나만 읽고, 비슷한 거리의 다른 선이나 지속적인 분기가 있으면 기존 Ink를 유지합니다.
+  기존 숫자 인접 성공 사례와 스캔 누락·분기·회전 부정 사례를 제품 경로에서 검증합니다.
 - QGIS 4/PyQt6에서 test event가 반환한 정수 modifier와 scoped `KeyboardModifier`
   enum을 직접 비트 연산하던 오류를 수정했습니다. 이제 마우스·키보드 단축키와
   manual avoidance는 Qt5 정수와 Qt6 enum/QFlags를 같은 정수 mask로 비교합니다.

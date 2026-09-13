@@ -398,3 +398,17 @@ class ManualGapQgisTests(unittest.TestCase):
         self.assertEqual(self._coordinates(self.tool.path_points), confirmed + bridge)
         self.assertEqual(self.tool.last_input_point, self.target)
         self.assertFalse(self.tool._manual_gap_bridge_preview_matches(self.target))
+
+    def test_detector_driven_outward_ambiguity_preserves_preview_and_anchors(self):
+        from benchmarks.manual_gap_shadow import build_manual_gap_shadow_cases
+
+        for case in build_manual_gap_shadow_cases()[8:]:
+            with self.subTest(case=case.name):
+                self._prepare_detector_driven_case(case)
+                champion = self._coordinates(self.tool.preview_path)
+                confirmed = self._coordinates(self.tool.path_points)
+                self.assertTrue(champion)
+                self.assertFalse(self.tool.preview_manual_gap_bridge())
+                self.assertEqual(self._coordinates(self.tool.preview_path), champion)
+                self.assertEqual(self._coordinates(self.tool.path_points), confirmed)
+                self.assertFalse(self.tool._manual_gap_bridge_preview_matches(self.target))

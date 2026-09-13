@@ -161,6 +161,27 @@ def build_manual_gap_shadow_cases() -> Tuple[ManualGapShadowCase, ...]:
             canonical_end_xy=(164.0, 128.0),
             fixture_family="glyph-parallel-negative-control",
         ))
+    # Keep the original glyph-adjacent anchors. Only outward raster support
+    # changes: a five-column scan loss, or a second branch touching the contour.
+    # References are unchanged and are still only used after route generation.
+    gray_original = cases[2].image_rgb
+    for family in ("disconnected-outward", "forked-outward"):
+        altered = gray_original.copy()
+        if family == "disconnected-outward":
+            altered[110:125, 108:113] = 220
+        else:
+            _paint_path(
+                altered, [(x, 119 - (112 - x) // 2) for x in range(101, 113)],
+                (100, 100, 100), 1,
+            )
+        for quarter_turns in (0, 1):
+            image = np.ascontiguousarray(np.rot90(altered, quarter_turns))
+            image.setflags(write=False)
+            cases.append(ManualGapShadowCase(
+                name="gray-{}-{}deg-v1".format(family, quarter_turns * 90),
+                image_rgb=image, reference_case=base, grayscale=True,
+                quarter_turns=quarter_turns, fixture_family=family,
+            ))
     return tuple(cases)
 
 

@@ -88,7 +88,7 @@ def test_glyph_case_product_fallback_uses_the_same_contextual_sampler():
     assert manual["effective_points_xy"] == [[float(x), float(y)] for x, y in expected]
 
 
-@pytest.mark.parametrize("case_index", [6, 7])
+@pytest.mark.parametrize("case_index", [6, 7, 8, 9, 10, 11])
 def test_glyph_parallel_negative_control_refuses_to_invent_a_bridge(case_index):
     case = build_manual_gap_shadow_cases()[case_index]
     result = run_manual_gap_case(case)
@@ -104,8 +104,9 @@ def test_glyph_parallel_negative_control_refuses_to_invent_a_bridge(case_index):
     assert manual["route_sha256"] == control["route_sha256"]
 
 
-def test_reference_changes_cannot_change_generated_bridge_or_control():
-    case = build_manual_gap_shadow_cases()[4]
+@pytest.mark.parametrize("case_index", [0, 4, 8, 10])
+def test_reference_changes_cannot_change_generated_bridge_or_control(case_index):
+    case = build_manual_gap_shadow_cases()[case_index]
     original = run_manual_gap_case(case)
     changed_reference = replace(
         case.reference_case,
@@ -119,13 +120,15 @@ def test_reference_changes_cannot_change_generated_bridge_or_control():
     assert original["prompt_sha256"] == changed["prompt_sha256"]
     for method in ("ink_same_segment_control", "manual_gap_bridge_product_kernel_v2"):
         assert original[method]["route_sha256"] == changed[method]["route_sha256"]
-        assert original[method]["score"]["target_p95_distance_px"] < 2.0
-        assert changed[method]["score"]["target_p95_distance_px"] > 25.0
+        assert original[method]["score"] != changed[method]["score"]
+        if case_index == 4:
+            assert original[method]["score"]["target_p95_distance_px"] < 2.0
+            assert changed[method]["score"]["target_p95_distance_px"] > 25.0
 
 
 def test_gray_and_rotated_fixtures_preserve_lossless_prompt_coordinates():
     cases = build_manual_gap_shadow_cases()
-    assert len(cases) == 8
+    assert len(cases) == 12
     for case in cases:
         if case.grayscale:
             np.testing.assert_array_equal(case.image_rgb[..., 0], case.image_rgb[..., 1])
@@ -135,6 +138,8 @@ def test_gray_and_rotated_fixtures_preserve_lossless_prompt_coordinates():
     np.testing.assert_array_equal(cases[1].image_rgb, np.rot90(cases[0].image_rgb))
     np.testing.assert_array_equal(cases[3].image_rgb, np.rot90(cases[2].image_rgb))
     np.testing.assert_array_equal(cases[7].image_rgb, np.rot90(cases[6].image_rgb))
+    for index in (8, 10):
+        np.testing.assert_array_equal(cases[index + 1].image_rgb, np.rot90(cases[index].image_rgb))
 
 
 def test_shadow_cli_writes_deterministic_routes_prompts_and_source_provenance(tmp_path, capsys):
@@ -145,7 +150,7 @@ def test_shadow_cli_writes_deterministic_routes_prompts_and_source_provenance(tm
         emitted = json.loads(capsys.readouterr().out)
         persisted = json.loads((output / "result.json").read_text(encoding="utf-8"))
         assert emitted == persisted
-        assert len(list(output.glob("*.ppm"))) == 8
+        assert len(list(output.glob("*.ppm"))) == 12
         for case in persisted["cases"]:
             assert (output / (case["challenge_id"] + ".ppm")).read_bytes().startswith(b"P6\n")
             for field, hash_field in (("prompt", "prompt_sha256"), ("configuration", "configuration_sha256")):

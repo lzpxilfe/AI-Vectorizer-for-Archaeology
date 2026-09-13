@@ -258,6 +258,41 @@ def test_contextual_pair_rejects_inner_glyphs_and_remote_parallel_support():
     assert sample_manual_gap_bridge_tangents(evidence, (10, 10), (30, 10)) is None
 
 
+@pytest.mark.parametrize("kind", ["speckles", "fragment", "parallel", "fork"])
+@pytest.mark.parametrize("rotate", [False, True])
+def test_contextual_support_must_be_continuous_and_unbranched(kind, rotate):
+    samples = []
+    for anchor, sign in ((20, -1), (50, 1)):
+        for distance in range(1, 12):
+            if kind == "speckles" and distance % 2 == 0:
+                continue
+            if kind == "fragment" and distance in (3, 4, 5):
+                continue
+            offsets = (0,)
+            if kind == "parallel":
+                offsets = (-1, 1)
+            elif kind == "fork":
+                offsets = (-max(0, (distance - 3) // 2), max(0, (distance - 3) // 2))
+            for offset in set(offsets):
+                samples.append((anchor + sign * distance, 30 + offset, (1, 0), 1, 1))
+    start, end = (20, 30), (50, 30)
+    if rotate:
+        samples = [(y, 79 - x, (0, 1), c, s) for x, y, _t, c, s in samples]
+        start, end = (30, 59), (30, 29)
+    evidence = _evidence(samples, size=80)
+    assert sample_manual_gap_bridge_tangents(evidence, start, end) is None
+
+
+def test_contextual_support_ignores_distant_disconnected_clutter():
+    samples = [(x, 20, (1, 0), 1, 1) for x in (*range(8, 21), *range(50, 63))]
+    samples += [(x, 26, (0, 1), 1, 1) for x in (13, 14, 56, 57)]
+    tangents = sample_manual_gap_bridge_tangents(_evidence(samples, size=80), (20, 20), (50, 20))
+    assert tangents is not None
+    for tx, ty in tangents:
+        assert abs(tx) == pytest.approx(1.0)
+        assert ty == pytest.approx(0.0, abs=1e-10)
+
+
 def test_contextual_pair_rejects_invalid_or_degenerate_requests():
     evidence = _evidence(((5, 5, (1, 0), 1, 1),))
     for radius in (True, "12", 11, 33, float("nan")):

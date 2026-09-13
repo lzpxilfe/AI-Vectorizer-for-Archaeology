@@ -232,6 +232,55 @@ def sample_manual_gap_tangent(
     return _unit_direction((sum_x, sum_y), "sampled tangent")
 
 
+def _connected_context_support(candidates, anchor, outward):
+    """Keep one nearest 8-connected stroke, never stitch separate fragments.
+
+    An equally near second component is ambiguous even if it has the same
+    tangent. A short nearest fragment cannot borrow the span of a distant one.
+    Within the selected component, sustained lateral separation at the same
+    outward distance indicates a fork rather than a single discretized curve.
+    """
+
+    by_pixel = {(item[0], item[1]): item for item in candidates}
+    remaining = set(by_pixel)
+    components = []
+    while remaining:
+        seed = min(remaining)
+        remaining.remove(seed)
+        pending = [seed]
+        component = []
+        while pending:
+            x, y = pending.pop()
+            component.append(by_pixel[(x, y)])
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    neighbor = (x + dx, y + dy)
+                    if neighbor in remaining:
+                        remaining.remove(neighbor)
+                        pending.append(neighbor)
+        components.append(component)
+    if not components:
+        return []
+    components.sort(key=lambda group: min(item[2] for item in group))
+    nearest = min(item[2] for item in components[0])
+    if nearest > 3.0 or (
+        len(components) > 1
+        and min(item[2] for item in components[1]) <= nearest + 1.0
+    ):
+        return []
+    selected = components[0]
+    bands = {}
+    for x, y, _distance, projection in selected:
+        lateral = (x - anchor[0]) * outward[1] - (y - anchor[1]) * outward[0]
+        bands.setdefault(math.floor(projection), []).append(lateral)
+    # Two adjacent one-pixel bands avoid treating a single raster stair-step
+    # or a tiny thinning spur as a persistent branch.
+    wide = {band for band, values in bands.items() if max(values) - min(values) > 2.5}
+    if any(band + 1 in wide for band in wide):
+        return []
+    return sorted(selected, key=lambda item: (item[1], item[0]))
+
+
 def _contextual_endpoint_tangent(
     evidence,
     anchor: Point,
@@ -275,10 +324,11 @@ def _contextual_endpoint_tangent(
             continue
         lateral = abs(dx * outward[1] - dy * outward[0])
         # A one-pixel allowance preserves discretized shallow curves at the
-        # anchor.  Beyond it, the fixed cone blocks a nearby parallel contour.
+        # anchor. Connectivity below disambiguates strokes inside the cone.
         if lateral > 1.0 + projection * _CONTEXT_CONE_TANGENT:
             continue
         candidates.append((x, y, distance, projection))
+    candidates = _connected_context_support(candidates, anchor, outward)
     if len(candidates) < _MIN_CONTEXT_SUPPORT_PIXELS:
         return None
 
@@ -321,7 +371,8 @@ def sample_manual_gap_bridge_tangents(
     This is a fallback for an explicitly requested bridge, not an automatic
     endpoint finder.  It uses the already-confirmed endpoint pair only to
     inspect the visible contour leading away from the blank.  Both sides need
-    a nearby, elongated one-sided centerline; otherwise it returns ``None``.
+    a nearby, elongated, connected one-sided centerline without competing
+    components or sustained forks; otherwise it returns ``None``.
     In particular, it cannot turn a numeral within the blank or a parallel
     contour outside the cone into an accepted bridge.
     """
