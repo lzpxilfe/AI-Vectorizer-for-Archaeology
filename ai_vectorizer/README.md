@@ -14,7 +14,8 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 
 - 공식 QGIS 저장소에 experimental `0.1.5`가 2026-08-26 공개됐습니다.
   현재 checkout과 설치 후보는 metadata `0.1.6`, `experimental=True`이며 아래
-  Ink v2·Smart Recovery를 포함합니다. `0.1.6`은 아직 QGIS 저장소나 GitHub
+  Ink v2·Smart Recovery와 Unreleased 학습 등고선 보조·주석 도구를 포함합니다.
+  `0.1.6`은 아직 QGIS 저장소나 GitHub
   Release에 게시되지 않은 검증 후보입니다.
 - 공식 `0.1.5` artifact와 Ink v1 fallback은 보존합니다. 현재 `0.1.6` UI와 사용법은
   이 문서가 source of truth이며, 정확한 후보 ZIP·commit·CI 범위는 repository의
@@ -28,6 +29,10 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
   Legacy Canny와 기존 model index 0–5는 접힌 Advanced 영역에 보존됩니다.
 - Smart Recovery의 EfficientSAM-Ti ONNX는 Ink가 약한 구간의 soft corridor로만
   사용하며 model 미설치·오류·취소 시 Ink 경로를 그대로 유지합니다.
+- `학습 등고선 보조 / Learned contour guide`는 Advanced의 기본 OFF 실험 기능입니다.
+  로컬 ONNX 모델을 사용하며, 준비된 USGS 16개 도엽·144개 크롭은 아직 사람이 검수할
+  초안입니다. 실제 지도 학습·Holdout 평가는 완료되지 않았고, 합성 자료 검증용
+  모델은 등고선 학습 모델이나 실제 지도 정확도 근거가 아닙니다.
 - 지도와 추적 처리는 로컬에서 수행됩니다. model 다운로드는 network를 사용합니다.
   SAM Check/Status는 유효한 local checkpoint가 있으면 size와 SHA-256을 offline
   확인하고, 파일이 없을 때만 고정 source의 availability를 조회합니다.
@@ -42,6 +47,8 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
   계산하는 방향 인식 Live-Wire
 - 🛟 검증된 local EfficientSAM으로 저신뢰 Ink 구간만 보완하고 안전하게 나아진
   challenger만 채택하는 Smart Recovery
+- 🧠 로컬 ONNX의 등고선 지지·문자/도로 회피 점수로 Ink 경로를 보조하는 실험 기능
+- 📝 512픽셀 학습 크롭의 등고선·비등고선·검수·ignore 주석을 QGIS에서 편집하고 내보내기
 - 🎚️ `0%` 정확한 커서부터 `100%` 완전 보조 경로까지 실제 좌표 비율로 혼합
 - 👁️ 클릭 한 번으로 채택될 정확한 경로를 같은 초록색 선으로 실시간 표시
 - 🎨 `C`로 지정하고 `Shift+C`로 해제하는 현재 추적 전용 선 색상 보조
@@ -59,6 +66,7 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 | `✏️ Freehand` | 사용자가 직접 선을 입력 | QGIS `NumPy`; 추가 pip·model 없음 | baseline |
 | `🖋 Ink Centerline` | 다중 스케일·색상 연속 증거와 방향 인식 Live-Wire | QGIS `NumPy`; `SciPy`/`scikit-image`는 선택 최적화 | 기본 방식 |
 | `🛟 Smart Recovery` | 저신뢰 Ink 구간의 EfficientSAM corridor challenger | `onnxruntime>=1.17,<2` + 약 39.4 MiB split ONNX | 실험적·기본 OFF |
+| `Learned contour guide` | 로컬 모델의 등고선 지지·비등고선 회피 점수로 Ink 보조 | `SciPy` + `onnx` + `onnxruntime` + 로컬 검증 bundle | Advanced·실험적·기본 OFF |
 | `📐 LSD` | 선분 검출 결과를 Live-Wire에 결합 | `OpenCV`; `SciPy`는 Live-Wire 선택 최적화 | Advanced / Legacy |
 | `🧠 HED` | 학습된 edge map으로 추적 보조 | `OpenCV 4.8–4.11` + 약 `56.1 MiB` model; `SciPy` 선택 | Advanced / Legacy |
 | `🎯 MobileSAM` | point-prompt mask와 edge/A*를 결합 | `OpenCV` + `PyTorch` + `MobileSAM` + 약 `38.8 MiB` weights | Advanced / Legacy |
@@ -75,6 +83,50 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 > 기존 탐색창·우회 한계, 강한 Ink 보존, 평행선·분기 전환과 개선량을 검사합니다.
 > 실제 재배포 가능 고지도 holdout 결과 전에는 기본 승격이나 정확도 우위를 주장하지
 > 않습니다. 모델 파일은 플러그인 ZIP에 포함되지 않습니다.
+
+### 🧠 Experimental: 학습 등고선 보조
+
+1. `Advanced: 기존 추적 모델 / Advanced: legacy tracing models`를 펼치고
+   `로컬 모델 가져오기 / Import local model`을 누릅니다.
+2. `model.onnx`와 `manifest.json`이 함께 있는 로컬 폴더를 선택합니다. 파일 해시,
+   모델 계약과 출력 형식을 확인한 뒤 QGIS profile의 별도 모델 cache에 복사합니다.
+   모델을 자동으로 내려받지 않습니다.
+3. `학습 등고선 보조 (실험적, 기본 꺼짐) / Learned contour guide (Experimental,
+   default OFF)`을 켜고 `0%`보다 큰 보조 강도로 Ink 추적을 시작합니다.
+4. `지도 준비 대기`, `로컬 추론 중`, `다음 앵커에서 사용`, `적용 중` 상태를 확인하고,
+   초록색 미리보기를 검수한 다음 클릭해 채택합니다. 모델이 없거나 읽기·런타임·출력
+   검증에 실패하면 `Ink 사용 / using Ink` 상태로 기존 추적을 계속합니다.
+
+이 보조에는 SciPy와 ONNX 런타임, 북쪽이 위인 로컬 **3밴드 Byte RGB**
+GeoTIFF·PNG·JPEG가 필요합니다. 원본 좌표에 고정한 512픽셀 타일의 중앙 384픽셀을
+사용해 화면 이동에도 같은 원본 픽셀의 문맥을 유지합니다. 지원하지 않는 래스터는
+Ink를 사용합니다. `0%`에서는 학습 추론도 실행하지 않습니다.
+
+학습 회피 점수는 수동 회피 영역·선 색상 힌트와 픽셀별 최댓값으로 합쳐 Ink와
+Smart Recovery에 전달합니다. 늦게 도착한 결과는 이미 보이는 미리보기, 대기 중인
+클릭이나 수동 제안을 바꾸지 않고 다음 앵커에서 사용합니다. 기존과 같이 저장은
+QGIS 편집 버퍼로 들어가며, 한 번의 Undo로 되돌릴 수 있습니다.
+
+### 📝 학습 크롭 주석 편집
+
+1. Advanced에서 `학습 크롭 주석 편집 / Annotate training crop`을 누르고 준비된
+   **512×512 Byte RGB PNG 크롭**과 주석 작업 폴더를 선택합니다.
+2. `contours`의 Ink 초안을 수정해 검수할 영역의 **모든 보이는 등고선 중심선**을
+   그립니다. 문자·도로 등 비등고선은 `other_ink` 선 또는 `other_ink_regions` 영역에
+   표시합니다. 검수한 영역은 `reviewed`, 판단 불가능하거나 가려진 부분은 `ignore`
+   폴리곤에 그립니다. 실제로 지워진 선 공백을 임의로 이어 정답으로 만들지 마세요.
+   `reviewed` 밖과 `ignore`는 학습 손실에서 제외됩니다.
+3. 각 주석 레이어에서 `Save Layer Edits`로 변경을 저장합니다. Calibration/Holdout용
+   크롭은 평가할 **열린 등고선 하나**를 명시적으로 선택하고, 그 양 끝점이 320픽셀
+   Live-Wire 창에 들어가도록 구간을 정합니다.
+4. `주석 검수·내보내기 / Review / export labels`에서 새 JSON 경로와 실제 검수자
+   식별자를 입력합니다. 모든 보이는 등고선을 확인했을 때만 `Yes`를 선택합니다.
+   `No`는 미승인 초안으로 내보냅니다. 선택한 평가선에는 일반/고난도 여부도 지정합니다.
+   한 사람의 검수는 `single_reviewer_pilot`이며 독립 검수·공식 성능 검증을 뜻하지 않습니다.
+5. 저장소의 별도 `learning` CLI에서 내보낸 주석을 새 버전의 데이터 매니페스트에
+   연결합니다. ZIP에는 학습 코드·Colab 노트북이 포함되지 않습니다.
+   [데이터 연결·Colab 학습·평가 안내](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/learning/README.md)를
+   따라 144개 크롭의 주석·분할을 동결한 뒤 학습하세요.
 
 ### 🎨 Experimental: 선 색상 지정
 
@@ -140,6 +192,10 @@ OpenCV, SAM pip 스택과 `requirements-dev.txt`는 보안 유지 대상 Python
 # Optional: Smart Recovery local CPU runtime (plugin이 자동 실행하지 않음)
 <QGIS_PYTHON> -m pip install "onnxruntime>=1.17,<2"
 
+# Optional: learned contour guide graph validation + single-thread CPU inference
+# Python 3.12에서 함께 검증한 버전; QGIS Python 3.10+ 선택 환경에 설치
+<QGIS_PYTHON> -m pip install "scipy>=1.10" "onnx==1.23.2" "onnxruntime==1.31.0"
+
 # Optional: MobileSAM/SAM download and update checks
 <QGIS_PYTHON> -m pip install requests
 
@@ -154,9 +210,11 @@ OpenCV, SAM pip 스택과 `requirements-dev.txt`는 보안 유지 대상 Python
 
 저장소 checkout의 격리된 Python 3.10+ 개발 환경에서는 기본
 `requirements.txt`, Smart Recovery용 `requirements-smart-recovery.txt`, OpenCV용
-`requirements-opencv.txt`, 백엔드별
+`requirements-opencv.txt`, 학습 보조용 `requirements-learned-guide.txt`, 백엔드별
 `requirements-sam-mobile.txt` 또는 `requirements-sam-full.txt`를 사용할 수
-있습니다. `requirements-dev.txt`는 Python 3.10+ 테스트 전용입니다.
+있습니다. 학습은 QGIS와 분리한 Python 3.12+·Colab 환경의
+`requirements-learning.txt`를 사용합니다. `requirements-dev.txt`는 Python 3.10+
+테스트 전용입니다. QGIS에 PyTorch·SMP를 설치할 필요는 없습니다.
 
 macOS QGIS.app 예시:
 
@@ -164,8 +222,11 @@ macOS QGIS.app 예시:
 "/Applications/QGIS.app/Contents/MacOS/python3.12" -m pip install "opencv-python-headless>=4.8,<4.12"
 ```
 
-### 3. Download model weights in the plugin
+### 3. Prepare optional model weights
 
+- `Learned contour guide`: Advanced의 `Import local model`로 검증 매니페스트와
+  단일 FP32 ONNX가 들어 있는 폴더를 가져옵니다. SHA-256과 모델 계약을 확인하고
+  CPU ONNX Runtime을 한 스레드로 준비합니다. 자동 다운로드나 원격 추론은 없습니다.
 - `Smart Recovery`: 먼저 위 ONNX Runtime을 QGIS Python에 설치합니다. QGIS를 다시
   시작한 뒤 `Smart Recovery (Experimental)`을 켜고 `Install Recovery Model`을
   명시적으로 누릅니다. encoder 24,799,761 bytes와 decoder 16,565,728 bytes를 고정
@@ -259,6 +320,10 @@ first use.
 - 선택 model 기능이 안 되는 환경임
   유효한 raster와 2D line output이 있으면 추가 pip·model 없이 `Freehand`를 사용할
   수 있습니다.
+- `학습 보조: Ink 사용 / Learned guide: using Ink`
+  표시된 상세 상태를 확인하세요. 로컬 `model.onnx`·`manifest.json`, QGIS Python의
+  ONNX·ONNX Runtime·SciPy, north-up 3밴드 Byte RGB 지도가 필요합니다. 파일 손상,
+  모델 형식 오류나 지원하지 않는 래스터에서도 기존 Ink로 추적할 수 있습니다.
 - DEM 실행 전 차단됨
   편집·고도·비공선 vertex·투영 CRS·Processing provider를 확인하세요. 덮어쓸 출력이 QGIS에 로드되어 있다면 먼저 제거해야 합니다.
 
@@ -271,7 +336,7 @@ first use.
 ## 🇬🇧 English Summary
 
 - ArchaeoTrace is a local-first QGIS plugin for tracing elevation contours on historical maps and building reviewable terrain hypotheses.
-- The QGIS repository published experimental `0.1.5` on 2026-08-26. This guide describes the unpublished experimental `0.1.6` candidate with Ink v2 and Smart Recovery.
+- The QGIS repository published experimental `0.1.5` on 2026-08-26. This guide describes the unpublished experimental `0.1.6` candidate and its Unreleased learned-contour and annotation additions.
 - Cursor movement performs only a predecessor lookup after one asynchronous tree build per accepted anchor; the green line is the exact one-click result.
 - Assist is literal from 0% (exact cursor, no model work), through coordinate blending, to 100% (the full Live-Wire route).
 - `Freehand` needs no additional pip package, external model, or OpenCV, but uses NumPy from the QGIS Python environment.
@@ -287,6 +352,25 @@ first use.
 - `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
 - Smart Recovery is an experimental, default-OFF EfficientSAM-Ti corridor prior.
   It never replaces a failed run with another backend and always preserves the Ink champion.
+- Under Advanced, **Import local model** selects a folder containing `model.onnx`
+  and `manifest.json`; explicitly enable **Learned contour guide (Experimental,
+  default OFF)** to guide Ink. It requires SciPy, ONNX graph validation and
+  single-thread CPU ONNX Runtime on a local north-up three-band Byte RGB
+  GeoTIFF/PNG/JPEG. There are no model downloads. Missing or invalid models,
+  runtimes, reads or outputs retain Ink, and 0% runs no inference. A late prior
+  joins the next anchor without changing a displayed preview, pending click or
+  manual proposal.
+- **Annotate training crop** opens a native 512×512 RGB PNG with editable
+  `contours`, `other_ink`, `other_ink_regions`, `reviewed` and `ignore` layers.
+  Label every visible contour in reviewed areas, exclude uncertain pixels, and
+  save layer edits before **Review / export labels**. A real human ID and explicit
+  all-visible confirmation permit single-reviewer pilot approval. Select one
+  open evaluation contour and declare standard/hard difficulty before training.
+  Attach the exported JSON to a new versioned manifest with the separate
+  [learning CLI](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/learning/README.md).
+- The 144 USGS pilot crops are unreviewed drafts. Actual contour training and
+  holdout evaluation are pending; synthetic diagnostic weights establish no
+  real-map accuracy or Korean-map generalization.
 - The DEM workflow requires saved elevation contours in a projected metre CRS; its output is a reviewable hypothesis, not an archaeological ground truth.
 
 ## 📚 Citation

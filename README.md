@@ -17,7 +17,7 @@
 
 - [공식 QGIS plugin 저장소](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.5/)에
   experimental `0.1.5`가 2026-08-26 공개됐습니다. 현재 source는 Ink v2와
-  Smart Recovery를 포함한 `0.1.6` experimental 후보입니다. 아직 QGIS 저장소,
+  Smart Recovery와 선택적 학습 등고선 보조를 포함한 `0.1.6` experimental 후보입니다. 아직 QGIS 저장소,
   GitHub Release 또는 tag로 게시하지 않았습니다.
 - 공식 QGIS `0.1.5` ZIP은 1,483,635 bytes, SHA-256
   `24f1def6acd63d483ea6bf7c20b944f56507ead52190667ec4f35562fca6c964`입니다.
@@ -36,14 +36,18 @@
   [통과했습니다](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33344520364).
   후보 commit·ZIP·CI는
   [`0.1.6 release-readiness 기록`](docs/RELEASE_READINESS_0.1.6.md)에 결속했습니다.
+- 학습 기능을 통합한 `main`의 commit `3bf2b5a2c9e793f54286bfc633351bcb4aa2a095`는
+  [CI 12개 작업](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/38437848923)을
+  모두 통과했습니다. 이는 구현 검증이며 실제 지도 학습이나 정확도 검증을 뜻하지 않습니다.
 - 과거 미공개 개발판 `0.1.7–0.1.8`을 설치했다면 QGIS가 `0.1.6`을 자동 update로
   인식하지 않을 수 있습니다. 기존 plugin을 제거한 뒤 `0.1.6` ZIP을 설치하세요.
   QGIS profile의 검증된 model 파일은 plugin 밖에 보존됩니다.
 
 ## Main features
 
-- 🧪 [학습 등고선 파일럿](learning/README.md): USGS 도엽 분할·QGIS 주석·Colab 학습·
-  CPU 평가와 기본 OFF 로컬 ONNX 보조. 사람 검수와 최종 평가가 필요한 실험 기능입니다.
+- 🧪 [학습 등고선 파일럿](learning/README.md): USGS 144개 크롭 준비·QGIS 주석·
+  Colab 학습/재개·CPU 평가와 기본 OFF 로컬 ONNX 보조. 현재 주석은 모두 미검수
+  초안이며, 실제 지도 학습과 최종 평가는 사람 검수 후 진행합니다.
 - ✏️ 추가 model 없이 직접 입력하는 `Freehand`
 - 🖋️ 9·15·31 source-pixel 다중 스케일과 RGB/명도 증거를 한 번 계산해 제한된
   Live-Wire에 전달하는 기본 `Ink Centerline`
@@ -65,14 +69,16 @@
 - 🏔️ 저장된 입력에서 실험적 선형 TIN DEM과 GDAL hillshade 생성
 - 🌏 한국어·English UI
 
-구현 완료·실험·미구현 기능의 정확한 경계와 module별 책임은
-[`Features and architecture`](docs/FEATURES_AND_ARCHITECTURE.md)에 있습니다.
+기존 추적·DEM 기능의 경계와 module별 책임은
+[`Features and architecture`](docs/FEATURES_AND_ARCHITECTURE.md), 학습 파일럿의
+데이터·학습·평가 계약은 [`학습 안내`](learning/README.md)에 있습니다.
 
 ## How it works
 
 ```text
 Raster
   → source-grid 다중 스케일 Ink score + tangent/coherence
+  → (선택) 로컬 학습 모델의 등고선 지지·문자/도로 회피 점수
   → bounded Live-Wire Ink champion
   → (선택) 저신뢰 구간만 EfficientSAM soft corridor challenger
   → 안전 조건을 모두 통과한 경우에만 challenger 채택
@@ -91,6 +97,7 @@ Raster
 | --- | --- | --- | --- |
 | `✏️ Freehand` | 사용자가 직접 선을 입력 | 추가 pip·model 없음 | baseline |
 | `🖋 Ink Centerline` | 다중 스케일·색상 선 증거 + bounded Live-Wire | 추가 pip 없음; SciPy/scikit-image는 선택 | default |
+| `Learned contour guide` | Ink 경로에 등고선 지지·비등고선 회피 점수 결합 | SciPy + ONNX + ONNX Runtime + 명시적으로 가져온 로컬 모델 | experimental, default OFF |
 | `🛟 Smart Recovery` | Ink 저신뢰 구간의 EfficientSAM corridor challenger | `onnxruntime` + 명시적으로 설치한 고정-hash model | experimental, default OFF |
 | `📐 LSD` | OpenCV 선분 검출 + 공용 Live-Wire | OpenCV; SciPy는 선택 | advanced/legacy |
 | `🧠 HED` | Caffe HED edge map + 공용 Live-Wire | OpenCV + 약 56.1 MiB model; SciPy는 선택 | advanced/legacy |
@@ -105,6 +112,49 @@ snap으로 돌아갑니다. 탐색 범위를 제한해도
 Freehand로 교정하세요. Smart Recovery는 SAM mask를 선으로 저장하거나 Ink와 OR하지
 않습니다. 끝점·우회·강한 Ink 보존·평행선 전환 검사를 통과한 경로만 채택합니다.
 assist `0%`에서는 model과 evidence 계산을 모두 생략합니다.
+
+## Experimental: 학습 등고선 보조
+
+`Advanced: 기존 추적 모델`에서 `로컬 모델 가져오기`를 눌러 `model.onnx`와
+검증·출처 `manifest.json`이 있는 폴더를 선택한 뒤 `학습 등고선 보조`를 켭니다.
+기본은 OFF이며 플러그인은 이 모델을 자동 다운로드하지 않습니다.
+[`requirements-learned-guide.txt`](requirements-learned-guide.txt)의 선택 패키지는
+QGIS Python에 설치하고, PyTorch 학습 패키지는 별도 Python 3.12 환경에 설치합니다.
+
+학습 보조는 SciPy, Ink 모드, `0%`보다 큰 보조 강도와 정렬된 로컬 3-band Byte RGB
+GeoTIFF·PNG·JPEG가 필요합니다. 원본 좌표에 고정된 512×512 타일에서 중앙
+384×384 결과를 사용해 화면을 이동해도 같은 픽셀의 문맥을 유지합니다. 이 방식은
+전체 이미지 추론과 같은 결과를 보장하지 않습니다. 모델 없음·손상·런타임 없음·
+잘못된 출력·지원되지 않는 래스터는 Ink로 복귀합니다. 늦게 도착한 결과는 이미
+표시된 미리보기, 대기 클릭이나 수동 제안을 바꾸지 않습니다.
+
+USGS 파일럿은 크롭 생성 전에 도엽 가족을 분할하고 원본·권리·크롭 위치·주석
+수정 이력을 해시로 기록합니다. 16개 도엽의 144개 크롭을 원본과 픽셀 단위로
+대조했으며, 현재 승인된 주석은 **0개**입니다.
+
+| 분할 | 도엽 | 크롭 | 용도 |
+| --- | ---: | ---: | --- |
+| Train | 6 | 72 | 가중치 학습·증강 |
+| Validation | 2 | 24 | 체크포인트·seed 선택 |
+| Calibration | 4 | 24 | 경로 비용 6개 조합 비교·동결 |
+| Holdout | 4 | 24 | 동결된 모델·설정의 최종 평가 |
+
+`학습 크롭 주석 편집`에서 준비된 PNG와 작업 폴더를 선택합니다. QGIS에 추가된
+`contours`, `other_ink`, `other_ink_regions`, `reviewed`, `ignore` 레이어에서 초안을
+수정하고 검수 영역의 모든 보이는 등고선을 표시하세요. 판단할 수 없는 영역은
+`ignore`로 남깁니다. 레이어 편집을 저장한 뒤 `주석 검수·내보내기`로 새 JSON을
+만들고, CLI로 새 데이터 매니페스트에 연결합니다. 평가용 크롭에서는 검수한 열린
+선 하나를 선택하고 난이도를 지정합니다. 단독 검수는 실험용으로 기록하며 공식
+성능 검증이나 한국 지도 일반화 근거로 사용하지 않습니다.
+
+원본 이미지·가중치는 Git에 포함하지 않습니다. 데이터 준비 명령과 주석 연결,
+[`Colab 노트북`](learning/colab_train.ipynb), 학습·내보내기·평가 방법은
+[`학습 안내`](learning/README.md)에 있습니다. 모델은 ImageNet ResNet18 인코더와
+작은 U-Net 디코더의 두 출력으로 등고선 지지와 문자·도로 회피를 학습합니다.
+세 seed 중 Validation 결과로 후보 하나를 선택하고, Drive 체크포인트로 재개합니다.
+Calibration에서 설정을 동결한 뒤 Holdout을 평가합니다. **실제 Colab 학습,
+Holdout 성능 검증과 한국 지도 검증은 아직 완료하지 않았습니다.** 합성 진단 모델은
+학습·재개·ONNX·QGIS 연결 확인용입니다. Unsloth 고도 숫자·범례 판독은 후속 단계입니다.
 
 ## Experimental: 선 색상 지정
 
@@ -155,7 +205,7 @@ backend별 설치, model 크기·SHA-256, 수동 경로와 운영체제별 안�
    설치하고 ArchaeoTrace를 활성화합니다.
 2. georeferenced raster와 2D line output layer를 선택합니다.
 3. 기본 `Ink Centerline` 또는 `Freehand`와 assist 강도를 고릅니다. 필요할 때만
-   Smart Recovery를 켭니다.
+   Smart Recovery 또는 가져온 학습 보조 모델을 켭니다.
 4. 초록색 preview와 `Ink` / `Recovering` / `Enhanced` / `Ink fallback` 상태를
    확인합니다. 기존 방식은 접힌 `Advanced / Legacy methods`에 있습니다.
 5. 클릭·드래그로 anchor를 정하고 `Enter` 또는 우클릭으로 edit buffer에 넣습니다.
@@ -167,7 +217,7 @@ backend별 설치, model 크기·SHA-256, 수동 경로와 운영체제별 안�
 
 - raster crop, vector geometry와 local inference 결과를 원격 inference 서버로 보내지
   않으며 기본 telemetry가 없습니다.
-- network는 사용자가 HED/SAM model 또는 Recovery model 설치를 직접 실행할 때만
+- QGIS plugin의 network는 사용자가 HED/SAM model 또는 Recovery model 설치를 직접 실행할 때만
   사용합니다. Recovery는 자동 다운로드하지 않으며, 설치 뒤에는 content-addressed
   cache의 크기·SHA-256과 ONNX session을 background task에서 준비합니다. 준비 중에는
   Ink만 사용하며 Recovery 입력은 native Byte raster로 제한합니다. 손상된 regular
@@ -177,6 +227,9 @@ backend별 설치, model 크기·SHA-256, 수동 경로와 운영체제별 안�
   때만 고정 source의 availability를 조회합니다. EfficientSAM benchmark도 명시적인
   `model fetch`만 network를 사용합니다. 지도 crop과 사용자 geometry는 업로드하지
   않습니다.
+- 학습 등고선 모델은 로컬 폴더에서만 가져옵니다. 별도 데이터 준비 도구는 명시적인
+  명령으로 USGS 원본을 내려받고, Colab 학습은 사용자가 자신의 Drive에 올린 자료와
+  명시적으로 초기화한 ImageNet 가중치를 사용합니다. 이는 QGIS 로컬 추론과 분리됩니다.
 - `SAM Status Report`에는 현재 작업 경로, QGIS/Python 환경값과 model 경로가 포함될
   수 있고 clipboard에도 복사됩니다. 다른 사람에게 보낼 때 내용을 먼저 확인하고
   local path나 민감한 환경값을 지우세요.
@@ -209,6 +262,10 @@ centerline, 실행 환경, 입력·출력 SHA-256, 시간·RAM과 topology 지�
 도구보다 낫다는 근거가 아닙니다. 명령과 evidence 형식은
 [`benchmarks/README.md`](benchmarks/README.md)를 참고하세요.
 
+`learning/`의 16개 USGS 도엽·144개 크롭은 이 기존 8×6 회귀 자료와 별도입니다.
+현재는 학습·재개·ONNX 출력 비교와 QGIS 동작을 합성 자료로 검증했습니다.
+실제 지도의 F1@2px·선간 거리·끊김·과잉 분기 개선이나 도입 기준 통과를 주장하지 않습니다.
+
 ## Repository guide
 
 | 문서·경로 | 내용 |
@@ -221,11 +278,16 @@ centerline, 실행 환경, 입력·출력 SHA-256, 시간·RAM과 topology 지�
 | [`docs/RELEASE_READINESS_0.1.6.md`](docs/RELEASE_READINESS_0.1.6.md) | 현재 후보의 실행 검증, artifact identity와 잔여 위험 |
 | [`docs/RELEASE_READINESS_0.1.5.md`](docs/RELEASE_READINESS_0.1.5.md) | 공식 0.1.5와 동결 후보의 역사적 기록 |
 | [`benchmarks/`](benchmarks/) | 격리 worker, manifest, 지표와 synthetic fixture |
+| [`learning/`](learning/README.md) | USGS 파일럿·주석 계약·Colab 학습/재개·ONNX export·Calibration/Holdout |
+| [`AGENTS.md`](AGENTS.md) | 단일 `main` 브랜치 작업 규칙 |
 | [`tests/`](tests/) | pure core, packaging와 QGIS safety 회귀 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | 개발 환경, test tier, 문서·data 기여 규칙 |
 | [`SECURITY.md`](SECURITY.md) | 취약점·data-loss 제보와 진단 redaction |
 
 ## Version and release discipline
+
+저장소는 `main` 하나를 유지하며 일반 작업과 커밋도 `main`에서 진행합니다.
+별도 개발 브랜치나 PR을 자동으로 만들지 않습니다. 작업 규칙은 [`AGENTS.md`](AGENTS.md)에 있습니다.
 
 `ai_vectorizer/metadata.txt`가 배포 버전의 source of truth입니다. 일상 개발은
 `Unreleased` changelog에서 진행하고 metadata 숫자는 release 준비가 시작될 때만 한

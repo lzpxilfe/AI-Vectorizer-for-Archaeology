@@ -24,7 +24,7 @@ Preparation and pixel verification need the separate data/evaluation environment
 PNG pixels equal their declared native source windows; it does not approve
 annotations or establish contour accuracy. Split/family assignment stays frozen.
 
-In QGIS, open **Advanced / Legacy methods → Annotate training crop** and select
+In QGIS, open **Advanced: legacy tracing models → Annotate training crop** and select
 one of the 144 PNGs. The annotation project creates `contours`, `other_ink`,
 `other_ink_regions`, `reviewed` and `ignore` layers. Correct the initial Ink draft,
 draw every visible contour within the reviewed areas, identify noncontour lines
@@ -34,9 +34,9 @@ an explicit confirmation of all visible contours; the annotator and reviewer
 may be the same person at the declared single-reviewer pilot level. The draft
 algorithm never supplies reviewer approval.
 
-Opening a prepared crop restores its manifest association; export can update
-that association with a new annotation revision. To attach an independently
-exported revision explicitly, create a new manifest beside the existing one:
+Opening a prepared crop restores its manifest association. Export writes a new
+annotation JSON revision; attach it explicitly to a new manifest beside the
+existing one using the CLI:
 
 ```bash
 python -m learning attach /absolute/pilot-data/manifest.json \
@@ -142,7 +142,7 @@ inference service. Actual Colab GPU execution remains a separate user run.
 QGIS needs only the optional local ONNX runtime, not PyTorch or SMP. Install
 `requirements-learned-guide.txt` using the chosen QGIS Python when explicitly
 enabling learned guidance. Older QGIS Python keeps the default Ink route.
-Import the selected local bundle with **Import Learned Guide**, then explicitly
+Import the selected local bundle with **Import local model**, then explicitly
 enable the learned-guidance checkbox. The local bundle is hash-verified; no
 map crops or geometries are sent to an inference server. Inspect every green
 preview and accept its points yourself. A missing or failed runtime keeps Ink.
