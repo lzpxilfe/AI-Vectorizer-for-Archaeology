@@ -42,8 +42,8 @@ inference service.
 
 - 🧪 [Learned contour pilot](learning/README.md): 144 prepared USGS crops, QGIS annotation
   tools, a resumable Colab notebook, CPU evaluation, and a default-OFF local ONNX
-  guide. Every current annotation is a draft; real training and final evaluation
-  await human review.
+  guide. Human-approved annotations remain at zero; a separate weak-label
+  experiment has verified actual Colab T4 GPU training and persisted checkpoints.
 - Freehand tracing with no additional model
 - Default multi-scale Ink Centerline evidence for dark and colored printed strokes
 - Optional Smart Recovery that uses a verified EfficientSAM-Ti model only as a
@@ -164,6 +164,15 @@ Annotations remain `machine_labeled`; checkpoints and ONNX provenance retain
 `human_review_required=true`. Validation measures agreement with weak labels,
 not actual contour accuracy. These models cannot enter human-reviewed pilot
 Calibration/Holdout evaluation or be sealed as passing pilot models.
+
+On 2026-10-14, the frozen 144-crop dataset ran on Colab runtime `2026.07`
+(Python 3.12.13, Tesla T4), using 72 train and 24 validation crops. Seed 3407
+completed at least six epochs, with `latest.pt` and `best.pt` saved to Drive.
+At the time of this execution record, the full three-seed run and ONNX export
+were still in progress. Human review and
+holdout evaluation remain separate and pending; the [execution record](learning/COLAB_WEAK_RUN_2026-10-14.md)
+binds the training code and dataset hashes.
+
 For the human-reviewed pilot, calibration freezes path costs before the holdout
 comparison. Human-reviewed Colab training, reviewed holdout results, and
 Korean-map validation are still pending.

@@ -24,7 +24,7 @@
 - Colab 학습 노트북, ResNet18/작은 U-Net 두 logit 헤드, 마스킹 손실,
   optimizer/RNG/진행 위치 재개와 FP32 ONNX 출력 비교 검증.
   Calibration 6개 설정 동결과 별도 CPU Holdout 평가 도구를 제공합니다.
-  실제 지도 학습·성능 기준 통과·한국 지도 일반화는 아직 검증하지 않았습니다.
+  사람 검수 지도 학습·성능 기준 통과·한국 지도 일반화는 아직 검증하지 않았습니다.
 - `TraceGuidance`: line evidence와 분리된 QGIS-independent, immutable soft
   avoidance score 계약. Ink Live-Wire는 선택 영역을 hard wall이나 mask OR로
   쓰지 않고 비용만 높여 더 좋은 중심선 우회로가 있을 때만 선택합니다.
@@ -46,6 +46,9 @@
 
 ### Safety
 
+- Colab에서 학습 패키지를 설치·교체한 뒤 이전 Pillow·NumPy 모듈이 남아 있으면
+  학습 전에 중단하고 세션 재시작을 요구합니다. 기계 라벨 GPU 실행과 Drive
+  체크포인트 확인 기록은 사람 검수·공식 등고선 성능 평가와 분리합니다.
 - 학습 주석 버튼에서 생성한 래스터·5개 주석 레이어를 실제 프로젝트·지도 화면에
   추가하고, 영역은 투명한 윤곽으로 표시합니다. 승인한 평가선은 선택한 QGIS feature를
   주석 ID로 변환하며, 미승인 초안은 선택한 선이 있어도 평가 target을 만들지 않습니다.

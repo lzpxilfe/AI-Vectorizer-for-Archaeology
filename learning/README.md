@@ -147,6 +147,10 @@ provide consistent pan context, not whole-image equivalence.
 
 The Colab notebook mounts the user's Drive, verifies a full Git commit, safely
 extracts an explicitly selected approved dataset ZIP and resumes three seeds.
+When installation changes learning package versions or cached Pillow/NumPy
+modules differ from their installed versions, the notebook stops before ML
+imports. Choose **Runtime → Restart session**, then **Run all** with the same
+configuration; repeating cells in the same kernel cannot bypass that guard.
 It freezes exactly one candidate in `selected-model.json` by the lowest best
 validation loss (ties use ascending seed), then exports only that candidate.
 The selection binds checkpoint, config, dataset and code before calibration or

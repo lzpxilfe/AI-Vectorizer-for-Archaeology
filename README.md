@@ -46,8 +46,8 @@
 ## Main features
 
 - 🧪 [학습 등고선 파일럿](learning/README.md): USGS 144개 크롭 준비·QGIS 주석·
-  Colab 학습/재개·CPU 평가와 기본 OFF 로컬 ONNX 보조. 현재 주석은 모두 미검수
-  초안이며, 실제 지도 학습과 최종 평가는 사람 검수 후 진행합니다.
+  Colab 학습/재개·CPU 평가와 기본 OFF 로컬 ONNX 보조. 사람 승인 주석은 0개이며,
+  별도 약한 라벨 실험의 실제 Colab T4 GPU 학습과 체크포인트 저장을 확인했습니다.
 - ✏️ 추가 model 없이 직접 입력하는 `Freehand`
 - 🖋️ 9·15·31 source-pixel 다중 스케일과 RGB/명도 증거를 한 번 계산해 제한된
   Live-Wire에 전달하는 기본 `Ink Centerline`
@@ -163,6 +163,12 @@ Holdout 성능 검증과 한국 지도 검증은 아직 완료하지 않았습�
 아닙니다. 사람 검수 Calibration/Holdout 평가와 합격 모델 승격은 허용하지 않습니다.
 실행 방법은 [`약한 라벨 실험 안내`](learning/README.weak-labels.ko.md)에 있습니다.
 
+2026-10-14에는 Colab `2026.07` 런타임(Python 3.12.13, Tesla T4)에서 동결된
+144개 크롭 중 Train 72개·Validation 24개로 실제 학습을 실행했습니다.
+seed 3407의 최소 6 epoch와 Drive의 `latest.pt`·`best.pt` 저장을 확인했습니다.
+이 실행 기록 시점에는 세 seed 전체 학습과 ONNX 내보내기가 진행 중이며, 사람 검수·Holdout 결과와는
+별도입니다. 코드·데이터 해시는 [`실행 기록`](learning/COLAB_WEAK_RUN_2026-10-14.md)에 있습니다.
+
 ## Experimental: 선 색상 지정
 
 Ink 추적을 시작한 뒤 교차점·글자·배경을 피한 유색 등고선 위에 커서를 두고 `C`를
@@ -270,7 +276,8 @@ centerline, 실행 환경, 입력·출력 SHA-256, 시간·RAM과 topology 지�
 [`benchmarks/README.md`](benchmarks/README.md)를 참고하세요.
 
 `learning/`의 16개 USGS 도엽·144개 크롭은 이 기존 8×6 회귀 자료와 별도입니다.
-현재는 학습·재개·ONNX 출력 비교와 QGIS 동작을 합성 자료로 검증했습니다.
+학습·재개·ONNX 출력 비교와 QGIS 동작은 합성 자료로 검증했고, 별도 약한 라벨
+실험은 실제 USGS 크롭으로 Colab GPU 학습과 체크포인트 저장을 확인했습니다.
 실제 지도의 F1@2px·선간 거리·끊김·과잉 분기 개선이나 도입 기준 통과를 주장하지 않습니다.
 
 ## Repository guide

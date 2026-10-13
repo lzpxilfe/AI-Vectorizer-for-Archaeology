@@ -32,6 +32,9 @@ python scripts/build_weak_experiment.py --dataset /absolute/pilot-data \
    넣습니다. 배포본에 고정값이 있으면 유지합니다. `ALLOW_WEAK_LABELS=True`,
    `RESUME_EXISTING=True`, `OOM_RETRY=False`로 시작합니다.
 4. 환경 확인, Drive 연결, 코드 설치, 데이터 검증 셀을 차례로 실행합니다.
+   패키지 설치 셀에서 재시작 안내로 중단되면 **런타임 → 세션 다시 시작** 후
+   같은 설정으로 **모두 실행**합니다. 설치 전 불러온 Pillow·NumPy 등을 현재
+   커널에서 계속 사용하지 않도록 막는 절차이며, 모델 학습은 아직 시작하지 않습니다.
    전체 144개와 `train=72`, `validation=24`, `calibration=24`, `holdout=24`를
    확인합니다. 출력의 `Weak-label train/validation: 72 24`와 실제 CUDA GPU 이름을
    확인한 다음 학습 셀을 실행합니다.
