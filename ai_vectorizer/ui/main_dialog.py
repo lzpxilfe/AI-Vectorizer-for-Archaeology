@@ -10,6 +10,7 @@ import json
 import shutil
 import tempfile
 import traceback
+from pathlib import Path
 from datetime import datetime, timezone
 from qgis.PyQt.QtWidgets import (
     QDockWidget,
@@ -25,6 +26,7 @@ from qgis.PyQt.QtWidgets import (
     QLineEdit,
     QSlider,
     QMessageBox,
+    QInputDialog,
     QApplication,
 )
 from qgis.core import (
@@ -242,6 +244,39 @@ class _RecoveryInstallTask(QgsTask):
         self.callback(self, bool(result), self.bundle, self.error)
 
 
+class _LearnedPrepareTask(QgsTask):
+    """Import or prepare a user-selected local model off the UI thread."""
+
+    def __init__(self, bundle_path, cache_root, generation, callback, import_bundle=False):
+        super().__init__("ArchaeoTrace prepare learned contour model", _task_can_cancel())
+        self.bundle_path = bundle_path
+        self.cache_root = cache_root
+        self.generation = generation
+        self.callback = callback
+        self.import_bundle = import_bundle
+        self.engine = None
+        self.error = None
+
+    def run(self):
+        try:
+            from ..core.learned_model import LearnedContourEngine, import_local_bundle
+
+            if self.isCanceled():
+                return False
+            if self.import_bundle:
+                self.bundle_path = str(import_local_bundle(self.bundle_path, self.cache_root))
+            if self.isCanceled():
+                return False
+            self.engine = LearnedContourEngine.from_bundle(self.bundle_path)
+            return not self.isCanceled()
+        except Exception as exc:
+            self.error = exc
+            return False
+
+    def finished(self, result):
+        self.callback(self, bool(result), self.engine, self.error)
+
+
 class _RecoveryPrepareTask(QgsTask):
     """Verify and initialize an already-installed bundle off the UI thread."""
 
@@ -370,6 +405,12 @@ class AIVectorizerDock(QDockWidget):
         self.sam_engine = None
         self.sam_engine_key = None
         self.recovery_engine = None
+        self.learned_engine = None
+        self.learned_prepare_task = None
+        self._learned_ui_state = ("off", "")
+        self._learned_prepare_generation = 0
+        self._learned_bundle_path = str(QSettings().value("ArchaeoTrace/learnedBundle", ""))
+        self._annotation_session = None
         self.recovery_install_task = None
         self.recovery_prepare_task = None
         self._recovery_prepare_generation = 0
@@ -487,6 +528,10 @@ class AIVectorizerDock(QDockWidget):
             self.auto_path_check,
             self.freedom_slider,
             self.preview_edge_btn,
+            self.learned_guide_check,
+            self.learned_import_btn,
+            self.annotation_open_btn,
+            self.annotation_export_btn,
         ):
             widget.setEnabled(enabled)
         self.recovery_install_btn.setEnabled(
@@ -528,6 +573,8 @@ class AIVectorizerDock(QDockWidget):
                 bool(self.active_tool and self.active_tool._ink_color_cache_ready()),
             )
         self._update_dem_button_for_tracing(not enabled)
+        self.learned_import_btn.setEnabled(enabled and self.learned_prepare_task is None)
+        self.annotation_export_btn.setEnabled(enabled and self._annotation_session is not None)
 
     def _set_idle_ui(self, prompt=False):
         self._set_trace_configuration_enabled(True)
@@ -942,6 +989,12 @@ class AIVectorizerDock(QDockWidget):
         if int(value) <= 0:
             self._cancel_recovery_prepare()
             self._release_recovery_engine()
+            if hasattr(self, "learned_guide_check"):
+                self._cancel_learned_prepare()
+                self.learned_engine = None
+                self._on_learned_state_changed("off")
+        elif hasattr(self, "learned_guide_check") and self.learned_guide_check.isChecked():
+            self._on_learned_toggled(True)
         self._refresh_recovery_availability()
 
     def _on_freehand_toggled(self, checked):
@@ -951,6 +1004,8 @@ class AIVectorizerDock(QDockWidget):
             # setChecked(False) routes through the normal engine release and
             # offline availability refresh; no special lifecycle path exists.
             self.smart_recovery_check.setChecked(False)
+        if checked and hasattr(self, "learned_guide_check") and self.learned_guide_check.isChecked():
+            self.learned_guide_check.setChecked(False)
 
     def install_recovery_model(self):
         """Start the sole, explicit install or corrupt-object repair action."""
@@ -1097,6 +1152,169 @@ class AIVectorizerDock(QDockWidget):
         self.ink_color_status.setText(text)
         self.ink_color_clear_btn.setEnabled(sample_rgb is not None)
 
+    def _on_learned_state_changed(self, state, detail=""):
+        self._learned_ui_state = (state, detail)
+        labels = {
+            "off": self._tr("학습 보조: 꺼짐", "Learned guide: off"),
+            "waiting": self._tr("학습 보조: 지도 준비 대기", "Learned guide: waiting for map"),
+            "preparing": self._tr("학습 보조: 로컬 추론 중", "Learned guide: local inference"),
+            "ready": self._tr("학습 보조: 다음 앵커에서 사용", "Learned guide: ready for next anchor"),
+            "active": self._tr("학습 보조: 적용 중", "Learned guide: active"),
+            "fallback": self._tr("학습 보조: Ink 사용", "Learned guide: using Ink"),
+        }
+        self.learned_status.setText(labels.get(state, state) + (": " + detail if detail else ""))
+
+    def _cancel_learned_prepare(self):
+        self._learned_prepare_generation += 1
+        task = self.learned_prepare_task
+        self.learned_prepare_task = None
+        if task is not None:
+            try:
+                task.cancel()
+            except RuntimeError:
+                pass
+        if hasattr(self, "learned_import_btn"):
+            self.learned_import_btn.setEnabled(self.active_tool is None and not self._shutting_down)
+
+    def _prepare_learned_model(self, path, import_bundle=False):
+        self._cancel_learned_prepare()
+        self.learned_engine = None
+        task = _LearnedPrepareTask(
+            path, str(Path(self._sam_models_dir()).parent / "learned-models"),
+            self._learned_prepare_generation, self._on_learned_model_prepared, import_bundle,
+        )
+        self.learned_prepare_task = task
+        self.learned_import_btn.setEnabled(False)
+        self._on_learned_state_changed("preparing")
+        QgsApplication.taskManager().addTask(task)
+
+    def _on_learned_model_prepared(self, task, succeeded, engine, error):
+        if self.learned_prepare_task is not task:
+            return
+        self.learned_prepare_task = None
+        if self._shutting_down or task.generation != self._learned_prepare_generation:
+            return
+        self.learned_import_btn.setEnabled(self.active_tool is None)
+        if not succeeded or engine is None:
+            self.learned_engine = None
+            self._on_learned_state_changed("fallback", str(error or "Model preparation cancelled"))
+            return
+        self.learned_engine = engine
+        self._learned_bundle_path = task.bundle_path
+        QSettings().setValue("ArchaeoTrace/learnedBundle", task.bundle_path)
+        diagnostic = engine.manifest["provenance"].get("synthetic_diagnostic", False)
+        self._on_learned_state_changed("ready" if self.learned_guide_check.isChecked() else "off", self._tr(
+            "합성 자료 검증용 모델", "Synthetic diagnostic model",
+        ) if diagnostic else "")
+
+    def _learned_guidance_parameters(self):
+        if self.learned_engine is None:
+            return 0.8, 6
+        selected = self.learned_engine.manifest["provenance"].get("selected_guidance", {})
+        return selected.get("support", 0.8), selected.get("avoidance", 6)
+
+    def import_learned_model(self):
+        if self.active_tool is not None:
+            return False
+        path = QFileDialog.getExistingDirectory(self, self._tr("학습 모델 폴더 선택", "Select learned model bundle"))
+        if not path:
+            return False
+        self._prepare_learned_model(path, import_bundle=True)
+        return True
+
+    def _on_learned_toggled(self, checked):
+        if not checked:
+            self._cancel_learned_prepare()
+            self.learned_engine = None
+            self._on_learned_state_changed("off")
+            return
+        if self.freehand_check.isChecked():
+            self.freehand_check.setChecked(False)
+        if self.model_combo.currentIndex() != MODEL_IDX_INK:
+            self.model_combo.setCurrentIndex(MODEL_IDX_INK)
+        if self.freedom_slider.value() <= 0:
+            self._cancel_learned_prepare()
+            self.learned_engine = None
+            self._on_learned_state_changed("off")
+            return
+        if self.learned_prepare_task is not None:
+            return
+        if self.learned_engine is not None:
+            self._on_learned_state_changed("ready")
+        elif self._learned_bundle_path:
+            self._prepare_learned_model(self._learned_bundle_path)
+        else:
+            self._on_learned_state_changed("fallback", self._tr(
+                "검증 매니페스트와 ONNX가 있는 모델 폴더를 가져오세요.",
+                "Import a local bundle containing its verification manifest and ONNX model.",
+            ))
+
+    def open_annotation_project(self):
+        image_path, _filter = QFileDialog.getOpenFileName(
+            self, self._tr("512픽셀 학습 크롭 선택", "Select a 512-pixel training crop"), "", "PNG (*.png)",
+        )
+        if not image_path:
+            return False
+        project_dir = QFileDialog.getExistingDirectory(self, self._tr("주석 작업 폴더", "Annotation project folder"))
+        if not project_dir:
+            return False
+        try:
+            from ..core.annotation_project import create_annotation_project
+
+            self._annotation_session = create_annotation_project(
+                image_path, project_dir, Path(image_path).stem,
+            )
+            self.annotation_export_btn.setEnabled(True)
+            self._set_status_label(self._tr(
+                "등고선·문자/도로 영역·검수·ignore를 편집한 뒤 내보내세요. 평가할 선 하나를 선택할 수 있습니다.",
+                "Edit contours, other-ink regions, reviewed and ignore, then export. Select one evaluation contour if needed.",
+            ))
+            return True
+        except Exception as exc:
+            QMessageBox.warning(self, self._tr("주석 프로젝트 오류", "Annotation project error"), str(exc))
+            return False
+
+    def export_annotation_project(self):
+        if self._annotation_session is None:
+            return False
+        path, _filter = QFileDialog.getSaveFileName(self, self._tr("검수 주석 내보내기", "Export reviewed annotations"), "", "JSON (*.json)")
+        if not path:
+            return False
+        reviewer, accepted = QInputDialog.getText(self, self._tr("검수자", "Reviewer"), self._tr("검수자 식별자", "Reviewer identifier"))
+        if not accepted or not reviewer.strip():
+            return False
+        answer = QMessageBox.question(self, self._tr("등고선 검수", "Contour review"), self._tr(
+            "검수 영역의 모든 보이는 등고선을 확인했습니까? Yes는 단독 검수 실험용 승인, No는 미승인 초안으로 내보냅니다.",
+            "Have you checked every visible contour in reviewed regions? Yes exports a single-reviewer pilot approval; No exports an unapproved draft.",
+        ), _message_box_button("Yes") | _message_box_button("No") | _message_box_button("Cancel"))
+        if answer == _message_box_button("Cancel"):
+            return False
+        approve = answer == _message_box_button("Yes")
+        try:
+            from ..core.annotation_project import export_annotation_project
+
+            selected = self._annotation_session.layers["contours"].selectedFeatureIds()
+            target = selected[0] if len(selected) == 1 else None
+            difficulty = "unassessed"
+            if approve and target is not None:
+                choices = [self._tr("일반", "Standard"), self._tr("고난도", "Hard")]
+                choice, accepted = QInputDialog.getItem(self, self._tr("평가 사례 난이도", "Evaluation case difficulty"),
+                    self._tr("학습 전에 난이도를 동결합니다", "Freeze this difficulty before training"), choices, 0, False)
+                if not accepted:
+                    return False
+                difficulty = "hard" if choice == choices[1] else "standard"
+            export_annotation_project(
+                self._annotation_session, path, reviewer.strip(), reviewer_id=reviewer.strip(),
+                approve=approve, all_visible_contours_confirmed=approve,
+                evaluation_target_id=target,
+                case_difficulty=difficulty,
+            )
+            self._set_status_label(self._tr("주석을 내보냈습니다: ", "Annotations exported: ") + path)
+            return True
+        except Exception as exc:
+            QMessageBox.warning(self, self._tr("주석 내보내기 오류", "Annotation export error"), str(exc))
+            return False
+
     @classmethod
     def _configure_hed_storage(cls):
         """Keep HED assets beside SAM weights so ZIP upgrades preserve them."""
@@ -1154,6 +1372,9 @@ class AIVectorizerDock(QDockWidget):
             except RuntimeError:
                 pass
         self._cancel_recovery_prepare()
+        self._cancel_learned_prepare()
+        self.learned_engine = None
+        self.learned_guide_check.setChecked(False)
         if (
             hasattr(self, "smart_recovery_check")
             and self.smart_recovery_check.isChecked()
@@ -1382,6 +1603,29 @@ class AIVectorizerDock(QDockWidget):
         self.auto_path_check.toggled.connect(self._on_auto_path_toggled)
         advanced_layout.addWidget(self.auto_path_check)
 
+        self.learned_guide_check = QCheckBox()
+        self.learned_guide_check.setChecked(False)
+        self.learned_guide_check.toggled.connect(self._on_learned_toggled)
+        advanced_layout.addWidget(self.learned_guide_check)
+        self.learned_status = QLabel()
+        self.learned_status.setWordWrap(True)
+        advanced_layout.addWidget(self.learned_status)
+        self.learned_import_btn = QPushButton()
+        self.learned_import_btn.clicked.connect(self.import_learned_model)
+        advanced_layout.addWidget(self.learned_import_btn)
+        annotation_actions = QHBoxLayout()
+        self.annotation_open_btn = QPushButton()
+        self.annotation_open_btn.clicked.connect(self.open_annotation_project)
+        annotation_actions.addWidget(self.annotation_open_btn)
+        self.annotation_export_btn = QPushButton()
+        self.annotation_export_btn.setEnabled(False)
+        self.annotation_export_btn.clicked.connect(self.export_annotation_project)
+        annotation_actions.addWidget(self.annotation_export_btn)
+        advanced_layout.addLayout(annotation_actions)
+        self.annotation_status = QLabel()
+        self.annotation_status.setWordWrap(True)
+        advanced_layout.addWidget(self.annotation_status)
+
         self.advanced_group.setLayout(advanced_layout)
         self.advanced_group.setVisible(False)
         self.advanced_check.toggled.connect(self.advanced_group.setVisible)
@@ -1498,6 +1742,26 @@ class AIVectorizerDock(QDockWidget):
                 "Re-check only weak current Ink segments with local EfficientSAM. The green preview changes only when the challenger is a safe improvement.",
             )
         )
+        self.learned_guide_check.setText(self._tr(
+            "학습 등고선 보조 (실험적, 기본 꺼짐)",
+            "Learned contour guide (Experimental, default OFF)",
+        ))
+        self.learned_guide_check.setToolTip(self._tr(
+            "검증된 로컬 모델로 Ink 경로를 보조합니다. 초록 미리보기를 확인한 뒤 채택하세요.",
+            "Guide Ink paths with a verified local model. Review the green preview before accepting.",
+        ))
+        self.learned_import_btn.setText(self._tr("로컬 모델 가져오기", "Import local model"))
+        self.learned_import_btn.setToolTip(self._tr(
+            "model.onnx와 manifest.json이 있는 폴더를 선택하세요.",
+            "Choose a folder containing model.onnx and manifest.json.",
+        ))
+        self.annotation_open_btn.setText(self._tr("학습 크롭 주석 편집", "Annotate training crop"))
+        self.annotation_export_btn.setText(self._tr("주석 검수·내보내기", "Review / export labels"))
+        self.annotation_open_btn.setToolTip(self._tr(
+            "크롭의 모든 보이는 등고선과 문자·도로, 검수·판단 불가 영역을 편집합니다.",
+            "Edit every visible contour, other ink, reviewed areas and unknown areas in a crop.",
+        ))
+        self._on_learned_state_changed(*self._learned_ui_state)
         self.recovery_install_btn.setText(
             self._tr(
                 "⬇️ Install Recovery Model",
@@ -2049,6 +2313,13 @@ class AIVectorizerDock(QDockWidget):
 
             tool = None
             try:
+                if self.learned_prepare_task is not None:
+                    self._cancel_learned_prepare()
+                    self._on_learned_state_changed("fallback", self._tr(
+                        "모델 준비를 취소하고 이번 추적은 Ink로 시작합니다.",
+                        "Model preparation cancelled; this trace starts with Ink.",
+                    ))
+                learned_support, learned_avoidance = self._learned_guidance_parameters()
                 tool = SmartTraceTool(
                     self.iface.mapCanvas(),
                     raster,
@@ -2065,6 +2336,11 @@ class AIVectorizerDock(QDockWidget):
                     smart_recovery=smart_recovery,
                     recovery_state_callback=self._on_recovery_state_changed,
                     ink_color_callback=self._on_ink_color_changed,
+                    learned_engine=self.learned_engine if not freehand and edge_weight > 0 and edge_method == DEFAULT_EDGE_METHOD else None,
+                    learned_guide=self.learned_guide_check.isChecked(),
+                    learned_state_callback=self._on_learned_state_changed,
+                    learned_support_weight=learned_support,
+                    learned_avoidance_weight=learned_avoidance,
                 )
                 tool.deactivated.connect(self.on_tool_deactivated)
                 self.active_tool = tool
@@ -2137,6 +2413,8 @@ class AIVectorizerDock(QDockWidget):
     def on_model_changed(self, index):
         self._set_model_aux_visibility()
         self._release_sam_engine()
+        if hasattr(self, "learned_guide_check") and index != MODEL_IDX_INK and self.learned_guide_check.isChecked():
+            self.learned_guide_check.setChecked(False)
         if (
             hasattr(self, "smart_recovery_check")
             and index != MODEL_IDX_INK

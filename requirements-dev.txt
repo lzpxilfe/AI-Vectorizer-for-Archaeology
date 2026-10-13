@@ -5,3 +5,4 @@
 # its last-resolvable Pillow/pytest dependency graph has no fully patched line.
 pytest>=9.0.3,<10
 coverage>=7.6.0,<8
+Pillow>=12.3.0,<13

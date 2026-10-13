@@ -16,6 +16,7 @@ from typing import Callable, Iterable, Optional, Sequence, Tuple
 import numpy as np
 
 from .line_evidence import LineEvidence
+from .learned_prior import LearnedLinePrior
 from .trace_guidance import TraceGuidance
 
 
@@ -46,6 +47,8 @@ class LiveWireConfig:
     line_cost_weight: float = 4.5
     direction_cost_weight: float = 5.0
     avoidance_cost_weight: float = 6.0
+    learned_support_cap: float = 0.8
+    learned_avoidance_cost_weight: float = 6.0
     heading_cost_weight: float = 3.0
     heading_decay_pixels: float = 22.0
     target_snap_radius: int = 6
@@ -85,6 +88,8 @@ class LiveWireConfig:
             self.line_cost_weight,
             self.direction_cost_weight,
             self.avoidance_cost_weight,
+            self.learned_support_cap,
+            self.learned_avoidance_cost_weight,
             self.heading_cost_weight,
             self.heading_decay_pixels,
             self.target_snap_penalty,
@@ -111,6 +116,8 @@ class LiveWireConfig:
             raise ValueError("forward_window_bias must be between 0 and 0.4")
         if self.edge_threshold < 0:
             raise ValueError("edge_threshold cannot be negative")
+        if not 0.0 <= self.learned_support_cap <= 0.8:
+            raise ValueError("learned_support_cap must be between zero and 0.8")
         if self.edge_sigma <= 0:
             raise ValueError("edge_sigma must be positive")
         if self.local_background_sigma <= 0:
@@ -121,6 +128,7 @@ class LiveWireConfig:
             self.line_cost_weight,
             self.direction_cost_weight,
             self.avoidance_cost_weight,
+            self.learned_avoidance_cost_weight,
             self.heading_cost_weight,
         ) < 0:
             raise ValueError("cost weights cannot be negative")
@@ -301,6 +309,7 @@ def build_livewire_tree(
     incoming_direction: Optional[Sequence[float]] = None,
     evidence: Optional[LineEvidence] = None,
     guidance: Optional[TraceGuidance] = None,
+    learned_prior: Optional[LearnedLinePrior] = None,
     config: LiveWireConfig = LiveWireConfig(),
     cancel_check: Optional[Callable[[], bool]] = None,
 ) -> LiveWireTree:
@@ -333,6 +342,13 @@ def build_livewire_tree(
             raise TypeError("guidance must be a TraceGuidance instance or None")
         if guidance.shape != tuple(int(value) for value in edge_array.shape):
             raise ValueError("guidance dimensions must match edges")
+    if learned_prior is not None:
+        if not isinstance(learned_prior, LearnedLinePrior):
+            raise TypeError("learned_prior must be a LearnedLinePrior instance or None")
+        if learned_prior.shape != tuple(int(value) for value in edge_array.shape):
+            raise ValueError("learned_prior dimensions must match edges")
+        if evidence is None:
+            raise ValueError("learned_prior requires observed Ink LineEvidence")
 
     root_x = int(round(float(root[0])))
     root_y = int(round(float(root[1])))
@@ -404,6 +420,28 @@ def build_livewire_tree(
     )
     _raise_if_cancelled(cancel_check)
 
+    crop_avoidance_cost = None
+    if learned_prior is not None and strength > 0.0:
+        # Apply the optional score after the observed centreline maximum.
+        # Learned support never changes the binary Ink or its axial tangent;
+        # the other-ink head can still add cost to an observed glyph/road.
+        line_confidence = np.maximum(
+            line_confidence,
+            learned_prior.contour_score[y0:y1, x0:x1]
+            * np.float32(config.learned_support_cap),
+        )
+        learned_avoidance = learned_prior.avoidance_score[y0:y1, x0:x1]
+        if np.any(learned_avoidance > 0.0):
+            learned_cost = learned_avoidance * config.learned_avoidance_cost_weight
+            crop_avoidance_cost = (
+                learned_cost
+                if crop_guidance is None
+                else np.maximum(
+                    crop_guidance * config.avoidance_cost_weight,
+                    learned_cost,
+                )
+            )
+
     graph = _build_sparse_graph(
         sparse,
         line_confidence,
@@ -416,6 +454,7 @@ def build_livewire_tree(
         normalized_incoming,
         config,
         cancel_check,
+        avoidance_cost=crop_avoidance_cost,
     )
     _raise_if_cancelled(cancel_check)
 
@@ -898,6 +937,8 @@ def _build_sparse_graph(
     incoming_direction,
     config,
     cancel_check,
+    *,
+    avoidance_cost=None,
 ):
     height, width = line_confidence.shape
     indices = np.arange(height * width, dtype=np.int32).reshape(height, width)
@@ -960,7 +1001,12 @@ def _build_sparse_graph(
             config.line_cost_weight * (1.0 - mean_line)
             + config.direction_cost_weight * direction_penalty
         )
-        if avoidance_score is not None:
+        if avoidance_cost is not None:
+            assist_penalty = assist_penalty + (
+                avoidance_cost[source_y, source_x]
+                + avoidance_cost[target_y, target_x_slice]
+            ) * 0.5
+        elif avoidance_score is not None:
             source_avoidance = avoidance_score[source_y, source_x]
             target_avoidance = avoidance_score[target_y, target_x_slice]
             assist_penalty = assist_penalty + (

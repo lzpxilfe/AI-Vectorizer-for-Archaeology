@@ -1,0 +1,353 @@
+{
+  "schema_version": "archaeotrace-learning-source-selection/1",
+  "seed": "archaeotrace-contour-pilot-16-v1",
+  "catalog_url": "https://tnmaccess.nationalmap.gov/api/v1/products?datasets=Historical%20Topographic%20Maps&bbox=-112.8,35.0,-103.0,41.5&max=1000",
+  "catalog_sha256": "84cbfa808c9b63428b50a16c3f1742d256cd30ef817ca7526e8171d00654d5a9",
+  "filter": {
+    "publication_year_max": 1940,
+    "excluded_families": [
+      "co-east-denver",
+      "co-denver"
+    ],
+    "edition_selection": "oldest year then source ID per normalized quadrangle-state family"
+  },
+  "assignment": "SHA256(seed|family) lexical order then6/2/4/4, frozen before any crop generation",
+  "sources": [
+    {
+      "id": "sheet-01",
+      "family_id": "co-two-butte",
+      "quadrangle_name": "Two Butte",
+      "state": "CO",
+      "split": "train",
+      "title": "USGS 1:125000-scale Quadrangle for Two Butte, CO 1892",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1892-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Two%20Butte_402373_1892_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b89e4b00f54eb400a77",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b89e4b00f54eb400a77"
+      },
+      "aliases": [
+        "co-two-butte"
+      ],
+      "crop_count": 12
+    },
+    {
+      "id": "sheet-02",
+      "family_id": "co-apishapa",
+      "quadrangle_name": "Apishapa",
+      "state": "CO",
+      "split": "train",
+      "title": "USGS 1:125000-scale Quadrangle for Apishapa, CO 1891",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1891-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Apishapa_403003_1891_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b35e4b00f54eb400032",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b35e4b00f54eb400032"
+      },
+      "aliases": [
+        "co-apishapa"
+      ],
+      "crop_count": 12
+    },
+    {
+      "id": "sheet-03",
+      "family_id": "az-camp-verde",
+      "quadrangle_name": "Camp Verde",
+      "state": "AZ",
+      "split": "train",
+      "title": "USGS 1:125000-scale Quadrangle for Camp Verde, AZ 1923",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1923-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/AZ/AZ_Camp%20Verde_315340_1923_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a379ae4b00f54eb3ded91",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a379ae4b00f54eb3ded91"
+      },
+      "aliases": [
+        "az-camp-verde"
+      ],
+      "crop_count": 12
+    },
+    {
+      "id": "sheet-04",
+      "family_id": "nm-lamy",
+      "quadrangle_name": "Lamy",
+      "state": "NM",
+      "split": "train",
+      "title": "USGS 1:125000-scale Quadrangle for Lamy, NM 1894",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1894-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/NM/NM_Lamy_189350_1894_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a32c2e4b00f54eb3d5c89",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a32c2e4b00f54eb3d5c89"
+      },
+      "aliases": [
+        "nm-lamy"
+      ],
+      "crop_count": 12
+    },
+    {
+      "id": "sheet-05",
+      "family_id": "co-montrose",
+      "quadrangle_name": "Montrose",
+      "state": "CO",
+      "split": "train",
+      "title": "USGS 1:125000-scale Quadrangle for Montrose, CO 1909",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1909-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Montrose_402470_1909_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b67e4b00f54eb40066d",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b67e4b00f54eb40066d"
+      },
+      "aliases": [
+        "co-montrose"
+      ],
+      "crop_count": 12
+    },
+    {
+      "id": "sheet-06",
+      "family_id": "co-las-animas",
+      "quadrangle_name": "Las Animas",
+      "state": "CO",
+      "split": "train",
+      "title": "USGS 1:125000-scale Quadrangle for Las Animas, CO 1891",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1891-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Las%20Animas_402435_1891_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b58e4b00f54eb4004a0",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b58e4b00f54eb4004a0"
+      },
+      "aliases": [
+        "co-las-animas"
+      ],
+      "crop_count": 12
+    },
+    {
+      "id": "sheet-07",
+      "family_id": "co-kit-carson",
+      "quadrangle_name": "Kit Carson",
+      "state": "CO",
+      "split": "validation",
+      "title": "USGS 1:125000-scale Quadrangle for Kit Carson, CO 1891",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1891-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Kit%20Carson_402516_1891_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b56e4b00f54eb400464",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b56e4b00f54eb400464"
+      },
+      "aliases": [
+        "co-kit-carson"
+      ],
+      "crop_count": 12
+    },
+    {
+      "id": "sheet-08",
+      "family_id": "wy-sherman",
+      "quadrangle_name": "Sherman",
+      "state": "WY",
+      "split": "validation",
+      "title": "USGS 1:125000-scale Quadrangle for Sherman, WY 1905",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1905-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/WY/WY_Sherman_342540_1905_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a533fe4b00f54eb40f2c6",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a533fe4b00f54eb40f2c6"
+      },
+      "aliases": [
+        "wy-sherman"
+      ],
+      "crop_count": 12
+    },
+    {
+      "id": "sheet-09",
+      "family_id": "nm-cerro-verde",
+      "quadrangle_name": "Cerro Verde",
+      "state": "NM",
+      "split": "calibration",
+      "title": "USGS 1:125000-scale Quadrangle for Cerro Verde, NM 1917",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1917-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/NM/NM_Cerro%20Verde_189297_1917_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a32bee4b00f54eb3d5bc1",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a32bee4b00f54eb3d5bc1"
+      },
+      "aliases": [
+        "nm-cerro-verde"
+      ],
+      "crop_count": 6
+    },
+    {
+      "id": "sheet-10",
+      "family_id": "co-castle-rock",
+      "quadrangle_name": "Castle Rock",
+      "state": "CO",
+      "split": "calibration",
+      "title": "USGS 1:125000-scale Quadrangle for Castle Rock, CO 1894",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1894-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Castle%20Rock_232495_1894_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b39e4b00f54eb4000ae",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b39e4b00f54eb4000ae"
+      },
+      "aliases": [
+        "co-castle-rock"
+      ],
+      "crop_count": 6
+    },
+    {
+      "id": "sheet-11",
+      "family_id": "wy-goshen-hole",
+      "quadrangle_name": "Goshen Hole",
+      "state": "WY",
+      "split": "calibration",
+      "title": "USGS 1:125000-scale Quadrangle for Goshen Hole, WY 1899",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1899-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/WY/WY_Goshen%20Hole_342462_1899_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a5324e4b00f54eb40efc9",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a5324e4b00f54eb40efc9"
+      },
+      "aliases": [
+        "wy-goshen-hole"
+      ],
+      "crop_count": 6
+    },
+    {
+      "id": "sheet-12",
+      "family_id": "co-white-river",
+      "quadrangle_name": "White River",
+      "state": "CO",
+      "split": "calibration",
+      "title": "USGS 1:125000-scale Quadrangle for White River, CO 1907",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1907-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_White%20River_234915_1907_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b8ee4b00f54eb400b26",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b8ee4b00f54eb400b26"
+      },
+      "aliases": [
+        "co-white-river"
+      ],
+      "crop_count": 6
+    },
+    {
+      "id": "sheet-13",
+      "family_id": "co-springfield",
+      "quadrangle_name": "Springfield",
+      "state": "CO",
+      "split": "holdout",
+      "title": "USGS 1:125000-scale Quadrangle for Springfield, CO 1891",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1891-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Springfield_402361_1891_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b87e4b00f54eb400a39",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b87e4b00f54eb400a39"
+      },
+      "aliases": [
+        "co-springfield"
+      ],
+      "crop_count": 6
+    },
+    {
+      "id": "sheet-14",
+      "family_id": "ut-duchesne",
+      "quadrangle_name": "Duchesne",
+      "state": "UT",
+      "split": "holdout",
+      "title": "USGS 1:125000-scale Quadrangle for Duchesne, UT 1939",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1939-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/UT/UT_Duchesne_248982_1939_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a44ace4b00f54eb3f4c9d",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a44ace4b00f54eb3f4c9d"
+      },
+      "aliases": [
+        "ut-duchesne"
+      ],
+      "crop_count": 6
+    },
+    {
+      "id": "sheet-15",
+      "family_id": "nm-abiquiu",
+      "quadrangle_name": "Abiquiu",
+      "state": "NM",
+      "split": "holdout",
+      "title": "USGS 1:125000-scale Quadrangle for Abiquiu, NM 1918",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1918-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/NM/NM_Abiquiu_189268_1918_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a32bae4b00f54eb3d5b7b",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a32bae4b00f54eb3d5b7b"
+      },
+      "aliases": [
+        "nm-abiquiu"
+      ],
+      "crop_count": 6
+    },
+    {
+      "id": "sheet-16",
+      "family_id": "ne-browns-creek",
+      "quadrangle_name": "Browns Creek",
+      "state": "NE",
+      "split": "holdout",
+      "title": "USGS 1:125000-scale Quadrangle for Browns Creek, NE 1896",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1896-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/NE/NE_Browns%20Creek_317780_1896_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4d1de4b00f54eb4035db",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4d1de4b00f54eb4035db"
+      },
+      "aliases": [
+        "ne-browns-creek"
+      ],
+      "crop_count": 6
+    }
+  ]
+}

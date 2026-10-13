@@ -10,6 +10,17 @@
 
 ### Added
 
+- 기본 OFF 로컬 `Learned contour guide`: 원본 격자에 고정된 512px 타일의
+  등고선 지지·문자/도로 회피 점수를 Ink Live-Wire와 Recovery 비용에 결합합니다.
+  FP32 ONNX·출처 매니페스트를 명시적으로 가져오며 준비·추론 실패 시 Ink를 사용합니다.
+  지연 결과는 표시된 미리보기, 대기 클릭, 수동 제안이나 확정된 선을 바꾸지 않습니다.
+- QGIS 학습 크롭 주석 편집·검수·내보내기와 USGS 16개 도엽/144개 크롭 파일럿
+  생성 도구. 도엽 가족 분할·원본/크롭/수정 이력 해시·검수/ignore 마스크를
+  검증하며 자동 초안은 학습 정답으로 승인하지 않습니다.
+- Colab 학습 노트북, ResNet18/작은 U-Net 두 logit 헤드, 마스킹 손실,
+  optimizer/RNG/진행 위치 재개와 FP32 ONNX 출력 비교 검증.
+  Calibration 6개 설정 동결과 별도 CPU Holdout 평가 도구를 제공합니다.
+  실제 지도 학습·성능 기준 통과·한국 지도 일반화는 아직 검증하지 않았습니다.
 - `TraceGuidance`: line evidence와 분리된 QGIS-independent, immutable soft
   avoidance score 계약. Ink Live-Wire는 선택 영역을 hard wall이나 mask OR로
   쓰지 않고 비용만 높여 더 좋은 중심선 우회로가 있을 때만 선택합니다.

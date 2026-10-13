@@ -42,6 +42,8 @@
 
 ## Main features
 
+- 🧪 [학습 등고선 파일럿](learning/README.md): USGS 도엽 분할·QGIS 주석·Colab 학습·
+  CPU 평가와 기본 OFF 로컬 ONNX 보조. 사람 검수와 최종 평가가 필요한 실험 기능입니다.
 - ✏️ 추가 model 없이 직접 입력하는 `Freehand`
 - 🖋️ 9·15·31 source-pixel 다중 스케일과 RGB/명도 증거를 한 번 계산해 제한된
   Live-Wire에 전달하는 기본 `Ink Centerline`

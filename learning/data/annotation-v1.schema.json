@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Single-user pilot visible-contour annotation",
+  "type": "object",
+  "required": ["schema_version", "coordinate_space", "sample_id", "image_sha256", "width", "height", "annotation_status", "annotator_id", "reviewer_id", "review_level", "all_visible_contours_confirmed", "publication_ranking_eligible", "revision", "contours", "other_ink", "reviewed", "ignore", "evaluation"],
+  "properties": {
+    "schema_version": {"const": "archaeotrace-learning-annotation/1"},
+    "coordinate_space": {"const": "pixel_xy"},
+    "sample_id": {"type": "string", "minLength": 1},
+    "image_sha256": {"$ref": "#/$defs/hash"},
+    "revision": {"$ref": "#/$defs/hash"},
+    "parent_revision": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
+    "width": {"type": "integer", "minimum": 1, "maximum": 1024},
+    "height": {"type": "integer", "minimum": 1, "maximum": 1024},
+    "annotation_status": {"enum": ["draft", "approved"]},
+    "annotator_id": {"type": "string", "minLength": 1},
+    "reviewer_id": {"type": ["string", "null"]},
+    "review_level": {"enum": ["unreviewed", "single_reviewer_pilot"]},
+    "all_visible_contours_confirmed": {"type": "boolean"},
+    "case_difficulty": {"enum": ["unassessed", "standard", "hard"]},
+    "publication_ranking_eligible": {"const": false},
+    "contours": {"type": "array", "items": {"$ref": "#/$defs/path"}, "maxItems": 4096},
+    "other_ink": {"type": "array", "items": {"$ref": "#/$defs/path"}, "maxItems": 4096},
+    "other_ink_regions": {"$ref": "#/$defs/polygons"},
+    "reviewed": {"$ref": "#/$defs/polygons"},
+    "ignore": {"$ref": "#/$defs/polygons"},
+    "evaluation": {"oneOf": [{"type": "null"}, {"type": "object", "required": ["target_contour_id", "explicit_target_selection", "prompt"], "properties": {"target_contour_id": {"type": "string"}, "explicit_target_selection": {"const": true}, "prompt": {"type": "object", "required": ["start_xy", "end_xy"], "properties": {"start_xy": {"$ref": "#/$defs/point"}, "end_xy": {"$ref": "#/$defs/point"}, "previous_xy": {"$ref": "#/$defs/point"}}}}}]}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "point": {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}], "minItems": 2, "maxItems": 2},
+    "path": {"type": "object", "required": ["id", "points"], "properties": {"id": {"type": "string", "minLength": 1}, "points": {"type": "array", "items": {"$ref": "#/$defs/point"}, "minItems": 2, "maxItems": 100000}}},
+    "polygons": {"type": "array", "items": {"type": "array", "items": {"$ref": "#/$defs/point"}, "minItems": 3, "maxItems": 100000}, "maxItems": 4096}
+  },
+  "allOf": [{"if": {"properties": {"annotation_status": {"const": "approved"}}}, "then": {"properties": {"reviewer_id": {"type": "string", "minLength": 1}, "review_level": {"const": "single_reviewer_pilot"}, "all_visible_contours_confirmed": {"const": true}, "reviewed": {"minItems": 1}}}}]
+}
