@@ -22,6 +22,10 @@ python scripts/build_weak_experiment.py --dataset /absolute/pilot-data \
 
 1. `weak-dataset.zip`을 Drive의 `ArchaeoTrace/ai-weak-pilot` 폴더에 올립니다.
    원래의 사람 검수용 `approved-dataset.zip`과 실험 결과 폴더는 유지합니다.
+   업로드 크기 제한으로 ZIP을 나눴다면 `weak-dataset.zip.part-01`,
+   `weak-dataset.zip.part-02`, `weak-dataset.parts.json`을 같은 폴더에 올립니다.
+   전체 ZIP이 없으면 노트북이 각 조각과 완성 ZIP의 크기·SHA-256을 검증하여
+   Colab 로컬 디스크에서 원래 ZIP을 복원합니다. 학습 데이터와 해시는 같습니다.
 2. `ArchaeoTrace_Colab_weak_labels.ipynb`를 Colab에서 열고 기존 계정의 GPU
    런타임을 연결합니다. 추가 구독이나 계산 단위 구매는 필요할 때 별도로 결정합니다.
 3. 설정 셀의 `CODE_COMMIT`에 약한 정답 지원 구현의 검증된 전체 40자리 커밋을
@@ -47,8 +51,13 @@ Drive 경로의 기본값은 다음과 같습니다.
 
 ```python
 DATASET_ZIP = "/content/drive/MyDrive/ArchaeoTrace/ai-weak-pilot/weak-dataset.zip"
+DATASET_PARTS_MANIFEST = "/content/drive/MyDrive/ArchaeoTrace/ai-weak-pilot/weak-dataset.parts.json"
 OUTPUT_DIRECTORY = "/content/drive/MyDrive/ArchaeoTrace/ai-weak-pilot/runs"
 ```
+
+분할 업로드를 사용하면 데이터 셀의 `Verified split upload` 출력에서 조각 수,
+완성 ZIP의 바이트 수와 SHA-256을 확인합니다. 조각이 누락·변경되거나 경로·해시가
+맞지 않으면 학습 전에 중단합니다. 전체 ZIP이 있으면 기존 방식으로 읽습니다.
 
 학습은 Colab 로컬 디스크의 데이터만 읽으며 체크포인트는 매 epoch 또는 5분 경과 후
 다음 optimizer 저장 지점에 Drive로 저장합니다. 최대 60 epoch, patience 8, 초기
