@@ -1,0 +1,445 @@
+{
+  "schema_version": "archaeotrace-learning-source-plan/1",
+  "dataset_id": "usgs-contour-pilot-16x144-v1",
+  "seed": "archaeotrace-contour-pilot-16-v1",
+  "publication_ranking_eligible": false,
+  "source_selection": "usgs-source-selection.json",
+  "source_selection_sha256": "4fec421857d6a769d776c6588a6f477834ef52b15d4f4722e524915e3f694f15",
+  "rights_snapshot": "usgs-topographic-rights.txt",
+  "rights_snapshot_sha256": "22a794b70444581fddde8ac68ed8aba8ded84826975a39c481488ee882366f27",
+  "rights_evidence": {
+    "source_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted",
+    "scrape_id": "01a13609-51d3-701d-80d7-d7211cfc1df4",
+    "scope": "Selected USGS Historical Topographic Map Collection editions1891–1939; no US Topo2009+ exception sources selected."
+  },
+  "source_counts": {
+    "train": 6,
+    "validation": 2,
+    "calibration": 4,
+    "holdout": 4
+  },
+  "sample_counts": {
+    "train": 72,
+    "validation": 24,
+    "calibration": 24,
+    "holdout": 24
+  },
+  "sources": [
+    {
+      "id": "sheet-01",
+      "family_id": "co-two-butte",
+      "quadrangle_name": "Two Butte",
+      "state": "CO",
+      "split": "train",
+      "title": "USGS 1:125000-scale Quadrangle for Two Butte, CO 1892",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1892-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Two%20Butte_402373_1892_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b89e4b00f54eb400a77",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b89e4b00f54eb400a77"
+      },
+      "aliases": [
+        "co-two-butte"
+      ],
+      "crop_count": 12,
+      "source_sha256": "14e09f7c69e15760bb00b3c632e673c5c1074824bd8d9c5eba1c5cf7ff63796c",
+      "source_bytes": 4029679,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-02",
+      "family_id": "co-apishapa",
+      "quadrangle_name": "Apishapa",
+      "state": "CO",
+      "split": "train",
+      "title": "USGS 1:125000-scale Quadrangle for Apishapa, CO 1891",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1891-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Apishapa_403003_1891_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b35e4b00f54eb400032",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b35e4b00f54eb400032"
+      },
+      "aliases": [
+        "co-apishapa"
+      ],
+      "crop_count": 12,
+      "source_sha256": "b86327a5a6d371e538421ec5e7233d17d2db2f3061ab9af04291757e4b5111c0",
+      "source_bytes": 5221789,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-03",
+      "family_id": "az-camp-verde",
+      "quadrangle_name": "Camp Verde",
+      "state": "AZ",
+      "split": "train",
+      "title": "USGS 1:125000-scale Quadrangle for Camp Verde, AZ 1923",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1923-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/AZ/AZ_Camp%20Verde_315340_1923_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a379ae4b00f54eb3ded91",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a379ae4b00f54eb3ded91"
+      },
+      "aliases": [
+        "az-camp-verde"
+      ],
+      "crop_count": 12,
+      "source_sha256": "ee693c7b0c99f49869c396d9e6a6704bd1ac22c270cee6416765052ee6d062f9",
+      "source_bytes": 9169742,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-04",
+      "family_id": "nm-lamy",
+      "quadrangle_name": "Lamy",
+      "state": "NM",
+      "split": "train",
+      "title": "USGS 1:125000-scale Quadrangle for Lamy, NM 1894",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1894-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/NM/NM_Lamy_189350_1894_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a32c2e4b00f54eb3d5c89",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a32c2e4b00f54eb3d5c89"
+      },
+      "aliases": [
+        "nm-lamy"
+      ],
+      "crop_count": 12,
+      "source_sha256": "6749e1c4344353b1bdf91046ab82b3a95b8be720b553b9b6428b85571629dfac",
+      "source_bytes": 6159508,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-05",
+      "family_id": "co-montrose",
+      "quadrangle_name": "Montrose",
+      "state": "CO",
+      "split": "train",
+      "title": "USGS 1:125000-scale Quadrangle for Montrose, CO 1909",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1909-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Montrose_402470_1909_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b67e4b00f54eb40066d",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b67e4b00f54eb40066d"
+      },
+      "aliases": [
+        "co-montrose"
+      ],
+      "crop_count": 12,
+      "source_sha256": "8743f7a63eba819e4bcea511bc0fc1c09b1afb9d8130586513a604461e15dd70",
+      "source_bytes": 6472282,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-06",
+      "family_id": "co-las-animas",
+      "quadrangle_name": "Las Animas",
+      "state": "CO",
+      "split": "train",
+      "title": "USGS 1:125000-scale Quadrangle for Las Animas, CO 1891",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1891-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Las%20Animas_402435_1891_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b58e4b00f54eb4004a0",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b58e4b00f54eb4004a0"
+      },
+      "aliases": [
+        "co-las-animas"
+      ],
+      "crop_count": 12,
+      "source_sha256": "a8cd605f0e9a12168dfae006557eed67fa1a37d952c104cfe8ee13a318cc6f94",
+      "source_bytes": 2874682,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-07",
+      "family_id": "co-kit-carson",
+      "quadrangle_name": "Kit Carson",
+      "state": "CO",
+      "split": "validation",
+      "title": "USGS 1:125000-scale Quadrangle for Kit Carson, CO 1891",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1891-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Kit%20Carson_402516_1891_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b56e4b00f54eb400464",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b56e4b00f54eb400464"
+      },
+      "aliases": [
+        "co-kit-carson"
+      ],
+      "crop_count": 12,
+      "source_sha256": "bc3961b1fbeaaea0bb048274e6415d685169ff7f2afaf647f582ef20600ee173",
+      "source_bytes": 3246012,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-08",
+      "family_id": "wy-sherman",
+      "quadrangle_name": "Sherman",
+      "state": "WY",
+      "split": "validation",
+      "title": "USGS 1:125000-scale Quadrangle for Sherman, WY 1905",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1905-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/WY/WY_Sherman_342540_1905_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a533fe4b00f54eb40f2c6",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a533fe4b00f54eb40f2c6"
+      },
+      "aliases": [
+        "wy-sherman"
+      ],
+      "crop_count": 12,
+      "source_sha256": "c871614f3d318ee3f0acc04e64602424a06cc4214f95515a9f1cde8aa8258663",
+      "source_bytes": 8246483,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-09",
+      "family_id": "nm-cerro-verde",
+      "quadrangle_name": "Cerro Verde",
+      "state": "NM",
+      "split": "calibration",
+      "title": "USGS 1:125000-scale Quadrangle for Cerro Verde, NM 1917",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1917-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/NM/NM_Cerro%20Verde_189297_1917_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a32bee4b00f54eb3d5bc1",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a32bee4b00f54eb3d5bc1"
+      },
+      "aliases": [
+        "nm-cerro-verde"
+      ],
+      "crop_count": 6,
+      "source_sha256": "f15ecf6852926da71e3356c217adad1fc098cf832ec2c373e646d4a9121a37f4",
+      "source_bytes": 6411469,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-10",
+      "family_id": "co-castle-rock",
+      "quadrangle_name": "Castle Rock",
+      "state": "CO",
+      "split": "calibration",
+      "title": "USGS 1:125000-scale Quadrangle for Castle Rock, CO 1894",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1894-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Castle%20Rock_232495_1894_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b39e4b00f54eb4000ae",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b39e4b00f54eb4000ae"
+      },
+      "aliases": [
+        "co-castle-rock"
+      ],
+      "crop_count": 6,
+      "source_sha256": "b99c3c75e1d720f9e30f4e43826d4cab2b75d4e44e74048d5a8d1268d5cd7e5f",
+      "source_bytes": 6526780,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-11",
+      "family_id": "wy-goshen-hole",
+      "quadrangle_name": "Goshen Hole",
+      "state": "WY",
+      "split": "calibration",
+      "title": "USGS 1:125000-scale Quadrangle for Goshen Hole, WY 1899",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1899-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/WY/WY_Goshen%20Hole_342462_1899_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a5324e4b00f54eb40efc9",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a5324e4b00f54eb40efc9"
+      },
+      "aliases": [
+        "wy-goshen-hole"
+      ],
+      "crop_count": 6,
+      "source_sha256": "703d67be85763c1153650b35523140c6e94a89243b5e6dda3a3d14cf060f8865",
+      "source_bytes": 7171370,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-12",
+      "family_id": "co-white-river",
+      "quadrangle_name": "White River",
+      "state": "CO",
+      "split": "calibration",
+      "title": "USGS 1:125000-scale Quadrangle for White River, CO 1907",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1907-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_White%20River_234915_1907_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b8ee4b00f54eb400b26",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b8ee4b00f54eb400b26"
+      },
+      "aliases": [
+        "co-white-river"
+      ],
+      "crop_count": 6,
+      "source_sha256": "513e61fe6df28a12d4b2abec229a9fc62bd5ac7863f824cd2010e7124a5c80ce",
+      "source_bytes": 5782259,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-13",
+      "family_id": "co-springfield",
+      "quadrangle_name": "Springfield",
+      "state": "CO",
+      "split": "holdout",
+      "title": "USGS 1:125000-scale Quadrangle for Springfield, CO 1891",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1891-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/CO/CO_Springfield_402361_1891_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4b87e4b00f54eb400a39",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4b87e4b00f54eb400a39"
+      },
+      "aliases": [
+        "co-springfield"
+      ],
+      "crop_count": 6,
+      "source_sha256": "c4608ce31367c2de02d420cee3f080506626f100bd6eb21ff04695d363df40a5",
+      "source_bytes": 4043212,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-14",
+      "family_id": "ut-duchesne",
+      "quadrangle_name": "Duchesne",
+      "state": "UT",
+      "split": "holdout",
+      "title": "USGS 1:125000-scale Quadrangle for Duchesne, UT 1939",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1939-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/UT/UT_Duchesne_248982_1939_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a44ace4b00f54eb3f4c9d",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a44ace4b00f54eb3f4c9d"
+      },
+      "aliases": [
+        "ut-duchesne"
+      ],
+      "crop_count": 6,
+      "source_sha256": "e850ba62eaa955bf9b4ef0ba90eb305d41b6eff4105cd8ba492c757e8ef20ac5",
+      "source_bytes": 7214294,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-15",
+      "family_id": "nm-abiquiu",
+      "quadrangle_name": "Abiquiu",
+      "state": "NM",
+      "split": "holdout",
+      "title": "USGS 1:125000-scale Quadrangle for Abiquiu, NM 1918",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1918-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/NM/NM_Abiquiu_189268_1918_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a32bae4b00f54eb3d5b7b",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a32bae4b00f54eb3d5b7b"
+      },
+      "aliases": [
+        "nm-abiquiu"
+      ],
+      "crop_count": 6,
+      "source_sha256": "649b3f871d8f25b0f6dcaf58befd5f686d662f42faecb22ef03c6f9dd4d34687",
+      "source_bytes": 8860242,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    },
+    {
+      "id": "sheet-16",
+      "family_id": "ne-browns-creek",
+      "quadrangle_name": "Browns Creek",
+      "state": "NE",
+      "split": "holdout",
+      "title": "USGS 1:125000-scale Quadrangle for Browns Creek, NE 1896",
+      "publisher": "U.S. Geological Survey",
+      "publication_date": "1896-01-01",
+      "source_url": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Maps/HistoricalTopo/GeoTIFF/NE/NE_Browns%20Creek_317780_1896_125000_geo.tif",
+      "metadata_url": "https://www.sciencebase.gov/catalog/item/5a8a4d1de4b00f54eb4035db",
+      "provenance_id": {
+        "authority": "sciencebase.gov",
+        "namespace": "catalog-item",
+        "value": "5a8a4d1de4b00f54eb4035db"
+      },
+      "aliases": [
+        "ne-browns-creek"
+      ],
+      "crop_count": 6,
+      "source_sha256": "cf2830c58007468fab6c7043f9a441cbb373295d8d0d15cd483adc50068e5abc",
+      "source_bytes": 7884955,
+      "rights_status": "public_domain",
+      "license": "U.S. Public Domain",
+      "rights_statement_url": "https://www.usgs.gov/faqs/are-usgs-topographic-maps-copyrighted"
+    }
+  ]
+}

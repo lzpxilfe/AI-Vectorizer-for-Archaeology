@@ -23,6 +23,7 @@ from pathlib import Path, PurePosixPath
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 import traceback
@@ -275,6 +276,8 @@ def _run_trace_scenario(
     defer_during_cache: bool = False,
     enhanced_accept: bool = False,
     sample_color: bool = False,
+    learned_engine=None,
+    learned_guide: bool = False,
 ) -> dict:
     """Drive real SmartTraceTool press/move/finish handlers to one feature."""
 
@@ -297,6 +300,8 @@ def _run_trace_scenario(
         language="en",
         smart_recovery=smart_recovery,
         recovery_engine=None,
+        learned_engine=learned_engine,
+        learned_guide=learned_guide,
         recovery_state_callback=lambda state, detail: state_events.append(
             (state, detail)
         ),
@@ -345,6 +350,8 @@ def _run_trace_scenario(
             )
             if tool.cached_ink_evidence is None:
                 raise SmokeFailure(f"{name} fell back instead of publishing Ink v2.")
+            if learned_guide and learned_engine is not None:
+                _wait_until(lambda: tool._learned_prior is not None and tool._learned_task is None, f"{name} learned prior", timeout_seconds=40)
 
         # Awaited event loops may finish a dock layout and resize the canvas.
         # Convert immediately before each gesture, as a real mouse event does.
@@ -455,7 +462,7 @@ def _run_trace_scenario(
         if len(tool.path_points) < 2:
             raise SmokeFailure(f"{name} did not accept the visible preview.")
         accepted = [QgsPointXY(point) for point in tool.path_points]
-        if enhanced_accept:
+        if enhanced_accept or (learned_guide and edge_weight > 0):
             expected = [accepted[0], *preview]
             if accepted != expected:
                 raise SmokeFailure(
@@ -474,6 +481,8 @@ def _run_trace_scenario(
         vertices = feature.geometry().asPolyline()
         if len(vertices) != len(accepted):
             raise SmokeFailure(f"{name} saved geometry differs from the accepted preview.")
+        if learned_guide and [(p.x(), p.y()) for p in vertices] != [(p.x(), p.y()) for p in accepted]:
+            raise SmokeFailure(f"{name} changed the accepted learned-guide coordinates while saving.")
         if sample_color:
             if tuple((point.x(), point.y()) for point in vertices) != tuple(
                 (point.x(), point.y()) for point in accepted
@@ -487,7 +496,8 @@ def _run_trace_scenario(
         end_error = float(
             np.hypot(vertices[-1].x() - end_map.x(), vertices[-1].y() - end_map.y())
         )
-        if start_error > 1.5 or end_error > 1.5:
+        endpoint_tolerance = 6.1 if learned_guide and learned_engine is not None else 1.5
+        if start_error > endpoint_tolerance or end_error > endpoint_tolerance:
             raise SmokeFailure(
                 f"{name} changed trace endpoints ({start_error:.3f}, {end_error:.3f})."
             )
@@ -500,7 +510,7 @@ def _run_trace_scenario(
                 source_row = 256.0 - point.y()
                 errors.append(abs(source_row - float(curve_row(point.x()))))
             median_center_error = float(np.median(np.asarray(errors)))
-            if median_center_error > 4.0:
+            if median_center_error > 4.0 and not learned_guide:
                 raise SmokeFailure(
                     f"{name} left the synthetic centerline (median error "
                     f"{median_center_error:.3f}px)."
@@ -514,6 +524,15 @@ def _run_trace_scenario(
         elif tool._recovery_task is not None:
             raise SmokeFailure("Smart Recovery OFF scheduled a recovery task.")
 
+        output_layer.undoStack().undo()
+        if output_layer.featureCount() != 0:
+            raise SmokeFailure(f"{name} did not undo the saved contour in one command.")
+        output_layer.undoStack().redo()
+        if output_layer.featureCount() != 1:
+            raise SmokeFailure(f"{name} could not redo the contour.")
+        if learned_guide and edge_weight <= 0 and (tool._learned_task is not None or tool._learned_prior is not None):
+            raise SmokeFailure("0% assistance ran learned inference.")
+
         return {
             "name": name,
             "vertices": len(vertices),
@@ -526,6 +545,9 @@ def _run_trace_scenario(
             "cache_accept_deferred": bool(defer_during_cache),
             "enhanced_preview_preserved": bool(enhanced_accept),
             "sampled_ink_color_rgb": sampled_color,
+            "learned_guide_requested": learned_guide,
+            "learned_preview_preserved": bool(learned_guide and edge_weight > 0),
+            "one_undo": True,
             "states": [state for state, _detail in state_events],
         }
     finally:
@@ -603,12 +625,14 @@ def run_qgis_bootstrap() -> None:
 
         plugin.run()
         dock = plugin.dialog
-        if dock is None or dock.smart_recovery_check.isChecked():
+        if dock is None or dock.smart_recovery_check.isChecked() or dock.learned_guide_check.isChecked():
             raise SmokeFailure("Clean-profile Smart Recovery did not default OFF.")
         if dock.recovery_prepare_task is not None or dock.recovery_install_task is not None:
             raise SmokeFailure("Default-OFF UI started model preparation/download work.")
         if dock.recovery_engine is not None:
             raise SmokeFailure("Default-OFF UI retained a recovery engine.")
+        if dock.learned_prepare_task is not None or dock.learned_engine is not None:
+            raise SmokeFailure("Default-OFF UI prepared a learned model.")
         models_dir = Path(dock._sam_models_dir()).resolve()
         try:
             models_dir.relative_to(expected_settings_dir)
@@ -701,6 +725,48 @@ def run_qgis_bootstrap() -> None:
             ),
         ]
 
+        bundle_path = os.environ.get("ARCHAEOTRACE_SMOKE_LEARNED_BUNDLE")
+        if bundle_path:
+            # Preserve QGIS' NumPy ABI before finding the separately installed
+            # optional ONNX packages in the diagnostic environment.
+            import numpy
+            dependency_path = os.environ.get("ARCHAEOTRACE_SMOKE_LEARNED_DEPENDENCIES")
+            if dependency_path:
+                sys.path.append(dependency_path)
+            from ai_vectorizer.core.learned_model import LearnedContourEngine
+            def peak_rss():
+                try:
+                    import resource
+                    raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                    return int(raw if sys.platform == "darwin" else raw * 1024)
+                except ImportError:
+                    return None
+            peak_before = peak_rss()
+            learned_engine = LearnedContourEngine.from_bundle(bundle_path)
+            tile = numpy.full((512, 512, 3), 255, dtype=numpy.uint8)
+            learned_engine.predict_tile(tile)
+            tile_times = []
+            for _ in range(25):
+                started = time.perf_counter()
+                learned_engine.predict_tile(tile)
+                tile_times.append((time.perf_counter() - started) * 1000)
+            learned_diagnostic = {
+                "synthetic_model": bool(learned_engine.manifest["provenance"].get("synthetic_diagnostic")),
+                "historical_map_accuracy_evidence": False,
+                "input": "synthetic_solid_rgb", "warmup_iterations": 1,
+                "prepared_iterations": 25, "prepared_tile_ms": tile_times,
+                "prepared_tile_p95_ms": sorted(tile_times)[23],
+                "peak_rss_growth_bytes": max(0, peak_rss() - peak_before) if peak_before is not None else None,
+                "paired_holdout_ram_measured": False,
+                "runtime": learned_engine.metadata,
+            }
+            scenarios.append(_run_trace_scenario(canvas=canvas, raster_layer=raster_layer,
+                fixture=fixture, name="learned-guide-native", edge_weight=1.0, freehand=False,
+                smart_recovery=False, learned_engine=learned_engine, learned_guide=True))
+            scenarios.append(_run_trace_scenario(canvas=canvas, raster_layer=raster_layer,
+                fixture=fixture, name="learned-guide-zero-assist", edge_weight=0.0, freehand=False,
+                smart_recovery=False, learned_engine=learned_engine, learned_guide=True))
+
         # The opt-in recovery bundle must remain absent.  The dock can migrate
         # its small, GPL-shipped HED network definition into persistent
         # storage; that is a legacy configuration asset, not either 41 MB
@@ -732,6 +798,7 @@ def run_qgis_bootstrap() -> None:
             "smart_recovery_default_off": True,
             "recovery_model_states": recovery_states,
             "scenarios": scenarios,
+            "learned_diagnostic": learned_diagnostic if bundle_path else None,
         }
         qgis.utils.unloadPlugin(PLUGIN_ID)
         project.clear()
@@ -772,6 +839,8 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         help="Optional empty diagnostic root; omission uses and removes mkdtemp.",
     )
     parser.add_argument("--expected-version", default=DEFAULT_EXPECTED_VERSION)
+    parser.add_argument("--learned-bundle", type=Path, help="Optional local diagnostic learned model bundle")
+    parser.add_argument("--learned-dependencies", type=Path, help="Optional ONNX site-packages path; QGIS NumPy stays first")
     parser.add_argument(
         "--timeout",
         type=int,
@@ -805,6 +874,10 @@ def run_outer(args: argparse.Namespace) -> dict:
         profile_root = profile_root.expanduser().resolve(strict=True)
         result_path = profile_root / "clean-profile-result.json"
         environment = os.environ.copy()
+        if getattr(args, "learned_bundle", None):
+            environment["ARCHAEOTRACE_SMOKE_LEARNED_BUNDLE"] = str(args.learned_bundle.resolve(strict=True))
+        if getattr(args, "learned_dependencies", None):
+            environment["ARCHAEOTRACE_SMOKE_LEARNED_DEPENDENCIES"] = str(args.learned_dependencies.resolve(strict=True))
         environment.update(
             {
                 BOOTSTRAP_ENV: "1",

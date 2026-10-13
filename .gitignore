@@ -31,6 +31,10 @@ ai_vectorizer/models/*.meta.json
 ai_vectorizer/core/models/*.caffemodel
 dist/
 /work/
+/outputs/
+# Generated training artifacts and private annotations stay outside source.
+learning/runs/
+learning/pilot-data/
 ai_vectorizer */
 *.zip
 .idea/

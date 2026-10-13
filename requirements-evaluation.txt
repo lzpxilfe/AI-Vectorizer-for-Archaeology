@@ -1,0 +1,9 @@
+-r requirements-learned-guide.txt
+
+# Separate CPU evaluation/data environment; never install this graph into QGIS.
+# Windowed native rasters retain source context and embedded palette colours.
+# Tested: rasterio 1.5.2, OpenCV 4.11.0, SciPy 1.18.1, Pillow 12.3.0.
+rasterio>=1.5.2,<2
+opencv-python-headless>=4.8,<4.12
+scipy>=1.18.1,<2
+Pillow>=12.3.0,<13

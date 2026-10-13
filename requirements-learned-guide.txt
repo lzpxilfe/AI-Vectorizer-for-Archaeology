@@ -1,0 +1,9 @@
+-r requirements.txt
+
+# Optional local learned-contour inference and ONNX graph validation only.
+# Tested together on Python 3.12: onnx 1.23.2, onnxruntime 1.31.0.
+# Requires Python 3.10+; older QGIS Python keeps the default Ink path.
+# Training dependencies and pretrained encoder initialization are separate.
+# Model bytes are imported explicitly from a local, hash-verified bundle.
+onnx>=1.23.2,<2
+onnxruntime>=1.31.0,<2

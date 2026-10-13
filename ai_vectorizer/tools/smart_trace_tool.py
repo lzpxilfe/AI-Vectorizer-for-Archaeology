@@ -10,6 +10,7 @@ Key concept:
 """
 import numpy as np
 import math
+from dataclasses import replace
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
 from qgis.core import (
     QgsWkbTypes, QgsProject, QgsPointXY, QgsGeometry,
@@ -77,6 +78,7 @@ from ..core.sam_trace_kernel import (
     trace_mask as trace_sam_mask,
 )
 from ..core.smart_recovery import (
+    DEFAULT_RECOVERY_CONFIG,
     arbitrate_routes,
     build_corridor_cost_map,
     recovery_gate,
@@ -384,12 +386,14 @@ class _LiveWireTreeTask(QgsTask):
         generation,
         config,
         callback,
+        learned_prior=None,
     ):
         super().__init__("ArchaeoTrace Live-Wire tree", _task_can_cancel())
         self.image = image
         self.edges = edges
         self.evidence = evidence
         self.guidance = guidance
+        self.learned_prior = learned_prior
         self.anchor_pixel = tuple(anchor_pixel)
         self.incoming_direction = incoming_direction
         self.strength = float(strength)
@@ -413,6 +417,7 @@ class _LiveWireTreeTask(QgsTask):
                 cancel_check=self.isCanceled,
                 evidence=self.evidence,
                 guidance=self.guidance,
+                learned_prior=self.learned_prior,
             )
             return not self.isCanceled()
         except LiveWireCancelled:
@@ -423,6 +428,39 @@ class _LiveWireTreeTask(QgsTask):
 
     def finished(self, result):
         self.callback(self, bool(result), self.tree, self.error)
+
+
+class _LearnedPriorTask(QgsTask):
+    """Infer immutable native RGB snapshots; no QGIS object enters run()."""
+
+    def __init__(self, engine, snapshots, bounds, raster_size, identity, callback):
+        super().__init__("ArchaeoTrace learned contour guide", _task_can_cancel())
+        self.engine = engine
+        self.snapshots = snapshots
+        self.bounds = tuple(bounds)
+        self.raster_size = tuple(raster_size)
+        self.identity = identity
+        self.callback = callback
+        self.prior = None
+        self.error = None
+
+    def run(self):
+        try:
+            if self.isCanceled():
+                return False
+            self.prior = self.engine.predict_crop(
+                lambda bounds: self.snapshots[tuple(bounds)],
+                self.bounds,
+                self.raster_size,
+                cancel_check=self.isCanceled,
+            )
+            return not self.isCanceled()
+        except Exception as exc:
+            self.error = exc
+            return False
+
+    def finished(self, result):
+        self.callback(self, bool(result), self.prior, self.error)
 
 
 class _RecoveryPreviewTask(QgsTask):
@@ -449,6 +487,7 @@ class _RecoveryPreviewTask(QgsTask):
         trace_config,
         callback,
         strength=1.0,
+        guidance_config=DEFAULT_RECOVERY_CONFIG,
     ):
         super().__init__("ArchaeoTrace Smart Recovery", _task_can_cancel())
         self.engine = engine
@@ -469,6 +508,7 @@ class _RecoveryPreviewTask(QgsTask):
         self.trace_config = trace_config
         self.callback = callback
         self.strength = float(strength)
+        self.guidance_config = guidance_config
         self.selection = None
         self.trace_result = None
         self.challenger_path = None
@@ -551,6 +591,7 @@ class _RecoveryPreviewTask(QgsTask):
                 bounded_evidence,
                 bounded_corridor,
                 guidance=bounded_guidance,
+                config=self.guidance_config,
             )
             if self.isCanceled():
                 return False
@@ -939,7 +980,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                  sam_engine=None, edge_weight=0.5, freehand=False, edge_method=DEFAULT_EDGE_METHOD,
                  iface=None, language="ko", auto_path=False,
                  recovery_engine=None, smart_recovery=False,
-                 recovery_state_callback=None, ink_color_callback=None):
+                 recovery_state_callback=None, ink_color_callback=None,
+                 learned_engine=None, learned_guide=False, learned_state_callback=None,
+                 learned_support_weight=0.8, learned_avoidance_weight=6.0):
         self.canvas = canvas
         super().__init__(self.canvas)
         self.iface = iface
@@ -981,6 +1024,19 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.recovery_state_callback = recovery_state_callback
         self.ink_color_callback = ink_color_callback
         self._ink_color_profile = None
+        self.learned_engine = learned_engine
+        self.learned_guide_requested = bool(learned_guide)
+        self.learned_state_callback = learned_state_callback
+        self.learned_support_weight = float(learned_support_weight)
+        self.learned_avoidance_weight = float(learned_avoidance_weight)
+        if self.learned_support_weight not in (0.4, 0.8) or self.learned_avoidance_weight not in (2.0, 4.0, 6.0):
+            raise ValueError("Unsupported learned-guide configuration")
+        self._learned_task = None
+        self._learned_generation = 0
+        self._learned_prior = None
+        self._learned_identity = None
+        self._learned_failed_cache = None
+        self._tree_learned_prior = None
         self.smart_recovery_enabled = (
             self.smart_recovery_requested
             and not self.freehand
@@ -1337,6 +1393,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self._emit_recovery_state(RECOVERY_STATE_INK, detail)
 
     def _clear_edge_cache(self):
+        self._cancel_learned_task()
+        self._learned_prior = None
+        self._learned_identity = None
+        self._learned_failed_cache = None
+        self._tree_learned_prior = None
         if self.__dict__.get("_manual_gap_bridge_preview_target") is not None:
             # Forget the displayed geometry too: a later ordinary click must
             # not commit a bridge made against the discarded raster snapshot.
@@ -1400,6 +1461,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 "Ink evidence refresh was cancelled; exact cursor remains active.",
             )
         self._emit_ink_color_state()
+        self._emit_learned_state("waiting" if self.__dict__.get("learned_guide_requested", False) else "off")
 
     def _manual_avoidance_is_supported(self):
         """Return whether this trace can apply a bounded Ink guidance map."""
@@ -1523,6 +1585,150 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 )
             except (RuntimeError, TypeError) as exc:
                 print(f"Ink color state callback failed: {exc}")
+
+    def _emit_learned_state(self, state, detail=""):
+        callback = self.__dict__.get("learned_state_callback")
+        if callable(callback):
+            try:
+                callback(state, str(detail))
+            except (RuntimeError, TypeError) as exc:
+                print(f"Learned guide state callback failed: {exc}")
+
+    def _cancel_learned_task(self):
+        task = self.__dict__.get("_learned_task")
+        self._learned_task = None
+        self._learned_generation = self.__dict__.get("_learned_generation", 0) + 1
+        if task is not None:
+            try:
+                task.cancel()
+            except RuntimeError:
+                pass
+
+    def _learned_cache_identity(self):
+        return (
+            self._learned_generation,
+            self._cache_generation,
+            self.cache_identity,
+            getattr(self.learned_engine, "model_sha256", None),
+            getattr(self.learned_engine, "bundle_sha256", None),
+            id(self.learned_engine),
+        )
+
+    def _learned_cache_ready(self):
+        return bool(
+            self.learned_guide_requested and self.learned_engine is not None
+            and not self.freehand and not self.use_sam and self.edge_weight > 0.0
+            and self.edge_method == EdgeDetector.METHOD_INK
+            and self._recovery_cache_compatible and self.cached_ink_evidence is not None
+            and self.cached_rgb_image is not None and not self.cache_dirty
+            and not getattr(self, "_disposed", False)
+            and is_livewire_available()
+        )
+
+    def _request_learned_prior(self):
+        """Read exact source tiles on the UI thread before background inference."""
+        if not self.learned_guide_requested:
+            return False
+        if not self._learned_cache_ready():
+            self._emit_learned_state("fallback", self._tr(
+                "학습 보조는 준비된 8-bit RGB Ink 지도와 로컬 모델이 필요합니다.",
+                "Learned assistance needs native 8-bit RGB Ink evidence and a local model.",
+            ))
+            return False
+        identity = self._learned_cache_identity()
+        if self._learned_failed_cache == identity or self._learned_identity == identity:
+            return False
+        try:
+            from ..core.learned_model import plan_source_tiles
+
+            origin_x, origin_y = self.cache_tile_origin
+            height, width = self.cached_ink_evidence.shape
+            bounds = (origin_x, origin_y, origin_x + width, origin_y + height)
+            raster_size = (int(self.raster_layer.width()), int(self.raster_layer.height()))
+            extent = self.raster_layer.extent()
+            px_w, px_h = extent.width() / raster_size[0], extent.height() / raster_size[1]
+            # Extent/dimension arithmetic is a native grid only for an aligned
+            # local raster. Rotated, stretched and remote providers use Ink.
+            import os
+            from osgeo import gdal
+
+            source_path = self.raster_layer.source()
+            if not os.path.isfile(source_path):
+                raise ValueError("Learned guide requires a local native raster")
+            source = gdal.Open(source_path, gdal.GA_ReadOnly)
+            if source is None:
+                raise ValueError("Could not read the native raster grid")
+            transform = source.GetGeoTransform()
+            aligned = (
+                (source.RasterXSize, source.RasterYSize) == raster_size
+                and source.GetDriver().ShortName in ("GTiff", "PNG", "JPEG")
+                and source.RasterCount == 3
+                and all(source.GetRasterBand(i).DataType == gdal.GDT_Byte for i in (1, 2, 3))
+                and [source.GetRasterBand(i).GetColorInterpretation() for i in (1, 2, 3)] == [gdal.GCI_RedBand, gdal.GCI_GreenBand, gdal.GCI_BlueBand]
+                and transform[2] == 0 and transform[4] == 0
+                and math.isclose(transform[1], px_w, rel_tol=1e-12, abs_tol=1e-10)
+                and math.isclose(-transform[5], px_h, rel_tol=1e-12, abs_tol=1e-10)
+                and math.isclose(transform[0], extent.xMinimum(), rel_tol=0, abs_tol=1e-8)
+                and math.isclose(transform[3], extent.yMaximum(), rel_tol=0, abs_tol=1e-8)
+            )
+            source = None
+            if not aligned:
+                raise ValueError("Rotated or resampled source grids use Ink fallback")
+            provider = self.raster_layer.dataProvider()
+            if provider.bandCount() != 3:
+                raise ValueError("Learned guide requires three native RGB bands")
+            snapshots = {}
+            for tile in plan_source_tiles(bounds, raster_size):
+                x0, y0, x1, y1 = tile.read_bounds
+                tile_extent = QgsRectangle(
+                    extent.xMinimum() + x0 * px_w, extent.yMaximum() - y1 * px_h,
+                    extent.xMinimum() + x1 * px_w, extent.yMaximum() - y0 * px_h,
+                )
+                _display, native, stable = read_raster_bands_with_native(
+                    provider, tile_extent, x1 - x0, y1 - y0, max_bands=3,
+                )
+                if not stable or len(native) != 3 or any(np.asarray(band).dtype != np.uint8 for band in native):
+                    raise ValueError("Learned guide requires native Byte RGB without a stretch")
+                rgb = np.ascontiguousarray(np.stack(native, axis=-1), dtype=np.uint8)
+                rgb.setflags(write=False)
+                snapshots[tuple(tile.read_bounds)] = rgb
+            self._learned_identity = identity
+            task = _LearnedPriorTask(
+                self.learned_engine, snapshots, bounds, raster_size, identity,
+                self._on_learned_prior_finished,
+            )
+            self._learned_task = task
+            self._emit_learned_state("preparing")
+            QgsApplication.taskManager().addTask(task)
+            return True
+        except Exception as exc:
+            self._learned_failed_cache = identity
+            self._emit_learned_state("fallback", str(exc))
+            return False
+
+    def _on_learned_prior_finished(self, task, succeeded, prior, error):
+        if self._learned_task is not task:
+            return
+        self._learned_task = None
+        if task.identity != self._learned_cache_identity() or not self._learned_cache_ready():
+            return
+        from ..core.learned_prior import LearnedLinePrior
+        if not succeeded or not isinstance(prior, LearnedLinePrior) or prior.shape != self.cached_ink_evidence.shape:
+            self._learned_failed_cache = task.identity
+            self._emit_learned_state("fallback", str(error or "Learned inference was cancelled or invalid"))
+            return
+        self._learned_prior = prior
+        self._emit_learned_state("ready")
+        # A displayed preview or queued click owns its exact graph snapshot.
+        # The prior joins the next anchor, never a path already offered for
+        # acceptance. An initial anchor with no preview can prepare it now.
+        if (
+            self.is_tracing and not self.preview_path
+            and self._pending_livewire_accept_point is None
+            and self._manual_avoidance_draft_start is None
+            and not self._manual_gap_bridge_preview_is_current()
+        ):
+            self._request_livewire_tree(force=True)
 
     def sample_ink_color_from_hover(self):
         """Sample an explicit cursor target; never learn from a routed path."""
@@ -2557,6 +2763,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         return LiveWireConfig(
             max_window_size=self.LIVEWIRE_WINDOW_PIXELS,
             target_snap_radius=self.LIVEWIRE_TARGET_SNAP_PIXELS,
+            learned_support_cap=self.learned_support_weight,
+            learned_avoidance_cost_weight=self.learned_avoidance_weight,
         )
 
     def _cancel_livewire_task(self):
@@ -2599,6 +2807,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def _request_livewire_tree(self, force=False):
         """Build one tree for the latest accepted point, if needed."""
+        if self.__dict__.get("learned_guide_requested", False):
+            self._request_learned_prior()
         if (
             self._livewire_disabled
             or self.freehand
@@ -2658,6 +2868,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             generation=generation,
             config=self._livewire_config(),
             callback=self._on_livewire_tree_finished,
+            learned_prior=self._learned_prior if self._learned_cache_ready() else None,
         )
         self._livewire_task = task
         QgsApplication.taskManager().addTask(task)
@@ -2846,6 +3057,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         )
         if is_current:
             self._livewire_tree = tree
+            self._tree_learned_prior = getattr(task, "learned_prior", None)
+            if self._tree_learned_prior is not None:
+                self._emit_learned_state("active")
             self._livewire_failed_anchor = None
             if self._manual_gap_bridge_preview_is_current():
                 return
@@ -3117,12 +3331,19 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if self._recovery_encoding_cache_generation == self._cache_generation
             else None
         )
+        from ..core.learned_prior import compose_learned_guidance
+
+        recovery_guidance, guidance_weight = compose_learned_guidance(
+            self.cached_trace_guidance, self._tree_learned_prior,
+            manual_weight=DEFAULT_RECOVERY_CONFIG.guidance_cost_weight,
+            learned_weight=self.learned_avoidance_weight,
+        )
         task = _RecoveryPreviewTask(
             engine=self.recovery_engine,
             image=self.cached_rgb_image,
             encoding=encoding,
             evidence=self.cached_ink_evidence,
-            guidance=self.cached_trace_guidance,
+            guidance=self.cached_trace_guidance if self._tree_learned_prior is None else recovery_guidance,
             champion_path=request["champion_path"],
             start_pixel=request["start_pixel"],
             target_pixel=request["target_pixel"],
@@ -3138,6 +3359,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             ),
             callback=self._on_recovery_preview_finished,
             strength=self.edge_weight,
+            guidance_config=replace(DEFAULT_RECOVERY_CONFIG, guidance_cost_weight=guidance_weight),
         )
         self._recovery_task = task
         self._emit_recovery_state(
@@ -4804,6 +5026,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._emit_ink_color_state()
         if self.is_tracing and self.path_points:
             self._request_livewire_tree(force=True)
+        self._request_learned_prior()
 
     def _on_ink_evidence_finished(
         self,
@@ -5612,6 +5835,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def reset_tracing(self):
         """Reset all tracing state."""
         self._forget_manual_gap_bridge()
+        self._cancel_learned_task()
+        self._learned_prior = None
+        self._learned_identity = None
+        self._learned_failed_cache = None
+        self._tree_learned_prior = None
         self._cancel_recovery_task(clear_request=True)
         self._recovery_generation += 1
         self._recovery_preview_identity = None

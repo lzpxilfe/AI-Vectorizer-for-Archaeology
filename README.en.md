@@ -36,6 +36,9 @@ inference service.
 
 ## Features
 
+- 🧪 [Learned contour pilot](learning/README.md): frozen USGS sheet splits, QGIS annotation,
+  Colab training, CPU evaluation and a default-OFF local ONNX guide. Human review and
+  final evaluation are required before claiming historical-map performance.
 - Freehand tracing with no additional model
 - Default multi-scale Ink Centerline evidence for dark and colored printed strokes
 - Optional Smart Recovery that uses a verified EfficientSAM-Ti model only as a
