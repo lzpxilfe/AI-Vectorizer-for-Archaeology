@@ -42,6 +42,7 @@ inference service.
   corridor prior; it is experimental, default OFF, and keeps the Ink route on failure
 - Bounded, direction-aware Live-Wire with literal 0–100% coordinate blending
 - Session-only manual avoid regions for text, symbols, or stains in Ink tracing
+- Optional, session-only ink color sampling with `C`; `Shift+C` clears it
 - An explicit, reviewed `Label-gap bridge` preview for black/brown contours
   actually interrupted by numeric labels
 - LSD, HED, MobileSAM, SAM ViT-B, and Legacy Canny preserved under
@@ -94,6 +95,21 @@ review the green path and correct it with anchors or Freehand. Smart Recovery
 never saves the SAM mask as a line or binary-ORs it with Ink; it accepts a
 challenger only after endpoint, detour, strong-Ink retention, and branch-switch
 checks. Assist at `0%` skips model and evidence work.
+
+## Experimental: ink color sampling
+
+After starting an Ink trace, hover over a colored contour away from crossings,
+text, and paper, then press `C`. `Sample ink color` also uses the last map
+cursor position; the status shows the selected RGB. `Shift+C` or `Clear color`
+removes it. Sampling requires ready native Byte RGB Ink v2 evidence, SciPy,
+and assist above `0%`. Gray ink, paper, and ambiguous nearby colors are refused.
+
+The optional sample adds finite soft cost to differently colored ink. It is
+combined with avoid regions using the per-pixel maximum and shared by Ink and
+Recovery. Same-color text and symbols remain ambiguous, so review the green
+route. The color is reapplied to a new cache after panning and cleared when the
+trace finishes, is cancelled, or resets. It is neither saved nor uploaded.
+Historical-map accuracy and user-time improvement have not been established.
 
 ## Experimental: label-gap bridge
 

@@ -18,6 +18,7 @@ download와 repository-local `d292…` 사전 후보는
 | --- | --- | --- |
 | 수동·반자동 선 추적 | 구현 | Freehand, 다중 스케일 Ink Centerline; 기존 방법은 Advanced / Legacy에 보존 |
 | Manual Avoid Guidance | Unreleased 실험 | Ink Live-Wire의 문자·기호·얼룩 회피를 위한 session-only soft cost; 외부 OCR/model 없음 |
+| Ink Color Guidance | Unreleased 실험 | 사용자가 지정한 유색 Ink와 다른 색의 획에만 session-only soft cost; native Byte RGB·SciPy 필요 |
 | Smart Recovery | 실험적·기본 OFF | 검증된 EfficientSAM-Ti를 Ink 저신뢰 구간의 corridor prior로만 사용하고 실패 시 Ink 유지 |
 | QGIS 편집 통합 | 구현 | 새 피처, 기존 피처 연장, 고도 필드·값 변경을 편집 버퍼와 한 번의 Undo로 관리 |
 | 표고 데이터 | 구현 | 등고선 숫자 고도와 선택적 Spot Heights 저장 |
@@ -37,7 +38,7 @@ download와 repository-local `d292…` 사전 후보는
 QgsRasterLayer
   → 크기·자료형 제한이 있는 uint8 raster cache
   → source-grid 다중 스케일 LineEvidence
-  → (선택) session-only TraceGuidance soft avoidance
+  → (선택) session-only TraceGuidance 회피·선 색상 mismatch 비용
   → bounded Live-Wire Ink champion
   → (선택) 저신뢰 판정 → EfficientSAM corridor prior → strict challenger
   → 안전 arbiter가 champion/challenger 중 선택
@@ -111,6 +112,26 @@ hard mask가 아니고 EfficientSAM mask를 최종 선으로 저장하거나 Ink
 contract는 추후 optional local OCR/text-risk provider를 정확히 같은 soft prior로
 benchmark할 기반이지만, model delivery나 automatic provider activation은 아직 구현하지
 않았습니다.
+
+### Ink Color Guidance — Unreleased experiment
+
+Ink 추적 시작 후 유색 등고선에 hover하고 `C`를 누르거나 `선 색상 지정`을 누릅니다.
+버튼도 마지막 지도 커서 위치를 읽고 선택한 RGB를 상태에 표시합니다. `Shift+C`나
+`색상 해제`로 지웁니다. native Byte RGB Ink v2 cache·evidence와 SciPy Live-Wire가
+준비되고 assist가 `0%`보다 커야 합니다. 배경·회색·근처 여러 색으로 모호한 표본,
+대기 중인 클릭이나 미확정 회피·공백 제안에서는 지정하지 않습니다.
+
+`core/ink_color.py`는 가까운 Ink 지지에서 읽은 표본을 immutable `InkColorProfile`로
+보관합니다. RGB 채널 평균을 뺀 색 방향을 정규화해 동일 색의 밝기·흰 배경 쪽
+antialias 변화에는 비용을 줄이고, 다른 색·중성색 획에는 Ink 지지도에 비례한 유한
+`TraceGuidance` 비용을 더합니다. 원래 `LineEvidence`를 바꾸거나 빈 공백을 채우지
+않으며, 같은 색의 문자·기호를 의미로 구분하지 않습니다. 회피 영역과 픽셀별
+최댓값으로 합친 immutable guidance를 Ink와 Recovery challenger가 함께 사용합니다.
+
+pan으로 cache가 바뀌면 보관한 색 표본으로 guidance를 다시 만들고, 추적 종료·취소·
+reset이나 원본 raster 데이터 변경에서 표본을 지웁니다. 표본은 현재 session의 로컬
+메모리에만 남으며 저장·upload·telemetry로 보내지 않습니다. 실제 고지도 정확도와
+사용자 작업시간 개선은 아직 검증하지 않았습니다.
 
 ### Smart Recovery (Experimental)
 
@@ -279,6 +300,8 @@ adjudication이 끝날 때까지 명시적으로 draft로 남습니다.
 | `ai_vectorizer/tools/smart_trace_tool.py` | map event, trace session, preview, QGIS edit transaction |
 | `ai_vectorizer/core/edge_detector.py` | Ink/LSD/HED/Canny edge·centerline과 HED artifact |
 | `ai_vectorizer/core/line_evidence.py` | QGIS 독립 연속 Ink score·방향·coherence·scale 계약 |
+| `ai_vectorizer/core/ink_color.py` | 명시적 Byte RGB Ink 표본과 immutable soft 색상 비용 |
+| `ai_vectorizer/core/trace_guidance.py` | immutable soft 회피 guidance와 crop 계약 |
 | `ai_vectorizer/core/livewire.py` | 제한 창의 방향 인식 최단경로 트리와 assist 혼합 |
 | `ai_vectorizer/core/smart_recovery.py` | 저신뢰 gate, corridor cost와 champion/challenger arbiter |
 | `ai_vectorizer/core/efficientsam_recovery.py` | 검증된 EfficientSAM bundle의 offline CPU 실행 adapter |

@@ -513,6 +513,20 @@ class AIVectorizerDock(QDockWidget):
                     getattr(self.active_tool, "preview_manual_gap_bridge", None)
                 )
             )
+        if hasattr(self, "ink_color_sample_btn"):
+            ink_color_enabled = bool(
+                not enabled and self.active_tool is not None
+                and not getattr(self.active_tool, "freehand", True)
+                and not getattr(self.active_tool, "use_sam", False)
+                and getattr(self.active_tool, "edge_method", None) == "ink"
+                and getattr(self.active_tool, "edge_weight", 0.0) > 0.0
+            )
+            self.ink_color_sample_btn.setEnabled(ink_color_enabled)
+            self.ink_color_clear_btn.setEnabled(ink_color_enabled)
+            self._on_ink_color_changed(
+                getattr(getattr(self.active_tool, "_ink_color_profile", None), "sample_rgb", None),
+                bool(self.active_tool and self.active_tool._ink_color_cache_ready()),
+            )
         self._update_dem_button_for_tracing(not enabled)
 
     def _set_idle_ui(self, prompt=False):
@@ -1064,6 +1078,25 @@ class AIVectorizerDock(QDockWidget):
             return False
         return bool(preview())
 
+    def sample_ink_color(self):
+        sample = getattr(self.active_tool, "sample_ink_color_from_hover", None)
+        return bool(callable(sample) and sample())
+
+    def clear_ink_color(self):
+        clear = getattr(self.active_tool, "clear_ink_color", None)
+        return bool(callable(clear) and clear())
+
+    def _on_ink_color_changed(self, sample_rgb=None, available=False):
+        if sample_rgb is None:
+            text = self._tr("선 색상: 전체 Ink", "Ink color: all ink")
+        else:
+            suffix = self._tr("적용 중", "active") if available else self._tr("준비 대기", "waiting")
+            text = self._tr("선 색상: RGB {rgb} ({state})", "Ink color: RGB {rgb} ({state})").format(
+                rgb=", ".join(str(value) for value in sample_rgb), state=suffix,
+            )
+        self.ink_color_status.setText(text)
+        self.ink_color_clear_btn.setEnabled(sample_rgb is not None)
+
     @classmethod
     def _configure_hed_storage(cls):
         """Keep HED assets beside SAM weights so ZIP upgrades preserve them."""
@@ -1265,6 +1298,20 @@ class AIVectorizerDock(QDockWidget):
         self.manual_gap_bridge_btn.setEnabled(False)
         step3_layout.addLayout(recovery_actions)
         step3_layout.addWidget(self.manual_gap_bridge_btn)
+
+        ink_color_actions = QHBoxLayout()
+        self.ink_color_sample_btn = QPushButton()
+        self.ink_color_sample_btn.clicked.connect(self.sample_ink_color)
+        self.ink_color_sample_btn.setEnabled(False)
+        ink_color_actions.addWidget(self.ink_color_sample_btn)
+        self.ink_color_clear_btn = QPushButton()
+        self.ink_color_clear_btn.clicked.connect(self.clear_ink_color)
+        self.ink_color_clear_btn.setEnabled(False)
+        ink_color_actions.addWidget(self.ink_color_clear_btn)
+        step3_layout.addLayout(ink_color_actions)
+        self.ink_color_status = QLabel()
+        self.ink_color_status.setWordWrap(True)
+        step3_layout.addWidget(self.ink_color_status)
 
         self.recovery_runtime_guide = QLabel()
         self.recovery_runtime_guide.setWordWrap(True)
@@ -1486,6 +1533,20 @@ class AIVectorizerDock(QDockWidget):
                 "공백 전 anchor를 확정하고 반대편 선 위에서 G를 누르세요. 미리보기 끝점 클릭으로 확정, Esc 또는 다른 위치 클릭으로 취소합니다. 보조 강도가 곡률에 적용됩니다.",
                 "Confirm an anchor before the gap, hover beyond it, and press G. Click the preview endpoint to accept; Esc or another target cancels. Assist strength controls the curve.",
             )
+        )
+        self.ink_color_sample_btn.setText(self._tr("선 색상 지정 (C)", "Sample ink color (C)"))
+        self.ink_color_sample_btn.setToolTip(self._tr(
+            "추적 시작 후 원하는 유색 선 위에서 C를 누르세요. 이 버튼은 마지막 지도 커서 위치를 사용합니다. 교차점과 배경은 피하세요.",
+            "After starting a trace, hover over the desired colored line and press C. This button uses the last map cursor position; avoid crossings and paper.",
+        ))
+        self.ink_color_clear_btn.setText(self._tr("색상 해제", "Clear color"))
+        self.ink_color_clear_btn.setToolTip(self._tr(
+            "Shift+C로도 해제할 수 있습니다. 색상은 현재 등고선 추적에서만 유지됩니다.",
+            "Shift+C also clears the sample. Color preference lasts only for the current contour trace.",
+        ))
+        self._on_ink_color_changed(
+            getattr(getattr(self.active_tool, "_ink_color_profile", None), "sample_rgb", None),
+            bool(self.active_tool and self.active_tool._ink_color_cache_ready()),
         )
         self.recovery_runtime_guide.setText(
             self._tr(
@@ -2003,6 +2064,7 @@ class AIVectorizerDock(QDockWidget):
                     recovery_engine=recovery_engine,
                     smart_recovery=smart_recovery,
                     recovery_state_callback=self._on_recovery_state_changed,
+                    ink_color_callback=self._on_ink_color_changed,
                 )
                 tool.deactivated.connect(self.on_tool_deactivated)
                 self.active_tool = tool
@@ -2696,6 +2758,7 @@ class AIVectorizerDock(QDockWidget):
 <li><b>Esc / Delete</b>: cancel current trace.</li>
 <li><b>Ctrl+Z</b>: undo a checkpoint while tracing; after save, undo the complete QGIS edit command.</li>
 <li><b>Ink Alt+click twice</b>: mark a text/noise avoid rectangle. <b>Alt+Backspace</b> removes the latest; <b>Alt+Shift+Backspace</b> clears all.</li>
+<li><b>Ink C</b>: sample a colored line under the cursor; <b>Shift+C</b> clears it. Applies only to this trace, with Byte RGB evidence and SciPy. A soft guide, so review every green preview.</li>
 <li><b>Click near start point</b>: close loop and enter elevation.</li>
 </ul>
 
@@ -2748,6 +2811,7 @@ class AIVectorizerDock(QDockWidget):
 <li><b>Esc / Delete</b>: 현재 그리기 취소</li>
 <li><b>Ctrl+Z</b>: 그리는 중에는 체크포인트, 저장 후에는 전체 QGIS 편집 명령 되돌리기</li>
 <li><b>Ink에서 Alt+두 번 클릭</b>: 문자·잡음 회피 사각형 표시. <b>Alt+Backspace</b>는 마지막, <b>Alt+Shift+Backspace</b>는 모두 제거</li>
+<li><b>Ink C</b>: 커서 아래 유색 선을 지정. <b>Shift+C</b>로 해제. Byte RGB 지도와 SciPy가 필요하며 현재 추적에서만 사용합니다. 초록 경로를 계속 검수하세요.</li>
 <li><b>시작점 근처 클릭</b>: 닫힌 루프 생성 후 해발값 입력</li>
 </ul>
 

@@ -44,6 +44,7 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
   challenger만 채택하는 Smart Recovery
 - 🎚️ `0%` 정확한 커서부터 `100%` 완전 보조 경로까지 실제 좌표 비율로 혼합
 - 👁️ 클릭 한 번으로 채택될 정확한 경로를 같은 초록색 선으로 실시간 표시
+- 🎨 `C`로 지정하고 `Shift+C`로 해제하는 현재 추적 전용 선 색상 보조
 - 🪜 실제 숫자 공백 양쪽을 사용자가 지정해 검수하는 `⤴ 라벨 공백 연결` preview
 - 👁️ `Ink Centerline`/`LSD`/`HED`/`Legacy Canny` 검출 미리보기와 SAM 계열의 인터랙티브 초록색 경로 미리보기
 - ⛰️ 등고선 고도값 입력 및 `Spot Heights` 포인트 저장
@@ -74,6 +75,20 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 > 기존 탐색창·우회 한계, 강한 Ink 보존, 평행선·분기 전환과 개선량을 검사합니다.
 > 실제 재배포 가능 고지도 holdout 결과 전에는 기본 승격이나 정확도 우위를 주장하지
 > 않습니다. 모델 파일은 플러그인 ZIP에 포함되지 않습니다.
+
+### 🎨 Experimental: 선 색상 지정
+
+Ink 추적을 시작하고 원하는 유색 등고선 위에 커서를 둔 뒤 `C`를 누르세요.
+`선 색상 지정` 버튼은 마지막 지도 커서 위치를 사용하며 선택한 RGB를 상태에
+표시합니다. 회색·배경이나 교차점 등 여러 색이 가까워 모호한 표본은 거부하므로
+뚜렷한 유색 선에서 다시 시도하세요. 준비된 native Byte RGB Ink v2 지도, SciPy와
+`0%`보다 큰 assist가 필요합니다. `Shift+C` 또는 `색상 해제`로 제거합니다.
+
+다른 색의 Ink에 유한한 soft cost만 더하고, 회피 영역과 픽셀별 최댓값으로 합쳐
+Ink와 Recovery에 같은 guidance를 전달합니다. 같은 색의 글자·기호는 구분하지
+못하므로 초록 preview를 계속 검수하세요. pan 뒤 새 cache에도 선택한 색을 적용하며
+추적 종료·취소·reset에서 지웁니다. 저장·업로드하지 않으며 실제 지도 정확도나
+작업시간 개선이 검증된 기능은 아닙니다.
 
 ### 🪜 Experimental: label-gap bridge
 
@@ -226,6 +241,7 @@ first use.
 - 트레이싱 중 `Ctrl+Z` / `Backspace`: 마지막 체크포인트로 되돌리기
 - Ink 추적 중 `Alt`+두 번 클릭: 문자·기호·얼룩 회피 영역. `Alt+Backspace`: 마지막
   영역 제거, `Alt+Shift+Backspace`: 모든 영역 제거
+- Ink 추적 시작 후 유색 선 위에서 `C`: 선 색상 지정. `Shift+C`: 색상 해제
 - 저장 후 `Ctrl+Z`: QGIS 편집 스택에서 방금 추가·연장한 작업 되돌리기
 - `Esc` / `Delete`: 현재 트레이싱 취소
 - `Enter` / 우클릭: 현재 선 저장
@@ -260,6 +276,13 @@ first use.
 - Assist is literal from 0% (exact cursor, no model work), through coordinate blending, to 100% (the full Live-Wire route).
 - `Freehand` needs no additional pip package, external model, or OpenCV, but uses NumPy from the QGIS Python environment.
 - Default `Ink Centerline` works after ZIP installation using QGIS' NumPy. SciPy enables the bounded direction-aware Live-Wire for every non-SAM edge mode; without it those modes use the local NumPy nearby-edge snap.
+- After starting an Ink trace, hover over a clear colored contour and press `C`;
+  the sample button uses that last map position. `Shift+C` clears it. Ready
+  native Byte RGB Ink v2 evidence, SciPy, and assist above 0% are required;
+  gray ink, paper, and ambiguous colors are refused. The finite soft mismatch
+  cost is max-composed with avoid guidance and shared with Recovery. Panning
+  reapplies it, while finishing/cancelling/reset clears it. Samples stay local
+  and session-only; same-color text remains ambiguous and performance is unvalidated.
 - Trace additions and extensions stay in QGIS' edit buffer; one Undo reverts each operation, and `Save Layer Edits` commits it.
 - `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
 - Smart Recovery is an experimental, default-OFF EfficientSAM-Ti corridor prior.
