@@ -33,6 +33,8 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
   로컬 ONNX 모델을 사용하며, 준비된 USGS 16개 도엽·144개 크롭은 아직 사람이 검수할
   초안입니다. 실제 지도 학습·Holdout 평가는 완료되지 않았고, 합성 자료 검증용
   모델은 등고선 학습 모델이나 실제 지도 정확도 근거가 아닙니다.
+  별도 기계 라벨 실험 모델은 `human_review_required=true`로 기록되며 사람 검수
+  Calibration/Holdout 평가와 합격 모델 승격에 사용할 수 없습니다.
 - 지도와 추적 처리는 로컬에서 수행됩니다. model 다운로드는 network를 사용합니다.
   SAM Check/Status는 유효한 local checkpoint가 있으면 size와 SHA-256을 offline
   확인하고, 파일이 없을 때만 고정 source의 availability를 조회합니다.

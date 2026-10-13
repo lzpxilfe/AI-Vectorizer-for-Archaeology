@@ -80,6 +80,10 @@ def _bundle(dataset, bundle_path, *, synthetic_diagnostic=False):
 
 
 def _guard_model_protocol(dataset, document, synthetic_diagnostic):
+    if (document["provenance"].get("allow_weak_labels") is True
+            or document["provenance"].get("human_review_required") is True
+            or document["provenance"].get("review_level") == "automated_weak_labels"):
+        raise DatasetError("weak-label experiment cannot enter human-reviewed pilot evaluation or sealing")
     if document["provenance"]["dataset_manifest_sha256"] != dataset.manifest_sha256:
         raise DatasetError("model was exported against a different immutable dataset")
     diagnostic = any(document["provenance"].get(key) for key in ("synthetic_diagnostic", "diagnostic_only", "diagnostic"))

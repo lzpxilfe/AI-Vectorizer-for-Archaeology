@@ -152,9 +152,16 @@ USGS 파일럿은 크롭 생성 전에 도엽 가족을 분할하고 원본·권
 [`학습 안내`](learning/README.md)에 있습니다. 모델은 ImageNet ResNet18 인코더와
 작은 U-Net 디코더의 두 출력으로 등고선 지지와 문자·도로 회피를 학습합니다.
 세 seed 중 Validation 결과로 후보 하나를 선택하고, Drive 체크포인트로 재개합니다.
-Calibration에서 설정을 동결한 뒤 Holdout을 평가합니다. **실제 Colab 학습,
+Calibration에서 설정을 동결한 뒤 Holdout을 평가합니다. **사람 검수 파일럿의 Colab 학습,
 Holdout 성능 검증과 한국 지도 검증은 아직 완료하지 않았습니다.** 합성 진단 모델은
 학습·재개·ONNX·QGIS 연결 확인용입니다. Unsloth 고도 숫자·범례 판독은 후속 단계입니다.
+
+사람 검수 전에는 별도 데이터·실험 폴더에서 명시적 `--allow-weak-labels`로
+기계 생성 라벨을 학습할 수 있습니다. [`실험용 Colab 노트북`](learning/colab_train_weak_labels.ipynb)은
+`machine_labeled` 상태와 `human_review_required=true`를 체크포인트·ONNX에 기록합니다.
+이 모델의 Validation 결과는 기계 라벨과의 일치도이며 실제 등고선 정확도 근거가
+아닙니다. 사람 검수 Calibration/Holdout 평가와 합격 모델 승격은 허용하지 않습니다.
+실행 방법은 [`약한 라벨 실험 안내`](learning/README.weak-labels.ko.md)에 있습니다.
 
 ## Experimental: 선 색상 지정
 

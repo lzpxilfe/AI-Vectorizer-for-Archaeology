@@ -1,0 +1,5 @@
+-r requirements-evaluation.txt
+
+# Separate experimental label preparation; never install into QGIS Python.
+# The OCR executable is optional and its presence/version is recorded.
+scikit-image==0.26.0

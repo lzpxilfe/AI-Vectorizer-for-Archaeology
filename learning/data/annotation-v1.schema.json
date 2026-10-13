@@ -12,10 +12,12 @@
     "parent_revision": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
     "width": {"type": "integer", "minimum": 1, "maximum": 1024},
     "height": {"type": "integer", "minimum": 1, "maximum": 1024},
-    "annotation_status": {"enum": ["draft", "approved"]},
+    "annotation_status": {"enum": ["draft", "machine_labeled", "approved"]},
     "annotator_id": {"type": "string", "minLength": 1},
     "reviewer_id": {"type": ["string", "null"]},
-    "review_level": {"enum": ["unreviewed", "single_reviewer_pilot"]},
+    "review_level": {"enum": ["unreviewed", "automated_weak_labels", "single_reviewer_pilot"]},
+    "human_review_required": {"type": "boolean"},
+    "weak_label_provenance": {"type": "object", "required": ["method", "code_sha256", "run_id"], "properties": {"method": {"type": "string", "minLength": 1}, "code_sha256": {"$ref": "#/$defs/hash"}, "run_id": {"type": "string", "minLength": 1}}},
     "all_visible_contours_confirmed": {"type": "boolean"},
     "case_difficulty": {"enum": ["unassessed", "standard", "hard"]},
     "publication_ranking_eligible": {"const": false},
@@ -32,5 +34,8 @@
     "path": {"type": "object", "required": ["id", "points"], "properties": {"id": {"type": "string", "minLength": 1}, "points": {"type": "array", "items": {"$ref": "#/$defs/point"}, "minItems": 2, "maxItems": 100000}}},
     "polygons": {"type": "array", "items": {"type": "array", "items": {"$ref": "#/$defs/point"}, "minItems": 3, "maxItems": 100000}, "maxItems": 4096}
   },
-  "allOf": [{"if": {"properties": {"annotation_status": {"const": "approved"}}}, "then": {"properties": {"reviewer_id": {"type": "string", "minLength": 1}, "review_level": {"const": "single_reviewer_pilot"}, "all_visible_contours_confirmed": {"const": true}, "reviewed": {"minItems": 1}}}}]
+  "allOf": [
+    {"if": {"properties": {"annotation_status": {"const": "approved"}}}, "then": {"properties": {"reviewer_id": {"type": "string", "minLength": 1}, "review_level": {"const": "single_reviewer_pilot"}, "all_visible_contours_confirmed": {"const": true}, "human_review_required": {"const": false}, "reviewed": {"minItems": 1}}}},
+    {"if": {"properties": {"annotation_status": {"const": "machine_labeled"}}}, "then": {"required": ["human_review_required", "weak_label_provenance"], "properties": {"reviewer_id": {"type": "null"}, "review_level": {"const": "automated_weak_labels"}, "all_visible_contours_confirmed": {"const": false}, "human_review_required": {"const": true}, "publication_ranking_eligible": {"const": false}, "evaluation": {"type": "null"}}}}
+  ]
 }

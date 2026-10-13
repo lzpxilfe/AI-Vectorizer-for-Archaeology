@@ -15,7 +15,7 @@ import numpy as np
 from learning.augmentation import augment_sample, sample_rng
 from learning.losses import contour_loss
 from learning.model import build_model
-from learning.train import TrainConfig, load_checkpoint, train_run
+from learning.train import TrainConfig, load_checkpoint, train_run, validate_checkpoint_label_policy
 
 
 class SyntheticDataset:
@@ -136,4 +136,66 @@ def test_real_training_rejects_unvalidated_injection_and_implicit_weights(tmp_pa
         train_run(manifest, tmp_path / "run", device="cpu", training_dataset=training)
     with pytest.raises(ValueError, match="explicit"):
         train_run(manifest, tmp_path / "run", device="cpu")
+
+
+def test_weak_checkpoint_requires_opt_in_and_cannot_change_review_scope():
+    checkpoint = {"allow_weak_labels": True, "human_review_required": True,
+                  "review_level": "automated_weak_labels", "synthetic_diagnostic": False}
+    with pytest.raises(ValueError, match="weak-label mode"):
+        validate_checkpoint_label_policy(checkpoint)
+    validate_checkpoint_label_policy(checkpoint, allow_weak_labels=True)
+    for field, value in (("human_review_required", False), ("review_level", "single_reviewer_pilot"),
+                         ("synthetic_diagnostic", True)):
+        changed = dict(checkpoint)
+        changed[field] = value
+        with pytest.raises(ValueError, match="missing human review"):
+            validate_checkpoint_label_policy(changed, allow_weak_labels=True)
+    with pytest.raises(ValueError, match="mode"):
+        validate_checkpoint_label_policy({"allow_weak_labels": False}, allow_weak_labels=True)
+
+
+def test_weak_training_cannot_be_marked_synthetic(tmp_path):
+    with pytest.raises(ValueError, match="synthetic"):
+        train_run(tmp_path / "manifest.json", tmp_path / "run", allow_weak_labels=True, synthetic_diagnostic=True)
+
+
+def test_actual_weak_training_checkpoint_and_resume_keep_experimental_scope(tmp_path, monkeypatch):
+    """Small optimizer fixture with a frozen 144-record metadata cohort.
+
+    Protected records deliberately have no readable files. Model initialization
+    is replaced with offline random weights; this is execution evidence only.
+    """
+    import copy
+    from learning import train as training_module
+    from tests.test_learning_dataset import weak_fixture_manifest, write
+    manifest, data = weak_fixture_manifest(tmp_path)
+    prototype = data["samples"][-1]
+    for index in range(140):
+        protected = copy.deepcopy(prototype)
+        protected["id"] = "protected-metadata-only-%03d" % index
+        data["samples"].append(protected)
+    data["split_policy"]["sample_counts"]["holdout"] = 141
+    write(manifest, data)
+    for sample in data["samples"][:4]:
+        if sample["split"] in ("calibration", "holdout"):
+            (tmp_path / sample["image"]).unlink()
+            (tmp_path / sample["annotation"]["path"]).unlink()
+    original_builder = training_module.build_model
+    monkeypatch.setattr(training_module, "build_model", lambda **_kwargs: original_builder(initialize_pretrained=False))
+    config = TrainConfig(max_epochs=1, batch_size=2, accumulation_steps=8,
+                         amp=False, augment=False, checkpoint_seconds=0)
+    common = {"config": config, "device": "cpu", "allow_weak_labels": True}
+    result = train_run(manifest, tmp_path / "run", initialize_pretrained=True,
+                       max_optimizer_steps=1, **common)
+    boundary = load_checkpoint(result["checkpoint"])
+    assert boundary["allow_weak_labels"] is True
+    assert boundary["human_review_required"] is True
+    assert boundary["review_level"] == "automated_weak_labels"
+    assert boundary["synthetic_diagnostic"] is False
+    completed = train_run(manifest, tmp_path / "run", resume=result["checkpoint"], **common)
+    checkpoint = load_checkpoint(completed["checkpoint"])
+    assert checkpoint["progress"]["epoch"] == 1
+    assert checkpoint["progress"]["optimizer_steps"] == 1
+    assert checkpoint["human_review_required"] is True
+    assert checkpoint["selection"] == {"train": ["sheet-0-crop"], "validation": ["sheet-1-crop"]}
 

@@ -20,7 +20,7 @@ python -m learning verify-pixels /absolute/new-pilot-data/manifest.json
 ```
 
 Preparation and pixel verification need the separate data/evaluation environment
-(`requirements-dev.txt`, including rasterio). `verify-pixels` proves decoded
+(`requirements-evaluation.txt`, including rasterio). `verify-pixels` proves decoded
 PNG pixels equal their declared native source windows; it does not approve
 annotations or establish contour accuracy. Split/family assignment stays frozen.
 
@@ -67,6 +67,23 @@ difficulty flags, in that same final manifest. Their protected files stay unopen
 train/validation loader. Attaching later revisions changes the full manifest
 SHA and therefore requires a new experiment/model lineage; a trained bundle
 cannot silently adopt newly edited evaluation labels or difficulty categories.
+
+## Separate weak-label experiment
+
+Machine-generated candidates can be used in a separate, explicitly opted-in
+experiment with [the weak-label Colab notebook](colab_train_weak_labels.ipynb).
+They remain `machine_labeled` / `automated_weak_labels`, with no human reviewer,
+`all_visible_contours_confirmed=false`, and `human_review_required=true`.
+Use a distinct dataset and run directory; the original human-review pilot stays
+unchanged. Training and export require `--allow-weak-labels` (or
+`allow_weak_labels=True` in Python). Resume and model selection bind that mode.
+
+These labels can contain contour, text, and road mistakes. Inspect the candidate
+overlays and mask uncertain pixels before an experiment. Validation measures
+agreement with weak labels and does not establish actual contour accuracy.
+Weak-label models cannot enter the human-reviewed Calibration/Holdout protocol
+or seal a passing pilot bundle. A later human-reviewed experiment needs its own
+dataset and model lineage. See the [Korean execution guide](README.weak-labels.ko.md).
 
 ## Train and resume
 

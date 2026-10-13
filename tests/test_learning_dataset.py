@@ -64,6 +64,56 @@ def test_all_drafts_block_training_without_auto_approval(tmp_path):
     with pytest.raises(DatasetError):load_dataset_manifest(path,require_approved=True)
 
 
+def weak_fixture_manifest(root):
+    path, data = fixture_manifest(root)
+    data["weak_label_experiment"] = {"enabled": True, "human_review_required": True,
+                                     "review_level": "automated_weak_labels"}
+    for sample in data["samples"]:
+        label_path = root / sample["annotation"]["path"]
+        label = json.loads(label_path.read_text())
+        label.update(annotation_status="machine_labeled", reviewer_id=None,
+                     review_level="automated_weak_labels", all_visible_contours_confirmed=False,
+                     human_review_required=True,
+                     weak_label_provenance={"method": "test fixture", "code_sha256": "a" * 64, "run_id": "fixture"})
+        label["revision"] = annotation_revision(label)
+        write(label_path, label)
+        sample["annotation"].update(status="machine_labeled", revision=label["revision"], sha256=sha256_file(label_path))
+    write(path, data)
+    return path, data
+
+
+def test_weak_dataset_requires_opt_in_and_preserves_protected_split_boundary(tmp_path):
+    path, data = weak_fixture_manifest(tmp_path)
+    with pytest.raises(DatasetError, match="manual review"):
+        ContourDataset(path, "train")
+    with pytest.raises(DatasetError):
+        load_dataset_manifest(path, require_approved=True)
+    # Loading train/validation must not depend on protected raster/label bytes.
+    for sample in data["samples"]:
+        if sample["split"] in ("calibration", "holdout"):
+            (tmp_path / sample["image"]).unlink()
+            (tmp_path / sample["annotation"]["path"]).unlink()
+    training = ContourDataset(path, "train", allow_weak_labels=True)
+    validation = ContourDataset(path, "validation", allow_weak_labels=True)
+    assert training.allow_weak_labels and validation.allow_weak_labels
+    assert training[0]["valid_mask"].any()
+    with pytest.raises(DatasetError):
+        ContourDataset(path, "holdout", allow_weak_labels=True)
+
+
+def test_weak_dataset_requires_experiment_and_exact_label_metadata(tmp_path):
+    path, data = weak_fixture_manifest(tmp_path)
+    data["weak_label_experiment"]["human_review_required"] = False
+    write(path, data)
+    with pytest.raises(DatasetError, match="separately declared"):
+        ContourDataset(path, "train", allow_weak_labels=True)
+    data["weak_label_experiment"]["human_review_required"] = True
+    data["samples"][0]["annotation"]["revision"] = "f" * 64
+    write(path, data)
+    with pytest.raises(DatasetError, match="manual review"):
+        ContourDataset(path, "train", allow_weak_labels=True)
+
+
 @pytest.mark.parametrize("leak",["alias","source_hash","source_url","pixel_content"])
 def test_cross_split_aliases_and_reencoded_identical_pixels_fail(tmp_path,leak):
     path,data=fixture_manifest(tmp_path)

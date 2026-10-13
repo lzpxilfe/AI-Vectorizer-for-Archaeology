@@ -11,7 +11,8 @@ import shutil
 import tempfile
 
 from .model import ARCHITECTURE, build_model
-from .train import canonical_sha256, code_identity, load_checkpoint, runtime_environment
+from .train import (canonical_sha256, code_identity, load_checkpoint,
+                    runtime_environment, validate_checkpoint_label_policy)
 
 
 PARITY_TOLERANCE = 1e-4
@@ -31,6 +32,16 @@ def validate_validation_selection(document, context):
         raise ValueError("selection must be frozen before calibration/holdout access")
     if document.get("publication_ranking_eligible") is not False:
         raise ValueError("single reviewer selection cannot claim publication ranking")
+    weak = context.get("allow_weak_labels", False)
+    if (type(document.get("allow_weak_labels", False)) is not bool
+            or type(weak) is not bool or document.get("allow_weak_labels", False) != weak):
+        raise ValueError("validation selection weak-label scope changed")
+    if weak and (document.get("human_review_required") is not True
+                 or document.get("review_level") != "automated_weak_labels"):
+        raise ValueError("weak-label selection must preserve missing human review")
+    if not weak and (document.get("human_review_required") is True
+                     or document.get("review_level") == "automated_weak_labels"):
+        raise ValueError("machine selection cannot claim human-reviewed scope")
     candidates = document.get("candidates")
     if not isinstance(candidates, list) or len(candidates) != 3:
         raise ValueError("validation selection requires all three seeds")
@@ -75,6 +86,7 @@ def _selection_context(checkpoint):
         "training_checkpoint_sha256": checkpoint["checkpoint_file_sha256"],
         "training_config_sha256": checkpoint["config_sha256"],
         "training_source_sha256": checkpoint["code"]["source_sha256"],
+        "allow_weak_labels": checkpoint.get("allow_weak_labels", False),
     }
 
 
@@ -99,6 +111,7 @@ def _load_selection_file(path, selected_checkpoint):
         base_config.pop(key)
     for candidate in document["candidates"]:
         checkpoint = load_checkpoint(candidate["checkpoint"])
+        validate_checkpoint_label_policy(checkpoint, allow_weak_labels=selected_checkpoint.get("allow_weak_labels", False))
         facts = _selection_context(checkpoint)
         if checkpoint["synthetic_diagnostic"] or checkpoint["progress"]["epoch"] < 1:
             raise ValueError("candidate must be a real validation-selected completed-epoch checkpoint")
@@ -137,7 +150,7 @@ def _parity_inputs():
 
 def export_checkpoint(checkpoint_path, output_directory, manifest_path, *,
                       license_spdx="GPL-2.0-only", synthetic_diagnostic=False,
-                      model_id=None, selection_file=None):
+                      model_id=None, selection_file=None, allow_weak_labels=False):
     import numpy as np
     import onnx
     import onnxruntime as ort
@@ -147,6 +160,7 @@ def export_checkpoint(checkpoint_path, output_directory, manifest_path, *,
 
     checkpoint_path = Path(checkpoint_path)
     checkpoint = load_checkpoint(checkpoint_path)
+    validate_checkpoint_label_policy(checkpoint, allow_weak_labels=allow_weak_labels)
     if bool(checkpoint["synthetic_diagnostic"]) != bool(synthetic_diagnostic):
         raise ValueError("synthetic diagnostic checkpoints require an explicit diagnostic export")
     if not synthetic_diagnostic and selection_file is None:
@@ -227,6 +241,8 @@ def export_checkpoint(checkpoint_path, output_directory, manifest_path, *,
             "epochs_completed": checkpoint["progress"]["epoch"],
             "best_validation_loss": checkpoint["progress"]["best_validation"],
             "review_level": checkpoint["review_level"],
+            "allow_weak_labels": allow_weak_labels,
+            "human_review_required": allow_weak_labels,
             "publication_ranking_eligible": False,
             "synthetic_diagnostic": bool(synthetic_diagnostic),
             "research_ready": False,
@@ -235,7 +251,8 @@ def export_checkpoint(checkpoint_path, output_directory, manifest_path, *,
         }
         model_bytes = model_path.read_bytes()
         bundle = build_bundle_manifest(model_bytes, provenance, model_id=model_id or (
-            "synthetic-learned-guide-smoke" if synthetic_diagnostic else "learned-contour-v1"
+            "synthetic-learned-guide-smoke" if synthetic_diagnostic else (
+                "weak-label-contour-experiment-v1" if allow_weak_labels else "learned-contour-v1")
         ))
         (stage / "manifest.json").write_text(json.dumps(bundle, indent=2, allow_nan=False) + "\n", encoding="utf-8")
         # Reserve the destination exclusively; validated manifest is published
@@ -261,10 +278,11 @@ def main(argv=None):
     parser.add_argument("--license", default="GPL-2.0-only")
     parser.add_argument("--synthetic-diagnostic", action="store_true")
     parser.add_argument("--selection-file")
+    parser.add_argument("--allow-weak-labels", action="store_true", help="export explicitly experimental weak-label weights")
     args = parser.parse_args(argv)
     print(json.dumps(export_checkpoint(args.checkpoint, args.output_directory, args.manifest,
         license_spdx=args.license, synthetic_diagnostic=args.synthetic_diagnostic,
-        selection_file=args.selection_file), indent=2))
+        selection_file=args.selection_file, allow_weak_labels=args.allow_weak_labels), indent=2))
 
 
 if __name__ == "__main__":

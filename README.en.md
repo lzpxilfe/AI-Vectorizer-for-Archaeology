@@ -157,8 +157,16 @@ The [Colab notebook](learning/colab_train.ipynb) uses a pinned public Git commit
 a separate Python 3.12 environment. It trains an ImageNet ResNet18 encoder with a
 small U-Net decoder for `contour_support` and `other_ink_risk`, saves resumable
 checkpoints to Drive, and selects one of three seeds using validation alone.
-Calibration then freezes path costs before the holdout comparison. Actual Colab
-training, reviewed holdout results, and Korean-map validation are still pending.
+
+Before human review, a separate [weak-label notebook](learning/colab_train_weak_labels.ipynb)
+can train a distinct experimental dataset with explicit `--allow-weak-labels`.
+Annotations remain `machine_labeled`; checkpoints and ONNX provenance retain
+`human_review_required=true`. Validation measures agreement with weak labels,
+not actual contour accuracy. These models cannot enter human-reviewed pilot
+Calibration/Holdout evaluation or be sealed as passing pilot models.
+For the human-reviewed pilot, calibration freezes path costs before the holdout
+comparison. Human-reviewed Colab training, reviewed holdout results, and
+Korean-map validation are still pending.
 Synthetic diagnostic bundles only verify the software path and carry
 `research_ready=false`; they are not domain-trained contour models. See the
 [learning guide](learning/README.md) for annotation, training, export, and

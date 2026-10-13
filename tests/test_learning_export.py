@@ -98,6 +98,71 @@ def selection_fixture(root):
     return document, records[3408]
 
 
+def test_weak_validation_selection_binds_scope_across_all_three_checkpoints(tmp_path):
+    document, _selected = selection_fixture(tmp_path)
+    for candidate in document["candidates"]:
+        checkpoint = load_checkpoint(candidate["checkpoint"])
+        checkpoint.update(allow_weak_labels=True, human_review_required=True,
+                          review_level="automated_weak_labels")
+        atomic_checkpoint(candidate["checkpoint"], checkpoint)
+        candidate["checkpoint_sha256"] = load_checkpoint(candidate["checkpoint"])["checkpoint_file_sha256"]
+    document.update(allow_weak_labels=True, human_review_required=True, review_level="automated_weak_labels")
+    selected = load_checkpoint(document["selected"]["checkpoint"])
+    path = tmp_path / "weak-selection.json"
+    path.write_text(json.dumps(document))
+    assert _load_selection_file(path, selected)["validation_selection"]["human_review_required"] is True
+    document.pop("human_review_required")
+    path.write_text(json.dumps(document))
+    with pytest.raises(ValueError, match="missing human review"):
+        _load_selection_file(path, selected)
+    document["human_review_required"] = True
+    path.write_text(json.dumps(document))
+    candidate = document["candidates"][0]
+    changed = load_checkpoint(candidate["checkpoint"])
+    changed.update(allow_weak_labels=False, human_review_required=False, review_level="single_reviewer_pilot")
+    atomic_checkpoint(candidate["checkpoint"], changed)
+    candidate["checkpoint_sha256"] = load_checkpoint(candidate["checkpoint"])["checkpoint_file_sha256"]
+    path.write_text(json.dumps(document))
+    with pytest.raises(ValueError, match="weak-label mode"):
+        _load_selection_file(path, selected)
+
+
+def test_weak_export_requires_matching_explicit_opt_in_before_model_execution(trained_synthetic, monkeypatch):
+    root, manifest, result = trained_synthetic
+    checkpoint = load_checkpoint(result["checkpoint"])
+    checkpoint.update(allow_weak_labels=True, human_review_required=True,
+                      review_level="automated_weak_labels", synthetic_diagnostic=False)
+    weak_path = root / "weak-scope-fixture.pt"
+    atomic_checkpoint(weak_path, checkpoint)
+    with pytest.raises(ValueError, match="weak-label mode"):
+        export_checkpoint(weak_path, root / "weak-without-opt-in", manifest)
+    with pytest.raises(ValueError, match="selection-file"):
+        export_checkpoint(weak_path, root / "weak-without-ranking", manifest, allow_weak_labels=True)
+
+
+def test_actual_onnx_export_preserves_weak_scope_and_requires_human_review(trained_synthetic, monkeypatch):
+    """Exercise actual ONNX bytes/parity; mock ranking separately tested above."""
+    from learning import export as exporter
+    root, manifest, result = trained_synthetic
+    checkpoint = load_checkpoint(result["checkpoint"])
+    checkpoint.update(allow_weak_labels=True, human_review_required=True,
+                      review_level="automated_weak_labels", synthetic_diagnostic=False)
+    weak_path = root / "weak-onnx-provenance-fixture.pt"
+    atomic_checkpoint(weak_path, checkpoint)
+    monkeypatch.setattr(exporter, "_load_selection_file", lambda *_args: {})
+    output = root / "weak-onnx-provenance-fixture"
+    bundle = export_checkpoint(weak_path, output, manifest, allow_weak_labels=True,
+                               selection_file=root / "mock-ranking.json")
+    assert bundle["model_id"] == "weak-label-contour-experiment-v1"
+    assert bundle["provenance"]["allow_weak_labels"] is True
+    assert bundle["provenance"]["human_review_required"] is True
+    assert bundle["provenance"]["review_level"] == "automated_weak_labels"
+    assert bundle["provenance"]["research_ready"] is False
+    assert bundle["provenance"]["publication_ranking_eligible"] is False
+    assert bundle["provenance"]["synthetic_diagnostic"] is False
+    assert inspect_bundle(output).ready
+
+
 def test_three_seed_selection_binds_actual_checkpoint_bytes_and_nonwinner_losses(tmp_path):
     document, selected = selection_fixture(tmp_path)
     path = tmp_path / "selected-model.json"

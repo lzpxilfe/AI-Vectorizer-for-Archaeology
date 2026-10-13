@@ -28,6 +28,38 @@ def reseal(value):
     return value
 
 
+def machine_annotation():
+    value = annotation(False)
+    value.update(annotation_status="machine_labeled", review_level="automated_weak_labels",
+                 reviewer_id=None, all_visible_contours_confirmed=False,
+                 human_review_required=True,
+                 weak_label_provenance={"method": "test-only", "code_sha256": "a" * 64, "run_id": "fixture"})
+    return reseal(value)
+
+
+def test_machine_labels_are_structurally_valid_but_never_human_approval():
+    value = machine_annotation()
+    validate_annotation(value)
+    with pytest.raises(DatasetError, match="human-reviewed"):
+        validate_annotation(value, require_approved=True)
+    assert rasterize_annotation(value)["valid_mask"].any()
+    with pytest.raises(DatasetError):
+        evaluation_reference(value)
+
+
+@pytest.mark.parametrize("change", [
+    {"reviewer_id": "person"}, {"all_visible_contours_confirmed": True},
+    {"human_review_required": False}, {"review_level": "single_reviewer_pilot"},
+    {"weak_label_provenance": {"method": "fixture", "run_id": "fixture"}},
+    {"annotation_status": "approved", "reviewer_id": "person", "all_visible_contours_confirmed": True},
+])
+def test_machine_labels_cannot_forge_human_review_or_omit_provenance(change):
+    value = machine_annotation()
+    value.update(change)
+    with pytest.raises(DatasetError):
+        validate_annotation(reseal(value))
+
+
 def test_unreviewed_and_explicit_ignore_have_no_supervision():
     result=rasterize_annotation(annotation())
     assert not result["valid_mask"][8,5]

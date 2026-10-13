@@ -158,6 +158,22 @@ def load_checkpoint(path):
     return payload
 
 
+def validate_checkpoint_label_policy(checkpoint, *, allow_weak_labels=False):
+    """An explicit experimental scope must survive resume and export unchanged."""
+    if type(allow_weak_labels) is not bool:
+        raise ValueError("allow_weak_labels must be an explicit boolean")
+    recorded = checkpoint.get("allow_weak_labels", False)
+    if type(recorded) is not bool or recorded != allow_weak_labels:
+        raise ValueError("checkpoint weak-label mode changed; explicit opt-in must match")
+    if recorded:
+        if (checkpoint.get("human_review_required") is not True
+                or checkpoint.get("review_level") != "automated_weak_labels"
+                or checkpoint.get("synthetic_diagnostic") is not False):
+            raise ValueError("weak-label checkpoint must preserve missing human review")
+    elif checkpoint.get("human_review_required") is True or checkpoint.get("review_level") == "automated_weak_labels":
+        raise ValueError("machine-label provenance cannot claim human-reviewed scope")
+
+
 def _batch(dataset, indices, *, seed, epoch, augmentation, device):
     import numpy as np
     import torch
@@ -202,7 +218,7 @@ def _validation(model, dataset, config, device):
 def train_run(manifest_path, run_dir, *, config=None, resume=None,
               initialize_pretrained=False, encoder_weights_path=None, device="cuda",
               retry_oom=False, max_optimizer_steps=None, synthetic_diagnostic=False,
-              training_dataset=None, validation_dataset=None):
+              training_dataset=None, validation_dataset=None, allow_weak_labels=False):
     """Train only validated train/validation selections, or explicit synthetic fixtures.
 
     Deliberate --retry-oom resumes a durable boundary at batch 1/accumulation
@@ -215,6 +231,8 @@ def train_run(manifest_path, run_dir, *, config=None, resume=None,
     from .losses import contour_loss
 
     config = (config or TrainConfig()).validate()
+    if type(allow_weak_labels) is not bool or (allow_weak_labels and synthetic_diagnostic):
+        raise ValueError("weak-label opt-in must be boolean and cannot claim synthetic diagnostics")
     if retry_oom:
         if resume is None:
             raise ValueError("deliberate OOM retry needs an existing boundary checkpoint")
@@ -226,8 +244,8 @@ def train_run(manifest_path, run_dir, *, config=None, resume=None,
     if training_dataset is None and validation_dataset is None:
         from .dataset import ContourDataset
 
-        training_dataset = ContourDataset(manifest_path, "train")
-        validation_dataset = ContourDataset(manifest_path, "validation")
+        training_dataset = ContourDataset(manifest_path, "train", allow_weak_labels=allow_weak_labels)
+        validation_dataset = ContourDataset(manifest_path, "validation", allow_weak_labels=allow_weak_labels)
     if training_dataset is None or validation_dataset is None or not len(training_dataset) or not len(validation_dataset):
         raise ValueError("training and validation each need approved labelled samples")
     if training_dataset.manifest_sha256 != validation_dataset.manifest_sha256:
@@ -238,7 +256,10 @@ def train_run(manifest_path, run_dir, *, config=None, resume=None,
         # Inspect only declared global metadata here. Protected calibration/
         # holdout label bytes remain unopened until their evaluation stage.
         declared = training_dataset.manifest.payload["samples"]
-        if any(sample.get("annotation", {}).get("status") != "approved"
+        if allow_weak_labels:
+            if len(declared) != 144 or any(sample.get("annotation", {}).get("status") != "machine_labeled" for sample in declared):
+                raise ValueError("freeze all weak-label revisions before experimental training")
+        elif any(sample.get("annotation", {}).get("status") != "approved"
                or (sample["split"] in ("calibration", "holdout") and (
                    sample.get("difficulty") not in ("standard", "hard")
                    or not sample.get("prompt") or not sample.get("reference_sha256")
@@ -253,6 +274,8 @@ def train_run(manifest_path, run_dir, *, config=None, resume=None,
         torch.set_num_threads(min(4, os.cpu_count() or 1))
     _seed_everything(config.seed)
     restored = load_checkpoint(resume) if resume is not None else None
+    if restored is not None:
+        validate_checkpoint_label_policy(restored, allow_weak_labels=allow_weak_labels)
     if restored is not None and initialize_pretrained:
         raise ValueError("resume loads checkpoint weights and cannot initialize pretrained weights")
     identity = code_identity()
@@ -306,13 +329,19 @@ def train_run(manifest_path, run_dir, *, config=None, resume=None,
             "code": identity, "environment": environment, "initialization": initialization,
             "progress": progress, "rng": _rng_state(), "gradient_accumulation_pending": 0,
             "synthetic_diagnostic": bool(synthetic_diagnostic),
-            "review_level": "synthetic_diagnostic" if synthetic_diagnostic else "single_reviewer_pilot",
+            "review_level": "synthetic_diagnostic" if synthetic_diagnostic else (
+                "automated_weak_labels" if allow_weak_labels else "single_reviewer_pilot"),
+            "allow_weak_labels": allow_weak_labels,
+            "human_review_required": allow_weak_labels,
             "publication_ranking_eligible": False,
         }
         atomic_checkpoint(run_dir / name, payload)
 
     # Initial boundary is recoverable even if the first GPU group runs OOM.
     checkpoint()
+    print("Training started: seed={} device={} scope={} resumed={}".format(
+        config.seed, target_device, "automated_weak_labels" if allow_weak_labels else (
+            "synthetic_diagnostic" if synthetic_diagnostic else "single_reviewer_pilot"), resume is not None), flush=True)
     model.train()
     stopped_reason = "early_stopping" if progress["bad_epochs"] >= config.patience else "max_epochs"
     while progress["epoch"] < config.max_epochs and progress["bad_epochs"] < config.patience:
@@ -364,6 +393,8 @@ def train_run(manifest_path, run_dir, *, config=None, resume=None,
             if time.monotonic() - last_checkpoint >= config.checkpoint_seconds:
                 checkpoint()
                 last_checkpoint = time.monotonic()
+                print("Checkpoint: seed={} epoch={} processed={}/{} optimizer_steps={}".format(
+                    config.seed, epoch + 1, group_end, len(order), progress["optimizer_steps"]), flush=True)
             if max_optimizer_steps is not None and progress["optimizer_steps"] >= int(max_optimizer_steps):
                 checkpoint()
                 return {"run_dir": str(run_dir), "checkpoint": str(run_dir / "latest.pt"), "progress": progress, "stopped_reason": "optimizer_step_limit", "synthetic_diagnostic": bool(synthetic_diagnostic)}
@@ -377,6 +408,8 @@ def train_run(manifest_path, run_dir, *, config=None, resume=None,
         checkpoint()
         if improved:
             checkpoint("best.pt")
+        print("Epoch {}/{} seed={}: training_loss={:.6f} validation_loss={:.6f} best={:.6f}".format(
+            epoch + 1, config.max_epochs, config.seed, training, validation, progress["best_validation"]), flush=True)
         last_checkpoint = time.monotonic()
         if progress["bad_epochs"] >= config.patience:
             stopped_reason = "early_stopping"
@@ -398,13 +431,15 @@ def main(argv=None):
     parser.add_argument("--retry-oom", action="store_true")
     parser.add_argument("--max-epochs", type=int, default=60)
     parser.add_argument("--max-optimizer-steps", type=int)
+    parser.add_argument("--allow-weak-labels", action="store_true", help="explicit experimental training; human review remains required")
     args = parser.parse_args(argv)
     config = TrainConfig(seed=args.seed, max_epochs=args.max_epochs)
     if args.resume:
         config = TrainConfig(**load_checkpoint(args.resume)["config"])
     print(json.dumps(train_run(args.manifest, args.run_dir, config=config, resume=args.resume,
         initialize_pretrained=args.initialize_pretrained, encoder_weights_path=args.encoder_weights,
-        device=args.device, retry_oom=args.retry_oom, max_optimizer_steps=args.max_optimizer_steps), indent=2))
+        device=args.device, retry_oom=args.retry_oom, max_optimizer_steps=args.max_optimizer_steps,
+        allow_weak_labels=args.allow_weak_labels), indent=2))
 
 
 if __name__ == "__main__":

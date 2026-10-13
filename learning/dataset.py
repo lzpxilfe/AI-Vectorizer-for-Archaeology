@@ -261,24 +261,36 @@ def load_dataset_manifest(path, *, require_approved=False, verify_files=True, ve
 
 class ContourDataset:
     """Approved Train/Validation only; no implicit masks, download or approval."""
-    def __init__(self, manifest_path, split, augmentation=None):
+    def __init__(self, manifest_path, split, augmentation=None, *, allow_weak_labels=False):
         if split not in ("train", "validation"):
             raise DatasetError("training access is restricted to train/validation")
         self.manifest = load_dataset_manifest(manifest_path, require_approved=False, verify_splits={split})
+        if type(allow_weak_labels) is not bool:
+            raise DatasetError("allow_weak_labels must be an explicit boolean")
+        self.allow_weak_labels = allow_weak_labels
+        if allow_weak_labels:
+            experiment = self.manifest.payload.get("weak_label_experiment", {})
+            if (not isinstance(experiment, dict)
+                    or experiment.get("enabled") is not True or experiment.get("human_review_required") is not True
+                    or experiment.get("review_level") != "automated_weak_labels"
+                    or self.manifest.payload["dataset_id"] == "usgs-contour-pilot-16x144-v1"):
+                raise DatasetError("weak-label training requires a separately declared experiment")
         self.manifest_sha256 = self.manifest.manifest_sha256
         self.samples = self.manifest.samples_for(split)
         self.sample_ids = tuple(s["id"] for s in self.samples)
         self.augmentation = augmentation
-        from .annotations import load_annotation, rasterize_annotation
+        from .annotations import load_training_annotation, rasterize_annotation
         for sample in self.samples:
             annotation = sample.get("annotation", {})
             try:
                 p = checked_file(self.manifest.root, annotation.get("path"), annotation.get("sha256"))
-                annotation_value = load_annotation(p, sample=sample, require_approved=True)
+                annotation_value = load_training_annotation(p, sample=sample, allow_weak_labels=allow_weak_labels)
+                if annotation.get("status") != annotation_value["annotation_status"] or annotation.get("revision") != annotation_value["revision"]:
+                    raise DatasetError("annotation metadata differs from immutable label bytes")
                 if not rasterize_annotation(annotation_value)["valid_mask"].any():
                     raise DatasetError("sample has no supervised pixels")
             except (DatasetError, ValueError) as exc:
-                raise DatasetError("sample needs explicit manual review: " + sample["id"]) from exc
+                raise DatasetError("sample needs explicit manual review or opted-in weak labels: " + sample["id"]) from exc
 
     def __len__(self):
         return len(self.samples)
@@ -286,12 +298,12 @@ class ContourDataset:
     def __getitem__(self, index):
         import numpy as np
         from PIL import Image
-        from .annotations import load_annotation, rasterize_annotation
+        from .annotations import load_training_annotation, rasterize_annotation
         sample = self.samples[index]
         path = checked_file(self.manifest.root, sample["image"], sample["image_sha256"])
         with Image.open(path) as image:
             pixels = np.asarray(image, dtype=np.uint8).copy()
         info = sample["annotation"]
-        annotation = load_annotation(checked_file(self.manifest.root, info["path"], info["sha256"]), sample=sample, require_approved=True)
+        annotation = load_training_annotation(checked_file(self.manifest.root, info["path"], info["sha256"]), sample=sample, allow_weak_labels=self.allow_weak_labels)
         result = {"image": pixels, "sample_id": sample["id"], **rasterize_annotation(annotation)}
         return self.augmentation(result) if self.augmentation is not None else result

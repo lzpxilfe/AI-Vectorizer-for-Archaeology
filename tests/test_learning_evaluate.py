@@ -51,6 +51,18 @@ def test_real_model_protocol_rechecks_frozen_validation_selection_without_traini
         evaluate._guard_model_protocol(dataset,{"provenance":provenance},False)
 
 
+@pytest.mark.parametrize("marker", [
+    {"allow_weak_labels": True}, {"human_review_required": True},
+    {"review_level": "automated_weak_labels"},
+])
+def test_weak_model_cannot_enter_pilot_evaluation_or_sealing(marker):
+    dataset = SimpleNamespace(manifest_sha256="a" * 64, payload={"dataset_id": "protocol-unit-fixture"})
+    provenance = _selection_provenance()
+    provenance.update(marker)
+    with pytest.raises(DatasetError, match="weak-label experiment"):
+        evaluate._guard_model_protocol(dataset, {"provenance": provenance}, False)
+
+
 @pytest.mark.parametrize("change",["content_hash","file_hash","calibration_access","holdout_access",
                                     "selection_scope","winner","cohort","seed","checkpoint",
                                     "config","source","validation_loss"])

@@ -4,10 +4,12 @@ from __future__ import annotations
 import hashlib
 import math
 from pathlib import Path
+import re
 
 from .dataset import DatasetError, canonical_bytes, read_json, sha256_file
 
 ANNOTATION_SCHEMA = "archaeotrace-learning-annotation/1"
+WEAK_LABEL_REVIEW_LEVEL = "automated_weak_labels"
 
 
 def annotation_revision(annotation):
@@ -64,17 +66,36 @@ def validate_annotation(annotation, *, sample=None, require_approved=False):
             if area <= 1e-8:
                 raise DatasetError("reviewed/ignore polygon has zero area")
     approved = annotation.get("annotation_status") == "approved"
+    weak = annotation.get("annotation_status") == "machine_labeled"
     if approved:
+        if annotation.get("human_review_required") is True or annotation.get("review_level") == WEAK_LABEL_REVIEW_LEVEL:
+            raise DatasetError("machine labels cannot claim human approval")
         if not isinstance(annotation.get("reviewer_id"), str) or not annotation["reviewer_id"].strip() or annotation["reviewer_id"] in ("ink-draft-v2", "automatic", "model"):
             raise DatasetError("approval requires a named human reviewer")
         if annotation.get("all_visible_contours_confirmed") is not True or not annotation["reviewed"]:
             raise DatasetError("reviewed area and explicit all-visible-contours confirmation required")
         if annotation.get("review_level") != "single_reviewer_pilot" or annotation.get("publication_ranking_eligible") is not False:
             raise DatasetError("one-user review must remain a non-publication pilot")
+    elif weak:
+        if (annotation.get("reviewer_id") is not None
+                or annotation.get("all_visible_contours_confirmed") is not False
+                or annotation.get("review_level") != WEAK_LABEL_REVIEW_LEVEL
+                or annotation.get("human_review_required") is not True
+                or annotation.get("publication_ranking_eligible") is not False):
+            raise DatasetError("machine labels must declare missing human review")
+        provenance = annotation.get("weak_label_provenance", {})
+        if (not isinstance(provenance, dict)
+                or any(not isinstance(provenance.get(key), str) or not provenance[key].strip()
+                       for key in ("method", "run_id"))
+                or not isinstance(provenance.get("code_sha256"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", provenance["code_sha256"])):
+            raise DatasetError("machine label method/code/run provenance required")
+        if annotation.get("evaluation") is not None:
+            raise DatasetError("machine labels cannot supply pilot evaluation targets")
     elif annotation.get("annotation_status") != "draft":
-        raise DatasetError("annotation status must be draft or approved")
+        raise DatasetError("annotation status must be draft, machine_labeled or approved")
     if require_approved and not approved:
-        raise DatasetError("draft labels cannot enter training")
+        raise DatasetError("unapproved labels cannot enter human-reviewed training")
     evaluation = annotation.get("evaluation")
     if evaluation is not None:
         if not approved:
@@ -95,6 +116,16 @@ def validate_annotation(annotation, *, sample=None, require_approved=False):
 
 def load_annotation(path, *, sample=None, require_approved=False):
     return validate_annotation(read_json(path), sample=sample, require_approved=require_approved)
+
+
+def load_training_annotation(path, *, sample=None, allow_weak_labels=False):
+    """Keep human-reviewed training as the default; weak targets need opt-in."""
+    if type(allow_weak_labels) is not bool:
+        raise DatasetError("allow_weak_labels must be an explicit boolean")
+    annotation = load_annotation(path, sample=sample, require_approved=not allow_weak_labels)
+    if allow_weak_labels and annotation["annotation_status"] != "machine_labeled":
+        raise DatasetError("weak-label experiment requires machine_labeled annotations")
+    return annotation
 
 
 def rasterize_annotation(annotation, *, sigma_px=1.5, other_sigma_px=2.0):
