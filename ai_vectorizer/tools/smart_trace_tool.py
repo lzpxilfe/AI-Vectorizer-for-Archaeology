@@ -52,6 +52,7 @@ from ..core.livewire import (
     is_livewire_available,
 )
 from ..core.line_evidence import crop_line_evidence
+from ..core.ink_color import sample_ink_color, guidance_from_ink_color
 from ..core.manual_gap_bridge import (
     ManualGapBridgeError,
     build_manual_gap_bridge,
@@ -852,6 +853,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def _on_raster_data_changed(self, *_args):
         """Invalidate source pixels changed in place and request a fresh cache."""
 
+        self._ink_color_profile = None
         if self._is_active and self._needs_edge_cache():
             self._schedule_edge_cache_update()
         else:
@@ -937,7 +939,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                  sam_engine=None, edge_weight=0.5, freehand=False, edge_method=DEFAULT_EDGE_METHOD,
                  iface=None, language="ko", auto_path=False,
                  recovery_engine=None, smart_recovery=False,
-                 recovery_state_callback=None):
+                 recovery_state_callback=None, ink_color_callback=None):
         self.canvas = canvas
         super().__init__(self.canvas)
         self.iface = iface
@@ -977,6 +979,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.smart_recovery_requested = bool(smart_recovery)
         self.recovery_engine = recovery_engine
         self.recovery_state_callback = recovery_state_callback
+        self.ink_color_callback = ink_color_callback
+        self._ink_color_profile = None
         self.smart_recovery_enabled = (
             self.smart_recovery_requested
             and not self.freehand
@@ -1395,6 +1399,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 RECOVERY_STATE_INK_FALLBACK,
                 "Ink evidence refresh was cancelled; exact cursor remains active.",
             )
+        self._emit_ink_color_state()
 
     def _manual_avoidance_is_supported(self):
         """Return whether this trace can apply a bounded Ink guidance map."""
@@ -1464,23 +1469,122 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if self.cached_edges is None or self.cache_transform is None:
             return None
         boxes = self._manual_avoidance_cache_boxes()
-        if not boxes:
-            return None
         try:
-            guidance = guidance_from_boxes(
-                self.cached_edges.shape,
-                boxes,
-                feather_pixels=self.MANUAL_AVOIDANCE_FEATHER_PIXELS,
-            )
+            guidance = None
+            if boxes:
+                guidance = guidance_from_boxes(
+                    self.cached_edges.shape,
+                    boxes,
+                    feather_pixels=self.MANUAL_AVOIDANCE_FEATHER_PIXELS,
+                )
+            if self._ink_color_profile is not None and self._ink_color_cache_ready():
+                color_guidance = guidance_from_ink_color(
+                    self.cached_rgb_image,
+                    self.cached_ink_evidence,
+                    self._ink_color_profile,
+                )
+                guidance = (
+                    color_guidance if guidance is None else TraceGuidance(
+                        np.maximum(
+                            guidance.avoidance_score,
+                            color_guidance.avoidance_score,
+                        )
+                    )
+                )
         except (TypeError, ValueError, OverflowError) as exc:
-            print(f"Manual avoidance guidance was ignored: {exc}")
+            print(f"Trace guidance was ignored: {exc}")
             return None
         # A selection can fall completely outside a newly panned cache. Do
         # not pass an all-zero optional array: absence keeps the frozen v1
         # graph path byte-for-byte unchanged for that cache.
-        if np.any(guidance.avoidance_score > 0.0):
+        if guidance is not None and np.any(guidance.avoidance_score > 0.0):
             self.cached_trace_guidance = guidance
         return self.cached_trace_guidance
+
+    def _ink_color_cache_ready(self):
+        return bool(
+            self._manual_avoidance_is_supported()
+            and self._recovery_cache_compatible
+            and self.cached_ink_evidence is not None
+            and self.cached_rgb_image is not None
+            and not self.cache_dirty
+            and self._ink_evidence_task is None
+            and is_livewire_available()
+        )
+
+    def _emit_ink_color_state(self):
+        callback = self.__dict__.get("ink_color_callback")
+        if callable(callback):
+            profile = self._ink_color_profile
+            try:
+                callback(
+                    profile.sample_rgb if profile is not None else None,
+                    self._ink_color_cache_ready(),
+                )
+            except (RuntimeError, TypeError) as exc:
+                print(f"Ink color state callback failed: {exc}")
+
+    def sample_ink_color_from_hover(self):
+        """Sample an explicit cursor target; never learn from a routed path."""
+
+        if not self._ink_color_cache_ready():
+            self._push_message(self._tr(
+                "지도 로딩이 끝난 8-bit RGB 지도에서 선 색상을 지정할 수 있습니다. Ink 모드, 0%보다 큰 보조 강도와 SciPy가 필요합니다.",
+                "Wait for an 8-bit RGB map to load. Color sampling requires Ink mode, assist above 0%, and SciPy.",
+            ))
+            return False
+        if (
+            self._pending_livewire_accept_point is not None
+            or self._manual_avoidance_draft_start is not None
+            or self._manual_gap_bridge_preview_is_current()
+        ):
+            self._push_message(self._tr(
+                "대기 중인 지점이나 제안을 확정·취소한 뒤 선 색상을 지정하세요.",
+                "Finish or cancel the pending point or proposal before sampling an ink color.",
+            ))
+            return False
+        if self.last_hover_pos is None:
+            self._push_message(self._tr(
+                "원하는 유색 선 위로 커서를 옮긴 뒤 C를 누르세요.",
+                "Hover over the desired colored line, then press C.",
+            ))
+            return False
+        try:
+            profile = sample_ink_color(
+                self.cached_rgb_image,
+                self.cached_ink_evidence,
+                self.map_to_pixel_float(self.last_hover_pos),
+            )
+        except (TypeError, ValueError, OverflowError):
+            profile = None
+        if profile is None:
+            self._push_message(self._tr(
+                "뚜렷한 유색 선을 찾지 못했습니다. 교차점·회색 선·배경을 피해서 다시 지정하세요.",
+                "No clear colored ink sample; try away from crossings, gray lines, and paper.",
+            ))
+            return False
+        self._ink_color_profile = profile
+        self._refresh_after_manual_avoidance_change("Ink color sample changed.")
+        self._emit_ink_color_state()
+        self._push_message(self._tr(
+            "선 색상을 지정했습니다. 초록 경로를 검수하세요. Shift+C로 해제합니다.",
+            "Ink color sampled; review the green route. Shift+C clears the sample.",
+        ), MESSAGE_INFO, 4)
+        return True
+
+    def clear_ink_color(self):
+        if self._ink_color_profile is None:
+            return False
+        if self._pending_livewire_accept_point is not None:
+            self._push_message(self._tr(
+                "대기 중인 Ink 지점을 확정하거나 취소한 뒤 색상을 해제하세요.",
+                "Finish or cancel the pending Ink point before clearing its color sample.",
+            ))
+            return False
+        self._ink_color_profile = None
+        self._refresh_after_manual_avoidance_change("Ink color sample cleared.")
+        self._emit_ink_color_state()
+        return True
 
     def _manual_avoidance_outline(self, first, second):
         try:
@@ -4176,6 +4280,16 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts for undo and save."""
 
+        modifiers = _qt_flag_int(event.modifiers())
+        shift_modifier = _qt_flag_int(_qt_value("ShiftModifier", "KeyboardModifier"))
+        if event.key() == _qt_value("Key_C", "Key") and modifiers in (0, shift_modifier):
+            if modifiers == shift_modifier:
+                self.clear_ink_color()
+            else:
+                self.sample_ink_color_from_hover()
+            event.accept()
+            return
+
         if (
             event.key() == _qt_value("Key_G", "Key")
             and not _qt_flag_int(event.modifiers())
@@ -4683,10 +4797,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             "height": out_h,
             "source_tile_origin": tuple(tile_origin),
         }
-        self._refresh_trace_guidance()
         self.sam_image_ready = False
         self.sam_warning_emitted = False
         self.cache_dirty = False
+        self._refresh_trace_guidance()
+        self._emit_ink_color_state()
         if self.is_tracing and self.path_points:
             self._request_livewire_tree(force=True)
 
@@ -5520,9 +5635,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._pending_livewire_recovery_identity = None
         self._manual_avoidance_regions = []
         self._manual_avoidance_draft_start = None
+        self._ink_color_profile = None
         self._manual_gap_bridge_preview_target = None
         self._manual_gap_bridge_preview_generation = None
         self.cached_trace_guidance = None
+        self._emit_ink_color_state()
         self.checkpoints = []
         self.start_point = None
         self.last_map_point = None

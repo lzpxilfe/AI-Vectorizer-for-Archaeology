@@ -16,6 +16,10 @@
 - Ink 추적 중 `Alt`+두 번 클릭으로 문자·기호·얼룩 회피 사각형을 표시하는
   session-only Manual Avoid Guidance. `Alt+Backspace`는 마지막 영역을,
   `Alt+Shift+Backspace`는 모든 영역을 제거합니다.
+- Ink 추적 시작 후 마지막 hover 위치에서 `C` 또는 `선 색상 지정`으로 유색
+  등고선을 지정하는 선택적 Ink Color Guidance. `Shift+C`로 해제하며, 준비된 native
+  Byte RGB Ink v2·SciPy와 `0%`보다 큰 assist가 필요합니다. 회색·배경·모호한 색은
+  거부하고 선택한 RGB를 표시합니다. 실제 지도 정확도·작업시간 개선 주장은 없습니다.
 - 색 있는 등고선이 숫자 라벨 때문에 실제로 끊긴 경우를 위한 anchor-bound
   continuity bridge. 시작 anchor와 양쪽 centerline endpoint가 같은 비중성 색·방향을
   보일 때에만 Live-Wire 내부의 연속 score를 보강하며, `LineEvidence.centerline`과
@@ -55,6 +59,10 @@
   경우에도 같은 immutable soft cost를 challenger corridor에 전달하며, model mask를
   선으로 저장하거나 hard exclusion으로 쓰지 않습니다. 지도·selection은 저장·업로드·
   telemetry로 전송되지 않습니다.
+- 선 색상은 원본 evidence를 바꾸지 않는 유한 soft mismatch cost이며, 회피 guidance와
+  픽셀별 최댓값으로 합쳐 Ink와 Recovery에 같은 snapshot을 전달합니다. pan 뒤 새
+  cache에서 다시 적용하고 추적 종료·취소·reset·raster 데이터 변경에서 지우며,
+  표본을 저장·업로드하지 않습니다. 같은 색의 글자·기호는 여전히 사용자 검수가 필요합니다.
 - continuity bridge는 grayscale/neutral anchor, 색 불일치, 방향 불일치, 12px보다
   짧거나 96px보다 긴 공백, 복잡하게 갈라진 색 endpoint에서 동작하지 않습니다. 이때
   기존 Ink champion을 그대로 유지하며 virtual support를 이진 mask와 OR하지 않습니다.

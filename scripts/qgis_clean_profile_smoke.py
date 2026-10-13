@@ -274,6 +274,7 @@ def _run_trace_scenario(
     rapid_accept: bool = False,
     defer_during_cache: bool = False,
     enhanced_accept: bool = False,
+    sample_color: bool = False,
 ) -> dict:
     """Drive real SmartTraceTool press/move/finish handlers to one feature."""
 
@@ -329,8 +330,6 @@ def _run_trace_scenario(
 
     start_map = QgsPointXY(*fixture["start"])
     end_map = QgsPointXY(*fixture["end"])
-    start_screen = tool.toCanvasCoordinates(start_map)
-    end_screen = tool.toCanvasCoordinates(end_map)
     try:
         canvas.setMapTool(tool)
         if freehand or edge_weight <= 0.0:
@@ -347,6 +346,9 @@ def _run_trace_scenario(
             if tool.cached_ink_evidence is None:
                 raise SmokeFailure(f"{name} fell back instead of publishing Ink v2.")
 
+        # Awaited event loops may finish a dock layout and resize the canvas.
+        # Convert immediately before each gesture, as a real mouse event does.
+        start_screen = tool.toCanvasCoordinates(start_map)
         tool.canvasPressEvent(Event(start_screen, button=left_button))
         if not tool.is_tracing:
             raise SmokeFailure(f"{name} did not begin tracing.")
@@ -362,6 +364,29 @@ def _run_trace_scenario(
                 f"{name} LiveWire tree",
             )
 
+        sampled_color = None
+        if sample_color:
+            from types import SimpleNamespace
+
+            sample_x = 70.0
+            sample_map = QgsPointXY(sample_x, 256.0 - float(fixture["curve_row"](sample_x)))
+            tool.canvasMoveEvent(Event(tool.toCanvasCoordinates(sample_map)))
+            tool.keyPressEvent(SimpleNamespace(
+                key=lambda: _qt_value(Qt, "Key_C", "Key"),
+                modifiers=lambda: no_modifier,
+                accept=lambda: None,
+            ))
+            if tool._ink_color_profile is None:
+                raise SmokeFailure(f"{name} did not sample the native RGB contour.")
+            sampled_color = tool._ink_color_profile.sample_rgb
+            if tool.cached_trace_guidance is None:
+                raise SmokeFailure(f"{name} did not apply color mismatch guidance.")
+            _wait_until(
+                lambda: tool._livewire_task is None and tool._livewire_tree is not None,
+                f"{name} color-guided LiveWire tree",
+            )
+
+        end_screen = tool.toCanvasCoordinates(end_map)
         tool.canvasMoveEvent(Event(end_screen))
         if not tool.preview_path:
             raise SmokeFailure(f"{name} did not display a cursor preview.")
@@ -449,6 +474,13 @@ def _run_trace_scenario(
         vertices = feature.geometry().asPolyline()
         if len(vertices) != len(accepted):
             raise SmokeFailure(f"{name} saved geometry differs from the accepted preview.")
+        if sample_color:
+            if tuple((point.x(), point.y()) for point in vertices) != tuple(
+                (point.x(), point.y()) for point in accepted
+            ):
+                raise SmokeFailure(f"{name} changed the accepted color-guided geometry.")
+            if tool._ink_color_profile is not None or tool.cached_trace_guidance is not None:
+                raise SmokeFailure(f"{name} retained color guidance after finishing the contour.")
         start_error = float(
             np.hypot(vertices[0].x() - start_map.x(), vertices[0].y() - start_map.y())
         )
@@ -493,6 +525,7 @@ def _run_trace_scenario(
             "rapid_accept_deferred": bool(rapid_accept),
             "cache_accept_deferred": bool(defer_during_cache),
             "enhanced_preview_preserved": bool(enhanced_accept),
+            "sampled_ink_color_rgb": sampled_color,
             "states": [state for state, _detail in state_events],
         }
     finally:
@@ -599,6 +632,16 @@ def run_qgis_bootstrap() -> None:
         _wait_until(lambda: not canvas.isDrawing(), "initial raster render")
 
         scenarios = [
+            _run_trace_scenario(
+                canvas=canvas,
+                raster_layer=raster_layer,
+                fixture=fixture,
+                name="ink-v2-explicit-color-sample",
+                edge_weight=1.0,
+                freehand=False,
+                smart_recovery=False,
+                sample_color=True,
+            ),
             _run_trace_scenario(
                 canvas=canvas,
                 raster_layer=raster_layer,

@@ -51,6 +51,8 @@
   assist slider
 - 🟧 Ink 추적 중 `Alt`+두 번 클릭으로 문자·기호·얼룩을 부드럽게 피하는
   session-only 회피 영역
+- 🎨 `C`로 원하는 유색 등고선을 지정하고 `Shift+C`로 해제하는 session-only
+  선 색상 보조
 - 🪜 숫자 라벨 때문에 실제로 끊긴 검은·갈색 등고선을 사용자가 검수해 이어 주는
   `⤴ 라벨 공백 연결` preview
 - 📐 접힌 `Advanced / Legacy methods`에 보존한 `LSD`, `HED`, `MobileSAM`,
@@ -101,6 +103,20 @@ snap으로 돌아갑니다. 탐색 범위를 제한해도
 Freehand로 교정하세요. Smart Recovery는 SAM mask를 선으로 저장하거나 Ink와 OR하지
 않습니다. 끝점·우회·강한 Ink 보존·평행선 전환 검사를 통과한 경로만 채택합니다.
 assist `0%`에서는 model과 evidence 계산을 모두 생략합니다.
+
+## Experimental: 선 색상 지정
+
+Ink 추적을 시작한 뒤 교차점·글자·배경을 피한 유색 등고선 위에 커서를 두고 `C`를
+누르세요. `선 색상 지정` 버튼도 마지막 지도 커서 위치를 사용하며, 상태에 선택한
+RGB가 표시됩니다. `Shift+C` 또는 `색상 해제`로 제거합니다. 준비된 native Byte RGB
+Ink v2 지도, SciPy와 `0%`보다 큰 assist가 필요합니다. 회색·배경이나 여러 색이
+겹쳐 모호한 지점은 지정하지 않습니다.
+
+다른 색의 Ink에 유한한 비용을 더하는 선택적 soft guidance입니다. 회피 영역과는
+픽셀별 최댓값으로 합쳐 Ink와 Recovery에 똑같이 전달하며, 같은 색의 글자·기호는
+여전히 구분하지 못하므로 초록 경로를 검수하세요. pan 뒤 새 cache에도 색상을 다시
+적용하지만 추적 종료·취소·reset 때 지웁니다. 색상은 저장·업로드되지 않습니다.
+실제 지도 정확도나 작업시간 개선을 검증한 기능은 아닙니다.
 
 ## Experimental: label-gap bridge
 
