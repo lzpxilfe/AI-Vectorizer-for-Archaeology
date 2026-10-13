@@ -256,7 +256,11 @@ def test_synthetic_complete_report_cannot_seal_a_model(tmp_path):
 
 def test_direct_seal_requires_dataset_and_rechecks_calibration(tmp_path,monkeypatch):
     """Protocol stubs never create a model or a historical-map result."""
-    from ai_vectorizer.core import learned_model
+    # Resolve the same module that the function's lazy import will use. Other
+    # optional-runtime tests temporarily restore sys.modules; a package's
+    # cached attribute may then refer to an earlier module object.
+    import importlib
+    learned_model = importlib.import_module("ai_vectorizer.core.learned_model")
     inspected=SimpleNamespace(ready=True,model_sha256="b"*64,bundle_sha256="c"*64,
                               manifest={"model":{"size_bytes":1000},
                                         "provenance":{"dataset_manifest_sha256":"a"*64}})
