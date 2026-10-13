@@ -41,6 +41,7 @@ from qgis.core import (
     QgsTask,
     QgsSymbol,
     QgsSingleSymbolRenderer,
+    QgsFillSymbol,
     Qgis,
 )
 from qgis.gui import QgsMapLayerComboBox
@@ -1250,6 +1251,8 @@ class AIVectorizerDock(QDockWidget):
             ))
 
     def open_annotation_project(self):
+        if self.active_tool is not None:
+            return False
         image_path, _filter = QFileDialog.getOpenFileName(
             self, self._tr("512픽셀 학습 크롭 선택", "Select a 512-pixel training crop"), "", "PNG (*.png)",
         )
@@ -1264,6 +1267,42 @@ class AIVectorizerDock(QDockWidget):
             self._annotation_session = create_annotation_project(
                 image_path, project_dir, Path(image_path).stem,
             )
+            session = self._annotation_session
+            # Unreferenced crops use a display coordinate system only. The
+            # exported annotation still records its original pixel affine.
+            if not session.raster.crs().isValid():
+                display_crs = QgsCoordinateReferenceSystem("EPSG:3857")
+                session.raster.setCrs(display_crs)
+                for layer in session.layers.values():
+                    layer.setCrs(display_crs)
+            colors = {
+                "contours": "#159447", "other_ink": "#e17617",
+                "other_ink_regions": "#e17617", "reviewed": "#167dcc",
+                "ignore": "#777777",
+            }
+            for name, layer in session.layers.items():
+                if name in ("contours", "other_ink"):
+                    symbol = QgsSymbol.defaultSymbol(layer.geometryType())
+                    symbol.setColor(QColor(colors[name]))
+                    symbol.setWidth(0.4)
+                else:
+                    symbol = QgsFillSymbol.createSimple({
+                        "color": "0,0,0,0", "outline_color": colors[name],
+                        "outline_width": "0.4", "outline_style": "dash",
+                    })
+                layer.setRenderer(QgsSingleSymbolRenderer(symbol))
+            project = QgsProject.instance()
+            project.addMapLayers([session.raster, *session.layers.values()])
+            canvas = self.iface.mapCanvas()
+            destination = canvas.mapSettings().destinationCrs()
+            extent = session.raster.extent()
+            if destination.isValid():
+                extent = QgsCoordinateTransform(session.raster.crs(), destination, project).transformBoundingBox(extent)
+            else:
+                canvas.setDestinationCrs(session.raster.crs())
+            canvas.setExtent(extent)
+            canvas.refresh()
+            self.iface.setActiveLayer(session.layers["contours"])
             self.annotation_export_btn.setEnabled(True)
             self._set_status_label(self._tr(
                 "등고선·문자/도로 영역·검수·ignore를 편집한 뒤 내보내세요. 평가할 선 하나를 선택할 수 있습니다.",
@@ -1306,7 +1345,6 @@ class AIVectorizerDock(QDockWidget):
             export_annotation_project(
                 self._annotation_session, path, reviewer.strip(), reviewer_id=reviewer.strip(),
                 approve=approve, all_visible_contours_confirmed=approve,
-                evaluation_target_id=target,
                 case_difficulty=difficulty,
             )
             self._set_status_label(self._tr("주석을 내보냈습니다: ", "Annotations exported: ") + path)

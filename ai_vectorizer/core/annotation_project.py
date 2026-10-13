@@ -252,7 +252,7 @@ def export_annotation_project(session, output_path, annotator_id, reviewer_id=No
                     records[name].append([[max(-.5,min(511.5,x)),max(-.5,min(511.5,y))] for x,y in ring])
     if approve and not records["reviewed"]:raise AnnotationProjectError("draw and save a reviewed area before approval")
     target_id=evaluation_target_id
-    if target_id is None and len(selected_ids)==1:target_id=selected_ids[0]
+    if approve and target_id is None and len(selected_ids)==1:target_id=selected_ids[0]
     evaluation=None
     if target_id is not None:
         if not approve:raise AnnotationProjectError("evaluation target requires an approved annotation")

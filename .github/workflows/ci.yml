@@ -321,3 +321,4 @@ jobs:
           python3 -m unittest tests.test_ink_color_qgis -v
           python3 -m unittest tests.test_learned_qgis -v
           python3 -m unittest tests.test_annotation_qgis -v
+          python3 -m unittest tests.test_annotation_ui_qgis -v

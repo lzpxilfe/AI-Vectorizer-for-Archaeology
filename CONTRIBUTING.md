@@ -68,7 +68,9 @@ Windows에서는 `.venv\Scripts\python.exe`를 사용하세요. 선택 SAM backe
    실행합니다. 선 색상 지정·guidance 변경은 `tests/test_ink_color_qgis.py`를 실제
    QGIS Python으로 실행합니다. QGIS 런타임 suite는 일반 Python의 skip 결과로 대체하지 않습니다.
    학습 보조·주석 변경은 `tests/test_learned_qgis.py`와 `tests/test_annotation_qgis.py`도
-   실제 QGIS Python에서 확인합니다. PyTorch 학습·재개·ONNX export는 별도의
+   실제 QGIS Python에서 확인합니다. 주석 버튼 흐름은 `tests/test_annotation_ui_qgis.py`로
+   실제 dock·지도 canvas·GeoPackage 편집과 JSON 내보내기를 확인합니다.
+   PyTorch 학습·재개·ONNX export는 별도의
    Python 3.12 환경에서 `requirements-learning.txt`를 사용하며 QGIS Python에 설치하지 않습니다.
    새 feature, 기존 contour 연장, 한 번의 Undo, layer removal, unload와 실제
    TIN→GeoTIFF→hillshade를 변경 범위에 맞게 확인합니다.
