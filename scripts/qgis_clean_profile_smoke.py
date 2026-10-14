@@ -766,6 +766,13 @@ def run_qgis_bootstrap() -> None:
             scenarios.append(_run_trace_scenario(canvas=canvas, raster_layer=raster_layer,
                 fixture=fixture, name="learned-guide-zero-assist", edge_weight=0.0, freehand=False,
                 smart_recovery=False, learned_engine=learned_engine, learned_guide=True))
+            # The guided lifecycle may legitimately leave the synthetic blue
+            # line (diagnostic weights are random; real weights may have
+            # learned map colour semantics), so record the miss instead of
+            # letting "ok" imply the guide followed it.
+            learned_error = scenarios[-2]["median_center_error_px"]
+            learned_diagnostic["synthetic_centerline_error_px"] = learned_error
+            learned_diagnostic["synthetic_centerline_followed"] = learned_error <= 4.0
 
         # The opt-in recovery bundle must remain absent.  The dock can migrate
         # its small, GPL-shipped HED network definition into persistent
@@ -799,6 +806,12 @@ def run_qgis_bootstrap() -> None:
             "recovery_model_states": recovery_states,
             "scenarios": scenarios,
             "learned_diagnostic": learned_diagnostic if bundle_path else None,
+            "warnings": (
+                ["learned-guide-native left the synthetic centerline "
+                 f"(median {learned_diagnostic['synthetic_centerline_error_px']:.1f}px)"]
+                if bundle_path and not learned_diagnostic["synthetic_centerline_followed"]
+                else []
+            ),
         }
         qgis.utils.unloadPlugin(PLUGIN_ID)
         project.clear()

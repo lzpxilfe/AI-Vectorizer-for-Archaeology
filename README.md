@@ -47,7 +47,7 @@
 
 - 🧪 [학습 등고선 파일럿](learning/README.md): USGS 144개 크롭 준비·QGIS 주석·
   Colab 학습/재개·CPU 평가와 기본 OFF 로컬 ONNX 보조. 사람 승인 주석은 0개이며,
-  별도 약한 라벨 실험의 실제 Colab T4 GPU 학습과 체크포인트 저장을 확인했습니다.
+  별도 약한 라벨 실험은 세 seed 학습·ONNX 내보내기·QGIS 동작 확인까지 마쳤습니다.
 - ✏️ 추가 model 없이 직접 입력하는 `Freehand`
 - 🖋️ 9·15·31 source-pixel 다중 스케일과 RGB/명도 증거를 한 번 계산해 제한된
   Live-Wire에 전달하는 기본 `Ink Centerline`
@@ -164,10 +164,18 @@ Holdout 성능 검증과 한국 지도 검증은 아직 완료하지 않았습�
 실행 방법은 [`약한 라벨 실험 안내`](learning/README.weak-labels.ko.md)에 있습니다.
 
 2026-10-14에는 Colab `2026.07` 런타임(Python 3.12.13, Tesla T4)에서 동결된
-144개 크롭 중 Train 72개·Validation 24개로 실제 학습을 실행했습니다.
-seed 3407의 최소 6 epoch와 Drive의 `latest.pt`·`best.pt` 저장을 확인했습니다.
-이 실행 기록 시점에는 세 seed 전체 학습과 ONNX 내보내기가 진행 중이며, 사람 검수·Holdout 결과와는
-별도입니다. 코드·데이터 해시는 [`실행 기록`](learning/COLAB_WEAK_RUN_2026-10-14.md)에 있습니다.
+144개 크롭 중 Train 72개·Validation 24개로 세 seed를 모두 학습했습니다. Validation
+손실만으로 seed 3408(60 epoch, 약한 라벨 손실 1.0018)을 골라 47.5 MiB FP32 ONNX로
+내보냈고, PyTorch와의 확률 차이는 최대 `1.7e-6`이었습니다. M4 Mac CPU에서 준비된
+타일 추론 p95는 69 ms, 추가 RAM은 254 MiB였고, QGIS 3.44.8에서 미리보기 좌표 저장·
+한 번의 Undo·0% 보조 시 추론 없음을 확인했습니다.
+
+이 모델은 USGS의 갈색 등고선 관례를 배웠습니다. 같은 선을 검정·파랑으로 그리면
+등고선이 아니라 회피 대상으로 판단하므로, 검정·파랑 등고선이 많은 한국 지도에는
+그대로 쓰지 마세요. Validation 크롭 5개의 QGIS 비교에서는 Ink가 이웃 등고선으로
+건너간 1개 사례를 바로잡았고 나머지는 비슷하거나 판단할 수 없었습니다. 기계 기준선과
+5개 사례만 쓴 방향 확인이며, 사람 검수·Calibration·Holdout 평가는 아직 남아 있습니다.
+해시와 측정 세부는 [`실행 기록`](learning/COLAB_WEAK_RUN_2026-10-14.md)에 있습니다.
 
 ## Experimental: 선 색상 지정
 
@@ -277,7 +285,7 @@ centerline, 실행 환경, 입력·출력 SHA-256, 시간·RAM과 topology 지�
 
 `learning/`의 16개 USGS 도엽·144개 크롭은 이 기존 8×6 회귀 자료와 별도입니다.
 학습·재개·ONNX 출력 비교와 QGIS 동작은 합성 자료로 검증했고, 별도 약한 라벨
-실험은 실제 USGS 크롭으로 Colab GPU 학습과 체크포인트 저장을 확인했습니다.
+실험은 실제 USGS 크롭으로 Colab GPU 학습·ONNX 내보내기·QGIS 동작을 확인했습니다.
 실제 지도의 F1@2px·선간 거리·끊김·과잉 분기 개선이나 도입 기준 통과를 주장하지 않습니다.
 
 ## Repository guide

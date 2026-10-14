@@ -43,7 +43,7 @@ inference service.
 - 🧪 [Learned contour pilot](learning/README.md): 144 prepared USGS crops, QGIS annotation
   tools, a resumable Colab notebook, CPU evaluation, and a default-OFF local ONNX
   guide. Human-approved annotations remain at zero; a separate weak-label
-  experiment has verified actual Colab T4 GPU training and persisted checkpoints.
+  experiment has completed three-seed training, ONNX export, and QGIS checks.
 - Freehand tracing with no additional model
 - Default multi-scale Ink Centerline evidence for dark and colored printed strokes
 - Optional Smart Recovery that uses a verified EfficientSAM-Ti model only as a
@@ -165,13 +165,22 @@ Annotations remain `machine_labeled`; checkpoints and ONNX provenance retain
 not actual contour accuracy. These models cannot enter human-reviewed pilot
 Calibration/Holdout evaluation or be sealed as passing pilot models.
 
-On 2026-10-14, the frozen 144-crop dataset ran on Colab runtime `2026.07`
-(Python 3.12.13, Tesla T4), using 72 train and 24 validation crops. Seed 3407
-completed at least six epochs, with `latest.pt` and `best.pt` saved to Drive.
-At the time of this execution record, the full three-seed run and ONNX export
-were still in progress. Human review and
-holdout evaluation remain separate and pending; the [execution record](learning/COLAB_WEAK_RUN_2026-10-14.md)
-binds the training code and dataset hashes.
+On 2026-10-14, all three seeds trained on the frozen 144-crop dataset on Colab
+runtime `2026.07` (Python 3.12.13, Tesla T4), using 72 train and 24 validation
+crops. Validation loss alone selected seed 3408 (60 epochs, weak-label loss
+1.0018), exported as a 47.5 MiB FP32 ONNX model whose probabilities differ from
+PyTorch by at most `1.7e-6`. On an M4 Mac CPU, prepared tile inference p95 was
+69 ms with 254 MiB of extra RAM, and QGIS 3.44.8 saved preview coordinates
+unchanged, undid in one step, and ran no inference at 0% assist.
+
+The model learned USGS brown-contour conventions. It treats the same line drawn
+in black or blue as something to avoid, so do not use it on maps with black or
+blue contours, including many Korean maps. In a five-crop QGIS comparison on
+validation sheets, it corrected one case where Ink jumped to a neighbouring
+contour; the others were similar or not interpretable. That comparison uses a
+machine reference and only shows direction. Human review, Calibration, and
+Holdout evaluation remain pending; the [execution record](learning/COLAB_WEAK_RUN_2026-10-14.md)
+holds the hashes and measurements.
 
 For the human-reviewed pilot, calibration freezes path costs before the holdout
 comparison. Human-reviewed Colab training, reviewed holdout results, and
