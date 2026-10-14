@@ -32,6 +32,8 @@ class TrainConfig:
     topology_weight: float = 0.2
     amp: bool = True
     augment: bool = True
+    ink_recolor: bool = False
+    label_gaps: bool = False
 
     def validate(self):
         import math
@@ -50,6 +52,9 @@ class TrainConfig:
             raise ValueError("checkpoint_seconds must be finite and nonnegative")
         if not math.isfinite(self.topology_weight) or self.topology_weight < 0:
             raise ValueError("topology_weight must be finite and nonnegative")
+        for name in ("amp", "augment", "ink_recolor", "label_gaps"):
+            if type(getattr(self, name)) is not bool:
+                raise ValueError(name + " must be a boolean")
         return self
 
 
@@ -174,7 +179,7 @@ def validate_checkpoint_label_policy(checkpoint, *, allow_weak_labels=False):
         raise ValueError("machine-label provenance cannot claim human-reviewed scope")
 
 
-def _batch(dataset, indices, *, seed, epoch, augmentation, device):
+def _batch(dataset, indices, *, seed, epoch, augmentation, device, ink_recolor=False, label_gaps=False):
     import numpy as np
     import torch
 
@@ -182,7 +187,8 @@ def _batch(dataset, indices, *, seed, epoch, augmentation, device):
     for index in indices:
         sample = dataset[int(index)]
         if augmentation:
-            sample = augment_sample(sample, sample_rng(seed, epoch, sample["sample_id"]))
+            sample = augment_sample(sample, sample_rng(seed, epoch, sample["sample_id"]),
+                                    ink_recolor=ink_recolor, label_gaps=label_gaps)
         image = np.asarray(sample["image"])
         if image.dtype != np.uint8 or image.shape != (512, 512, 3):
             raise ValueError("dataset images must be native Byte RGB 512x512")
@@ -257,7 +263,7 @@ def train_run(manifest_path, run_dir, *, config=None, resume=None,
         # holdout label bytes remain unopened until their evaluation stage.
         declared = training_dataset.manifest.payload["samples"]
         if allow_weak_labels:
-            if len(declared) != 144 or any(sample.get("annotation", {}).get("status") != "machine_labeled" for sample in declared):
+            if not declared or any(sample.get("annotation", {}).get("status") != "machine_labeled" for sample in declared):
                 raise ValueError("freeze all weak-label revisions before experimental training")
         elif any(sample.get("annotation", {}).get("status") != "approved"
                or (sample["split"] in ("calibration", "holdout") and (
@@ -359,7 +365,8 @@ def train_run(manifest_path, run_dir, *, config=None, resume=None,
             group_loss, group_count = 0.0, 0
             try:
                 for indices in batches:
-                    batch = _batch(training_dataset, indices, seed=config.seed, epoch=epoch, augmentation=config.augment, device=target_device)
+                    batch = _batch(training_dataset, indices, seed=config.seed, epoch=epoch, augmentation=config.augment,
+                                   device=target_device, ink_recolor=config.ink_recolor, label_gaps=config.label_gaps)
                     if not bool(batch["valid_mask"].any()):
                         continue
                     with torch.amp.autocast(device_type=target_device.type, enabled=amp_enabled):
