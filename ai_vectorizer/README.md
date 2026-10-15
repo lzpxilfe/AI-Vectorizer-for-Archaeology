@@ -177,10 +177,13 @@ Ink v2는 일부 숫자 공백을 **`G` 없이** 연결합니다. 원본 Byte �
 수동·색상·학습 회피 비용이 있거나 글자와 선이 붙어 모호하면 기존 Ink를 사용합니다.
 기존 경로가 두 실제 끝점과 보이는 선을 이미 잘 따르면 원래 경로와 평활화를 유지합니다.
 실제 `700`·`600` U자와 새 원본 감사에서 고른 대각선 `600` 바깥 쌍을 일반 클릭으로
-연결했습니다. 대각선의 기존 잘못된 안쪽 선 요청은 계속 거부합니다. `600` U자의 Ink
-가시 F1은 0.957→1.000으로 회복됐고 두 학습 guide는 0.957을 유지했습니다. 기존
+연결했습니다. 대각선의 기존 잘못된 안쪽 선 쌍에는 자동 연결을 제안하지 않으며
+기존 Ink fallback은 유지합니다. `600` U자의 Ink
+가시 F1은 1.000이며, 두 학습 guide도 남았던 0.957→1.000으로 개선됐습니다. 학습
+지지로 짧은 경로가 싸져 좋은 원본 경로가 비교에서 빠졌던 문제를 고쳤습니다. 검증된
+실제 공백에서 같은 끝점·가시선·표시 충돌 검사를 통과한 원본 경로만 보존합니다. 기존
 7건 × 세 방법의 저장 좌표도 같습니다. 숨은 선은 추정이며 검증 범위는
-[대각선·U자 후속 비교](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/learning/DIAGONAL_LABEL_FOLLOWUP_2026-10-15.md)에 있습니다.
+[학습 보조 U자 후속 비교](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/learning/LEARNED_U_FOLLOWUP_2026-10-16.md)에 있습니다.
 
 자동 연결이 나오지 않는 실제 공백은 양끝을 직접 지정할 수 있습니다. 공백 직전 마지막 실선에
 anchor를 확정하고 반대편 첫 실선 끝에서 `G`를 누르세요. 초록 preview를 검토한 다음 그 끝점을 클릭해야
@@ -400,7 +403,10 @@ first use.
   unique pair of original native endpoints per route. A text mask cannot cut
   an intact contour to manufacture an end; continuous ink in its padding stays
   visible. An already good route keeps its geometry and smoothing. Healthy visible connections take
-  priority; competing arms, cursor identity and the blended display are checked.
+  priority. For an established native label-gap pair, a learned shortcut also
+  competes with the unlearned Ink reference, subject to the same native ends,
+  visible-arm agreement and blended-display clearance. Other learned routes keep their
+  routing; competing arms, cursor identity and the blended display are checked.
   Fused/open glyphs and junctions remain ambiguous. Review the green preview
   and click to accept. For an explicit proposal, anchor a visible end, hover
   its first continuation and

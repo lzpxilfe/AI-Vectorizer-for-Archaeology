@@ -558,6 +558,100 @@ class OccludedConnectionQgisTests(unittest.TestCase):
         self.assertEqual(self._coordinates(self.tool.preview_path), guarded_preview)
         self.assertEqual(self.layer.featureCount(), 0)
 
+    def test_learned_reference_preserves_native_preview_normal_save_and_undo(self):
+        from ai_vectorizer.core.learned_prior import LearnedLinePrior
+        from ai_vectorizer.core.livewire import LiveWireTree
+        from ai_vectorizer.tools import smart_trace_tool
+        from ai_vectorizer.tools.smart_trace_tool import _qt_value
+
+        self.dispatcher.immediate = False
+        self._start()
+        task = self.dispatcher.tasks[-1]
+        task.learned_prior = LearnedLinePrior(
+            self.np.ones(self.evidence.shape, dtype=self.np.float32),
+            self.np.zeros(self.evidence.shape, dtype=self.np.float32),
+        )
+        self.assertTrue(task.run(), task.error)
+        tree = task.tree
+        reference = tree.occlusion_reference_tree
+        self.assertIsNotNone(reference)
+        self.assertIsNone(reference.occluded_connection)
+        connection = tree.occluded_connection
+        self.assertIsNotNone(connection)
+        inferred = connection.trace(self.target)
+        self.assertIsNotNone(inferred)
+        matching = [tuple(point) for point in inferred]
+        changed = 0
+        ox, oy = connection.origin
+        for index, (x, y) in enumerate(matching[1:-1], 1):
+            cx, cy = int(round(x - ox)), int(round(y - oy))
+            if (1 <= cx < connection.shape[1] - 1 and 1 <= cy < connection.shape[0] - 1
+                    and connection.mask[cy - 1:cy + 2, cx - 1:cx + 2].all()):
+                matching[index] = (x, y + 0.4)
+                changed += 1
+        self.assertGreater(changed, 5)
+        self.assertTrue(connection.preserves_visible_route(matching, inferred))
+        task.finished(True)
+        self.assertIs(self.tool._livewire_tree, tree)
+        reference_calls = []
+
+        def ordinary(selected, cursor):
+            if selected is reference:
+                reference_calls.append(tuple(cursor))
+                self.assertEqual(tuple(cursor), self.target)
+                return matching
+            return [tuple(map(float, self.root)), tuple(map(float, cursor))]
+
+        # Only the old pixel-route results are controlled. Actual RGB,
+        # portable thinning, true-endpoint selection, worker preparation,
+        # geometry guards, smoothing, acceptance and editing stay real.
+        with mock.patch.object(LiveWireTree, "_trace_without_occlusion", autospec=True, side_effect=ordinary), \
+             mock.patch.object(smart_trace_tool, "build_livewire_tree", side_effect=AssertionError("hover rebuilt reference")):
+            route, provenance = tree.trace_with_provenance(self.target)
+            self.assertEqual(provenance, "ink")
+            self.assertEqual(route, matching)
+            self.tool._present_livewire_cursor_preview(
+                self._target_map(), request_tree=False, schedule_recovery=False,
+            )
+            preserved = self._coordinates(self.tool.preview_path)
+            shown = [tuple(map(float, self.root))] + [
+                self.tool.map_to_pixel_float(point) for point in self.tool.preview_path
+            ]
+            # Check the geometry after the real five-point Ink smoothing,
+            # not only the pre-render reference accepted by the core guard.
+            self.assertTrue(connection.accepts_display(shown))
+            self.tool._livewire_tree = reference
+            self.tool._present_livewire_cursor_preview(
+                self._target_map(), request_tree=False, schedule_recovery=False,
+            )
+            self.assertEqual(self._coordinates(self.tool.preview_path), preserved)
+            self.tool._livewire_tree = tree
+            count = len(reference_calls)
+            self.assertIsNone(connection.trace(self.neighbour))
+            tree.trace_with_provenance(self.neighbour)
+            self.assertEqual(len(reference_calls), count)
+            self.tool._present_livewire_cursor_preview(
+                self._target_map(), request_tree=False, schedule_recovery=False,
+            )
+            expected = self._coordinates(self.tool.path_points) + preserved
+            self.tool.toMapCoordinates = lambda _point: QgsPointXY(self._target_map())
+            self.tool.canvasPressEvent(SimpleNamespace(
+                pos=lambda: QPointF(*self.target),
+                button=lambda: _qt_value("LeftButton", "MouseButton"), modifiers=lambda: 0,
+            ))
+            self.assertEqual(self._coordinates(self.tool.path_points), expected)
+        before = self.layer.undoStack().index()
+        self.assertTrue(self.tool.save_to_layer(closed=False, elevation=600.0))
+        self.assertEqual(self.layer.featureCount(), 1)
+        feature = next(self.layer.getFeatures())
+        self.assertEqual(self._coordinates(feature.geometry().asPolyline()), expected)
+        saved = [self.tool.map_to_pixel_float(QgsPointXY(point))
+                 for point in feature.geometry().asPolyline()]
+        self.assertTrue(connection.accepts_display(saved))
+        self.assertEqual(self.layer.undoStack().index(), before + 1)
+        self.layer.undoStack().undo()
+        self.assertEqual(self.layer.featureCount(), 0)
+
     def test_intact_outside_contour_survives_partial_blend_crossing_the_label(self):
         from dataclasses import replace
         from ai_vectorizer.core.livewire import blend_path_with_cursor

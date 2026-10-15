@@ -210,6 +210,7 @@ class LiveWireTree:
     observed_connection: Optional[ObservedConnectionTree] = None
     label_gap_connection: Optional[LabelGapConnectionTree] = None
     occluded_connection: Optional[OccludedConnectionTree] = None
+    occlusion_reference_tree: Optional["LiveWireTree"] = None
 
     @property
     def width(self) -> int:
@@ -247,6 +248,15 @@ class LiveWireTree:
                 )
                 if connection.preserves_visible_route(full_ordinary, candidate):
                     return ordinary, "ink"
+                reference = self.occlusion_reference_tree
+                if reference is not None:
+                    native_route = reference._trace_without_occlusion(target)
+                    if connection.preserves_visible_route(native_route, candidate):
+                        displayed = blend_path_with_cursor(
+                            native_route, self.root, target, self.strength
+                        )
+                        if connection.accepts_display(displayed):
+                            return displayed, "ink"
                 displayed = blend_path_with_cursor(candidate, self.root, target, self.strength)
                 if connection.accepts_display(displayed):
                     return displayed, "automatic-label-gap"
@@ -703,6 +713,31 @@ def build_livewire_tree(
             config=replace(config, automatic_label_occlusion=False),
             cancel_check=cancel_check,
         )
+    occlusion_reference_tree = None
+    if (occluded_connection is not None and learned_prior is not None
+            and config.learned_support_cap > 0.0 and np.any(learned_support > 0.0)):
+        # A learned pixel shortcut can hide an otherwise sound Ink route
+        # from the label-specific preservation check. Prepare its reference
+        # in this worker, and consult it only after selecting a genuine gap
+        # pair. It has no authority over unrelated learned routes or avoidance.
+        if champion_tree is not None:
+            occlusion_reference_tree = champion_tree
+        else:
+            try:
+                occlusion_reference_tree = build_livewire_tree(
+                    image, edges, root, strength=1.0,
+                    incoming_direction=incoming_direction, evidence=evidence,
+                    guidance=guidance, grid_prior=grid_prior, learned_prior=None,
+                    config=replace(config, automatic_label_occlusion=False),
+                    cancel_check=cancel_check,
+                )
+            except LiveWireCancelled:
+                raise
+            except (RuntimeError, MemoryError):
+                # The learned pixel tree and established automatic candidate
+                # remain usable if this optional reference cannot be prepared.
+                occlusion_reference_tree = None
+        _raise_if_cancelled(cancel_check)
     return LiveWireTree(
         root=(root_x, root_y),
         origin=(x0, y0),
@@ -716,6 +751,7 @@ def build_livewire_tree(
         observed_connection=observed_connection,
         label_gap_connection=label_gap_connection,
         occluded_connection=occluded_connection,
+        occlusion_reference_tree=occlusion_reference_tree,
     )
 
 

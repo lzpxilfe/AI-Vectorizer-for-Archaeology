@@ -296,11 +296,15 @@ and remaining failures are recorded in the [label-gap check](learning/LABEL_GAP_
 In QGIS, ordinary clicks now save undoable paths for the U bends and the diagonal
 `600` **outer pair selected by a new raw audit**. The diagonal keeps the visible
 arch and connects its actual gap; all three methods reach visible F1@2px 1.000.
-The former wrong inner-contour request remains refused. Retaining an already
-good Ink route restores the `600` U score from 0.957 to 1.000; the two learned
-guides remain at 0.957. All 21 saved-coordinate pairs from seven existing cases
+No automatic bridge is offered for the former wrong inner pair; its ordinary
+Ink fallback is unchanged. The `600` U now reaches
+visible F1 1.000 with Ink and both learned guides. Learned support had made a
+short pixel route cheaper, excluding the good Ink path from preservation.
+Only for an established native gap pair, the unlearned path is also checked
+against those same ends, visible arms and final display clearance.
+All 21 saved-coordinate pairs from seven existing cases
 and three methods remain identical. Hidden geometry remains unknown. See the
-[follow-up comparison](learning/DIAGONAL_LABEL_FOLLOWUP_2026-10-15.md) for exact
+[learned U follow-up](learning/LEARNED_U_FOLLOWUP_2026-10-16.md) for exact
 mouse inputs, the corrected pair and remaining limits.
 
 The declared OpenCV range is 4.8–4.11:

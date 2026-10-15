@@ -1,0 +1,1050 @@
+{
+  "schema_version": "archaeotrace-learned-u-followup/1",
+  "date": "2026-10-16",
+  "baseline_commit": "7b48d391ac97a9042b5a7dab0fbc0f0a9b8afebe",
+  "scope": "Repeated frozen validation development diagnostics; source-only cause analysis; no independent or blinded performance claim.",
+  "human_approved_positive_annotations": 0,
+  "hidden_geometry_ground_truth": false,
+  "training_or_weights_changed": false,
+  "calibration_or_holdout_opened": false,
+  "fixtures": {
+    "korea-label-gap-visual-cases-v4.json": "2866f1a53703e75f939a778e4babcbe2c7828a1dd66cea45653dcef2d75990ac",
+    "korea-contour-visual-cases-v3.json": "5bbab30767226e264bbaff202045f5cd8e403b677ddcedf1728f099edd981b63"
+  },
+  "reference_prompt_and_unknown_unchanged": true,
+  "qgis_version": "3.44.8-Solothurn",
+  "input_policy": "Integer mouse events at exact native cell centres, two screen pixels per native pixel; actual map input coordinates match across installed ZIP versions.",
+  "models": {
+    "usgs": {
+      "manifest_sha256": "23d9a69c6b1873b887516f43f1f759c2696735cb553b7d33c2eb60be5c111e39",
+      "model_sha256": "1a1ac337c76057dda3e85c7d3c38933b41b2225fe3e6900ebd0e211f362e07ce"
+    },
+    "korea": {
+      "manifest_sha256": "b3a936b810fabfa4a66c897d26fa945f2ca327c57db0f85d9dcfeb6135d4082c",
+      "model_sha256": "ae5fbf01e8fb073d686f81ec4f2f23367bd66386eddbfde8b314777e02e70398"
+    }
+  },
+  "cause": {
+    "scope": "Source-only diagnosis using frozen cached Byte RGB, original-native evidence, source-aligned model inference and grid costs. No reference curves or unknown evaluation boxes used.",
+    "root": [
+      225,
+      326
+    ],
+    "target": [
+      252.0,
+      324.0
+    ],
+    "selected_source": [
+      226,
+      339
+    ],
+    "selected_target": [
+      242,
+      336
+    ],
+    "image_sha256": "e17066746ba49f6e079766fd691c0389ccab367e23e13c2e6bb827723ec251df"
+  },
+  "cause_methods": {
+    "ink": {
+      "ordinary_vertices": 48,
+      "candidate_vertices": 87,
+      "candidate_same_as_ink": true,
+      "ordinary_source_min_px": 0.0,
+      "ordinary_target_min_px": 0.0,
+      "ordinary_guard": true,
+      "ink_reference_guard": true,
+      "provenance": "ink",
+      "ordinary_bbox": [
+        [
+          225.0,
+          324.0
+        ],
+        [
+          252.0,
+          344.0
+        ]
+      ],
+      "final_equals_ordinary": true
+    },
+    "usgs": {
+      "ordinary_vertices": 28,
+      "candidate_vertices": 87,
+      "candidate_same_as_ink": true,
+      "ordinary_source_min_px": 11.40175425099138,
+      "ordinary_target_min_px": 8.06225774829855,
+      "ordinary_guard": false,
+      "ink_reference_guard": true,
+      "provenance": "automatic-label-gap",
+      "ordinary_bbox": [
+        [
+          225.0,
+          324.0
+        ],
+        [
+          252.0,
+          329.0
+        ]
+      ],
+      "final_equals_ordinary": false,
+      "support_samples": {
+        "ink_native_ordinary": {
+          "n": 48,
+          "native_fraction": 0.8541666666666666,
+          "observed_score_mean": 0.8982441425323486,
+          "learned_score_mean": 0.7938053011894226,
+          "learned_score_p10": 0.7432010173797607,
+          "learned_score_p90": 0.8399116396903992
+        },
+        "learned_ordinary": {
+          "n": 28,
+          "native_fraction": 0.5714285714285714,
+          "observed_score_mean": 0.6267938613891602,
+          "learned_score_mean": 0.7754945158958435,
+          "learned_score_p10": 0.7215390205383301,
+          "learned_score_p90": 0.8295548558235168
+        },
+        "candidate": {
+          "n": 87,
+          "native_fraction": 0.45977011494252873,
+          "observed_score_mean": 0.5239102840423584,
+          "learned_score_mean": 0.8063816428184509,
+          "learned_score_p10": 0.7506608963012695,
+          "learned_score_p90": 0.8502079248428345
+        }
+      },
+      "model_sha256": "1a1ac337c76057dda3e85c7d3c38933b41b2225fe3e6900ebd0e211f362e07ce"
+    },
+    "korea": {
+      "ordinary_vertices": 28,
+      "candidate_vertices": 87,
+      "candidate_same_as_ink": true,
+      "ordinary_source_min_px": 11.045361017187261,
+      "ordinary_target_min_px": 8.06225774829855,
+      "ordinary_guard": false,
+      "ink_reference_guard": true,
+      "provenance": "automatic-label-gap",
+      "ordinary_bbox": [
+        [
+          225.0,
+          324.0
+        ],
+        [
+          252.0,
+          329.0
+        ]
+      ],
+      "final_equals_ordinary": false,
+      "support_samples": {
+        "ink_native_ordinary": {
+          "n": 48,
+          "native_fraction": 0.8541666666666666,
+          "observed_score_mean": 0.8982441425323486,
+          "learned_score_mean": 0.8695598244667053,
+          "learned_score_p10": 0.5836902856826782,
+          "learned_score_p90": 0.9900832772254944
+        },
+        "learned_ordinary": {
+          "n": 28,
+          "native_fraction": 0.5714285714285714,
+          "observed_score_mean": 0.6267938613891602,
+          "learned_score_mean": 0.8508682250976562,
+          "learned_score_p10": 0.4886089265346527,
+          "learned_score_p90": 0.9941558241844177
+        },
+        "candidate": {
+          "n": 87,
+          "native_fraction": 0.45977011494252873,
+          "observed_score_mean": 0.5239102840423584,
+          "learned_score_mean": 0.6155137419700623,
+          "learned_score_p10": 0.13530592620372772,
+          "learned_score_p90": 0.9886245131492615
+        }
+      },
+      "model_sha256": "ae5fbf01e8fb073d686f81ec4f2f23367bd66386eddbfde8b314777e02e70398"
+    }
+  },
+  "cases": [
+    {
+      "id": "kr-10-crop-01-label-700-u",
+      "methods": {
+        "ink": {
+          "before": {
+            "visible_median_px": 1.0,
+            "visible_p95_px": 2.0,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after": {
+            "visible_median_px": 1.0,
+            "visible_p95_px": 2.0,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "input_map_xy": {
+            "start": [
+              219.5,
+              239.5
+            ],
+            "end": [
+              256.5,
+              242.5
+            ]
+          },
+          "saved_coordinates_unchanged": true,
+          "route_before": "automatic-label-gap",
+          "route_after": "automatic-label-gap",
+          "one_undo": true,
+          "after_candidate_available": true
+        },
+        "usgs": {
+          "before": {
+            "visible_median_px": 1.0,
+            "visible_p95_px": 2.0,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after": {
+            "visible_median_px": 1.0,
+            "visible_p95_px": 2.0,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "input_map_xy": {
+            "start": [
+              219.5,
+              239.5
+            ],
+            "end": [
+              256.5,
+              242.5
+            ]
+          },
+          "saved_coordinates_unchanged": true,
+          "route_before": "automatic-label-gap",
+          "route_after": "automatic-label-gap",
+          "one_undo": true,
+          "after_candidate_available": true
+        },
+        "korea": {
+          "before": {
+            "visible_median_px": 1.0,
+            "visible_p95_px": 2.0,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after": {
+            "visible_median_px": 1.0,
+            "visible_p95_px": 2.0,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "input_map_xy": {
+            "start": [
+              219.5,
+              239.5
+            ],
+            "end": [
+              256.5,
+              242.5
+            ]
+          },
+          "saved_coordinates_unchanged": true,
+          "route_before": "automatic-label-gap",
+          "route_after": "automatic-label-gap",
+          "one_undo": true,
+          "after_candidate_available": true
+        }
+      },
+      "hidden_geometry_scored": false
+    },
+    {
+      "id": "kr-10-crop-01-label-600-u",
+      "methods": {
+        "ink": {
+          "before": {
+            "visible_median_px": 0.152,
+            "visible_p95_px": 0.558,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after": {
+            "visible_median_px": 0.152,
+            "visible_p95_px": 0.558,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "input_map_xy": {
+            "start": [
+              225.5,
+              185.5
+            ],
+            "end": [
+              252.5,
+              187.5
+            ]
+          },
+          "saved_coordinates_unchanged": true,
+          "route_before": "ink",
+          "route_after": "ink",
+          "one_undo": true,
+          "after_candidate_available": true
+        },
+        "usgs": {
+          "before": {
+            "visible_median_px": 0.186,
+            "visible_p95_px": 2.75,
+            "visible_precision_2px": 0.918,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 0.957
+          },
+          "after": {
+            "visible_median_px": 0.152,
+            "visible_p95_px": 0.558,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "input_map_xy": {
+            "start": [
+              225.5,
+              185.5
+            ],
+            "end": [
+              252.5,
+              187.5
+            ]
+          },
+          "saved_coordinates_unchanged": false,
+          "route_before": "automatic-label-gap",
+          "route_after": "ink",
+          "one_undo": true,
+          "after_candidate_available": true
+        },
+        "korea": {
+          "before": {
+            "visible_median_px": 0.186,
+            "visible_p95_px": 2.75,
+            "visible_precision_2px": 0.918,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 0.957
+          },
+          "after": {
+            "visible_median_px": 0.152,
+            "visible_p95_px": 0.558,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "input_map_xy": {
+            "start": [
+              225.5,
+              185.5
+            ],
+            "end": [
+              252.5,
+              187.5
+            ]
+          },
+          "saved_coordinates_unchanged": false,
+          "route_before": "automatic-label-gap",
+          "route_after": "ink",
+          "one_undo": true,
+          "after_candidate_available": true
+        }
+      },
+      "hidden_geometry_scored": false
+    },
+    {
+      "id": "kr-10-crop-12-label-600-diagonal-outer-raw-v1",
+      "methods": {
+        "ink": {
+          "before": {
+            "visible_median_px": 0.149,
+            "visible_p95_px": 0.471,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after": {
+            "visible_median_px": 0.149,
+            "visible_p95_px": 0.471,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "input_map_xy": {
+            "start": [
+              119.5,
+              249.5
+            ],
+            "end": [
+              145.5,
+              278.5
+            ]
+          },
+          "saved_coordinates_unchanged": true,
+          "route_before": "automatic-label-gap",
+          "route_after": "automatic-label-gap",
+          "one_undo": true,
+          "after_candidate_available": true
+        },
+        "usgs": {
+          "before": {
+            "visible_median_px": 0.149,
+            "visible_p95_px": 0.471,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after": {
+            "visible_median_px": 0.149,
+            "visible_p95_px": 0.471,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "input_map_xy": {
+            "start": [
+              119.5,
+              249.5
+            ],
+            "end": [
+              145.5,
+              278.5
+            ]
+          },
+          "saved_coordinates_unchanged": true,
+          "route_before": "automatic-label-gap",
+          "route_after": "automatic-label-gap",
+          "one_undo": true,
+          "after_candidate_available": true
+        },
+        "korea": {
+          "before": {
+            "visible_median_px": 0.149,
+            "visible_p95_px": 0.471,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after": {
+            "visible_median_px": 0.149,
+            "visible_p95_px": 0.471,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "input_map_xy": {
+            "start": [
+              119.5,
+              249.5
+            ],
+            "end": [
+              145.5,
+              278.5
+            ]
+          },
+          "saved_coordinates_unchanged": true,
+          "route_before": "automatic-label-gap",
+          "route_after": "automatic-label-gap",
+          "one_undo": true,
+          "after_candidate_available": true
+        }
+      },
+      "hidden_geometry_scored": false
+    },
+    {
+      "id": "kr-10-crop-12-label-600-diagonal-wrong-neighbor",
+      "methods": {
+        "ink": {
+          "before": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "input_map_xy": {
+            "start": [
+              123.5,
+              242.5
+            ],
+            "end": [
+              153.5,
+              250.5
+            ]
+          },
+          "saved_coordinates_unchanged": true,
+          "route_before": "ink",
+          "route_after": "ink",
+          "one_undo": true,
+          "after_candidate_available": false
+        },
+        "usgs": {
+          "before": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "input_map_xy": {
+            "start": [
+              123.5,
+              242.5
+            ],
+            "end": [
+              153.5,
+              250.5
+            ]
+          },
+          "saved_coordinates_unchanged": true,
+          "route_before": "ink",
+          "route_after": "ink",
+          "one_undo": true,
+          "after_candidate_available": false
+        },
+        "korea": {
+          "before": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "input_map_xy": {
+            "start": [
+              123.5,
+              242.5
+            ],
+            "end": [
+              153.5,
+              250.5
+            ]
+          },
+          "saved_coordinates_unchanged": true,
+          "route_before": "ink",
+          "route_after": "ink",
+          "one_undo": true,
+          "after_candidate_available": false
+        }
+      },
+      "hidden_geometry_scored": false
+    },
+    {
+      "id": "kr-10-crop-01-label-600-wrong-neighbor",
+      "methods": {
+        "ink": {
+          "before": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "input_map_xy": {
+            "start": [
+              225.5,
+              185.5
+            ],
+            "end": [
+              263.5,
+              184.5
+            ]
+          },
+          "saved_coordinates_unchanged": true,
+          "route_before": "ink",
+          "route_after": "ink",
+          "one_undo": true,
+          "after_candidate_available": false
+        },
+        "usgs": {
+          "before": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "input_map_xy": {
+            "start": [
+              225.5,
+              185.5
+            ],
+            "end": [
+              263.5,
+              184.5
+            ]
+          },
+          "saved_coordinates_unchanged": true,
+          "route_before": "ink",
+          "route_after": "ink",
+          "one_undo": true,
+          "after_candidate_available": false
+        },
+        "korea": {
+          "before": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "input_map_xy": {
+            "start": [
+              225.5,
+              185.5
+            ],
+            "end": [
+              263.5,
+              184.5
+            ]
+          },
+          "saved_coordinates_unchanged": true,
+          "route_before": "ink",
+          "route_after": "ink",
+          "one_undo": true,
+          "after_candidate_available": false
+        }
+      },
+      "hidden_geometry_scored": false
+    }
+  ],
+  "existing_case_preservation": {
+    "cases": [
+      {
+        "id": "kr-10-crop-04-clear-w",
+        "saved_coordinate_pairs_identical": true
+      },
+      {
+        "id": "kr-09-crop-08-curving",
+        "saved_coordinate_pairs_identical": true
+      },
+      {
+        "id": "kr-09-crop-05-grid-crossing",
+        "saved_coordinate_pairs_identical": true
+      },
+      {
+        "id": "kr-10-crop-02-deep-u",
+        "saved_coordinate_pairs_identical": true
+      },
+      {
+        "id": "kr-10-crop-06-dense-s",
+        "saved_coordinate_pairs_identical": true
+      },
+      {
+        "id": "kr-09-crop-02-index-u",
+        "saved_coordinate_pairs_identical": true
+      },
+      {
+        "id": "kr-10-crop-01-clear-w-corrected-raw-v1",
+        "saved_coordinate_pairs_identical": true
+      }
+    ],
+    "case_count": 7,
+    "methods_per_case": 3,
+    "saved_coordinate_pairs_identical": 21
+  },
+  "all_pair_count": 36,
+  "changed_pairs": [
+    "kr-10-crop-01-label-600-u:usgs",
+    "kr-10-crop-01-label-600-u:korea"
+  ],
+  "saved_coordinates_equal_ink_for_all_three_600_u": true,
+  "checks": {
+    "comparison_processes": {
+      "labels": {
+        "before_exit": 0,
+        "after_exit": 0,
+        "before_profile_removed": true,
+        "after_profile_removed": true
+      },
+      "old-seven": {
+        "before_exit": 0,
+        "after_exit": 0,
+        "before_profile_removed": true,
+        "after_profile_removed": true
+      }
+    },
+    "pure_pytest": {
+      "passed": 1040,
+      "skipped": 155,
+      "subtests_passed": 171,
+      "log_sha256": "60bbbc4e0b94ae53c857da11d4e57759dd9b705dbe3b069a442310b3bbced070"
+    },
+    "packaged_qgis": {
+      "passed": 163,
+      "skipped": 0,
+      "import_smoke": true,
+      "suites": {
+        "import_smoke": {
+          "returncode": 0,
+          "tests": null,
+          "profile_removed_after_run": true
+        },
+        "test_qgis_runtime_safety": {
+          "returncode": 0,
+          "tests": 63,
+          "profile_removed_after_run": true
+        },
+        "test_manual_gap_qgis": {
+          "returncode": 0,
+          "tests": 19,
+          "profile_removed_after_run": true
+        },
+        "test_ink_color_qgis": {
+          "returncode": 0,
+          "tests": 9,
+          "profile_removed_after_run": true
+        },
+        "test_learned_qgis": {
+          "returncode": 0,
+          "tests": 25,
+          "profile_removed_after_run": true
+        },
+        "test_map_grid_qgis": {
+          "returncode": 0,
+          "tests": 7,
+          "profile_removed_after_run": true
+        },
+        "test_observed_connection_qgis": {
+          "returncode": 0,
+          "tests": 7,
+          "profile_removed_after_run": true
+        },
+        "test_label_gap_qgis": {
+          "returncode": 0,
+          "tests": 10,
+          "profile_removed_after_run": true
+        },
+        "test_confirmed_gap_qgis": {
+          "returncode": 0,
+          "tests": 9,
+          "profile_removed_after_run": true
+        },
+        "test_occluded_connection_qgis": {
+          "returncode": 0,
+          "tests": 14,
+          "profile_removed_after_run": true
+        }
+      }
+    },
+    "clean_profile": {
+      "scenarios": 9,
+      "warnings": 0,
+      "qgis_exit_code": 0,
+      "profile_removed": true
+    }
+  },
+  "local_build_diagnostic": {
+    "scope": "Local host Python source-only validation development diagnostic, not actual QGIS; one frozen512px Korean validation image,320px LiveWire window. Prepared original-native evidence,grid andmodelpriors reused. Model inference/data loading excluded. Two warmups perversion thenfive paired builds, alternating order. Current core modules shared by both; exact previous livewire source loaded under separate module name fromgit without editing checkout. Timing distributions are small samples, not performance guarantees.",
+    "environment": {
+      "python": "3.12.13 (main, Mar 10 2026, 18:18:07) [Clang 21.1.4 ]",
+      "platform": "macOS-26.6.2-arm64-arm-64bit",
+      "numpy": "2.5.4",
+      "scipy": "1.18.1"
+    },
+    "warmups_per_version": 2,
+    "paired_iterations": 5,
+    "methods": {
+      "ink": {
+        "before_median_ms": 64.80641616508365,
+        "after_median_ms": 65.33629167824984,
+        "median_added_ms": 0.5298755131661892
+      },
+      "usgs": {
+        "before_median_ms": 62.636292073875666,
+        "after_median_ms": 96.79087484255433,
+        "median_added_ms": 34.154582768678665
+      },
+      "korea": {
+        "before_median_ms": 62.36624997109175,
+        "after_median_ms": 96.74058295786381,
+        "median_added_ms": 34.37433298677206
+      }
+    }
+  },
+  "package": {
+    "baseline_sha256": "b7d96e84552f4e6837ac62b91e98ea36a44864b3bc80a464569c158bb155db9d",
+    "comparison_zip_sha256": "31e1fcd0e89ddd87a89cac75f8476ee426d86a8a2e60d1149bd8a1bca62504ac",
+    "name": "ai_vectorizer-unreleased-learned600u.zip",
+    "sha256": "14890ade7fad9850c49ebd41a96071d4df852f95004e8d719fb204781e173004",
+    "metadata_version": "0.1.6",
+    "all_python_bytes_match_source_and_comparison_zip": true,
+    "python_files": [
+      {
+        "path": "ai_vectorizer/__init__.py",
+        "sha256": "176146198dca6b0aa453c29d8e74eb5ca301e78fdb962207cfc51ef7b55179a1"
+      },
+      {
+        "path": "ai_vectorizer/config.py",
+        "sha256": "21349fcb63ac7aeda5982d6c5dcd68d30f54376fe664a113c1e06a3e76a52ee9"
+      },
+      {
+        "path": "ai_vectorizer/core/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "ai_vectorizer/core/annotation_project.py",
+        "sha256": "1174befe55482f34c624633865f2b33b902bf2133ebed06b9239310c1ae1c2d2"
+      },
+      {
+        "path": "ai_vectorizer/core/confirmed_gap_curve.py",
+        "sha256": "89a3604bb963dd8ad5a0ba658ab1854cabd3bed3030d2d9aca05a63611480885"
+      },
+      {
+        "path": "ai_vectorizer/core/confirmed_gap_evidence.py",
+        "sha256": "003522f062bbb026661fac8ee85d7a7628bb6c8c9156302877b7367b0013d41a"
+      },
+      {
+        "path": "ai_vectorizer/core/dem_pipeline.py",
+        "sha256": "e5691ecf24acf41f72191dc0d067dd08b0b6528e5174ca867cf666a6cc0bfcb1"
+      },
+      {
+        "path": "ai_vectorizer/core/dem_spec.py",
+        "sha256": "b17389fb52a570e5be0446515f22bbdfa77c446661f7dde09c411ddbb57cf12c"
+      },
+      {
+        "path": "ai_vectorizer/core/dependencies.py",
+        "sha256": "18d5607c6da0cb631ce0449acb4636a651eec40121cfe6c86935e61affc6baa7"
+      },
+      {
+        "path": "ai_vectorizer/core/edge_detector.py",
+        "sha256": "3abf095ecb5b2c1cc96ff9c8b74c1b30b0bf01200e449e1eab684f25cb3be015"
+      },
+      {
+        "path": "ai_vectorizer/core/efficientsam_onnx.py",
+        "sha256": "f8baa08819e13c19738e113725f8e20e69d5e3f320eadb376a429451d00841b6"
+      },
+      {
+        "path": "ai_vectorizer/core/efficientsam_recovery.py",
+        "sha256": "f32b7d76e59c0222db6ff396b66ac2493a64025bacd23f9279f94eede0cebb0a"
+      },
+      {
+        "path": "ai_vectorizer/core/efficientsam_spec.py",
+        "sha256": "2b6010ee7b7bcee68c95a1d15ee68d73f54837915abbd519f2e382d87603706e"
+      },
+      {
+        "path": "ai_vectorizer/core/ink_color.py",
+        "sha256": "f8536a46fb24ff7582199016dab4262006c38e3e4ae4b772d728d9b13e290491"
+      },
+      {
+        "path": "ai_vectorizer/core/interaction_policy.py",
+        "sha256": "73bfe523c83aa66ca938febaca75b33c895f4d6c06b1f5c5aa6a05ffe90e6878"
+      },
+      {
+        "path": "ai_vectorizer/core/label_gap.py",
+        "sha256": "a4dd6b7d8517b42d27eb43b2586045258749a4ba4b347e53cad8eda2428a0853"
+      },
+      {
+        "path": "ai_vectorizer/core/label_gap_route.py",
+        "sha256": "04fd09994157a4108dff636d62c6d94a80719ae96ed3332ee4bbb4e0815b9827"
+      },
+      {
+        "path": "ai_vectorizer/core/label_occlusion.py",
+        "sha256": "852ef08358739f69e714b68a87eae3e9891f947730248c6c1993f4e04193c59d"
+      },
+      {
+        "path": "ai_vectorizer/core/learned_model.py",
+        "sha256": "5f35872b6185ca05f08f19da959cdb091bd6daab69306c2e6382397285e648ae"
+      },
+      {
+        "path": "ai_vectorizer/core/learned_prior.py",
+        "sha256": "c768ba10ca753266584d5ace24dc786f88b5058e708904188b755930142a7dc0"
+      },
+      {
+        "path": "ai_vectorizer/core/line_evidence.py",
+        "sha256": "2ae15ea7c63764eaf1505d91f29adb2cd2f2380f0ccf402cf6d792d0509c7b74"
+      },
+      {
+        "path": "ai_vectorizer/core/livewire.py",
+        "sha256": "5857ad47186e8f42e3916eb731d383c2e71ac6dfa6981d1d3fa2e584214026ad"
+      },
+      {
+        "path": "ai_vectorizer/core/manual_gap_bridge.py",
+        "sha256": "f8453eef43a10e7111652da7a64aa4d680edc23fc47bbf6b7e60c04c2cd9716d"
+      },
+      {
+        "path": "ai_vectorizer/core/map_grid.py",
+        "sha256": "c45f344d98d39c3e050ae002c629b7827e519c290ac7608f72e79464a2c347d6"
+      },
+      {
+        "path": "ai_vectorizer/core/model_store.py",
+        "sha256": "6d98907dd1c165243cf8fd3701131a5ef93bf3bc2f3790aa39b4930863145be1"
+      },
+      {
+        "path": "ai_vectorizer/core/observed_connection.py",
+        "sha256": "51cda66209a94bcd124adbddadad2cf6219639a5328c7808df1e8778b9d68242"
+      },
+      {
+        "path": "ai_vectorizer/core/occluded_connection.py",
+        "sha256": "5be82ea96f31bc02fd231fed7404f7cd703dec734a623126b4612f2c35ba84ee"
+      },
+      {
+        "path": "ai_vectorizer/core/occlusion_route_guard.py",
+        "sha256": "ecbad2655b87676ac6baa71c731c9e008b9430fa1c22519613455d89c0430386"
+      },
+      {
+        "path": "ai_vectorizer/core/path_finder.py",
+        "sha256": "0902730b4d8f918d67a04231cb2d269672cb10b2de70809ade4c0b279a1d5098"
+      },
+      {
+        "path": "ai_vectorizer/core/raster_utils.py",
+        "sha256": "cbbb35d36d63aef1b199e56546f4b634c4b2c99d73aa99200e1ef22d124804e1"
+      },
+      {
+        "path": "ai_vectorizer/core/recovery_prompts.py",
+        "sha256": "8c0d33e9765e21bf91fcc3f945448f9ef95959830207c49c3ccd8dca9b6ccd6b"
+      },
+      {
+        "path": "ai_vectorizer/core/sam_engine.py",
+        "sha256": "93022c8ad6ace6965d8c5e073f2a8c17d1132a079af93c98b1a7c6c0924fddd5"
+      },
+      {
+        "path": "ai_vectorizer/core/sam_trace_kernel.py",
+        "sha256": "96fad7b081874952f237c40207debf4a245619e01166fd74a954116ee7c3b843"
+      },
+      {
+        "path": "ai_vectorizer/core/smart_recovery.py",
+        "sha256": "190a93db3a2085595269fb6fb2df4908753ba28bea4d4b2850c1858acc0fdabb"
+      },
+      {
+        "path": "ai_vectorizer/core/trace_guidance.py",
+        "sha256": "489f812a0e26c98548e1ec99cd63c910595eaf02ea1525bfd31e3c3a4ae62b31"
+      },
+      {
+        "path": "ai_vectorizer/core/trace_kernel.py",
+        "sha256": "95ab9e77ade3bdde68f0799ed1bfc021807e4177633a2eaa3d190826c666f9c7"
+      },
+      {
+        "path": "ai_vectorizer/core/vectorizer.py",
+        "sha256": "8fe40f7563f6ed092e95bac9137196cdc7e38743ad45b60cf9c56fb390ba1229"
+      },
+      {
+        "path": "ai_vectorizer/plugin.py",
+        "sha256": "b31bdcd671e4f4f803b72293b976639cfebc427e8ce62011ada6fdd53da65037"
+      },
+      {
+        "path": "ai_vectorizer/recovery.py",
+        "sha256": "89824f73c5b7f47d3e654535d655f9d978385b2f0b4d72b17cd42f04f34bc535"
+      },
+      {
+        "path": "ai_vectorizer/tools/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "ai_vectorizer/tools/smart_trace_tool.py",
+        "sha256": "f2990740f1e982fa7d4aa39b9d35517adead317eb2124061407bd81cb3e2c8de"
+      },
+      {
+        "path": "ai_vectorizer/ui/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "ai_vectorizer/ui/dem_dialog.py",
+        "sha256": "6b1d1ce08b9318d5329858e06bb343137f4d01e5416f37368bf61328eb5a8f46"
+      },
+      {
+        "path": "ai_vectorizer/ui/main_dialog.py",
+        "sha256": "cad4c95c6aa0c69256f2ac6291deca08587413dd9b1b19fbb1c8cf32fe0b8f65"
+      }
+    ]
+  },
+  "artifact_evidence_sha256": {
+    "comparison-consistency.json": "b5e592c59eac07df515f67b8e700a9e8f4544ce73380bb0e698313f6bd64792f",
+    "labels/result.json": "e7ed5feaf03e348a59ef94a303932c90b6c181ad0c580bb4bd0b257582948395",
+    "labels/scores.json": "1f62db26cc71c422ea6d4668fe65c39fcdeeeaffde5acb481bfaf278a762c60c",
+    "old-seven/result.json": "dbea965582b325a1a6b5d3c6976ba4f22010f04f38e0fbde163f0b15687265c2",
+    "diagnosis.json": "c57f9be80ce3965b7bf9a317de139b04ee294b0bc80e691cac71361c1a8d5446",
+    "after-fix.json": "cf812acb490582642d93905849daf9eaca2f8eceb96fd77d660e913ba08884f1",
+    "build-benchmark.json": "b232f180a681c0e6e4498768eb80fb5b7f7f0a888cd98a59164a2384285cbd98",
+    "inference-provenance.json": "6a1fed92b6c0fb2e572fb02de3b66ed2b2f2aa0803cefcefd57a3a1835f5796b",
+    "clean-profile.json": "8d9d53191fc1c56fcdba4b85918ea64ef797fc94bf11199e89a1e8141c839eff",
+    "graph-costs.json": "df497f8cd349a45ffef2b900784f90417278a61b16b3a3cb81dd33e210ea15eb",
+    "labels/kr-10-crop-01-label-600-u-comparison.png": "3ed369928de6abe71eaedf7caca00b2fd6acdedc3119bf52d3833132b7986bf1",
+    "package-qgis-final-wzog_lw1/result.json": "98ea0f53abeb135aeeca898a65b43afb22cc316c23a570925534b1f7d3b0e5b9"
+  },
+  "known_limits": [
+    "Hidden contour geometry remains unknown and unscored; all references are agent visual inspections with no human approval.",
+    "The new reference is scoped to an established true endpoint pair; unrelated learned routing and active avoidance keep the previous behavior.",
+    "Wrong-neighbor negatives produce no automatic candidate; their unchanged ordinary Ink fallback is not a guarantee against incorrect user clicks.",
+    "The local five-iteration tree timing excludes inference and image loading; it is not a QGIS end-to-end or general latency guarantee."
+  ],
+  "graph_cost_diagnosis": {
+    "ink": {
+      "route_costs": {
+        "ink_ordinary": 80.62025451660156,
+        "usgs_ordinary": 84.13871765136719,
+        "korea_ordinary": 83.8871078491211
+      }
+    },
+    "usgs": {
+      "route_costs": {
+        "ink_ordinary": 68.55352020263672,
+        "usgs_ordinary": 55.2620735168457,
+        "korea_ordinary": 55.47962188720703
+      },
+      "off_native_samples": {
+        "ink_ordinary": {
+          "off_native_count": 7,
+          "off_native_observed_score_mean": 0.30224570631980896,
+          "off_native_learned_support_mean": 0.7971915006637573,
+          "off_native_effective_support_mean": 0.6402162313461304
+        },
+        "usgs_ordinary": {
+          "off_native_count": 12,
+          "off_native_observed_score_mean": 0.12918569147586823,
+          "off_native_learned_support_mean": 0.7638511061668396,
+          "off_native_effective_support_mean": 0.6125175952911377
+        },
+        "korea_ordinary": {
+          "off_native_count": 12,
+          "off_native_observed_score_mean": 0.12918569147586823,
+          "off_native_learned_support_mean": 0.757291853427887,
+          "off_native_effective_support_mean": 0.6072702407836914
+        }
+      }
+    },
+    "korea": {
+      "route_costs": {
+        "ink_ordinary": 67.30583190917969,
+        "usgs_ordinary": 59.70778274536133,
+        "korea_ordinary": 58.033103942871094
+      },
+      "off_native_samples": {
+        "ink_ordinary": {
+          "off_native_count": 7,
+          "off_native_observed_score_mean": 0.30224570631980896,
+          "off_native_learned_support_mean": 0.8665515780448914,
+          "off_native_effective_support_mean": 0.6932412981987
+        },
+        "usgs_ordinary": {
+          "off_native_count": 12,
+          "off_native_observed_score_mean": 0.12918569147586823,
+          "off_native_learned_support_mean": 0.6845462918281555,
+          "off_native_effective_support_mean": 0.5476370453834534
+        },
+        "korea_ordinary": {
+          "off_native_count": 12,
+          "off_native_observed_score_mean": 0.12918569147586823,
+          "off_native_learned_support_mean": 0.710547149181366,
+          "off_native_effective_support_mean": 0.5684377551078796
+        }
+      }
+    }
+  }
+}
