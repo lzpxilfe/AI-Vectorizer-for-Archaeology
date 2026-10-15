@@ -61,6 +61,11 @@ from ..core.manual_gap_bridge import (
     sample_manual_gap_bridge_tangents,
     sample_manual_gap_tangent,
 )
+from ..core.confirmed_gap_curve import ConfirmedGapCurveConfig, build_confirmed_gap_curve
+from ..core.confirmed_gap_evidence import (
+    sample_confirmed_gap_tangents,
+    confirmed_gap_curve_is_clear,
+)
 from ..core.trace_guidance import (
     TraceGuidance,
     crop_trace_guidance,
@@ -2044,7 +2049,35 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return False
 
-    def preview_manual_gap_bridge(self):
+    def _confirmed_manual_gap_curve(self, start_pixel, end_pixel):
+        directions = sample_confirmed_gap_tangents(
+            self.cached_ink_evidence, start_pixel, end_pixel,
+            incoming_direction=self._livewire_incoming_direction(start_pixel),
+        )
+        if directions is None:
+            raise ManualGapBridgeError("visible endpoint directions are ambiguous")
+        # Keep endpoint directions while shortening the two control handles
+        # if a broad bow would touch a neighboring sustained stroke. Each
+        # candidate obeys the same geometry bounds and no endpoint moves.
+        for ratio in (2.0 / 3.0, 0.5, 0.4, 0.3):
+            try:
+                curve = build_confirmed_gap_curve(
+                    start_pixel, end_pixel, *directions,
+                    config=ConfirmedGapCurveConfig(handle_ratio=ratio),
+                )
+            except ValueError:
+                continue
+            displayed = blend_path_with_cursor(
+                curve.points_xy, start_pixel, end_pixel, self.edge_weight,
+            )
+            if (
+                confirmed_gap_curve_is_clear(self.cached_ink_evidence, curve.points_xy)
+                and confirmed_gap_curve_is_clear(self.cached_ink_evidence, displayed)
+            ):
+                return curve
+        raise ManualGapBridgeError("curve crosses another sustained native stroke")
+
+    def preview_manual_gap_bridge(self, *, allow_confirmed_curve=True):
         """Show an explicit neutral-contour gap bridge; a second click commits it."""
 
         if (
@@ -2115,17 +2148,19 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     end_tangent,
                 )
             except ManualGapBridgeError as direct_error:
-                contextual_tangents = self._contextual_manual_gap_bridge_tangents(
-                    start_pixel, end_pixel,
-                )
-                if contextual_tangents is None:
-                    raise direct_error
-                bridge = build_manual_gap_bridge(
-                    start_pixel,
-                    end_pixel,
-                    contextual_tangents[0],
-                    contextual_tangents[1],
-                )
+                try:
+                    contextual_tangents = self._contextual_manual_gap_bridge_tangents(
+                        start_pixel, end_pixel,
+                    )
+                    if contextual_tangents is None:
+                        raise direct_error
+                    bridge = build_manual_gap_bridge(
+                        start_pixel, end_pixel, *contextual_tangents,
+                    )
+                except ManualGapBridgeError:
+                    if not allow_confirmed_curve:
+                        raise
+                    bridge = self._confirmed_manual_gap_curve(start_pixel, end_pixel)
             pixel_points = blend_path_with_cursor(
                 bridge.points_xy, start_pixel, end_pixel, self.edge_weight,
             )
@@ -4122,6 +4157,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # Preserve the existing double-click spot-height gesture before
             # Auto Path's two-click proposal acceptance can intercept it.
             near_start = self.is_near_start(point)
+            if accept_manual_bridge and len(self.path_points) == 1:
+                # Confirming a short, explicit gap is a segment acceptance;
+                # the nearby-start spot-height gesture must not consume it.
+                near_start = False
             if near_start and len(self.path_points) == 1:
                 elevation = self.ask_elevation()
                 if elevation is None:

@@ -1,0 +1,15 @@
+{
+  "schema_version": "archaeotrace-contour-case-audit/1",
+  "human_approved": false,
+  "review_level": "agent_visual_inspection",
+  "withdrawn": [
+    {
+      "case_id": "kr-10-crop-12-label-500-diagonal",
+      "reason": "Right reference x94,y171 is a vertical map-grid rule aroundx95, not the intended500 contour. Raw-only full-context reinspection and outward-context analysis detected this before this reviewer opened model/path outputs. Never count as positive accuracy or optimize toward it. Original v1 bytes retained for audit.",
+      "original_fixture": "korea-label-gap-visual-cases-v1.json",
+      "original_fixture_sha256": "e47c3604f46a890b63f540ab1eabafa0566a3e12461a5b22f777f642726dc982",
+      "replacement_fixture": "korea-label-gap-visual-cases-v2.json",
+      "policy": "Keep original bytes as withdrawn evidence; do not score or tune to this case."
+    }
+  ]
+}

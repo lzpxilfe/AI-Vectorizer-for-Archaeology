@@ -410,6 +410,7 @@ def test_colored_anchor_bridge_crosses_a_label_gap_without_mutating_evidence():
             max_window_size=160,
             target_snap_radius=0,
             continuity_bridge_score=0.0,
+            label_gap_connections=False,
         ),
         **common,
     ).trace(target)

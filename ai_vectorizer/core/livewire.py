@@ -24,6 +24,7 @@ from .observed_connection import (
     ObservedConnectionTree,
     build_observed_connection,
 )
+from .label_gap_route import LabelGapConnectionTree, build_label_gap_connection
 from .smart_recovery import arbitrate_routes
 
 
@@ -63,6 +64,7 @@ class LiveWireConfig:
     learned_observation_gate: bool = False
     learned_route_guard: bool = False
     observed_connections: bool = True
+    label_gap_connections: bool = True
     map_grid_cost_weight: float = 10.0
     heading_cost_weight: float = 3.0
     heading_decay_pixels: float = 22.0
@@ -85,6 +87,8 @@ class LiveWireConfig:
             raise ValueError("learned_route_guard must be a boolean")
         if not isinstance(self.observed_connections, bool):
             raise ValueError("observed_connections must be a boolean")
+        if not isinstance(self.label_gap_connections, bool):
+            raise ValueError("label_gap_connections must be a boolean")
         if (
             isinstance(self.max_window_size, bool)
             or not isinstance(self.max_window_size, int)
@@ -198,6 +202,7 @@ class LiveWireTree:
     champion_tree: Optional["LiveWireTree"] = None
     route_evidence: Optional[LineEvidence] = None
     observed_connection: Optional[ObservedConnectionTree] = None
+    label_gap_connection: Optional[LabelGapConnectionTree] = None
 
     @property
     def width(self) -> int:
@@ -232,6 +237,12 @@ class LiveWireTree:
         observed = None
         if self.observed_connection is not None:
             observed = self.observed_connection.trace(target)
+            if observed is None and self.label_gap_connection is not None:
+                gap = self.label_gap_connection.trace(target)
+                if gap is not None:
+                    return blend_path_with_cursor(
+                        gap, self.root, (target_x, target_y), self.strength
+                    )
             if observed is not None and self.observed_connection.gap_outward is None:
                 return blend_path_with_cursor(
                     observed, self.root, (target_x, target_y), self.strength
@@ -600,6 +611,21 @@ def build_livewire_tree(
             # The complete pixel tree is already available. An optional
             # compact runtime failure must not discard that valid fallback.
             observed_connection = None
+    label_gap_connection = None
+    if config.label_gap_connections and observed_connection is not None:
+        try:
+            from .label_gap import build_label_gap_connectors
+            connectors = build_label_gap_connectors(crop_evidence[1], cancel_check=cancel_check)
+            label_gap_connection = build_label_gap_connection(
+                graph, observed_connection, connectors,
+                sparse=sparse, dijkstra=dijkstra, cancel_check=cancel_check,
+            )
+        except ObservedConnectionCancelled as exc:
+            raise LiveWireCancelled(str(exc)) from exc
+        except LiveWireCancelled:
+            raise
+        except (RuntimeError, MemoryError):
+            label_gap_connection = None
     champion_tree = None
     if (
         learned_prior is not None and config.learned_route_guard and strength > 0.0
@@ -626,6 +652,7 @@ def build_livewire_tree(
         champion_tree=champion_tree,
         route_evidence=evidence if champion_tree is not None else None,
         observed_connection=observed_connection,
+        label_gap_connection=label_gap_connection,
     )
 
 

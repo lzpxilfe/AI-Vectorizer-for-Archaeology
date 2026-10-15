@@ -1842,8 +1842,8 @@ class AIVectorizerDock(QDockWidget):
         )
         self.manual_gap_bridge_btn.setToolTip(
             self._tr(
-                "공백 전 anchor를 확정하고 반대편 선 위에서 G를 누르세요. 미리보기 끝점 클릭으로 확정, Esc 또는 다른 위치 클릭으로 취소합니다. 보조 강도가 곡률에 적용됩니다.",
-                "Confirm an anchor before the gap, hover beyond it, and press G. Click the preview endpoint to accept; Esc or another target cancels. Assist strength controls the curve.",
+                "공백 직전 마지막 실선에 anchor를 확정하고 반대편 첫 실선 끝에서 G를 누르세요. 초록 곡선을 확인한 뒤 같은 끝점을 클릭해 확정합니다. Esc 또는 다른 위치 클릭으로 취소합니다.",
+                "Anchor the last visible stroke before the gap, hover its first visible continuation, and press G. Review the green curve, then click the same endpoint to accept. Esc or another target cancels.",
             )
         )
         self.ink_color_sample_btn.setText(self._tr("선 색상 지정 (C)", "Sample ink color (C)"))

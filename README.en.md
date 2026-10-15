@@ -260,22 +260,34 @@ the separate [historical avoidance-cost record](learning/UNCALIBRATED_AVOIDANCE_
 ## Experimental: label-gap bridge
 
 This is a reviewed, explicit action for a black or brown contour that a numeric
-label has **actually interrupted**. It is not automatic reconnection.
+label has **actually interrupted**. Ink v2 also prepares a conservative automatic
+candidate for short gaps with sustained native context and mutually unique ends.
+Native connections take priority, and a route can contain only one inferred gap.
+This does not recognize text: fused glyphs, broad turns and competing ends can
+still require the explicit `G` preview.
 
 ```text
-Confirm the pre-gap anchor → hover the continuation → G → review green preview → click that endpoint
+Anchor the last visible stroke before the gap → hover its first visible continuation → G → review → click that endpoint
 ```
 
 | Evidence at the explicit endpoints | Result |
 | --- | --- |
 | Outward Ink support on both sides agrees with the gap | A bounded, assist-weighted curve preview |
 | A glyph corrupts the 3px local direction field | Re-check only the outward 12px centerline support |
+| The hidden interval makes a broad U turn | Use signed visible directions for a bounded Bézier preview; shorten its handles if it touches a neighboring stroke |
 | No intended contour, only a parallel line/glyph, or diffuse direction | **Keep the existing Ink preview; create no bridge** |
 
 Click the displayed endpoint to accept. `Esc` or a click elsewhere cancels only
-the proposal, while hovering preserves it. There is no OCR, model, or automatic
-endpoint selection. The behavior is product-path tested on synthetic fixtures;
-it is not evidence of historical-map accuracy or user-time improvement.
+the proposal, while hovering preserves it. `G` does not move the specified ends;
+skipped nearby terminals and sustained foreign-line crossings are rejected.
+The hidden curve is an inference. Real label cases, existing-case comparisons
+and remaining failures are recorded in the [label-gap check](learning/LABEL_GAP_CHECK_2026-10-15.md).
+
+In QGIS, two broad cuts at `700`/`600` produced saved, undoable `G` previews;
+a neighboring-contour endpoint was refused. A diagonal `600` remains refused
+because its directions are unclear. All seven existing cases retained identical
+saved coordinates across the three methods with automatic gaps OFF/ON. This
+does not establish automatic recovery of real text gaps or hidden ground truth.
 
 The declared OpenCV range is 4.8–4.11:
 

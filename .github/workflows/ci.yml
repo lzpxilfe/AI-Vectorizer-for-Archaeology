@@ -315,7 +315,9 @@ jobs:
           import tests.test_learned_qgis as learned_suite
           import tests.test_map_grid_qgis as grid_suite
           import tests.test_observed_connection_qgis as observed_suite
-          if not runtime_suite.HAS_QGIS or not bridge_suite.HAS_QGIS or not color_suite.HAS_QGIS or not learned_suite.HAS_QGIS or not grid_suite.HAS_QGIS or not observed_suite.HAS_QGIS:
+          import tests.test_label_gap_qgis as label_gap_suite
+          import tests.test_confirmed_gap_qgis as confirmed_gap_suite
+          if not runtime_suite.HAS_QGIS or not bridge_suite.HAS_QGIS or not color_suite.HAS_QGIS or not learned_suite.HAS_QGIS or not grid_suite.HAS_QGIS or not observed_suite.HAS_QGIS or not label_gap_suite.HAS_QGIS or not confirmed_gap_suite.HAS_QGIS:
               raise SystemExit("QGIS bindings/API imports were skipped in the QGIS job")
           PY
           python3 -m unittest tests.test_qgis_runtime_safety -v
@@ -324,5 +326,7 @@ jobs:
           python3 -m unittest tests.test_learned_qgis -v
           python3 -m unittest tests.test_map_grid_qgis -v
           python3 -m unittest tests.test_observed_connection_qgis -v
+          python3 -m unittest tests.test_label_gap_qgis -v
+          python3 -m unittest tests.test_confirmed_gap_qgis -v
           python3 -m unittest tests.test_annotation_qgis -v
           python3 -m unittest tests.test_annotation_ui_qgis -v

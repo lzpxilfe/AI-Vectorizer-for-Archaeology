@@ -88,7 +88,11 @@ def test_missing_connection_and_missing_endpoint_keep_identical_pixel_fallback()
     mask = np.zeros((80, 100), dtype=bool)
     mask[40, 10:40] = True
     mask[40, 43:90] = True
-    tree = _tree(mask, (10, 40))
+    # Isolate native-only fallback; inferred gaps have their own geometry tests.
+    tree = _tree(mask, (10, 40), config=livewire.LiveWireConfig(
+        max_window_size=100, target_snap_radius=0,
+        direction_cost_weight=0, heading_cost_weight=0, label_gap_connections=False,
+    ))
     previous = _tree(mask, (10, 40), config=replace(tree.config, observed_connections=False))
     assert tree.observed_connection is not None
     for target in ((89, 40), (89, 50)):

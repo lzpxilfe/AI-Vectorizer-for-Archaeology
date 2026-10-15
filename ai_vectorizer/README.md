@@ -165,16 +165,22 @@ Ink와 Recovery에 같은 guidance를 전달합니다. 같은 색의 글자·기
 
 ### 🪜 Experimental: label-gap bridge
 
-검은·갈색 등고선이 숫자로 **실제로 끊긴** 경우에만, 공백 전 anchor를 확정하고 반대편
-선에 커서를 둔 뒤 `G`를 누르세요. 초록 preview를 검토한 다음 그 끝점을 클릭해야
+Ink v2는 선 문맥과 서로 유일한 끝점이 있는 짧은 공백 후보를 준비합니다. 원본으로
+이어지는 경로가 우선이며 경로당 추론 공백은 하나입니다. 글자를 판독하지 않으므로
+문자 획과 붙은 선·큰 굽이·경쟁 끝점은 자동 연결이 거부될 수 있습니다.
+
+검정·갈색·파랑 등고선이 라벨로 **실제로 끊긴** 경우, 공백 직전 마지막 실선에
+anchor를 확정하고 반대편 첫 실선 끝에서 `G`를 누르세요. 초록 preview를 검토한 다음 그 끝점을 클릭해야
 채택됩니다. `Esc`나 다른 위치 클릭은 proposal만 취소하고 hover는 유지합니다.
 
 3px의 local 방향이 숫자 획에 가려지면 두 명시적 endpoint에서 공백 **바깥쪽** 12px
 중심선만 다시 검사합니다. 양쪽의 가까운 지지와 방향 정렬이 모두 있어야 제한된
-Hermite preview를 만듭니다. 대상선이 없거나 문자·원격 평행선만 보이고, 방향이 퍼지거나
-3–128px 범위를 벗어나면 bridge를 만들지 않고 기존 Ink를 유지합니다. OCR, model,
-자동 endpoint 선택은 사용하지 않습니다. 합성 예시 검증 단계이므로 지도에서 직접
-검수하세요.
+Hermite preview를 만듭니다. 큰 U자는 양쪽의 부호 있는 실선 방향으로 Bézier 곡선을
+검사하고, 옆 선에 닿으면 굽이를 줄여 다시 검사합니다. 지정한 끝점은 움직이지 않습니다.
+가까운 다른 끝점을 건너뛰거나 긴 옆 선과 교차하고, 방향이 불명확하거나 3–128px를
+벗어나면 기존 Ink를 유지합니다. 숨은 선의 정답을 복원한 것이 아니므로 직접 검수하세요.
+실제 사례와 남은 실패는
+[라벨 공백 비교 기록](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/learning/LABEL_GAP_CHECK_2026-10-15.md)에 있습니다.
 
 ## 📦 Installation
 
@@ -377,6 +383,12 @@ first use.
   ready/active status states that text avoidance has no selected setting.
   Configured bundles retain their costs. Manual avoidance and ink-color guidance
   still apply, but useful learned text/road exclusion can also be lost.
+- Ink v2 can join one short, mutually unique native endpoint pair per route;
+  observed connections take priority. It does not recognize text. For a broad
+  label cut, anchor the last visible stroke, hover its first continuation and
+  press `G`. The explicit preview can use signed-direction Bézier curves;
+  skipped nearby ends and sustained foreign-line crossings are rejected.
+  Review the inferred curve and click its endpoint to accept, or Esc to cancel.
 - After starting an Ink trace, hover over a clear colored contour and press `C`;
   the sample button uses that last map position. `Shift+C` clears it. Ready
   native Byte RGB Ink v2 evidence, SciPy, and assist above 0% are required;

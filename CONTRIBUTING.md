@@ -69,7 +69,12 @@ Windows에서는 `.venv\Scripts\python.exe`를 사용하세요. 선택 SAM backe
    QGIS Python으로 실행합니다. 격자 회피·캐시 변경은 `tests/test_map_grid_qgis.py`도
    실제 QGIS Python에서 확인합니다. 관측 중심선 연결·Live-Wire 경로 변경은
    `tests/test_observed_connection_qgis.py`로 깊은 굽이, 비용 회피, 빠른 클릭, 취소와
-   저장·Undo를 실제 QGIS Python에서 확인합니다. QGIS 런타임 suite는 일반 Python의 skip 결과로 대체하지 않습니다.
+   저장·Undo를 실제 QGIS Python에서 확인합니다. 자동 라벨 공백 연결은
+   `tests/test_label_gap_qgis.py`로 굽은 연결과 옆 등고선·글자 획 분리, 작업 중 취소,
+   빠른 클릭, layer removal, dispose, 0%와 미리보기·저장 좌표 및 한 번의 Undo를
+   실제 QGIS Python에서 확인합니다. QGIS 런타임 suite는 일반 Python의 skip 결과로 대체하지 않습니다.
+   명시적 G 연결의 넓은 굽이 변경은 `tests/test_confirmed_gap_qgis.py`로 기존 Hermite
+   우선순위, 옆 끝점 거부, 보조율 적용 후 교차, 늦은 callback, 저장 좌표와 Undo도 확인합니다.
    학습 보조·주석 변경은 `tests/test_learned_qgis.py`와 `tests/test_annotation_qgis.py`도
    실제 QGIS Python에서 확인합니다. 주석 버튼 흐름은 `tests/test_annotation_ui_qgis.py`로
    실제 dock·지도 canvas·GeoPackage 편집과 JSON 내보내기를 확인합니다.
