@@ -165,11 +165,21 @@ Ink와 Recovery에 같은 guidance를 전달합니다. 같은 색의 글자·기
 
 ### 🪜 Experimental: label-gap bridge
 
-Ink v2는 선 문맥과 서로 유일한 끝점이 있는 짧은 공백 후보를 준비합니다. 원본으로
-이어지는 경로가 우선이며 경로당 추론 공백은 하나입니다. 글자를 판독하지 않으므로
-문자 획과 붙은 선·큰 굽이·경쟁 끝점은 자동 연결이 거부될 수 있습니다.
+Ink v2는 일부 숫자 공백을 **`G` 없이** 연결합니다. 원본 Byte 영상의 작은 글자 내부
+공간이 모인 영역과 양쪽의 실제 선 끝을 검사합니다. 평소처럼 클릭하고 반대편으로
+커서를 옮겨 초록 preview를 검수한 다음 클릭해 채택하세요. SciPy와 0%보다 큰 보조율이
+필요하며 OCR·추가 모델 설치는 필요 없습니다.
 
-검정·갈색·파랑 등고선이 라벨로 **실제로 끊긴** 경우, 공백 직전 마지막 실선에
+양쪽 모두 원본 중심선에서도 끝점이어야 합니다. 문자 마스크가 멀쩡한 선을 잘라 만든
+끝점은 거부하고, 마스크 밖에서 이어지는 기존 경로는 보존합니다. 경로당 추론 공백은
+하나이며 짧은 경쟁 조각·가까운 옆 선·교차·보조율 적용 후 접촉을 확인합니다.
+수동·색상·학습 회피 비용이 있거나 글자와 선이 붙어 모호하면 기존 Ink를 사용합니다.
+실제 `700`·`600` U자는 일반 클릭으로 연결했지만, 잘못 짝지었던 대각선 `600`은
+사용자 지적 후 성공 판정을 철회하고 자동 연결을 거부합니다. 올바른 대각선 짝은
+미확정이며 숨은 선은 추정입니다. 검증 범위는
+[자동 숫자 공백 점검](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/learning/AUTOMATIC_LABEL_GAP_CHECK_2026-10-15.md)에 있습니다.
+
+자동 연결이 나오지 않는 실제 공백은 양끝을 직접 지정할 수 있습니다. 공백 직전 마지막 실선에
 anchor를 확정하고 반대편 첫 실선 끝에서 `G`를 누르세요. 초록 preview를 검토한 다음 그 끝점을 클릭해야
 채택됩니다. `Esc`나 다른 위치 클릭은 proposal만 취소하고 hover는 유지합니다.
 
@@ -383,9 +393,13 @@ first use.
   ready/active status states that text avoidance has no selected setting.
   Configured bundles retain their costs. Manual avoidance and ink-color guidance
   still apply, but useful learned text/road exclusion can also be lost.
-- Ink v2 can join one short, mutually unique native endpoint pair per route;
-  observed connections take priority. It does not recognize text. For a broad
-  label cut, anchor the last visible stroke, hover its first continuation and
+- Ink v2 can join some detected numeric gaps without `G`, using one mutually
+  unique pair of original native endpoints per route. A text mask cannot cut
+  an intact contour to manufacture an end. Healthy visible connections take
+  priority; competing arms, cursor identity and the blended display are checked.
+  Fused/open glyphs and junctions remain ambiguous. Review the green preview
+  and click to accept. For an explicit proposal, anchor a visible end, hover
+  its first continuation and
   press `G`. The explicit preview can use signed-direction Bézier curves;
   skipped nearby ends and sustained foreign-line crossings are rejected.
   Review the inferred curve and click its endpoint to accept, or Esc to cancel.

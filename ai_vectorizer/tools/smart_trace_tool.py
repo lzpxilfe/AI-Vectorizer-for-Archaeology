@@ -3232,7 +3232,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             self._request_livewire_tree(force=False)
 
     def _livewire_preview_path(self, target_point, request_tree=True):
-        """Return a cursor-led path; tree lookup is sub-millisecond."""
+        """Return a cursor-led path from the prepared tree and geometry guards."""
         if self.edge_weight <= 0.0 or self.cached_edges is None:
             return [QgsPointXY(target_point)]
 
@@ -3245,13 +3245,21 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         try:
             target_pixel = self.map_to_pixel_float(target_point)
-            pixel_path = tree.trace(target_pixel)
+            if hasattr(tree, "trace_with_provenance"):
+                pixel_path, provenance = tree.trace_with_provenance(target_pixel)
+            else:
+                pixel_path, provenance = tree.trace(target_pixel), "ink"
             if len(pixel_path) < 2:
                 return [self.angle_constrained_snap(target_point)]
 
             # Suppress 8-neighbour staircase artifacts while preserving the
-            # exact anchor and strength-blended endpoint.
-            if len(pixel_path) > self.LIVEWIRE_SMOOTH_WINDOW_SIZE:
+            # exact anchor and strength-blended endpoint. A label connector
+            # already passed clearance checks after blending; averaging it
+            # again could move that curve onto a neighbouring visible line.
+            if (
+                len(pixel_path) > self.LIVEWIRE_SMOOTH_WINDOW_SIZE
+                and provenance != "automatic-label-gap"
+            ):
                 smoothed = list(
                     smooth_pixel_path(
                         pixel_path,

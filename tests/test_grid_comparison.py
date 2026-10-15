@@ -54,7 +54,7 @@ def test_changed_source_pixels_and_unverified_pair_are_rejected(comparison, tmp_
         comparison.load_cases(path, tmp_path)
 
 
-@pytest.mark.parametrize("withdrawn", ["kr-10-crop-01-clear-w", "kr-10-crop-12-label-500-diagonal"])
+@pytest.mark.parametrize("withdrawn", ["kr-10-crop-01-clear-w", "kr-10-crop-12-label-500-diagonal", "kr-10-crop-12-label-600-diagonal"])
 def test_withdrawn_click_pair_cannot_reenter_accuracy_comparison(comparison, tmp_path, withdrawn):
     path, image = _cohort(tmp_path)
     doc = json.loads(path.read_text())
@@ -86,6 +86,25 @@ def test_gap_review_requires_unknown_interval_and_never_recovers_hidden_truth(co
     doc["cases"][0]["unknown_regions_xy"] = []
     path.write_text(json.dumps(doc))
     with pytest.raises(ValueError, match="Hidden gap regions"):
+        comparison.load_cases(path, tmp_path)
+
+
+def test_post_output_user_correction_can_only_be_an_unscored_negative(comparison, tmp_path):
+    path, _ = _gap_cohort(tmp_path)
+    document = json.loads(path.read_text())
+    document.update(frozen_before_model_outputs=False,
+                    classification_revision_after_outputs=True,
+                    unchanged_raw_controls_frozen_before_outputs=True)
+    case = document["cases"][0]
+    case.update(predictions_seen_before_freeze=True,
+                classification_changed_after_outputs=True,
+                expected_pair="different_contours",
+                negative_review_provenance={"source": "user_reported_neighbor_hop_after_viewing_candidate"})
+    path.write_text(json.dumps(document))
+    assert comparison.load_cases(path, tmp_path)[0]["expected_pair"] == "different_contours"
+    case["expected_pair"] = "plausible_same_contour"
+    path.write_text(json.dumps(document))
+    with pytest.raises(ValueError, match="one contour"):
         comparison.load_cases(path, tmp_path)
 
 

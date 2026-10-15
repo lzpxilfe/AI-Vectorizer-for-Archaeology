@@ -10,6 +10,18 @@
       "original_fixture_sha256": "e47c3604f46a890b63f540ab1eabafa0566a3e12461a5b22f777f642726dc982",
       "replacement_fixture": "korea-label-gap-visual-cases-v2.json",
       "policy": "Keep original bytes as withdrawn evidence; do not score or tune to this case."
+    },
+    {
+      "case_id": "kr-10-crop-12-label-600-diagonal",
+      "reason": "User identified the displayed diagonal600 candidate as a neighboring-contour hop. Raw reinspection confirms alleged left gap endpoint122,256 is a continuous degree2 stroke climbing around the6 toward134,237; a label mask created an artificial end. Former same-contour pairing and its accuracy scores are withdrawn. No correct hidden continuation is established.",
+      "original_fixture": "korea-label-gap-visual-cases-v2.json",
+      "original_fixture_sha256": "0404df954b2c5b43715173a9c61016234cacef4bcae472d599616b589d8dca17",
+      "replacement_fixture": "korea-label-gap-visual-cases-v3.json",
+      "review_provenance": {
+        "source": "user screenshot feedback followed by raw topology reinspection",
+        "screenshot_sha256": "b1b9f5a3cea20799f2a00cfef76385b210b7cb4f976af99140e348635d87295b"
+      },
+      "policy": "Keep v2 bytes and provisional candidate results as failed evidence. Exclude positive accuracy; replay unchanged clicks only as a post-output human-reported negative."
     }
   ]
 }

@@ -281,6 +281,7 @@ def _run_trace_scenario(
     learned_weights=None,
     grid_avoidance: bool = True,
     livewire_config_overrides=None,
+    trace_diagnostics_dir=None,
 ) -> dict:
     """Drive real SmartTraceTool press/move/finish handlers to one feature."""
 
@@ -406,6 +407,36 @@ def _run_trace_scenario(
 
         end_screen = tool.toCanvasCoordinates(end_map)
         tool.canvasMoveEvent(Event(end_screen))
+        route_provenance = None
+        route_diagnostics = None
+        tree = tool._livewire_tree
+        if tree is not None and hasattr(tree, "trace_with_provenance"):
+            cursor = tool.last_hover_pos or end_map
+            cursor_pixel = tool.map_to_pixel_float(cursor)
+            _route, route_provenance = tree.trace_with_provenance(cursor_pixel)
+            if trace_diagnostics_dir is not None:
+                connection = tree.occluded_connection
+                candidate = connection.trace(cursor_pixel) if connection is not None else None
+                route_diagnostics = {
+                    "root": tree.root, "origin": tree.origin, "shape": tree.shape,
+                    "cursor_pixel": cursor_pixel,
+                    "occluded_connection": connection is not None,
+                    "candidate": candidate,
+                    "ordinary_intersects": connection.intersects(tree._trace_without_occlusion(cursor_pixel)) if connection is not None else False,
+                    "outside_route_available": connection.outside_route(cursor_pixel) is not None if connection is not None else False,
+                    "display_accepted": connection.accepts_display(candidate) if candidate is not None else False,
+                }
+                diagnostic_path = Path(trace_diagnostics_dir)
+                diagnostic_path.mkdir(parents=True, exist_ok=True)
+                evidence = tool.cached_ink_evidence
+                np.savez_compressed(
+                    diagnostic_path / (name + ".npz"),
+                    image=tool.cached_rgb_image, edges=tool.cached_edges,
+                    centerline=evidence.centerline, center_score=evidence.center_score,
+                    tangent_x=evidence.tangent_x, tangent_y=evidence.tangent_y,
+                    coherence=evidence.coherence,
+                    root=tree.root, origin=tree.origin, target=cursor_pixel,
+                )
         if not tool.preview_path:
             raise SmokeFailure(f"{name} did not display a cursor preview.")
         if enhanced_accept:
@@ -555,6 +586,8 @@ def _run_trace_scenario(
             "name": name,
             "vertices": len(vertices),
             "vertices_xy": [(point.x(), point.y()) for point in vertices],
+            "route_provenance": route_provenance,
+            "route_diagnostics": route_diagnostics,
             "start_error_px": round(start_error, 4),
             "end_error_px": round(end_error, 4),
             "median_center_error_px": (round(median_center_error, 4)

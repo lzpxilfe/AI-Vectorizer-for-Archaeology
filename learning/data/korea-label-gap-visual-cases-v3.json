@@ -1,0 +1,941 @@
+{
+  "schema_version": "archaeotrace-label-gap-cases/1",
+  "dataset_id": "usgs-ams-korea-contour-ai-weak-v1",
+  "dataset_manifest_sha256": "b2fd2a087f75de4e5e1d31b44f13dfdb1a8af3963e18e68f81f9cb4a91e32249",
+  "frozen_utc": "2026-10-15T13:47:55.849622+00:00",
+  "reviewer": "Codex raw-only diagnostic selection",
+  "review_status": "two agent-selected positives; diagonal negative corrected after human-reported neighbor hop; no positive performance approval",
+  "human_approvals": 0,
+  "independent_review": false,
+  "publication_ranking_eligible": false,
+  "coordinate_semantics": "Native image xy controls; prompt/reference rc row,column; points denote pixel-center index coordinates; no resizing of source. Reference segments interpolated at <=1 pixel spacing from manual raw-only controls.",
+  "split_scope": "Korean validation kr-09 and kr-10 contact-sheet discovery only. No train labels, model outputs, paths, Calibration or Holdout opened.",
+  "scoring_policy": "Score visible_reference_segments_rc separately after masking unknown_region_xy. Do not join segments as hidden ground truth. Hidden bridge geometry/curvature is qualitative and uncertain. Negative pairing is candidate-link exclusion, not click-to-click positive route accuracy.",
+  "frozen_prior_fixture_untouched": "learning/data/korea-contour-visual-cases-v3.json",
+  "frozen_prior_fixture_sha256": "5bbab30767226e264bbaff202045f5cd8e403b677ddcedf1728f099edd981b63",
+  "cases": [
+    {
+      "id": "kr-10-crop-01-label-700-u",
+      "sample_id": "kr-10-crop-01",
+      "label": "700",
+      "unknown_region_xy": [
+        223,
+        286,
+        248,
+        301
+      ],
+      "notes": "Printed 700 replaces bottom of index contour U. Nested order and thicker index line support pairing; true hidden sag and curvature are unknown. The neighboring inside U remains visible above the label and must not be selected.",
+      "expected_pair": "plausible_same_contour",
+      "prompt_rc": [
+        [
+          272,
+          219
+        ],
+        [
+          269,
+          256
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            272.0,
+            219.0
+          ],
+          [
+            273.0,
+            219.0
+          ],
+          [
+            274.0,
+            219.0
+          ],
+          [
+            275.0,
+            219.0
+          ],
+          [
+            276.0,
+            219.0
+          ],
+          [
+            277.0,
+            219.0
+          ],
+          [
+            278.0,
+            219.0
+          ],
+          [
+            279.0,
+            219.0
+          ],
+          [
+            280.0,
+            219.0
+          ],
+          [
+            281.0,
+            219.0
+          ],
+          [
+            282.0,
+            219.0
+          ],
+          [
+            283.0,
+            219.0
+          ],
+          [
+            284.0,
+            219.0
+          ],
+          [
+            285.0,
+            219.0
+          ],
+          [
+            286.0,
+            219.0
+          ],
+          [
+            287.0,
+            219.0
+          ],
+          [
+            288.0,
+            219.0
+          ],
+          [
+            289.0,
+            219.0
+          ],
+          [
+            289.75,
+            219.25
+          ],
+          [
+            290.5,
+            219.5
+          ],
+          [
+            291.25,
+            219.75
+          ],
+          [
+            292.0,
+            220.0
+          ],
+          [
+            292.6667,
+            220.6667
+          ],
+          [
+            293.3333,
+            221.3333
+          ],
+          [
+            294,
+            222
+          ]
+        ],
+        [
+          [
+            285.0,
+            243.0
+          ],
+          [
+            284.0,
+            243.0
+          ],
+          [
+            283.0,
+            243.0
+          ],
+          [
+            282.0,
+            243.0
+          ],
+          [
+            281.0,
+            243.0
+          ],
+          [
+            280.0,
+            243.0
+          ],
+          [
+            279.2,
+            243.2
+          ],
+          [
+            278.4,
+            243.4
+          ],
+          [
+            277.6,
+            243.6
+          ],
+          [
+            276.8,
+            243.8
+          ],
+          [
+            276.0,
+            244.0
+          ],
+          [
+            275.25,
+            244.25
+          ],
+          [
+            274.5,
+            244.5
+          ],
+          [
+            273.75,
+            244.75
+          ],
+          [
+            273.0,
+            245.0
+          ],
+          [
+            272.5,
+            245.75
+          ],
+          [
+            272.0,
+            246.5
+          ],
+          [
+            271.5,
+            247.25
+          ],
+          [
+            271.0,
+            248.0
+          ],
+          [
+            270.8,
+            248.8
+          ],
+          [
+            270.6,
+            249.6
+          ],
+          [
+            270.4,
+            250.4
+          ],
+          [
+            270.2,
+            251.2
+          ],
+          [
+            270.0,
+            252.0
+          ],
+          [
+            269.8,
+            252.8
+          ],
+          [
+            269.6,
+            253.6
+          ],
+          [
+            269.4,
+            254.4
+          ],
+          [
+            269.2,
+            255.2
+          ],
+          [
+            269,
+            256
+          ]
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            219,
+            272
+          ],
+          [
+            219,
+            278
+          ],
+          [
+            219,
+            284
+          ],
+          [
+            219,
+            289
+          ],
+          [
+            220,
+            292
+          ],
+          [
+            222,
+            294
+          ]
+        ],
+        [
+          [
+            243,
+            285
+          ],
+          [
+            243,
+            280
+          ],
+          [
+            244,
+            276
+          ],
+          [
+            245,
+            273
+          ],
+          [
+            248,
+            271
+          ],
+          [
+            252,
+            270
+          ],
+          [
+            256,
+            269
+          ]
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          222,
+          294
+        ],
+        [
+          243,
+          285
+        ]
+      ],
+      "hidden_geometry_ground_truth": false,
+      "image_sha256": "cf9625c3a90366ee553c336f3fcf99ea65c94a021b4a655688eeb9f52980cad4",
+      "image": "images/kr-10-crop-01.png",
+      "split": "validation",
+      "raw_evidence_window_xyxy": [
+        205,
+        265,
+        270,
+        315
+      ],
+      "predictions_seen_before_freeze": false,
+      "review_level": "agent_visual_inspection",
+      "unknown_regions_xy": [
+        [
+          223,
+          286,
+          248,
+          301
+        ]
+      ]
+    },
+    {
+      "id": "kr-10-crop-01-label-600-u",
+      "sample_id": "kr-10-crop-01",
+      "label": "600",
+      "unknown_region_xy": [
+        227,
+        337,
+        248,
+        352
+      ],
+      "notes": "Printed 600 replaces bottom of next thicker index contour U. Entering and exiting visible thicker strokes verified with native grayscale as raw evidence. Next outer thin contour is only about 5 pixels right of the exit and is a deliberate negative competitor.",
+      "expected_pair": "plausible_same_contour",
+      "prompt_rc": [
+        [
+          326,
+          225
+        ],
+        [
+          324,
+          252
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            326.0,
+            225.0
+          ],
+          [
+            327.0,
+            225.0
+          ],
+          [
+            328.0,
+            225.0
+          ],
+          [
+            329.0,
+            225.0
+          ],
+          [
+            330.0,
+            225.0
+          ],
+          [
+            330.8,
+            225.2
+          ],
+          [
+            331.6,
+            225.4
+          ],
+          [
+            332.4,
+            225.6
+          ],
+          [
+            333.2,
+            225.8
+          ],
+          [
+            334.0,
+            226.0
+          ],
+          [
+            335.0,
+            226.0
+          ],
+          [
+            336.0,
+            226.0
+          ],
+          [
+            337.0,
+            226.0
+          ],
+          [
+            338,
+            226
+          ]
+        ],
+        [
+          [
+            335.0,
+            243.0
+          ],
+          [
+            334.5,
+            243.5
+          ],
+          [
+            334.0,
+            244.0
+          ],
+          [
+            333.3333,
+            244.3333
+          ],
+          [
+            332.6667,
+            244.6667
+          ],
+          [
+            332.0,
+            245.0
+          ],
+          [
+            331.25,
+            245.5
+          ],
+          [
+            330.5,
+            246.0
+          ],
+          [
+            329.75,
+            246.5
+          ],
+          [
+            329.0,
+            247.0
+          ],
+          [
+            328.25,
+            247.5
+          ],
+          [
+            327.5,
+            248.0
+          ],
+          [
+            326.75,
+            248.5
+          ],
+          [
+            326.0,
+            249.0
+          ],
+          [
+            325.6667,
+            249.6667
+          ],
+          [
+            325.3333,
+            250.3333
+          ],
+          [
+            325.0,
+            251.0
+          ],
+          [
+            324.5,
+            251.5
+          ],
+          [
+            324,
+            252
+          ]
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            225,
+            326
+          ],
+          [
+            225,
+            330
+          ],
+          [
+            226,
+            334
+          ],
+          [
+            226,
+            338
+          ]
+        ],
+        [
+          [
+            243,
+            335
+          ],
+          [
+            244,
+            334
+          ],
+          [
+            245,
+            332
+          ],
+          [
+            247,
+            329
+          ],
+          [
+            249,
+            326
+          ],
+          [
+            251,
+            325
+          ],
+          [
+            252,
+            324
+          ]
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          226,
+          338
+        ],
+        [
+          243,
+          335
+        ]
+      ],
+      "hidden_geometry_ground_truth": false,
+      "image_sha256": "cf9625c3a90366ee553c336f3fcf99ea65c94a021b4a655688eeb9f52980cad4",
+      "image": "images/kr-10-crop-01.png",
+      "split": "validation",
+      "raw_evidence_window_xyxy": [
+        205,
+        320,
+        275,
+        365
+      ],
+      "predictions_seen_before_freeze": false,
+      "review_level": "agent_visual_inspection",
+      "unknown_regions_xy": [
+        [
+          227,
+          337,
+          248,
+          352
+        ]
+      ]
+    },
+    {
+      "id": "kr-10-crop-12-label-600-diagonal-wrong-neighbor",
+      "sample_id": "kr-10-crop-12",
+      "label": "600",
+      "unknown_region_xy": [
+        121,
+        239,
+        141,
+        256
+      ],
+      "notes": "The former positive pair was rejected by the user after viewing the candidate. Raw reinspection shows the alleged left endpoint (122,256) is degree2 and continues visibly upward around the 6; cutting the glyph hull manufactured an endpoint and removed a real contour arc. Preserve these unchanged clicks only as a negative automatic-link regression. Do not score former visible segments as same-contour truth or infer a replacement hidden curve.",
+      "expected_pair": "different_contours",
+      "prompt_rc": [
+        [
+          269,
+          123
+        ],
+        [
+          261,
+          153
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            123,
+            269
+          ],
+          [
+            121,
+            267
+          ],
+          [
+            120,
+            265
+          ],
+          [
+            119,
+            262
+          ],
+          [
+            119,
+            260
+          ],
+          [
+            120,
+            258
+          ],
+          [
+            122,
+            256
+          ]
+        ],
+        [
+          [
+            141,
+            249
+          ],
+          [
+            143,
+            252
+          ],
+          [
+            146,
+            255
+          ],
+          [
+            149,
+            258
+          ],
+          [
+            153,
+            261
+          ]
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          122,
+          256
+        ],
+        [
+          141,
+          249
+        ]
+      ],
+      "hidden_geometry_ground_truth": false,
+      "image_sha256": "ac04da0fce6279e2a7f52b7fd42802864cee129152a39a66832f7cedadab1996",
+      "image": "images/kr-10-crop-12.png",
+      "split": "validation",
+      "raw_evidence_window_xyxy": [
+        105,
+        220,
+        160,
+        275
+      ],
+      "predictions_seen_before_freeze": true,
+      "review_level": "agent_visual_inspection",
+      "unknown_regions_xy": [
+        [
+          121,
+          239,
+          141,
+          256
+        ]
+      ],
+      "classification_changed_after_outputs": true,
+      "withdrawn_positive_reference_segments_rc": [
+        [
+          [
+            269.0,
+            123.0
+          ],
+          [
+            268.3333,
+            122.3333
+          ],
+          [
+            267.6667,
+            121.6667
+          ],
+          [
+            267.0,
+            121.0
+          ],
+          [
+            266.3333,
+            120.6667
+          ],
+          [
+            265.6667,
+            120.3333
+          ],
+          [
+            265.0,
+            120.0
+          ],
+          [
+            264.25,
+            119.75
+          ],
+          [
+            263.5,
+            119.5
+          ],
+          [
+            262.75,
+            119.25
+          ],
+          [
+            262.0,
+            119.0
+          ],
+          [
+            261.0,
+            119.0
+          ],
+          [
+            260.0,
+            119.0
+          ],
+          [
+            259.3333,
+            119.3333
+          ],
+          [
+            258.6667,
+            119.6667
+          ],
+          [
+            258.0,
+            120.0
+          ],
+          [
+            257.3333,
+            120.6667
+          ],
+          [
+            256.6667,
+            121.3333
+          ],
+          [
+            256,
+            122
+          ]
+        ],
+        [
+          [
+            249.0,
+            141.0
+          ],
+          [
+            249.75,
+            141.5
+          ],
+          [
+            250.5,
+            142.0
+          ],
+          [
+            251.25,
+            142.5
+          ],
+          [
+            252.0,
+            143.0
+          ],
+          [
+            252.6,
+            143.6
+          ],
+          [
+            253.2,
+            144.2
+          ],
+          [
+            253.8,
+            144.8
+          ],
+          [
+            254.4,
+            145.4
+          ],
+          [
+            255.0,
+            146.0
+          ],
+          [
+            255.6,
+            146.6
+          ],
+          [
+            256.2,
+            147.2
+          ],
+          [
+            256.8,
+            147.8
+          ],
+          [
+            257.4,
+            148.4
+          ],
+          [
+            258.0,
+            149.0
+          ],
+          [
+            258.6,
+            149.8
+          ],
+          [
+            259.2,
+            150.6
+          ],
+          [
+            259.8,
+            151.4
+          ],
+          [
+            260.4,
+            152.2
+          ],
+          [
+            261,
+            153
+          ]
+        ]
+      ],
+      "visible_reference_segments_rc": [],
+      "negative_review_provenance": {
+        "source": "user_reported_neighbor_hop_after_viewing_candidate",
+        "screenshot_sha256": "b1b9f5a3cea20799f2a00cfef76385b210b7cb4f976af99140e348635d87295b",
+        "reported_local": "2026-10-15T22:44:17+09:00",
+        "claim": "Candidate connects different contours. This feedback rejects the old pair and does not establish the correct hidden continuation."
+      }
+    },
+    {
+      "id": "kr-10-crop-01-label-600-wrong-neighbor",
+      "sample_id": "kr-10-crop-01",
+      "image": "images/kr-10-crop-01.png",
+      "image_sha256": "cf9625c3a90366ee553c336f3fcf99ea65c94a021b4a655688eeb9f52980cad4",
+      "split": "validation",
+      "label": "600",
+      "expected_pair": "different_contours",
+      "prompt_rc": [
+        [
+          326,
+          225
+        ],
+        [
+          327,
+          263
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          226,
+          338
+        ],
+        [
+          248,
+          337
+        ]
+      ],
+      "visible_reference_segments_rc": [],
+      "unknown_region_xy": [
+        227,
+        337,
+        248,
+        352
+      ],
+      "raw_evidence_window_xyxy": [
+        205,
+        320,
+        275,
+        365
+      ],
+      "hidden_geometry_ground_truth": false,
+      "notes": "Hard negative candidate pairing: entering thicker 600 index stroke to the next outer thin contour near x248,y337. True thicker indexed exit is x243,y335. These points are on different contour lines despite close position and similar U tangent. Do not use a click-to-click path accuracy score as same-contour truth; inspect candidate-link exclusion.",
+      "predictions_seen_before_freeze": false,
+      "review_level": "agent_visual_inspection",
+      "unknown_regions_xy": [
+        [
+          227,
+          337,
+          248,
+          352
+        ]
+      ]
+    }
+  ],
+  "parent_fixture_sha256": "0404df954b2c5b43715173a9c61016234cacef4bcae472d599616b589d8dca17",
+  "withdrawn_cases": [
+    {
+      "id": "kr-10-crop-12-label-500-diagonal",
+      "reason": "Right reference x94,y171 is a vertical map-grid rule aroundx95, not the intended500 contour. Raw-only full-context reinspection and outward-context analysis detected this before this reviewer opened model/path outputs. Never count as positive accuracy or optimize toward it. Original v1 bytes retained for audit."
+    },
+    {
+      "id": "kr-10-crop-12-label-600-diagonal",
+      "reason": "User identified the displayed diagonal600 candidate as a neighboring-contour hop. Raw reinspection confirms alleged left gap endpoint122,256 is a continuous degree2 stroke climbing around the6 toward134,237; a label mask created an artificial end. Former same-contour pairing and its accuracy scores are withdrawn. No correct hidden continuation is established."
+    }
+  ],
+  "frozen_before_model_outputs": false,
+  "human_approved": false,
+  "review_level": "agent_visual_inspection",
+  "raw_freeze_sha256": "69c0cb8af5c6f0a37479c80bfe1886e27afd6c22e871747a7e6ee79227fe48ca",
+  "classification_revision_after_outputs": true,
+  "unchanged_raw_controls_frozen_before_outputs": true,
+  "human_reported_failures": 1
+}

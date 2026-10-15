@@ -75,6 +75,10 @@ Windows에서는 `.venv\Scripts\python.exe`를 사용하세요. 선택 SAM backe
    실제 QGIS Python에서 확인합니다. QGIS 런타임 suite는 일반 Python의 skip 결과로 대체하지 않습니다.
    명시적 G 연결의 넓은 굽이 변경은 `tests/test_confirmed_gap_qgis.py`로 기존 Hermite
    우선순위, 옆 끝점 거부, 보조율 적용 후 교차, 늦은 callback, 저장 좌표와 Undo도 확인합니다.
+   숫자 영역을 검출하는 자동 연결은 `tests/test_occluded_connection_qgis.py`로 원본 RGB부터
+   NumPy 중심선·백그라운드 검출·수평 및 대각선 곡선·일반 클릭·저장·Undo까지 확인합니다.
+   검출 중 취소, 빠른 클릭, 래스터 변경, layer removal, dispose, 0% 검출 생략과 보조율을
+   적용한 미리보기의 옆 등고선 교차 거부도 실제 QGIS Python에서 검사합니다.
    학습 보조·주석 변경은 `tests/test_learned_qgis.py`와 `tests/test_annotation_qgis.py`도
    실제 QGIS Python에서 확인합니다. 주석 버튼 흐름은 `tests/test_annotation_ui_qgis.py`로
    실제 dock·지도 canvas·GeoPackage 편집과 JSON 내보내기를 확인합니다.

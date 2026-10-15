@@ -1,0 +1,537 @@
+"""Sparse, bounded native-arm routes across independently detected labels.
+
+A detector region is an uncertainty mask, never new observed ink. Its pixels
+are excluded only from this separate graph. Signed visible arms determine one
+retained cubic and all other region arms remain barriers to that continuation.
+The original image, LineEvidence and ordinary Live-Wire tree are untouched.
+Only genuine endpoints in the original native graph qualify automatically;
+cutting a continuous stroke with a label mask cannot create such authority.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+import math
+from typing import Optional
+
+import numpy as np
+
+from .confirmed_gap_curve import (
+    ConfirmedGapCurveConfig, ConfirmedGapCurveError, build_confirmed_gap_curve,
+)
+from .label_gap import _degree, _neighbours
+from .observed_connection import (
+    ObservedConnectionCancelled, ObservedConnectionTree, build_observed_connection,
+)
+
+
+@dataclass(frozen=True)
+class _Arm:
+    pixel: tuple
+    outward: tuple
+    context: tuple
+    width: float
+    perimeter: float
+
+
+@dataclass(frozen=True)
+class _Route:
+    native_indices: np.ndarray
+    lookup: np.ndarray
+    predecessors: np.ndarray
+    distances: np.ndarray
+    prefix: tuple
+    prefix_length: float
+    target_node: int
+    region_index: int
+
+
+@dataclass(frozen=True)
+class OccludedConnectionTree:
+    """Precomputed single-curve routes; hover never processes an image."""
+    root: tuple
+    origin: tuple
+    shape: tuple
+    mask: np.ndarray
+    outside_native: np.ndarray
+    routes: tuple
+    connectors: tuple
+    outside_connection: Optional[ObservedConnectionTree] = None
+
+    def outside_route(self, target):
+        """Return an admissible observed-only route outside all label masks."""
+        if self.outside_connection is None:
+            return None
+        points = self.outside_connection.trace(target)
+        if points is not None and tuple(points[0]) != self.root:
+            points = [self.root] + points
+        return points
+
+    def intersects(self, path):
+        """Whether an existing route enters an independently detected label."""
+        points = np.asarray(path, dtype=np.float64)
+        if points.ndim != 2 or points.shape[1] != 2 or len(points) < 2 or not np.isfinite(points).all():
+            return False
+        if len(points) > 8192:
+            return False
+        local = points - np.asarray(self.origin)
+        height, width = self.shape
+        work = 0
+        for first, last in zip(local, local[1:]):
+            steps = max(1, int(math.ceil(float(np.linalg.norm(last - first)) * 2)))
+            work += steps
+            if work > 16384:
+                return False
+            pixels = np.rint(first + np.linspace(0.0, 1.0, steps + 1)[:, None] * (last - first)).astype(int)
+            valid = ((pixels[:, 0] >= 0) & (pixels[:, 0] < width)
+                     & (pixels[:, 1] >= 0) & (pixels[:, 1] < height))
+            pixels = pixels[valid]
+            if len(pixels) and np.any(self.mask[pixels[:, 1], pixels[:, 0]]):
+                return True
+        return False
+
+    def trace(self, target):
+        point = np.asarray(target, dtype=np.float64)
+        if point.shape != (2,) or not np.isfinite(point).all():
+            return None
+        local = point - np.asarray(self.origin)
+        height, width = self.shape
+        if not (0 <= local[0] < width and 0 <= local[1] < height):
+            return None
+        tx, ty = np.rint(local).astype(int)
+        if not (0 <= tx < width and 0 <= ty < height) or self.mask[ty, tx]:
+            return None
+        chord = float(np.linalg.norm(point - self.root))
+        if chord < 1e-9:
+            return None
+        limit = min(2 * max(self.shape), max(8.0, chord * 6.0))
+        yy, xx = np.mgrid[max(0, int(math.floor(local[1] - 2))):min(height, int(math.ceil(local[1] + 2)) + 1),
+                          max(0, int(math.floor(local[0] - 2))):min(width, int(math.ceil(local[0] + 2)) + 1)]
+        offsets = np.hypot(xx - local[0], yy - local[1])
+        native_anchor = self.outside_native[yy, xx] & (offsets <= 2.0 + 1e-6)
+        if not np.any(native_anchor):
+            return None
+        nearest_offset = float(offsets[native_anchor].min())
+        closest = native_anchor & (offsets <= nearest_offset + 0.25)
+        # Equal nearby arms are an ambiguity, even if a distant intersection
+        # makes them one global component. Flood only this tiny anchor box.
+        seeds = list(zip(*np.nonzero(closest)))
+        pending = [seeds[0]]
+        seen = {seeds[0]}
+        while pending:
+            y, x = pending.pop()
+            for ny in range(max(0, y - 1), min(native_anchor.shape[0], y + 2)):
+                for nx in range(max(0, x - 1), min(native_anchor.shape[1], x + 2)):
+                    if native_anchor[ny, nx] and (ny, nx) not in seen:
+                        seen.add((ny, nx))
+                        pending.append((ny, nx))
+        if any(seed not in seen for seed in seeds):
+            return None
+        options = []
+        for route in self.routes:
+            nodes = route.lookup[yy, xx]
+            if np.any(nodes[closest] < 0):
+                continue
+            valid = (nodes >= 0) & (offsets <= 2.0 + 1e-6)
+            if not np.any(valid):
+                continue
+            # Distance authority comes from *all* original outside arms.
+            # A route which excludes the clicked neighbouring arm may not
+            # recompute a more convenient, farther anchor on its own graph.
+            valid &= offsets <= nearest_offset + 0.25
+            if not np.any(valid):
+                continue
+            costs = route.distances[nodes[valid]] + offsets[valid] * 4.0
+            index = int(np.argmin(costs))
+            if not math.isfinite(float(costs[index])):
+                continue
+            node = int(nodes[valid][index])
+            length = float(offsets[valid][index]) + route.prefix_length
+            backwards = []
+            previous = point
+            for _ in range(min(len(route.native_indices), int(math.ceil(limit)) + 2)):
+                native = int(route.native_indices[node])
+                current = (float(native % width + self.origin[0]), float(native // width + self.origin[1]))
+                if backwards:
+                    length += math.hypot(current[0] - previous[0], current[1] - previous[1])
+                if length > limit:
+                    break
+                backwards.append(current)
+                previous = current
+                if node == route.target_node:
+                    points = [*route.prefix, *backwards[-2::-1], tuple(point)]
+                    points = [p for i, p in enumerate(points) if not i or p != points[i - 1]]
+                    options.append((float(costs[index]) + route.prefix_length * 2, points))
+                    break
+                node = int(route.predecessors[node])
+                if node < 0 or node >= len(route.native_indices):
+                    break
+        if not options:
+            return None
+        options.sort(key=lambda value: value[0])
+        # Different inferred continuations to the exact same target must be
+        # clearly distinguished, not resolved by their enumeration order.
+        if len(options) > 1 and options[1][0] - options[0][0] <= 0.5:
+            return None
+        return options[0][1]
+
+    def accepts_display(self, displayed):
+        """Reject a strength blend that touches a different visible stroke.
+
+        Only immutable geometry and native pixels are read. Glyph pixels in
+        the independently detected mask remain uncertain, not obstacles.
+        """
+        points = np.asarray(displayed, dtype=np.float64)
+        if (points.ndim != 2 or points.shape[1] != 2 or not 2 <= len(points) <= 8192
+                or not np.isfinite(points).all()):
+            return False
+        full = self.trace(points[-1])
+        if full is None:
+            return False
+        height, width = self.shape
+        allowed = set()
+        for x, y in np.asarray(full) - np.asarray(self.origin):
+            for cy in range(max(0, int(math.floor(y - 1.25))), min(height, int(math.ceil(y + 1.25)) + 1)):
+                for cx in range(max(0, int(math.floor(x - 1.25))), min(width, int(math.ceil(x + 1.25)) + 1)):
+                    if math.hypot(cx - x, cy - y) <= 1.25:
+                        allowed.add((cx, cy))
+        local = points - np.asarray(self.origin)
+        work = 0
+        for first, last in zip(local, local[1:]):
+            steps = max(1, int(math.ceil(float(np.linalg.norm(last - first)) * 2)))
+            work += steps
+            if work > 16384:
+                return False
+            for x, y in first + np.linspace(0.0, 1.0, steps + 1)[:, None] * (last - first):
+                if not (0 <= x < width and 0 <= y < height):
+                    return False
+                for cy in range(max(0, int(math.floor(y - 1.0))), min(height, int(math.ceil(y + 1.0)) + 1)):
+                    for cx in range(max(0, int(math.floor(x - 1.0))), min(width, int(math.ceil(x + 1.0)) + 1)):
+                        if (self.outside_native[cy, cx] and (cx, cy) not in allowed
+                                and math.hypot(cx - x, cy - y) <= 1.0):
+                            return False
+        return True
+
+
+def _region_mask(region, shape):
+    result = np.zeros(shape, dtype=bool)
+    x0, y0, x1, y1 = tuple(int(value) for value in region.bbox_xyxy)
+    if not (0 <= x0 < x1 <= shape[1] and 0 <= y0 < y1 <= shape[0]):
+        raise ValueError("occlusion region is outside the image")
+    supplied = np.asarray(region.mask, dtype=bool)
+    if supplied.shape == shape:
+        result[:] = supplied
+    elif supplied.shape == (y1 - y0, x1 - x0):
+        result[y0:y1, x0:x1] = supplied
+    else:
+        raise ValueError("occlusion mask dimensions do not match its box")
+    return result, (x0, y0, x1, y1)
+
+
+def _perimeter(point, box):
+    x, y = point
+    x0, y0, x1, y1 = box
+    width, height = x1 - x0, y1 - y0
+    cx, cy = min(x1, max(x0, x)), min(y1, max(y0, y))
+    candidates = (
+        ((x - cx) ** 2 + (y - y0) ** 2, cx - x0),
+        ((x - x1) ** 2 + (y - cy) ** 2, width + cy - y0),
+        ((x - cx) ** 2 + (y - y1) ** 2, width + height + x1 - cx),
+        ((x - x0) ** 2 + (y - cy) ** 2, 2 * width + height + y1 - cy),
+    )
+    return min(candidates)[1] % (2 * (width + height))
+
+
+def _arm(mask, endpoint, width_image, box):
+    """Fit the last sustained 8--12 visible pixels, allowing a later fork."""
+    previous = None
+    current = endpoint
+    points = [endpoint]
+    length = 0.0
+    for _ in range(16):
+        neighbours = _neighbours(mask, current)
+        expected = 1 if previous is None else 2
+        if len(neighbours) != expected:
+            if length < 8.0:
+                return None
+            break
+        following = [point for point in neighbours if point != previous]
+        if len(following) != 1:
+            return None
+        following = following[0]
+        length += math.hypot(following[0] - current[0], following[1] - current[1])
+        previous, current = current, following
+        points.append(current)
+        if length >= 12.0:
+            break
+    if length < 8.0:
+        return None
+    context = np.asarray(points, dtype=np.float64)
+    distances = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(context, axis=0), axis=1))]
+    if float(np.linalg.norm(context[-1] - context[0])) < distances[-1] * 0.70:
+        return None
+    signed = -distances
+    design = np.column_stack((signed, signed ** 2))
+    coefficients = np.linalg.lstsq(design, context - context[0], rcond=None)[0]
+    residual = design @ coefficients - (context - context[0])
+    if float(np.sqrt(np.mean(np.sum(residual ** 2, axis=1)))) > 1.25:
+        return None
+    outward = coefficients[0]
+    norm = float(np.linalg.norm(outward))
+    if not 0.4 <= norm <= 2.0:
+        return None
+    outward /= norm
+    nearest = max(1, int(np.searchsorted(distances, 4.0)))
+    secant = context[0] - context[nearest]
+    secant /= np.linalg.norm(secant)
+    if float(np.dot(outward, secant)) < 0.65:
+        return None
+    stroke_width = 1.0
+    if width_image is not None:
+        samples = np.asarray(points, dtype=int)[(distances >= 3.0) & (distances <= 10.0)]
+        stroke_width = float(np.median(width_image[samples[:, 1], samples[:, 0]]))
+        if stroke_width <= 0:
+            return None
+    return _Arm(endpoint, tuple(outward), tuple(points), stroke_width, _perimeter(endpoint, box))
+
+
+def _curve_cells(points, shape):
+    pixels = np.rint(points).astype(int)
+    valid = ((pixels[:, 0] >= 0) & (pixels[:, 0] < shape[1])
+             & (pixels[:, 1] >= 0) & (pixels[:, 1] < shape[0]))
+    return pixels[valid]
+
+
+def _connectors(mask, region_mask, box, width_image, orientation, cancel):
+    from scipy.ndimage import distance_transform_edt
+    degree = _degree(mask)
+    near = distance_transform_edt(~region_mask)
+    # Use the narrow dimension so a ninety-degree rotation does not expand
+    # the terminal search and introduce a different neighbouring contour.
+    collar = min(8.0, max(4.0, min(box[2] - box[0], box[3] - box[1]) * 0.45))
+    ys, xs = np.nonzero((degree == 1) & (near <= collar))
+    if len(xs) > 64:
+        return (), ()
+    arms = []
+    for x, y in zip(xs.tolist(), ys.tolist()):
+        cancel()
+        arm = _arm(mask, (x, y), width_image, box)
+        # An unusable tangent still denotes a competing observed fragment.
+        # Dropping it would let a farther neighbour become the next alleged
+        # continuation merely because the correct arm has a short branch.
+        arms.append(arm if arm is not None else _Arm(
+            (x, y), (), (), 0.0, _perimeter((x, y), box)
+        ))
+    if len(arms) < 2 or len(arms) > 32:
+        return (), tuple(arms)
+    arms.sort(key=lambda arm: arm.perimeter)
+    axis = np.asarray(orientation, dtype=float)
+    if axis.shape != (2,) or not np.isfinite(axis).all() or np.linalg.norm(axis) < 0.5:
+        axis = np.asarray((1.0, 0.0))
+    axis /= np.linalg.norm(axis)
+    extent = abs(axis[0]) * (box[2] - box[0]) + abs(axis[1]) * (box[3] - box[1])
+    pairs = []
+    votes = [[] for _ in arms]
+    for i, first in enumerate(arms):
+        for j in range(i + 1, len(arms)):
+            cancel()
+            last = arms[j]
+            if not first.outward or not last.outward:
+                continue
+            # Non-crossing contours meet a simply connected occlusion boundary
+            # in paired order. Skipping an odd number of sustained arms would
+            # force a crossing or an unpaired neighbouring contour.
+            between = j - i - 1
+            perimeter = 2 * ((box[2] - box[0]) + (box[3] - box[1]))
+            if last.perimeter - first.perimeter > perimeter * 0.5:
+                between = len(arms) - (j - i) - 1
+            if between % 2:
+                continue
+            span = abs(float(np.dot(np.asarray(last.pixel) - first.pixel, axis)))
+            if span < max(4.0, extent * 0.60):
+                continue
+            ratio = max(first.width, last.width) / min(first.width, last.width)
+            if width_image is not None and ratio > 1.55:
+                continue
+            try:
+                curve = build_confirmed_gap_curve(
+                    first.pixel, last.pixel, first.outward, last.outward,
+                    config=ConfirmedGapCurveConfig(handle_ratio=0.55),
+                )
+            except ConfirmedGapCurveError:
+                continue
+            if curve.gap_length_pixels > 96.0:
+                continue
+            points = np.asarray(curve.points_xy)
+            cells = _curve_cells(points, mask.shape)
+            if len(cells) != len(points):
+                continue
+            # A candidate must actually bridge the detected label, not join
+            # two fragments along an unrelated edge of its surrounding box.
+            inside = region_mask[cells[:, 1], cells[:, 0]]
+            if float(np.mean(inside)) < 0.35:
+                continue
+            # Outside the label all contacts are observed and must belong to
+            # the exact endpoint context. A neighbouring continuous stroke
+            # remains a barrier even when its tangents resemble the pair.
+            allowed = {p for arm in (first, last) for p in arm.context[:4]}
+            blocked = False
+            for px, py in points[2:-2]:
+                if min(np.linalg.norm(np.asarray((px, py)) - first.pixel), np.linalg.norm(np.asarray((px, py)) - last.pixel)) <= 2:
+                    continue
+                for y in range(max(0, int(math.floor(py - 1))), min(mask.shape[0], int(math.ceil(py + 1)) + 1)):
+                    for x in range(max(0, int(math.floor(px - 1))), min(mask.shape[1], int(math.ceil(px + 1)) + 1)):
+                        if mask[y, x] and (x, y) not in allowed and math.hypot(x - px, y - py) <= 1.0:
+                            blocked = True
+            if blocked:
+                continue
+            score = (ratio - 1) * 3 + (curve.detour_ratio - 1) + curve.gap_length_pixels / 128
+            idx = len(pairs)
+            pairs.append((i, j, curve, score))
+            votes[i].append((score, idx))
+            votes[j].append((score, idx))
+    counts = np.zeros(len(pairs), dtype=np.uint8)
+    for options in votes:
+        options.sort()
+        if options and (len(options) == 1 or options[1][0] - options[0][0] > 0.15):
+            counts[options[0][1]] += 1
+    selected = tuple((arms[i], arms[j], curve) for (i, j, curve, _), count in zip(pairs, counts) if count == 2)
+    occupancy, crossing = {}, set()
+    for index, (_first, _last, curve) in enumerate(selected):
+        cells = set()
+        for a, b in zip(curve.points_xy, curve.points_xy[1:]):
+            for x in range(int(math.floor(min(a[0], b[0]))), int(math.floor(max(a[0], b[0]))) + 1):
+                for y in range(int(math.floor(min(a[1], b[1]))), int(math.floor(max(a[1], b[1]))) + 1):
+                    cells.add((x, y))
+        for cell in cells:
+            if cell in occupancy:
+                crossing.update((index, occupancy[cell]))
+            else:
+                occupancy[cell] = index
+    return tuple(value for index, value in enumerate(selected) if index not in crossing), tuple(arms)
+
+
+def _widths(image, shape):
+    if image is None:
+        return None
+    from scipy.ndimage import distance_transform_edt, maximum_filter
+    source = np.asarray(image)
+    if (source.shape[:2] != shape or source.dtype != np.uint8 or source.ndim not in (2, 3)
+            or (source.ndim == 3 and source.shape[2] != 3)):
+        raise ValueError("occlusion image must be native Byte gray/RGB")
+    gray = source.astype(np.float64) if source.ndim == 2 else source[:, :, :3].astype(np.float64).mean(axis=2)
+    paper = maximum_filter(gray, size=15, mode="nearest")
+    contrast = paper - gray
+    positive = contrast[contrast > 0]
+    if not len(positive):
+        return np.zeros(shape, dtype=np.float64)
+    threshold = max(6.0, float(np.percentile(positive, 75)) * 0.50)
+    return distance_transform_edt(contrast >= threshold)
+
+
+def build_occluded_connection(graph, centerline, root, origin, regions, *, sparse, dijkstra, image=None, cancel_check=None):
+    """Build separate masked-native prefix/curve/suffix routes in the worker.
+
+    Detector masks must be independent of prompts or desired output paths.
+    At most sixteen regions and sixteen retained connectors are considered;
+    exceeding a budget declines the optional feature without partial results.
+    Both anchors must already terminate in the original centreline. Fused
+    glyph/contour continuations are deliberately left to explicit review.
+    """
+    def cancel():
+        if cancel_check is not None and cancel_check():
+            raise ObservedConnectionCancelled("Occlusion connection was cancelled")
+    cancel()
+    native = np.asarray(centerline, dtype=bool)
+    if native.ndim != 2 or min(native.shape, default=0) < 1:
+        raise ValueError("centerline must be a non-empty 2D array")
+    if native.size > 1024 * 1024:
+        return None
+    regions = tuple(regions)
+    if not regions or len(regions) > 16:
+        return None
+    masks = [_region_mask(region, native.shape) for region in regions]
+    union = np.logical_or.reduce([value[0] for value in masks])
+    root_array = np.asarray(root, dtype=float)
+    origin_array = np.asarray(origin, dtype=int)
+    if root_array.shape != (2,) or origin_array.shape != (2,) or not np.isfinite(root_array).all():
+        raise ValueError("root and origin must have two finite coordinates")
+    local_root = np.rint(root_array - origin_array).astype(int)
+    if not (0 <= local_root[0] < native.shape[1] and 0 <= local_root[1] < native.shape[0]):
+        raise ValueError("root must lie in the centerline window")
+    if union[local_root[1], local_root[0]]:
+        return None
+    outside = native & ~union
+    cancel()
+    # A native detector can place the centre of a broad printed stroke just
+    # beyond the ordinary two-pixel anchor. Permit one extra pixel only here,
+    # with distance priority and a competing-component ambiguity check.
+    ys, xs = np.nonzero(outside)
+    offsets = np.hypot(xs - (root_array[0] - origin_array[0]), ys - (root_array[1] - origin_array[1]))
+    if not len(offsets) or float(offsets.min()) > 3.0:
+        return None
+    nearest = np.flatnonzero(offsets <= float(offsets.min()) + 0.25)
+    from scipy.ndimage import label
+    components, _ = label(outside, structure=np.ones((3, 3), dtype=np.uint8))
+    if len(set(components[ys[nearest], xs[nearest]].tolist())) != 1:
+        return None
+    snapped_root = root
+    if float(offsets.min()) > 2.0:
+        best = int(np.argmin(offsets))
+        snapped_root = (int(xs[best] + origin_array[0]), int(ys[best] + origin_array[1]))
+    baseline = build_observed_connection(graph, outside, snapped_root, origin, sparse=sparse, dijkstra=dijkstra, cancel_check=cancel_check)
+    if baseline is None:
+        return None
+    width_image = _widths(image, native.shape)
+    original_degree = _degree(native)
+    routes, retained = [], []
+    height, width = native.shape
+    for region_index, (region, (region_mask, box)) in enumerate(zip(regions, masks)):
+        cancel()
+        orientation = getattr(region, "baseline_xy", getattr(region, "orientation_xy", (1.0, 0.0)))
+        selected, arms = _connectors(outside, region_mask, box, width_image, orientation, cancel)
+        for first, last, curve in selected:
+            # Automatic reconstruction requires actual observed terminals.
+            # A glyph footprint can overlap an ordinary continuous contour;
+            # cutting that contour must not manufacture authority to pair it
+            # with the next indexed line. Fused/continuous ambiguous entries
+            # remain available to the explicit reviewed-gap workflow.
+            if (original_degree[first.pixel[1], first.pixel[0]] != 1
+                    or original_degree[last.pixel[1], last.pixel[0]] != 1):
+                continue
+            for start, end, curve_points in ((first, last, curve.points_xy), (last, first, curve.points_xy[::-1])):
+                absolute_source = tuple(np.asarray(start.pixel, dtype=float) + origin_array)
+                prefix = [tuple(root_array)] if absolute_source == tuple(root_array) else baseline.trace(absolute_source)
+                if prefix is None:
+                    continue
+                points = ((tuple(root_array),) if tuple(prefix[0]) != tuple(root_array) else ()) + tuple(prefix) + tuple(tuple(np.asarray(p) + origin_array) for p in curve_points[1:])
+                prefix_length = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:]))
+                if prefix_length > 2 * max(native.shape):
+                    continue
+                allowed = outside.copy()
+                # An arm other than the chosen far fragment is a barrier to
+                # this suffix. It cannot escape through a neighbouring label
+                # entry and then claim that neighbour as the continuation.
+                for arm in arms:
+                    if arm.pixel != end.pixel:
+                        allowed[arm.pixel[1], arm.pixel[0]] = False
+                indices = np.flatnonzero(allowed.ravel()).astype(np.int32)
+                lookup = np.full(native.shape, -1, dtype=np.int32)
+                lookup.ravel()[indices] = np.arange(len(indices), dtype=np.int32)
+                target_node = int(lookup[end.pixel[1], end.pixel[0]])
+                if target_node < 0:
+                    continue
+                compact = graph[indices][:, indices].tocsr()
+                cancel()
+                distances, predecessors = dijkstra(compact, directed=True, indices=target_node, return_predecessors=True)
+                cancel()
+                for value in (indices, lookup, distances, predecessors):
+                    value.setflags(write=False)
+                routes.append(_Route(indices, lookup, predecessors, distances, points, prefix_length, target_node, region_index))
+                retained.append((start.pixel, end.pixel, curve_points, region_index))
+                if len(routes) > 16:
+                    return None
+    if not routes:
+        return None
+    union.setflags(write=False)
+    outside.setflags(write=False)
+    return OccludedConnectionTree(tuple(root_array), tuple(origin_array), tuple(native.shape), union, outside, tuple(routes), tuple(retained), baseline)

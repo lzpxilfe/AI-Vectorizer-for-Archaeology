@@ -8,10 +8,10 @@ geometry and performance can be tested outside QGIS.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 import math
-from typing import Callable, Iterable, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Callable, Iterable, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -26,6 +26,9 @@ from .observed_connection import (
 )
 from .label_gap_route import LabelGapConnectionTree, build_label_gap_connection
 from .smart_recovery import arbitrate_routes
+
+if TYPE_CHECKING:
+    from .occluded_connection import OccludedConnectionTree
 
 
 Pixel = Tuple[int, int]
@@ -65,6 +68,7 @@ class LiveWireConfig:
     learned_route_guard: bool = False
     observed_connections: bool = True
     label_gap_connections: bool = True
+    automatic_label_occlusion: bool = True
     map_grid_cost_weight: float = 10.0
     heading_cost_weight: float = 3.0
     heading_decay_pixels: float = 22.0
@@ -89,6 +93,8 @@ class LiveWireConfig:
             raise ValueError("observed_connections must be a boolean")
         if not isinstance(self.label_gap_connections, bool):
             raise ValueError("label_gap_connections must be a boolean")
+        if not isinstance(self.automatic_label_occlusion, bool):
+            raise ValueError("automatic_label_occlusion must be a boolean")
         if (
             isinstance(self.max_window_size, bool)
             or not isinstance(self.max_window_size, int)
@@ -203,6 +209,7 @@ class LiveWireTree:
     route_evidence: Optional[LineEvidence] = None
     observed_connection: Optional[ObservedConnectionTree] = None
     label_gap_connection: Optional[LabelGapConnectionTree] = None
+    occluded_connection: Optional[OccludedConnectionTree] = None
 
     @property
     def width(self) -> int:
@@ -218,6 +225,28 @@ class LiveWireTree:
         return 0 <= x < self.width and 0 <= y < self.height
 
     def trace(self, target: Sequence[float]) -> list[FloatPixel]:
+        return self.trace_with_provenance(target)[0]
+
+    def trace_with_provenance(self, target: Sequence[float]):
+        """Return the displayed route and whether a detected label was bridged."""
+        ordinary = self._trace_without_occlusion(target)
+        connection = self.occluded_connection
+        if (
+            connection is not None and self.strength > 0.0 and self.contains(target)
+            and connection.outside_route(target) is None
+        ):
+            # A healthy visible connection outside independently detected
+            # text takes priority, including at partial assistance. A broken
+            # contour's old pixel shortcut may avoid the label entirely, so
+            # intersecting that old shortcut is not a prerequisite.
+            candidate = connection.trace(target)
+            if candidate is not None:
+                displayed = blend_path_with_cursor(candidate, self.root, target, self.strength)
+                if connection.accepts_display(displayed):
+                    return displayed, "automatic-label-gap"
+        return ordinary, "ink"
+
+    def _trace_without_occlusion(self, target: Sequence[float]) -> list[FloatPixel]:
         """Return a strength-blended path from the root to ``target``.
 
         At 0% this is the literal root-to-cursor segment.  At 100% it is the
@@ -626,6 +655,32 @@ def build_livewire_tree(
             raise
         except (RuntimeError, MemoryError):
             label_gap_connection = None
+    occluded_connection = None
+    if (
+        config.automatic_label_occlusion and config.observed_connections
+        and strength > 0.0 and crop_evidence is not None
+        and not active_avoidance and not has_continuity_bridge
+    ):
+        raw_image = np.asarray(image)
+        if raw_image.dtype == np.uint8 and (
+            raw_image.ndim == 2 or (raw_image.ndim == 3 and raw_image.shape[2] == 3)
+        ):
+            try:
+                from .label_occlusion import detect_label_occlusions
+                from .occluded_connection import build_occluded_connection
+                raw_crop = raw_image[y0:y1, x0:x1]
+                regions = detect_label_occlusions(raw_crop, cancel_check=cancel_check)
+                if regions:
+                    occluded_connection = build_occluded_connection(
+                        graph, crop_evidence[1], (root_x, root_y), (x0, y0), regions,
+                        image=raw_crop, sparse=sparse, dijkstra=dijkstra, cancel_check=cancel_check,
+                    )
+            except ObservedConnectionCancelled as exc:
+                raise LiveWireCancelled(str(exc)) from exc
+            except LiveWireCancelled:
+                raise
+            except (RuntimeError, MemoryError):
+                occluded_connection = None
     champion_tree = None
     if (
         learned_prior is not None and config.learned_route_guard and strength > 0.0
@@ -639,7 +694,8 @@ def build_livewire_tree(
             image, edges, root, strength=1.0,
             incoming_direction=incoming_direction, evidence=evidence,
             guidance=guidance, grid_prior=grid_prior, learned_prior=None,
-            config=config, cancel_check=cancel_check,
+            config=replace(config, automatic_label_occlusion=False),
+            cancel_check=cancel_check,
         )
     return LiveWireTree(
         root=(root_x, root_y),
@@ -653,6 +709,7 @@ def build_livewire_tree(
         route_evidence=evidence if champion_tree is not None else None,
         observed_connection=observed_connection,
         label_gap_connection=label_gap_connection,
+        occluded_connection=occluded_connection,
     )
 
 

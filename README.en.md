@@ -54,8 +54,8 @@ inference service.
 - Bounded, direction-aware Live-Wire with literal 0–100% coordinate blending
 - Session-only manual avoid regions for text, symbols, or stains in Ink tracing
 - Optional, session-only ink color sampling with `C`; `Shift+C` clears it
-- An explicit, reviewed `Label-gap bridge` preview for black/brown contours
-  actually interrupted by numeric labels
+- Automatic Ink previews for some numeric gaps, plus the explicit `Label-gap
+  bridge` (`G`); review the green path and click to accept
 - LSD, HED, MobileSAM, SAM ViT-B, and Legacy Canny preserved under
   `Advanced / Legacy methods`
 - A green preview of the path that the next click will accept
@@ -259,12 +259,20 @@ the separate [historical avoidance-cost record](learning/UNCALIBRATED_AVOIDANCE_
 
 ## Experimental: label-gap bridge
 
-This is a reviewed, explicit action for a black or brown contour that a numeric
-label has **actually interrupted**. Ink v2 also prepares a conservative automatic
-candidate for short gaps with sustained native context and mutually unique ends.
-Native connections take priority, and a route can contain only one inferred gap.
-This does not recognize text: fused glyphs, broad turns and competing ends can
-still require the explicit `G` preview.
+Ink v2 now connects some numeric gaps **without pressing `G`**. It finds compact
+groups of enclosed glyph spaces in native Byte pixels, then requires mutually
+unique ends that are **already endpoints in the original evidence**. Click along
+the contour, move to its visible continuation, inspect the green preview and
+click to accept. This needs SciPy and assistance above 0%; no OCR or extra model
+installation is required.
+
+A label mask cannot manufacture a new endpoint by cutting an intact contour.
+Healthy native paths outside the mask take priority, including at partial
+assistance. Each route can contain only one inferred gap. Short competing arms,
+cursor proximity, crossings and contact with neighboring ink after assistance
+blending are checked. Active manual, color or learned avoidance costs retain
+their existing routing. Fused glyphs, open letters and actual junctions remain
+ambiguous. The explicit `G` preview is available when automatic routing declines:
 
 ```text
 Anchor the last visible stroke before the gap → hover its first visible continuation → G → review → click that endpoint
@@ -283,11 +291,13 @@ skipped nearby terminals and sustained foreign-line crossings are rejected.
 The hidden curve is an inference. Real label cases, existing-case comparisons
 and remaining failures are recorded in the [label-gap check](learning/LABEL_GAP_CHECK_2026-10-15.md).
 
-In QGIS, two broad cuts at `700`/`600` produced saved, undoable `G` previews;
-a neighboring-contour endpoint was refused. A diagonal `600` remains refused
-because its directions are unclear. All seven existing cases retained identical
-saved coordinates across the three methods with automatic gaps OFF/ON. This
-does not establish automatic recovery of real text gaps or hidden ground truth.
+In QGIS, the `700`/`600` U bends now produce saved, undoable automatic previews
+with ordinary clicks. The user identified the former diagonal `600` pair as a
+neighboring-contour hop, so its positive reference and scores are withdrawn.
+That wrong pair is now refused; its correct hidden continuation is unresolved.
+All 21 saved-coordinate pairs from seven existing cases and three methods remain
+identical. These are development diagnostics, with unknown hidden geometry;
+see the [automatic gap check](learning/AUTOMATIC_LABEL_GAP_CHECK_2026-10-15.md).
 
 The declared OpenCV range is 4.8–4.11:
 

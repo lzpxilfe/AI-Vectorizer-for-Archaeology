@@ -34,7 +34,9 @@ def load_cases(fixtures, dataset, *, allow_withdrawn=False):
     if (not isinstance(document, dict)
             or document.get("schema_version") not in (
                 "archaeotrace-visual-contour-cases/1", "archaeotrace-label-gap-cases/1")
-            or document.get("frozen_before_model_outputs") is not True
+            or (document.get("frozen_before_model_outputs") is not True
+                and not (document.get("classification_revision_after_outputs") is True
+                         and document.get("unchanged_raw_controls_frozen_before_outputs") is True))
             or document.get("human_approved") is not False):
         raise ValueError("Cases require a frozen, explicitly non-human-approved visual review record")
     cases = document["cases"]
@@ -50,7 +52,14 @@ def load_cases(fixtures, dataset, *, allow_withdrawn=False):
     samples = {row["id"]: row for row in manifest["samples"]}
     for case in cases:
         case["withdrawn_reference"] = case["id"] in withdrawn
-        if (case.get("predictions_seen_before_freeze") is not False
+        revised_negative = (
+            gap_cases and document.get("classification_revision_after_outputs") is True
+            and case.get("classification_changed_after_outputs") is True
+            and case.get("expected_pair") == "different_contours"
+            and (case.get("negative_review_provenance") or {}).get("source")
+            == "user_reported_neighbor_hop_after_viewing_candidate"
+        )
+        if ((case.get("predictions_seen_before_freeze") is not False and not revised_negative)
                 or (not gap_cases and case.get("continuous_same_contour") is not True)):
             raise ValueError("Cases must be inspected on one contour before viewing predictions")
         sample = samples[case.get("sample_id", case["id"])]
@@ -171,11 +180,13 @@ def run_comparison():
                         learned_engine=engine, learned_guide=engine is not None,
                         learned_weights=weights,
                         grid_avoidance=after or spec.get("grid_in_both", False),
+                        trace_diagnostics_dir=spec.get("trace_diagnostics_dir"),
                         livewire_config_overrides={
                             "learned_observation_gate": after and spec.get("observation_gate", False),
                             "learned_route_guard": after and spec.get("route_guard", False),
-                            "observed_connections": (after or spec.get("compare_label_gaps", False)) and not spec.get("disable_observed", False),
-                            "label_gap_connections": (after and not spec.get("disable_label_gaps", False)) if spec.get("compare_label_gaps", False) else False,
+                            "observed_connections": (after or spec.get("compare_label_gaps", False) or spec.get("compare_occluded_labels", False)) and not spec.get("disable_observed", False),
+                            "label_gap_connections": (spec.get("compare_occluded_labels", False) or (after and spec.get("compare_label_gaps", False))) and not spec.get("disable_label_gaps", False),
+                            "automatic_label_occlusion": after and spec.get("compare_occluded_labels", False),
                         },
                     )
             results.append(row)
@@ -187,7 +198,8 @@ def run_comparison():
                   "after_config": {"grid_avoidance": True,
                                    "observed_connections": not spec.get("disable_observed", False),
                                    "label_gap_comparison": spec.get("compare_label_gaps", False),
-                                   "label_gap_connections": spec.get("compare_label_gaps", False) and not spec.get("disable_label_gaps", False),
+                                   "label_gap_connections": (spec.get("compare_label_gaps", False) or spec.get("compare_occluded_labels", False)) and not spec.get("disable_label_gaps", False),
+                                   "automatic_label_occlusion": spec.get("compare_occluded_labels", False),
                                    "before_avoidance_override": spec.get("before_avoidance"),
                                    "grid_in_both": spec.get("grid_in_both", False),
                                    "avoidance_override": spec.get("after_avoidance"),
@@ -234,6 +246,10 @@ def main():
                         help="Disable the observed connection candidate for historical comparison")
     parser.add_argument("--compare-label-gaps", action="store_true",
                         help="Keep native connections in both runs and enable inferred gaps only after")
+    parser.add_argument("--compare-occluded-labels", action="store_true",
+                        help="Keep existing native/gap paths in both runs; enable detected-label reconnection after")
+    parser.add_argument("--trace-diagnostics-dir", type=Path,
+                        help="Opt in to local cached-pixel NPZ evidence and route diagnostics")
     parser.add_argument("--no-label-gap-connections", action="store_true",
                         help="Disable inferred gaps for explicit diagnostic ablation")
     parser.add_argument("--allow-withdrawn-cases", action="store_true",
@@ -243,6 +259,8 @@ def main():
     parser.add_argument("--route-guard", action="store_true",
                         help="Diagnostic only: prefer Ink over learned candidates (known regressions)")
     args = parser.parse_args()
+    if args.compare_label_gaps and args.compare_occluded_labels:
+        parser.error("Choose one path-change comparison at a time")
     os.environ[SCRIPT_ENV] = str(Path(__file__).resolve())
     load_cases(args.fixtures, args.dataset, allow_withdrawn=args.allow_withdrawn_cases)
     os.environ[SPEC_ENV] = json.dumps({
@@ -251,6 +269,8 @@ def main():
         "grid_in_both": args.grid_in_both, "after_avoidance": args.after_avoidance,
         "before_avoidance": args.before_avoidance, "disable_observed": args.no_observed_connections,
         "compare_label_gaps": args.compare_label_gaps, "disable_label_gaps": args.no_label_gap_connections,
+        "compare_occluded_labels": args.compare_occluded_labels,
+        "trace_diagnostics_dir": str(args.trace_diagnostics_dir.resolve()) if args.trace_diagnostics_dir else None,
         "allow_withdrawn": args.allow_withdrawn_cases,
         "models": {"usgs": str(args.old_model.resolve()), "korea": str(args.new_model.resolve())}})
     args.qgis_executable = Path("/Applications/QGIS.app/Contents/MacOS/QGIS")
