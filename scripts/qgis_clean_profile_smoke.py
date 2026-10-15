@@ -278,6 +278,8 @@ def _run_trace_scenario(
     sample_color: bool = False,
     learned_engine=None,
     learned_guide: bool = False,
+    grid_avoidance: bool = True,
+    livewire_config_overrides=None,
 ) -> dict:
     """Drive real SmartTraceTool press/move/finish handlers to one feature."""
 
@@ -302,11 +304,17 @@ def _run_trace_scenario(
         recovery_engine=None,
         learned_engine=learned_engine,
         learned_guide=learned_guide,
+        grid_avoidance_enabled=grid_avoidance,
         recovery_state_callback=lambda state, detail: state_events.append(
             (state, detail)
         ),
     )
     output_layer = tool.vector_layer
+    if livewire_config_overrides:
+        from dataclasses import replace
+
+        current_config = tool._livewire_config()
+        tool._livewire_config = lambda: replace(current_config, **livewire_config_overrides)
     canvas.setLayers([output_layer, raster_layer])
 
     left_button = _qt_value(Qt, "LeftButton", "MouseButton")
@@ -472,6 +480,13 @@ def _run_trace_scenario(
             raise SmokeFailure(
                 f"{name} accepted a sparse chord (only {len(accepted)} points)."
             )
+        grid_prior = tool.cached_map_grid
+        grid_summary = None
+        if grid_prior is not None:
+            grid_summary = {
+                "horizontal_pixels": int(np.count_nonzero(grid_prior.horizontal_score)),
+                "vertical_pixels": int(np.count_nonzero(grid_prior.vertical_score)),
+            }
         tool.ask_elevation = lambda: 100.0
         tool.canvasPressEvent(Event(end_screen, button=right_button))
         if output_layer.featureCount() != 1:
@@ -481,8 +496,8 @@ def _run_trace_scenario(
         vertices = feature.geometry().asPolyline()
         if len(vertices) != len(accepted):
             raise SmokeFailure(f"{name} saved geometry differs from the accepted preview.")
-        if learned_guide and [(p.x(), p.y()) for p in vertices] != [(p.x(), p.y()) for p in accepted]:
-            raise SmokeFailure(f"{name} changed the accepted learned-guide coordinates while saving.")
+        if [(p.x(), p.y()) for p in vertices] != [(p.x(), p.y()) for p in accepted]:
+            raise SmokeFailure(f"{name} changed accepted coordinates while saving.")
         if sample_color:
             if tuple((point.x(), point.y()) for point in vertices) != tuple(
                 (point.x(), point.y()) for point in accepted
@@ -496,14 +511,14 @@ def _run_trace_scenario(
         end_error = float(
             np.hypot(vertices[-1].x() - end_map.x(), vertices[-1].y() - end_map.y())
         )
-        endpoint_tolerance = 6.1 if learned_guide and learned_engine is not None else 1.5
+        endpoint_tolerance = fixture.get("endpoint_tolerance_px", 6.1 if learned_guide and learned_engine is not None else 1.5)
         if start_error > endpoint_tolerance or end_error > endpoint_tolerance:
             raise SmokeFailure(
                 f"{name} changed trace endpoints ({start_error:.3f}, {end_error:.3f})."
             )
 
-        median_center_error = 0.0
-        if not freehand and edge_weight > 0.0:
+        median_center_error = None
+        if not freehand and edge_weight > 0.0 and fixture.get("curve_row") is not None:
             errors = []
             curve_row = fixture["curve_row"]
             for point in vertices:
@@ -536,9 +551,11 @@ def _run_trace_scenario(
         return {
             "name": name,
             "vertices": len(vertices),
+            "vertices_xy": [(point.x(), point.y()) for point in vertices],
             "start_error_px": round(start_error, 4),
             "end_error_px": round(end_error, 4),
-            "median_center_error_px": round(median_center_error, 4),
+            "median_center_error_px": (round(median_center_error, 4)
+                                       if median_center_error is not None else None),
             "ink_v2": tool.cached_ink_evidence is not None,
             "smart_recovery_enabled": bool(tool.smart_recovery_enabled),
             "rapid_accept_deferred": bool(rapid_accept),
@@ -546,6 +563,8 @@ def _run_trace_scenario(
             "enhanced_preview_preserved": bool(enhanced_accept),
             "sampled_ink_color_rgb": sampled_color,
             "learned_guide_requested": learned_guide,
+            "grid_avoidance": grid_avoidance,
+            "detected_grid": grid_summary,
             "learned_preview_preserved": bool(learned_guide and edge_weight > 0),
             "one_undo": True,
             "states": [state for state, _detail in state_events],
@@ -863,7 +882,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def run_outer(args: argparse.Namespace) -> dict:
+def run_outer(args: argparse.Namespace, *, bootstrap_script=None) -> dict:
     qgis_executable = args.qgis_executable.expanduser().resolve(strict=True)
     if not os.access(qgis_executable, os.X_OK):
         raise SmokeFailure(f"QGIS executable is not runnable: {qgis_executable}")
@@ -912,7 +931,7 @@ def run_outer(args: argparse.Namespace) -> dict:
             "--profile",
             PROFILE_NAME,
             "--code",
-            str(Path(__file__).resolve()),
+            str(Path(bootstrap_script or __file__).resolve()),
         ]
         try:
             completed = subprocess.run(

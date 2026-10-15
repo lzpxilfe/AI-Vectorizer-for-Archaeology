@@ -86,6 +86,17 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 > 실제 재배포 가능 고지도 holdout 결과 전에는 기본 승격이나 정확도 우위를 주장하지
 > 않습니다. 모델 파일은 플러그인 ZIP에 포함되지 않습니다.
 
+원본 Byte Ink에서는 긴 가로·세로 검정/저채도 선이 각각 2개 이상 보일 때 격자
+후보를 자동 검출합니다. 격자를 따라가는 비용은 높이고, 등고선의 횡단은 허용합니다.
+검출은 증거 준비와 함께 백그라운드에서 실행되며 실패하면 기존 Ink를 유지합니다.
+짧거나 끊긴 격자·큰 회전·채도 높은 파란 격자는 놓칠 수 있고, 두꺼운 격자의
+가장자리를 따라갈 수도 있습니다. 화면의 캐시 문맥에 따라 판정이 달라질 수 있습니다.
+
+기존 Ink를 우선 보존하는 학습 경로 보호와 관측 잉크 주변으로 학습 지지를 제한하는
+후보는 실제 사례의 퇴행 때문에 기본 적용하지 않습니다. 학습 보조는 계속 기본 OFF이며,
+옆 등고선으로 넘어가는 문제는 해결되지 않았습니다. 초록색 선을 검수하세요.
+숫자 공백은 `Label-gap bridge`에서 지정한 두 끝점을 곡선 미리보기로 연결합니다.
+
 ### 🧠 Experimental: 학습 등고선 보조
 
 1. `Advanced: 기존 추적 모델 / Advanced: legacy tracing models`를 펼치고
@@ -343,6 +354,16 @@ first use.
 - Assist is literal from 0% (exact cursor, no model work), through coordinate blending, to 100% (the full Live-Wire route).
 - `Freehand` needs no additional pip package, external model, or OpenCV, but uses NumPy from the QGIS Python environment.
 - Default `Ink Centerline` works after ZIP installation using QGIS' NumPy. SciPy enables the bounded direction-aware Live-Wire for every non-SAM edge mode; without it those modes use the local NumPy nearby-edge snap.
+- Native Byte Ink detects dark grid candidates when at least two long horizontal
+  and two vertical lines are visible. Following the grid costs more; transverse
+  contour crossings remain possible. Detection is asynchronous and falls back
+  to Ink on failure. Saturated blue, broken or highly rotated grids can be missed,
+  thick grid shoulders can still attract the route, and classification depends
+  on the cache context after panning.
+- Trial restrictions on learned support and a guard preferring Ink regressed
+  real validation cases, so both stay disabled by default. Learned guidance
+  remains default OFF. Neighboring-contour switching is unresolved; inspect
+  the green preview.
 - After starting an Ink trace, hover over a clear colored contour and press `C`;
   the sample button uses that last map position. `Shift+C` clears it. Ready
   native Byte RGB Ink v2 evidence, SciPy, and assist above 0% are required;

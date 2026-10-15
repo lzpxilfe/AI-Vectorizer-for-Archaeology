@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 
 from .trace_guidance import TraceGuidance
+from .map_grid import MapGridPrior
 
 
 RECOVERY_POLICY_ID = "smart-recovery-gate-v1-provisional"
@@ -46,6 +47,7 @@ class RecoveryConfig:
     corridor_outside_penalty: float = 2.0
     ink_missing_penalty: float = 4.5
     guidance_cost_weight: float = 6.0
+    map_grid_cost_weight: float = 2.0
 
     def validate(self) -> "RecoveryConfig":
         if not isinstance(self.policy_id, str) or not self.policy_id:
@@ -81,6 +83,7 @@ class RecoveryConfig:
             self.corridor_outside_penalty,
             self.ink_missing_penalty,
             self.guidance_cost_weight,
+            self.map_grid_cost_weight,
         )
         if any(
             not finite_real(value) or value < 0.0
@@ -431,6 +434,7 @@ def build_corridor_cost_map(
     corridor_score: Any,
     *,
     guidance: Optional[TraceGuidance] = None,
+    grid_prior: Optional[MapGridPrior] = None,
     config: RecoveryConfig = DEFAULT_RECOVERY_CONFIG,
 ) -> np.ndarray:
     """Fuse a semantic corridor with continuous Ink evidence for A*.
@@ -473,6 +477,15 @@ def build_corridor_cost_map(
             raise ValueError("guidance must match evidence.center_score")
         guidance64 = guidance.avoidance_score.astype(np.float64, copy=False)
         cost = cost + config.guidance_cost_weight * guidance64
+    if grid_prior is not None:
+        if not isinstance(grid_prior, MapGridPrior):
+            raise TypeError("grid_prior must be a MapGridPrior instance or None")
+        if grid_prior.shape != ink.shape:
+            raise ValueError("grid_prior must match evidence.center_score")
+        # Recovery A* consumes a scalar field, so it pays a weaker finite
+        # per-pixel cost. A transverse crossing only visits the narrow stroke
+        # while a route following the grid keeps paying along its length.
+        cost = cost + config.map_grid_cost_weight * grid_prior.score
     float32_max = float(np.finfo(np.float32).max)
     if not np.isfinite(cost).all() or np.any(cost > float32_max):
         raise ValueError("recovery penalties overflow the float32 cost-map contract")

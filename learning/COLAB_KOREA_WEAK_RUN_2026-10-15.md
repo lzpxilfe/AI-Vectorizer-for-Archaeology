@@ -106,9 +106,14 @@ when a click lands on or near one.
 
 ## Remaining work
 
+The later [grid and continuity diagnostic](GRID_CONTINUITY_CHECK_2026-10-15.md)
+uses four new validation cases inspected on enlarged raw pixels before model
+outputs. It records both existing model failures and a rejected route-guard
+regression; it does not reinstate the withdrawn comparison or constitute
+human-approved accuracy validation.
+
 These results come from weak labels and one selection-biased validation set,
-and no valid Korean tracing comparison exists yet. A comparison needs click
-pairs verified to lie on one contour, away from grid lines. Human review of Korean and USGS crops,
+and no human-approved Korean tracing comparison exists yet. Human review of Korean and USGS crops,
 Calibration of the support weight and avoidance cost, a reviewed Holdout
 comparison against Ink and Smart Recovery, and blue-contour Korean sheets
 (the cohort is black ink only; blue is covered only through `ink_recolor`)

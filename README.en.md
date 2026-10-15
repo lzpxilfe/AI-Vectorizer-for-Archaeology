@@ -47,6 +47,8 @@ inference service.
   USGS and Korean historical-map crops.
 - Freehand tracing with no additional model
 - Default multi-scale Ink Centerline evidence for dark and colored printed strokes
+- Automatic dark-grid detection in native Byte Ink raises the cost of following
+  a grid while allowing contours to cross it.
 - Optional Smart Recovery that uses a verified EfficientSAM-Ti model only as a
   corridor prior; it is experimental, default OFF, and keeps the Ink route on failure
 - Bounded, direction-aware Live-Wire with literal 0–100% coordinate blending
@@ -220,6 +222,30 @@ Synthetic diagnostic bundles only verify the software path and carry
 [learning guide](learning/README.md) for annotation, training, export, and
 evaluation commands. Elevation-number and legend reading with Unsloth remains
 a later stage.
+
+## Grid avoidance and contour continuity
+
+Native Byte Ink caches detect long, dark, low-chroma grid candidates when at
+least two separated horizontal and two vertical strokes are present. Small scan
+rotation is supported. Live-Wire raises the finite cost of following the grid;
+Recovery also receives a weaker finite cost. Raster pixels stay intact and
+transverse contour crossings remain possible. Saturated blue grids, large
+rotation, and short or broken grids can be missed; thick grid shoulders can
+still attract the route. Classification depends on
+the available cache context and is not guaranteed to stay identical after panning.
+
+A trial guard that preferred Ink over learned routes regressed a real case where
+Ink was wrong and the model was correct. That guard and the trial visible-ink
+support restriction are **disabled by default**. Learned guidance remains
+default OFF, and switching to neighboring contours is still unresolved. Explicit
+reconstruction across numeric labels uses the reviewed `Label-gap bridge`
+preview below.
+
+On four validation cases inspected at enlarged native resolution before model
+outputs, grid avoidance preserved the existing successes and failures. Synthetic
+grid improvements are not evidence of higher accuracy on real maps. See the
+[grid and continuity check](learning/GRID_CONTINUITY_CHECK_2026-10-15.md) for
+settings, regressions and failures.
 
 ## Experimental: label-gap bridge
 

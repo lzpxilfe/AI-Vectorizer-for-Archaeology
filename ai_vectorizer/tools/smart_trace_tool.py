@@ -54,6 +54,7 @@ from ..core.livewire import (
 )
 from ..core.line_evidence import crop_line_evidence
 from ..core.ink_color import sample_ink_color, guidance_from_ink_color
+from ..core.map_grid import MapGridPrior, detect_map_grid, crop_grid_prior
 from ..core.manual_gap_bridge import (
     ManualGapBridgeError,
     build_manual_gap_bridge,
@@ -261,6 +262,7 @@ class _InkEvidenceTask(QgsTask):
         cache_extent,
         output_size,
         callback,
+        detect_grid=True,
     ):
         super().__init__("ArchaeoTrace Ink evidence", _task_can_cancel())
         self.detector = detector
@@ -287,6 +289,8 @@ class _InkEvidenceTask(QgsTask):
         self.cache_extent = tuple(float(value) for value in cache_extent)
         self.output_size = tuple(int(value) for value in output_size)
         self.callback = callback
+        self.detect_grid = bool(detect_grid)
+        self.map_grid = None
         self.fallback_edges = None
         self.evidence = None
         self.evidence_error = None
@@ -343,6 +347,18 @@ class _InkEvidenceTask(QgsTask):
                     self.evidence_error = exc
             selected_edges = self.fallback_edges
             if self.evidence is not None:
+                if self.detect_grid and self.recovery_compatible:
+                    # Native pixels only; detection shares the evidence task's
+                    # source/view generation and never touches QGIS objects.
+                    try:
+                        self.map_grid = detect_map_grid(
+                            self.recovery_image, cancel_check=self.isCanceled,
+                        )
+                    except Exception:
+                        # Optional grid hints must not discard observed Ink.
+                        self.map_grid = None
+                if self.isCanceled():
+                    return False
                 selected_edges = np.where(
                     np.asarray(self.evidence.centerline, dtype=bool),
                     255,
@@ -387,6 +403,7 @@ class _LiveWireTreeTask(QgsTask):
         config,
         callback,
         learned_prior=None,
+        grid_prior=None,
     ):
         super().__init__("ArchaeoTrace Live-Wire tree", _task_can_cancel())
         self.image = image
@@ -394,6 +411,7 @@ class _LiveWireTreeTask(QgsTask):
         self.evidence = evidence
         self.guidance = guidance
         self.learned_prior = learned_prior
+        self.grid_prior = grid_prior
         self.anchor_pixel = tuple(anchor_pixel)
         self.incoming_direction = incoming_direction
         self.strength = float(strength)
@@ -418,6 +436,7 @@ class _LiveWireTreeTask(QgsTask):
                 evidence=self.evidence,
                 guidance=self.guidance,
                 learned_prior=self.learned_prior,
+                grid_prior=self.grid_prior,
             )
             return not self.isCanceled()
         except LiveWireCancelled:
@@ -488,6 +507,7 @@ class _RecoveryPreviewTask(QgsTask):
         callback,
         strength=1.0,
         guidance_config=DEFAULT_RECOVERY_CONFIG,
+        grid_prior=None,
     ):
         super().__init__("ArchaeoTrace Smart Recovery", _task_can_cancel())
         self.engine = engine
@@ -495,6 +515,7 @@ class _RecoveryPreviewTask(QgsTask):
         self.encoding = encoding
         self.evidence = evidence
         self.guidance = guidance
+        self.grid_prior = grid_prior
         self.champion_path = tuple(tuple(point) for point in champion_path)
         self.start_pixel = tuple(start_pixel)
         self.target_pixel = tuple(target_pixel)
@@ -551,6 +572,11 @@ class _RecoveryPreviewTask(QgsTask):
                     raise ValueError(
                         "Recovery guidance must match the full Ink evidence grid"
                     )
+            if self.grid_prior is not None:
+                if not isinstance(self.grid_prior, MapGridPrior):
+                    raise TypeError("Recovery grid prior must be a MapGridPrior instance")
+                if self.grid_prior.shape != evidence_shape:
+                    raise ValueError("Recovery grid prior must match the full Ink evidence grid")
             x0, y0, x1, y1 = self.window_bounds
             height, width = evidence_shape
             if not (0 <= x0 < x1 <= width and 0 <= y0 < y1 <= height):
@@ -591,6 +617,8 @@ class _RecoveryPreviewTask(QgsTask):
                 bounded_evidence,
                 bounded_corridor,
                 guidance=bounded_guidance,
+                grid_prior=(crop_grid_prior(self.grid_prior, self.window_bounds)
+                            if self.grid_prior is not None else None),
                 config=self.guidance_config,
             )
             if self.isCanceled():
@@ -982,7 +1010,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                  recovery_engine=None, smart_recovery=False,
                  recovery_state_callback=None, ink_color_callback=None,
                  learned_engine=None, learned_guide=False, learned_state_callback=None,
-                 learned_support_weight=0.8, learned_avoidance_weight=6.0):
+                 learned_support_weight=0.8, learned_avoidance_weight=6.0,
+                 grid_avoidance_enabled=True):
         self.canvas = canvas
         super().__init__(self.canvas)
         self.iface = iface
@@ -1024,6 +1053,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.recovery_state_callback = recovery_state_callback
         self.ink_color_callback = ink_color_callback
         self._ink_color_profile = None
+        self.grid_avoidance_enabled = bool(grid_avoidance_enabled)
         self.learned_engine = learned_engine
         self.learned_guide_requested = bool(learned_guide)
         self.learned_state_callback = learned_state_callback
@@ -1164,6 +1194,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.cache_transform = None  # Pixel <-> Map transform
         self.cached_rgb_image = None
         self.cached_ink_evidence = None
+        self.cached_map_grid = None
         self.cached_trace_guidance = None
         self._recovery_cache_compatible = False
         self._recovery_cache_disabled_reason = (
@@ -1428,6 +1459,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.cached_edges = None
         self.cached_cost = None
         self.cached_ink_evidence = None
+        self.cached_map_grid = None
         self.cached_trace_guidance = None
         self.cache_extent = None
         self.cache_tile_origin = None
@@ -2869,6 +2901,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             config=self._livewire_config(),
             callback=self._on_livewire_tree_finished,
             learned_prior=self._learned_prior if self._learned_cache_ready() else None,
+            grid_prior=self.cached_map_grid,
         )
         self._livewire_task = task
         QgsApplication.taskManager().addTask(task)
@@ -3360,6 +3393,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             callback=self._on_recovery_preview_finished,
             strength=self.edge_weight,
             guidance_config=replace(DEFAULT_RECOVERY_CONFIG, guidance_cost_weight=guidance_weight),
+            grid_prior=self.cached_map_grid,
         )
         self._recovery_task = task
         self._emit_recovery_state(
@@ -4993,6 +5027,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         cache_identity,
         recovery_compatible=False,
         recovery_disabled_reason="",
+        map_grid=None,
     ):
         """Publish one current immutable task result on the main thread."""
 
@@ -5000,6 +5035,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.cached_rgb_image = rgb_image
         self.cached_edges = np.ascontiguousarray(edges, dtype=np.uint8)
         self.cached_ink_evidence = evidence
+        self.cached_map_grid = map_grid if evidence is not None else None
         self._recovery_cache_compatible = bool(
             evidence is not None and recovery_compatible
         )
@@ -5115,6 +5151,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             cache_identity=published_identity,
             recovery_compatible=task.recovery_compatible,
             recovery_disabled_reason=task.recovery_disabled_reason,
+            map_grid=getattr(task, "map_grid", None),
         )
         if evidence_error is not None:
             self._emit_recovery_state(
@@ -5451,6 +5488,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                     ),
                     output_size=(evidence_width, evidence_height),
                     callback=self._on_ink_evidence_finished,
+                    detect_grid=self.grid_avoidance_enabled and self.edge_weight > 0.0,
                 )
                 self._ink_evidence_task = task
                 QgsApplication.taskManager().addTask(task)

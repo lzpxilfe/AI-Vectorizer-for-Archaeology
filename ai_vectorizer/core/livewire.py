@@ -18,6 +18,8 @@ import numpy as np
 from .line_evidence import LineEvidence
 from .learned_prior import LearnedLinePrior
 from .trace_guidance import TraceGuidance
+from .map_grid import MapGridPrior
+from .smart_recovery import arbitrate_routes
 
 
 Pixel = Tuple[int, int]
@@ -49,6 +51,11 @@ class LiveWireConfig:
     avoidance_cost_weight: float = 6.0
     learned_support_cap: float = 0.8
     learned_avoidance_cost_weight: float = 6.0
+    # Diagnostic candidates only: both regress real validation cases, so
+    # ordinary tracing preserves the existing learned-prior behaviour.
+    learned_observation_gate: bool = False
+    learned_route_guard: bool = False
+    map_grid_cost_weight: float = 10.0
     heading_cost_weight: float = 3.0
     heading_decay_pixels: float = 22.0
     target_snap_radius: int = 6
@@ -64,6 +71,10 @@ class LiveWireConfig:
     continuity_bridge_max_tangent_slope: float = 0.25
 
     def validate(self) -> "LiveWireConfig":
+        if not isinstance(self.learned_observation_gate, bool):
+            raise ValueError("learned_observation_gate must be a boolean")
+        if not isinstance(self.learned_route_guard, bool):
+            raise ValueError("learned_route_guard must be a boolean")
         if (
             isinstance(self.max_window_size, bool)
             or not isinstance(self.max_window_size, int)
@@ -90,6 +101,7 @@ class LiveWireConfig:
             self.avoidance_cost_weight,
             self.learned_support_cap,
             self.learned_avoidance_cost_weight,
+            self.map_grid_cost_weight,
             self.heading_cost_weight,
             self.heading_decay_pixels,
             self.target_snap_penalty,
@@ -129,6 +141,7 @@ class LiveWireConfig:
             self.direction_cost_weight,
             self.avoidance_cost_weight,
             self.learned_avoidance_cost_weight,
+            self.map_grid_cost_weight,
             self.heading_cost_weight,
         ) < 0:
             raise ValueError("cost weights cannot be negative")
@@ -172,6 +185,8 @@ class LiveWireTree:
     distances: np.ndarray
     strength: float
     config: LiveWireConfig
+    champion_tree: Optional["LiveWireTree"] = None
+    route_evidence: Optional[LineEvidence] = None
 
     @property
     def width(self) -> int:
@@ -203,7 +218,10 @@ class LiveWireTree:
         if self.strength <= 0.0 or not self.contains(target):
             return direct
 
-        end_index = self._select_target_index(target_x, target_y)
+        end_index = self._select_target_index(
+            target_x, target_y,
+            snap_strength=1.0 if self.champion_tree is not None else None,
+        )
         if end_index is None:
             return direct
 
@@ -225,13 +243,27 @@ class LiveWireTree:
             )
             for index in local_indices
         ]
+        if len(assisted) < 2:
+            return direct
         if not _detour_is_reasonable(
             assisted,
             self.root,
             (target_x, target_y),
             self.config,
         ):
-            return direct
+            if self.champion_tree is None:
+                return direct
+            assisted = self.champion_tree.trace(target)
+
+        if self.champion_tree is not None and self.route_evidence is not None:
+            champion = self.champion_tree.trace(target)
+            selection = arbitrate_routes(
+                champion, assisted, self.route_evidence,
+                expected_start=self.root,
+                expected_end=champion[-1],
+            )
+            if not selection.accepted:
+                assisted = champion
 
         return blend_path_with_cursor(
             assisted,
@@ -240,10 +272,14 @@ class LiveWireTree:
             self.strength,
         )
 
-    def _select_target_index(self, target_x: float, target_y: float) -> Optional[int]:
+    def _select_target_index(
+        self, target_x: float, target_y: float, *, snap_strength=None
+    ) -> Optional[int]:
         local_x = int(round(target_x)) - self.origin[0]
         local_y = int(round(target_y)) - self.origin[1]
-        radius = int(round(self.config.target_snap_radius * self.strength))
+        radius = int(round(self.config.target_snap_radius * (
+            self.strength if snap_strength is None else snap_strength
+        )))
         radius = max(0, radius)
 
         x_min = max(0, local_x - radius)
@@ -310,6 +346,7 @@ def build_livewire_tree(
     evidence: Optional[LineEvidence] = None,
     guidance: Optional[TraceGuidance] = None,
     learned_prior: Optional[LearnedLinePrior] = None,
+    grid_prior: Optional[MapGridPrior] = None,
     config: LiveWireConfig = LiveWireConfig(),
     cancel_check: Optional[Callable[[], bool]] = None,
 ) -> LiveWireTree:
@@ -349,6 +386,11 @@ def build_livewire_tree(
             raise ValueError("learned_prior dimensions must match edges")
         if evidence is None:
             raise ValueError("learned_prior requires observed Ink LineEvidence")
+    if grid_prior is not None:
+        if not isinstance(grid_prior, MapGridPrior):
+            raise TypeError("grid_prior must be a MapGridPrior instance or None")
+        if grid_prior.shape != tuple(int(value) for value in edge_array.shape):
+            raise ValueError("grid_prior dimensions must match edges")
 
     root_x = int(round(float(root[0])))
     root_y = int(round(float(root[1])))
@@ -425,11 +467,23 @@ def build_livewire_tree(
         # Apply the optional score after the observed centreline maximum.
         # Learned support never changes the binary Ink or its axial tangent;
         # the other-ink head can still add cost to an observed glyph/road.
-        line_confidence = np.maximum(
-            line_confidence,
+        learned_support = (
             learned_prior.contour_score[y0:y1, x0:x1]
-            * np.float32(config.learned_support_cap),
+            * np.float32(config.learned_support_cap)
         )
+        if config.learned_observation_gate:
+            # An uncalibrated dense prediction must not make blank space
+            # between adjacent contours into a cheap shortcut. Preserve the
+            # observed native-pixel skeleton and allow support within 2px;
+            # intentional label-gap bridging remains a separate preview.
+            observed_nearby = ndimage.maximum_filter(
+                evidence.centerline[y0:y1, x0:x1], size=5, mode="constant"
+            )
+            visible_ink = _visible_ink_support(
+                crop_rgb, np.asarray(image)[y0:y1, x0:x1], ndimage
+            )
+            learned_support = learned_support * observed_nearby * visible_ink
+        line_confidence = np.maximum(line_confidence, learned_support)
         learned_avoidance = learned_prior.avoidance_score[y0:y1, x0:x1]
         if np.any(learned_avoidance > 0.0):
             learned_cost = learned_avoidance * config.learned_avoidance_cost_weight
@@ -455,6 +509,12 @@ def build_livewire_tree(
         config,
         cancel_check,
         avoidance_cost=crop_avoidance_cost,
+        grid_prior=(
+            (grid_prior.horizontal_score[y0:y1, x0:x1],
+             grid_prior.vertical_score[y0:y1, x0:x1],
+             grid_prior.horizontal_slope, grid_prior.vertical_slope)
+            if grid_prior is not None else None
+        ),
     )
     _raise_if_cancelled(cancel_check)
 
@@ -467,6 +527,21 @@ def build_livewire_tree(
         return_predecessors=True,
     )
     _raise_if_cancelled(cancel_check)
+    champion_tree = None
+    if (
+        learned_prior is not None and config.learned_route_guard and strength > 0.0
+        and (np.any(learned_prior.contour_score > 0.0) or np.any(learned_prior.avoidance_score > 0.0))
+    ):
+        # Keep the observed route for target-specific arbitration. Features
+        # are read from the same immutable evidence; no detector/model is
+        # run again. A learned challenger must retain reliable Ink sections
+        # and materially improve weak sections before replacing the route.
+        champion_tree = build_livewire_tree(
+            image, edges, root, strength=1.0,
+            incoming_direction=incoming_direction, evidence=evidence,
+            guidance=guidance, grid_prior=grid_prior, learned_prior=None,
+            config=config, cancel_check=cancel_check,
+        )
     return LiveWireTree(
         root=(root_x, root_y),
         origin=(x0, y0),
@@ -475,6 +550,8 @@ def build_livewire_tree(
         distances=np.asarray(distances, dtype=np.float64),
         strength=strength,
         config=config,
+        champion_tree=champion_tree,
+        route_evidence=evidence if champion_tree is not None else None,
     )
 
 
@@ -735,6 +812,44 @@ def _continuity_rgb_crop(image, expected_shape, y0, y1, x0, x1):
     return np.ascontiguousarray(rgb[y0:y1, x0:x1], dtype=np.float32)
 
 
+def _visible_ink_support(crop_rgb, image_crop, ndimage):
+    """Require native raster contrast before learned support lowers cost.
+
+    Dilation of a skeleton alone creates a cheap white halo. Two adjacent
+    halos can connect otherwise separate contours and let a dense prior hop
+    between them. A 15px local paper reference supports actual dark/colored
+    ink while preserving the original cost of blank inter-contour pixels.
+    Unsupported ranges simply disable this optional learned contribution.
+    """
+    if crop_rgb is not None:
+        values = crop_rgb
+    else:
+        source = np.asarray(image_crop)
+        if source.ndim != 2 or source.dtype == np.bool_:
+            return np.zeros(source.shape[:2], dtype=np.float32)
+        try:
+            values = np.asarray(source, dtype=np.float32)
+        except (TypeError, ValueError, OverflowError):
+            return np.zeros(source.shape, dtype=np.float32)
+        if not np.isfinite(values).all():
+            return np.zeros(source.shape, dtype=np.float32)
+        if np.issubdtype(source.dtype, np.integer):
+            limits = np.iinfo(source.dtype)
+            values = (values - float(limits.min)) / float(int(limits.max) - int(limits.min))
+        elif 0.0 <= float(values.min()) <= float(values.max()) <= 1.0:
+            pass
+        elif 0.0 <= float(values.min()) <= float(values.max()) <= 255.0:
+            values = values / np.float32(255.0)
+        else:
+            return np.zeros(source.shape, dtype=np.float32)
+    size = (15, 15, 1) if values.ndim == 3 else 15
+    paper = ndimage.maximum_filter(values, size=size, mode="nearest")
+    contrast = paper - values
+    if contrast.ndim == 3:
+        contrast = np.max(contrast, axis=2)
+    return np.clip((contrast - np.float32(0.02)) / np.float32(0.08), 0.0, 1.0)
+
+
 def _skeleton_endpoints(centerline):
     """Return unambiguous 8-connected skeleton endpoints.
 
@@ -939,6 +1054,7 @@ def _build_sparse_graph(
     cancel_check,
     *,
     avoidance_cost=None,
+    grid_prior=None,
 ):
     height, width = line_confidence.shape
     indices = np.arange(height * width, dtype=np.int32).reshape(height, width)
@@ -1014,6 +1130,22 @@ def _build_sparse_graph(
                 * (source_avoidance + target_avoidance)
                 * 0.5
             )
+        if grid_prior is not None:
+            horizontal, vertical, h_slope, v_slope = grid_prior
+            # Following a detected grid stroke is expensive; crossing it
+            # transversely remains cheap. At an intersection both families
+            # contribute, but every edge retains a finite positive cost.
+            horizontal_alignment = (
+                (unit_x + h_slope * unit_y) / math.hypot(1.0, h_slope)
+            ) ** 8
+            vertical_alignment = (
+                (v_slope * unit_x + unit_y) / math.hypot(1.0, v_slope)
+            ) ** 8
+            grid_cost = np.maximum(
+                horizontal_alignment * (horizontal[source_y, source_x] + horizontal[target_y, target_x_slice]) * 0.5,
+                vertical_alignment * (vertical[source_y, source_x] + vertical[target_y, target_x_slice]) * 0.5,
+            )
+            assist_penalty = assist_penalty + config.map_grid_cost_weight * grid_cost
         if heading is not None:
             signed_alignment = max(-1.0, min(1.0, unit_x * heading[0] + unit_y * heading[1]))
             heading_penalty = (1.0 - signed_alignment) ** 2
