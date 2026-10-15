@@ -714,7 +714,7 @@
       "passed": 1023,
       "skipped": 154,
       "subtests_passed": 171,
-      "log_sha256": "99dcd7a9f997c85de6fc5938931720b2678eface2cefc4eaa7cdf684967fd005"
+      "log_sha256": "20e4f6dbe7a422a9d758cebee73743c27a1dc5c3a8a3b98700f3c141bcc1dfdd"
     },
     "packaged_qgis": {
       "passed": 162,

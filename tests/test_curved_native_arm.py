@@ -83,13 +83,14 @@ def test_early_branch_and_nonendpoint_are_still_rejected(rotation):
       (23, 30), (23, 31), (24, 32), (24, 33), (25, 34), (25, 35)],
      (-0.0008086112252324106, -0.9999996730738898), 12),
 ])
-def test_successful_previous_fits_keep_exact_direction_and_context(points, expected, context_length):
+def test_successful_previous_fits_keep_direction_and_exact_context(points, expected, context_length):
     # Frozen successful outputs from the previous sustained quadratic fit.
-    # Local fitting is a fallback, so even a tiny direction change is a bug.
+    # Permit only numerical roundoff across NumPy/LAPACK implementations:
+    # Linux differs from the original macOS result by about 4e-17.
     native = _mask(points)
     arm = _arm(native, points[0], np.full(native.shape, 3.0), (10, 10, 45, 45))
     assert arm is not None
-    np.testing.assert_array_equal(arm.outward, expected)
+    np.testing.assert_allclose(arm.outward, expected, rtol=0, atol=1e-14)
     assert arm.context == tuple(points[:context_length])
     assert arm.width == 3.0
     assert arm.perimeter == 10
