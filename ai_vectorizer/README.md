@@ -170,14 +170,17 @@ Ink v2는 일부 숫자 공백을 **`G` 없이** 연결합니다. 원본 Byte �
 커서를 옮겨 초록 preview를 검수한 다음 클릭해 채택하세요. SciPy와 0%보다 큰 보조율이
 필요하며 OCR·추가 모델 설치는 필요 없습니다.
 
-양쪽 모두 원본 중심선에서도 끝점이어야 합니다. 문자 마스크가 멀쩡한 선을 잘라 만든
+양쪽 모두 원본 중심선에서도 끝점이어야 합니다. 문자 마스크의 여유 영역에 걸친
+연속선은 보존합니다. 마스크가 멀쩡한 선을 잘라 만든
 끝점은 거부하고, 마스크 밖에서 이어지는 기존 경로는 보존합니다. 경로당 추론 공백은
 하나이며 짧은 경쟁 조각·가까운 옆 선·교차·보조율 적용 후 접촉을 확인합니다.
 수동·색상·학습 회피 비용이 있거나 글자와 선이 붙어 모호하면 기존 Ink를 사용합니다.
-실제 `700`·`600` U자는 일반 클릭으로 연결했지만, 잘못 짝지었던 대각선 `600`은
-사용자 지적 후 성공 판정을 철회하고 자동 연결을 거부합니다. 올바른 대각선 짝은
-미확정이며 숨은 선은 추정입니다. 검증 범위는
-[자동 숫자 공백 점검](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/learning/AUTOMATIC_LABEL_GAP_CHECK_2026-10-15.md)에 있습니다.
+기존 경로가 두 실제 끝점과 보이는 선을 이미 잘 따르면 원래 경로와 평활화를 유지합니다.
+실제 `700`·`600` U자와 새 원본 감사에서 고른 대각선 `600` 바깥 쌍을 일반 클릭으로
+연결했습니다. 대각선의 기존 잘못된 안쪽 선 요청은 계속 거부합니다. `600` U자의 Ink
+가시 F1은 0.957→1.000으로 회복됐고 두 학습 guide는 0.957을 유지했습니다. 기존
+7건 × 세 방법의 저장 좌표도 같습니다. 숨은 선은 추정이며 검증 범위는
+[대각선·U자 후속 비교](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/learning/DIAGONAL_LABEL_FOLLOWUP_2026-10-15.md)에 있습니다.
 
 자동 연결이 나오지 않는 실제 공백은 양끝을 직접 지정할 수 있습니다. 공백 직전 마지막 실선에
 anchor를 확정하고 반대편 첫 실선 끝에서 `G`를 누르세요. 초록 preview를 검토한 다음 그 끝점을 클릭해야
@@ -395,7 +398,8 @@ first use.
   still apply, but useful learned text/road exclusion can also be lost.
 - Ink v2 can join some detected numeric gaps without `G`, using one mutually
   unique pair of original native endpoints per route. A text mask cannot cut
-  an intact contour to manufacture an end. Healthy visible connections take
+  an intact contour to manufacture an end; continuous ink in its padding stays
+  visible. An already good route keeps its geometry and smoothing. Healthy visible connections take
   priority; competing arms, cursor identity and the blended display are checked.
   Fused/open glyphs and junctions remain ambiguous. Review the green preview
   and click to accept. For an explicit proposal, anchor a visible end, hover

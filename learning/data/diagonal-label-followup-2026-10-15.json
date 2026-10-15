@@ -1,0 +1,798 @@
+{
+  "schema_version": "archaeotrace-diagonal-label-followup/1",
+  "date": "2026-10-15",
+  "baseline_commit": "f1bc3aa016a72d4176471e3760c003b3ff9d5eda",
+  "scope": "Validation-only development comparison with historically known wrong output. Corrected outer raw controls frozen before this implementation output; no independent evaluation or human positive approval.",
+  "human_approved_positive_annotations": 0,
+  "hidden_geometry_ground_truth": false,
+  "training_or_weights_changed": false,
+  "calibration_or_holdout_opened": false,
+  "dataset_manifest_sha256": "b2fd2a087f75de4e5e1d31b44f13dfdb1a8af3963e18e68f81f9cb4a91e32249",
+  "fixtures": {
+    "korea-label-gap-visual-cases-v3.json": "5c4291437afbd8bd10c079e0d914c48c1cf6cfc5728d14708b5246309f22ee0d",
+    "korea-label-gap-visual-cases-v4.json": "2866f1a53703e75f939a778e4babcbe2c7828a1dd66cea45653dcef2d75990ac",
+    "korea-contour-visual-cases-v3.json": "5bbab30767226e264bbaff202045f5cd8e403b677ddcedf1728f099edd981b63"
+  },
+  "u_reference_and_unknown_unchanged": true,
+  "corrected_diagonal": {
+    "normal_prompt_rc": [
+      [
+        262,
+        119
+      ],
+      [
+        233,
+        145
+      ]
+    ],
+    "actual_gap_endpoints_xy": [
+      [
+        134,
+        237
+      ],
+      [
+        143,
+        246
+      ]
+    ],
+    "old_wrong_prompt_rc": [
+      [
+        269,
+        123
+      ],
+      [
+        261,
+        153
+      ]
+    ],
+    "old_wrong_pair_retained_as_negative": true,
+    "raw_audit_sha256": "912f119cb6eb8e9d94386b57c3d41f9707790e38fa3d153e661ff626b7595bc8"
+  },
+  "qgis_version": "3.44.8-Solothurn",
+  "input_policy": "integer mouse events at exact native cell centres; matching inputs verified",
+  "same_version_reproducibility": {
+    "all_three_saved_coordinate_pairs_identical": true,
+    "result_sha256": "60f3887ac8299a1dcbc2cb89ef5ca43a3a06bc583acc59b447000cb0883b81f9"
+  },
+  "comparison_config": {
+    "grid_avoidance": true,
+    "observed_connections": true,
+    "label_gap_comparison": false,
+    "label_gap_connections": true,
+    "automatic_label_occlusion": true,
+    "before_avoidance_override": 0.0,
+    "grid_in_both": true,
+    "avoidance_override": null,
+    "unconfigured_model_avoidance": 0.0,
+    "learned_observation_gate": false,
+    "learned_route_guard": false
+  },
+  "cases": [
+    {
+      "id": "kr-10-crop-01-label-700-u",
+      "expected_pair": "plausible_same_contour",
+      "hidden_geometry_scored": false,
+      "methods": {
+        "ink": {
+          "input_map_xy": {
+            "start": [
+              219.5,
+              239.5
+            ],
+            "end": [
+              256.5,
+              242.5
+            ]
+          },
+          "before": {
+            "visible_median_px": 1.0,
+            "visible_p95_px": 2.0,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after": {
+            "visible_median_px": 1.0,
+            "visible_p95_px": 2.0,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after_route": "automatic-label-gap",
+          "saved_coordinates_unchanged": true,
+          "one_undo": true
+        },
+        "usgs": {
+          "input_map_xy": {
+            "start": [
+              219.5,
+              239.5
+            ],
+            "end": [
+              256.5,
+              242.5
+            ]
+          },
+          "before": {
+            "visible_median_px": 1.0,
+            "visible_p95_px": 2.0,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after": {
+            "visible_median_px": 1.0,
+            "visible_p95_px": 2.0,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after_route": "automatic-label-gap",
+          "saved_coordinates_unchanged": true,
+          "one_undo": true
+        },
+        "korea": {
+          "input_map_xy": {
+            "start": [
+              219.5,
+              239.5
+            ],
+            "end": [
+              256.5,
+              242.5
+            ]
+          },
+          "before": {
+            "visible_median_px": 1.0,
+            "visible_p95_px": 2.0,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after": {
+            "visible_median_px": 1.0,
+            "visible_p95_px": 2.0,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after_route": "automatic-label-gap",
+          "saved_coordinates_unchanged": true,
+          "one_undo": true
+        }
+      }
+    },
+    {
+      "id": "kr-10-crop-01-label-600-u",
+      "expected_pair": "plausible_same_contour",
+      "hidden_geometry_scored": false,
+      "methods": {
+        "ink": {
+          "input_map_xy": {
+            "start": [
+              225.5,
+              185.5
+            ],
+            "end": [
+              252.5,
+              187.5
+            ]
+          },
+          "before": {
+            "visible_median_px": 0.186,
+            "visible_p95_px": 2.75,
+            "visible_precision_2px": 0.918,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 0.957
+          },
+          "after": {
+            "visible_median_px": 0.152,
+            "visible_p95_px": 0.558,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after_route": "ink",
+          "saved_coordinates_unchanged": false,
+          "one_undo": true
+        },
+        "usgs": {
+          "input_map_xy": {
+            "start": [
+              225.5,
+              185.5
+            ],
+            "end": [
+              252.5,
+              187.5
+            ]
+          },
+          "before": {
+            "visible_median_px": 0.186,
+            "visible_p95_px": 2.75,
+            "visible_precision_2px": 0.918,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 0.957
+          },
+          "after": {
+            "visible_median_px": 0.186,
+            "visible_p95_px": 2.75,
+            "visible_precision_2px": 0.918,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 0.957
+          },
+          "after_route": "automatic-label-gap",
+          "saved_coordinates_unchanged": true,
+          "one_undo": true
+        },
+        "korea": {
+          "input_map_xy": {
+            "start": [
+              225.5,
+              185.5
+            ],
+            "end": [
+              252.5,
+              187.5
+            ]
+          },
+          "before": {
+            "visible_median_px": 0.186,
+            "visible_p95_px": 2.75,
+            "visible_precision_2px": 0.918,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 0.957
+          },
+          "after": {
+            "visible_median_px": 0.186,
+            "visible_p95_px": 2.75,
+            "visible_precision_2px": 0.918,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 0.957
+          },
+          "after_route": "automatic-label-gap",
+          "saved_coordinates_unchanged": true,
+          "one_undo": true
+        }
+      }
+    },
+    {
+      "id": "kr-10-crop-12-label-600-diagonal-outer-raw-v1",
+      "expected_pair": "plausible_same_contour",
+      "hidden_geometry_scored": false,
+      "methods": {
+        "ink": {
+          "input_map_xy": {
+            "start": [
+              119.5,
+              249.5
+            ],
+            "end": [
+              145.5,
+              278.5
+            ]
+          },
+          "before": {
+            "visible_median_px": 0.217,
+            "visible_p95_px": 5.989,
+            "visible_precision_2px": 0.793,
+            "visible_recall_2px": 0.559,
+            "visible_f1_2px": 0.656
+          },
+          "after": {
+            "visible_median_px": 0.149,
+            "visible_p95_px": 0.471,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after_route": "automatic-label-gap",
+          "saved_coordinates_unchanged": false,
+          "one_undo": true
+        },
+        "usgs": {
+          "input_map_xy": {
+            "start": [
+              119.5,
+              249.5
+            ],
+            "end": [
+              145.5,
+              278.5
+            ]
+          },
+          "before": {
+            "visible_median_px": 2.147,
+            "visible_p95_px": 10.109,
+            "visible_precision_2px": 0.493,
+            "visible_recall_2px": 0.194,
+            "visible_f1_2px": 0.279
+          },
+          "after": {
+            "visible_median_px": 0.149,
+            "visible_p95_px": 0.471,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after_route": "automatic-label-gap",
+          "saved_coordinates_unchanged": false,
+          "one_undo": true
+        },
+        "korea": {
+          "input_map_xy": {
+            "start": [
+              119.5,
+              249.5
+            ],
+            "end": [
+              145.5,
+              278.5
+            ]
+          },
+          "before": {
+            "visible_median_px": 0.234,
+            "visible_p95_px": 5.823,
+            "visible_precision_2px": 0.788,
+            "visible_recall_2px": 0.612,
+            "visible_f1_2px": 0.689
+          },
+          "after": {
+            "visible_median_px": 0.149,
+            "visible_p95_px": 0.471,
+            "visible_precision_2px": 1.0,
+            "visible_recall_2px": 1.0,
+            "visible_f1_2px": 1.0
+          },
+          "after_route": "automatic-label-gap",
+          "saved_coordinates_unchanged": false,
+          "one_undo": true
+        }
+      }
+    },
+    {
+      "id": "kr-10-crop-12-label-600-diagonal-wrong-neighbor",
+      "expected_pair": "different_contours",
+      "hidden_geometry_scored": false,
+      "methods": {
+        "ink": {
+          "input_map_xy": {
+            "start": [
+              123.5,
+              242.5
+            ],
+            "end": [
+              153.5,
+              250.5
+            ]
+          },
+          "before": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after_route": "ink",
+          "saved_coordinates_unchanged": true,
+          "one_undo": true
+        },
+        "usgs": {
+          "input_map_xy": {
+            "start": [
+              123.5,
+              242.5
+            ],
+            "end": [
+              153.5,
+              250.5
+            ]
+          },
+          "before": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after_route": "ink",
+          "saved_coordinates_unchanged": true,
+          "one_undo": true
+        },
+        "korea": {
+          "input_map_xy": {
+            "start": [
+              123.5,
+              242.5
+            ],
+            "end": [
+              153.5,
+              250.5
+            ]
+          },
+          "before": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after_route": "ink",
+          "saved_coordinates_unchanged": true,
+          "one_undo": true
+        }
+      }
+    },
+    {
+      "id": "kr-10-crop-01-label-600-wrong-neighbor",
+      "expected_pair": "different_contours",
+      "hidden_geometry_scored": false,
+      "methods": {
+        "ink": {
+          "input_map_xy": {
+            "start": [
+              225.5,
+              185.5
+            ],
+            "end": [
+              263.5,
+              184.5
+            ]
+          },
+          "before": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after_route": "ink",
+          "saved_coordinates_unchanged": true,
+          "one_undo": true
+        },
+        "usgs": {
+          "input_map_xy": {
+            "start": [
+              225.5,
+              185.5
+            ],
+            "end": [
+              263.5,
+              184.5
+            ]
+          },
+          "before": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after_route": "ink",
+          "saved_coordinates_unchanged": true,
+          "one_undo": true
+        },
+        "korea": {
+          "input_map_xy": {
+            "start": [
+              225.5,
+              185.5
+            ],
+            "end": [
+              263.5,
+              184.5
+            ]
+          },
+          "before": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "after_route": "ink",
+          "saved_coordinates_unchanged": true,
+          "one_undo": true
+        }
+      }
+    }
+  ],
+  "existing_case_preservation": {
+    "case_count": 7,
+    "methods_per_case": 3,
+    "saved_coordinate_pairs_identical": 21,
+    "ids": [
+      "kr-10-crop-04-clear-w",
+      "kr-09-crop-08-curving",
+      "kr-09-crop-05-grid-crossing",
+      "kr-10-crop-02-deep-u",
+      "kr-10-crop-06-dense-s",
+      "kr-09-crop-02-index-u",
+      "kr-10-crop-01-clear-w-corrected-raw-v1"
+    ]
+  },
+  "known_limits": [
+    "Unknown hidden curves are not scored.",
+    "Two learned guides retain600U visibleF1 .957; onlyInk restores1.000.",
+    "Wrongpair automatic links are refused, but originalInk fallback is unchanged.",
+    "Actualjunction andfusedglyph identity remainsuncertain outside reviewedcases."
+  ],
+  "package": {
+    "name": "ai_vectorizer-unreleased-diagonal600.zip",
+    "sha256": "b7d96e84552f4e6837ac62b91e98ea36a44864b3bc80a464569c158bb155db9d",
+    "metadata_version": "0.1.6",
+    "baseline_zip_sha256": "3257ec688cb4ba0ce02e5bca1c5a3579b08d2b9750c888c6ba775a939b84f2aa",
+    "comparison_code_zip_sha256": "019b3f359b4c92e73a62c07a4e2a00a01c20783c56f2f0c5e7c5d49b4129f073",
+    "all_python_bytes_match_source_and_comparison_zip": true,
+    "python_files": [
+      {
+        "path": "ai_vectorizer/__init__.py",
+        "sha256": "176146198dca6b0aa453c29d8e74eb5ca301e78fdb962207cfc51ef7b55179a1"
+      },
+      {
+        "path": "ai_vectorizer/config.py",
+        "sha256": "21349fcb63ac7aeda5982d6c5dcd68d30f54376fe664a113c1e06a3e76a52ee9"
+      },
+      {
+        "path": "ai_vectorizer/core/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "ai_vectorizer/core/annotation_project.py",
+        "sha256": "1174befe55482f34c624633865f2b33b902bf2133ebed06b9239310c1ae1c2d2"
+      },
+      {
+        "path": "ai_vectorizer/core/confirmed_gap_curve.py",
+        "sha256": "89a3604bb963dd8ad5a0ba658ab1854cabd3bed3030d2d9aca05a63611480885"
+      },
+      {
+        "path": "ai_vectorizer/core/confirmed_gap_evidence.py",
+        "sha256": "003522f062bbb026661fac8ee85d7a7628bb6c8c9156302877b7367b0013d41a"
+      },
+      {
+        "path": "ai_vectorizer/core/dem_pipeline.py",
+        "sha256": "e5691ecf24acf41f72191dc0d067dd08b0b6528e5174ca867cf666a6cc0bfcb1"
+      },
+      {
+        "path": "ai_vectorizer/core/dem_spec.py",
+        "sha256": "b17389fb52a570e5be0446515f22bbdfa77c446661f7dde09c411ddbb57cf12c"
+      },
+      {
+        "path": "ai_vectorizer/core/dependencies.py",
+        "sha256": "18d5607c6da0cb631ce0449acb4636a651eec40121cfe6c86935e61affc6baa7"
+      },
+      {
+        "path": "ai_vectorizer/core/edge_detector.py",
+        "sha256": "3abf095ecb5b2c1cc96ff9c8b74c1b30b0bf01200e449e1eab684f25cb3be015"
+      },
+      {
+        "path": "ai_vectorizer/core/efficientsam_onnx.py",
+        "sha256": "f8baa08819e13c19738e113725f8e20e69d5e3f320eadb376a429451d00841b6"
+      },
+      {
+        "path": "ai_vectorizer/core/efficientsam_recovery.py",
+        "sha256": "f32b7d76e59c0222db6ff396b66ac2493a64025bacd23f9279f94eede0cebb0a"
+      },
+      {
+        "path": "ai_vectorizer/core/efficientsam_spec.py",
+        "sha256": "2b6010ee7b7bcee68c95a1d15ee68d73f54837915abbd519f2e382d87603706e"
+      },
+      {
+        "path": "ai_vectorizer/core/ink_color.py",
+        "sha256": "f8536a46fb24ff7582199016dab4262006c38e3e4ae4b772d728d9b13e290491"
+      },
+      {
+        "path": "ai_vectorizer/core/interaction_policy.py",
+        "sha256": "73bfe523c83aa66ca938febaca75b33c895f4d6c06b1f5c5aa6a05ffe90e6878"
+      },
+      {
+        "path": "ai_vectorizer/core/label_gap.py",
+        "sha256": "a4dd6b7d8517b42d27eb43b2586045258749a4ba4b347e53cad8eda2428a0853"
+      },
+      {
+        "path": "ai_vectorizer/core/label_gap_route.py",
+        "sha256": "04fd09994157a4108dff636d62c6d94a80719ae96ed3332ee4bbb4e0815b9827"
+      },
+      {
+        "path": "ai_vectorizer/core/label_occlusion.py",
+        "sha256": "852ef08358739f69e714b68a87eae3e9891f947730248c6c1993f4e04193c59d"
+      },
+      {
+        "path": "ai_vectorizer/core/learned_model.py",
+        "sha256": "5f35872b6185ca05f08f19da959cdb091bd6daab69306c2e6382397285e648ae"
+      },
+      {
+        "path": "ai_vectorizer/core/learned_prior.py",
+        "sha256": "c768ba10ca753266584d5ace24dc786f88b5058e708904188b755930142a7dc0"
+      },
+      {
+        "path": "ai_vectorizer/core/line_evidence.py",
+        "sha256": "2ae15ea7c63764eaf1505d91f29adb2cd2f2380f0ccf402cf6d792d0509c7b74"
+      },
+      {
+        "path": "ai_vectorizer/core/livewire.py",
+        "sha256": "6ed2f4a31bebd04524295226b70270ad5e9695ce1b2e04e85cdc45633ea25aca"
+      },
+      {
+        "path": "ai_vectorizer/core/manual_gap_bridge.py",
+        "sha256": "f8453eef43a10e7111652da7a64aa4d680edc23fc47bbf6b7e60c04c2cd9716d"
+      },
+      {
+        "path": "ai_vectorizer/core/map_grid.py",
+        "sha256": "c45f344d98d39c3e050ae002c629b7827e519c290ac7608f72e79464a2c347d6"
+      },
+      {
+        "path": "ai_vectorizer/core/model_store.py",
+        "sha256": "6d98907dd1c165243cf8fd3701131a5ef93bf3bc2f3790aa39b4930863145be1"
+      },
+      {
+        "path": "ai_vectorizer/core/observed_connection.py",
+        "sha256": "51cda66209a94bcd124adbddadad2cf6219639a5328c7808df1e8778b9d68242"
+      },
+      {
+        "path": "ai_vectorizer/core/occluded_connection.py",
+        "sha256": "5be82ea96f31bc02fd231fed7404f7cd703dec734a623126b4612f2c35ba84ee"
+      },
+      {
+        "path": "ai_vectorizer/core/occlusion_route_guard.py",
+        "sha256": "ecbad2655b87676ac6baa71c731c9e008b9430fa1c22519613455d89c0430386"
+      },
+      {
+        "path": "ai_vectorizer/core/path_finder.py",
+        "sha256": "0902730b4d8f918d67a04231cb2d269672cb10b2de70809ade4c0b279a1d5098"
+      },
+      {
+        "path": "ai_vectorizer/core/raster_utils.py",
+        "sha256": "cbbb35d36d63aef1b199e56546f4b634c4b2c99d73aa99200e1ef22d124804e1"
+      },
+      {
+        "path": "ai_vectorizer/core/recovery_prompts.py",
+        "sha256": "8c0d33e9765e21bf91fcc3f945448f9ef95959830207c49c3ccd8dca9b6ccd6b"
+      },
+      {
+        "path": "ai_vectorizer/core/sam_engine.py",
+        "sha256": "93022c8ad6ace6965d8c5e073f2a8c17d1132a079af93c98b1a7c6c0924fddd5"
+      },
+      {
+        "path": "ai_vectorizer/core/sam_trace_kernel.py",
+        "sha256": "96fad7b081874952f237c40207debf4a245619e01166fd74a954116ee7c3b843"
+      },
+      {
+        "path": "ai_vectorizer/core/smart_recovery.py",
+        "sha256": "190a93db3a2085595269fb6fb2df4908753ba28bea4d4b2850c1858acc0fdabb"
+      },
+      {
+        "path": "ai_vectorizer/core/trace_guidance.py",
+        "sha256": "489f812a0e26c98548e1ec99cd63c910595eaf02ea1525bfd31e3c3a4ae62b31"
+      },
+      {
+        "path": "ai_vectorizer/core/trace_kernel.py",
+        "sha256": "95ab9e77ade3bdde68f0799ed1bfc021807e4177633a2eaa3d190826c666f9c7"
+      },
+      {
+        "path": "ai_vectorizer/core/vectorizer.py",
+        "sha256": "8fe40f7563f6ed092e95bac9137196cdc7e38743ad45b60cf9c56fb390ba1229"
+      },
+      {
+        "path": "ai_vectorizer/plugin.py",
+        "sha256": "b31bdcd671e4f4f803b72293b976639cfebc427e8ce62011ada6fdd53da65037"
+      },
+      {
+        "path": "ai_vectorizer/recovery.py",
+        "sha256": "89824f73c5b7f47d3e654535d655f9d978385b2f0b4d72b17cd42f04f34bc535"
+      },
+      {
+        "path": "ai_vectorizer/tools/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "ai_vectorizer/tools/smart_trace_tool.py",
+        "sha256": "f2990740f1e982fa7d4aa39b9d35517adead317eb2124061407bd81cb3e2c8de"
+      },
+      {
+        "path": "ai_vectorizer/ui/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "ai_vectorizer/ui/dem_dialog.py",
+        "sha256": "6b1d1ce08b9318d5329858e06bb343137f4d01e5416f37368bf61328eb5a8f46"
+      },
+      {
+        "path": "ai_vectorizer/ui/main_dialog.py",
+        "sha256": "cad4c95c6aa0c69256f2ac6291deca08587413dd9b1b19fbb1c8cf32fe0b8f65"
+      }
+    ]
+  },
+  "checks": {
+    "pure_pytest": {
+      "passed": 1023,
+      "skipped": 154,
+      "subtests_passed": 171,
+      "log_sha256": "99dcd7a9f997c85de6fc5938931720b2678eface2cefc4eaa7cdf684967fd005"
+    },
+    "packaged_qgis": {
+      "passed": 162,
+      "skipped": 0,
+      "import_smoke": true,
+      "suites": {
+        "import_smoke": {
+          "passed": null,
+          "returncode": 0
+        },
+        "test_qgis_runtime_safety": {
+          "passed": 63,
+          "returncode": 0
+        },
+        "test_manual_gap_qgis": {
+          "passed": 19,
+          "returncode": 0
+        },
+        "test_ink_color_qgis": {
+          "passed": 9,
+          "returncode": 0
+        },
+        "test_learned_qgis": {
+          "passed": 25,
+          "returncode": 0
+        },
+        "test_map_grid_qgis": {
+          "passed": 7,
+          "returncode": 0
+        },
+        "test_observed_connection_qgis": {
+          "passed": 7,
+          "returncode": 0
+        },
+        "test_label_gap_qgis": {
+          "passed": 10,
+          "returncode": 0
+        },
+        "test_confirmed_gap_qgis": {
+          "passed": 9,
+          "returncode": 0
+        },
+        "test_occluded_connection_qgis": {
+          "passed": 13,
+          "returncode": 0
+        }
+      }
+    },
+    "clean_profile": {
+      "scenarios": 9,
+      "warnings": 0,
+      "exit_code": 0,
+      "profile_removed": true
+    },
+    "comparison_processes": {
+      "labels_before_exit": 0,
+      "labels_after_exit": 0,
+      "old7_before_exit": 0,
+      "old7_after_exit": 0
+    },
+    "source_derived_diagonal_topology": {
+      "fixture": "tests/fixtures/diagonal_600_native_topology.json",
+      "fixture_sha256": "602a18a5c8635b399a08c34fd8eb8e51c39a81f583ccce0d98c4218076b274c7",
+      "rotation_reflection_conditions": 8,
+      "baseline_positive_routes": 0,
+      "current_positive_routes": 8,
+      "adjacent_contour_requests_rejected": true,
+      "hidden_geometry_ground_truth": false
+    }
+  },
+  "artifact_evidence_sha256": {
+    "verified-labels/result.json": "8905b2460e02c4fc7e16815c0932b4f0ddef6a1e3b984708ee880150d5aa4674",
+    "verified-labels/scores.json": "df55f488d9dfb3d27a3e518893b8b2d393ea73a1ec2e9626e6f1fa189fdf38e6",
+    "verified-old-seven/result.json": "72085dc49b7af529030bd2ca16a6f92fcfeda216527d39c79cc34d84023a0465",
+    "clean-profile.json": "6dbfbeadcaaf0f2a6aaac05f7b9fcbb705d0c58226a171e182852cd36364709f",
+    "package-qgis-final-eia504ze/result.json": "7ccb1ae27cb6abe332a7fe9d16790ce5327f3570754e746a571258e4369888d9",
+    "raw-audit/local-tangent-arm-diagnostic-v1.json": "f9f7d3a3c330d689bc5f175d4508d75eaee085854ffac916ed2ba10d7748eb10",
+    "diagonal-600-verified-preview.png": "7d7dd7e1d03284dc03da14bde9273a5c808e53ac34e12ed341611d4923ad861e",
+    "raw-audit/diagonal-native-regression-baseline-proof.json": "91fff3c9d988e75b8bf5b0ad0651ef99462307b44d99f0c404f72ab29b9d8e54"
+  }
+}

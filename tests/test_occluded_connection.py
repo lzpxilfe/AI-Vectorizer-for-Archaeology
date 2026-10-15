@@ -202,6 +202,64 @@ def test_blended_display_must_not_hit_foreign_visible_contour():
     assert not tree.accepts_display([(np.nan, 1), target])
 
 
+@pytest.mark.parametrize("rotation", [0, 1, 2, 3])
+@pytest.mark.parametrize("origin", [(0, 0), (123, 456)])
+def test_virtual_curve_cannot_own_a_nearby_foreign_stroke(rotation, origin):
+    from ai_vectorizer.core.confirmed_gap_curve import (
+        ConfirmedGapCurveConfig, build_confirmed_gap_curve,
+    )
+    from ai_vectorizer.core.livewire import blend_path_with_cursor
+
+    # The full cubic clears this independent eleven-pixel line by >1px.
+    # Its prepared inference used to claim all native pixels within1.25px,
+    # allowing a fractional blend to land directly on that foreign line.
+    curve = build_confirmed_gap_curve(
+        (8, 45), (104, 45), (0, 1), (0, 1),
+        config=ConfirmedGapCurveConfig(handle_ratio=18.249 / 0.75 / 96),
+    )
+    prefix = np.asarray([(x, 45) for x in range(4, 8)], dtype=float)
+    gap = np.asarray(curve.points_xy)
+    suffix = np.asarray([(x, 45) for x in range(104, 109)], dtype=int)
+    foreign = np.asarray([(x, 62) for x in range(51, 62)], dtype=int)
+
+    def rotate(points):
+        result = np.asarray(points).copy()
+        for _ in range(rotation):
+            result = np.column_stack((result[:, 1], 119 - result[:, 0]))
+        return result
+
+    prefix, gap, suffix, foreign = map(rotate, (prefix, gap, suffix, foreign))
+    shape = (120, 120)
+    outside = np.zeros(shape, dtype=bool)
+    observed = np.concatenate((prefix.astype(int), suffix, foreign))
+    outside[observed[:, 1], observed[:, 0]] = True
+    indices = (suffix[:, 1] * shape[1] + suffix[:, 0]).astype(np.int32)
+    lookup = np.full(shape, -1, dtype=np.int32)
+    lookup.ravel()[indices] = np.arange(len(indices))
+    offset = np.asarray(origin)
+    root, target = tuple(prefix[0] + offset), tuple(suffix[-1] + offset)
+    source_xy, target_xy = tuple(gap[0]), tuple(gap[-1])
+    route_prefix = tuple(map(tuple, np.concatenate((prefix, gap)) + offset))
+    length = float(np.linalg.norm(np.diff(np.asarray(route_prefix), axis=0), axis=1).sum())
+    route = _Route(
+        indices, lookup, np.asarray([-9999, 0, 1, 2, 3]),
+        np.arange(len(indices), dtype=float), route_prefix, length, 0, 0,
+    )
+    connector = (source_xy, target_xy, tuple(map(tuple, gap)), 0)
+    tree = OccludedConnectionTree(
+        root, origin, shape, np.zeros(shape, dtype=bool), outside, (route,), (connector,),
+    )
+    full = tree.trace(target)
+    assert full is not None
+    assert tree.accepts_display(full)
+    full_gap = gap + offset
+    absolute_foreign = foreign + offset
+    assert np.linalg.norm(full_gap[:, None] - absolute_foreign[None], axis=2).min() > 1.0
+    blended = blend_path_with_cursor(full, root, target, 17 / 18.249)
+    assert np.linalg.norm(np.asarray(blended)[:, None] - absolute_foreign[None], axis=2).min() < 1e-8
+    assert not tree.accepts_display(blended)
+
+
 def test_global_nearest_target_arm_cannot_be_replaced_by_deleted_neighbor():
     # The exact clicked arm is deliberately absent from the route graph. A
     # per-route nearest search would borrow x12, two pixels away, and append
@@ -277,7 +335,7 @@ def test_occlusion_mask_cannot_manufacture_an_endpoint_on_continuous_ink():
     image, native, regions, (root, target, _) = _fixture()
     # Extend the far visible arm into the glyph region. It is no longer a
     # real observed terminal; the detector mask would create a false end.
-    native[60:65, 64] = True
+    native[60:95, 64] = True
     image[native] = 0
     regions = detect_label_occlusions(image)
     tree = _build(image, native, regions, root)

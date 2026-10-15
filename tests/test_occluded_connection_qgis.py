@@ -200,7 +200,9 @@ class OccludedConnectionQgisTests(unittest.TestCase):
         route, provenance = tree.trace_with_provenance(self.target)
         self.assertEqual(provenance, "automatic-label-gap")
         self._assert_broad_route(route)
-        self.assertLess(max(y for _x, y in tree._trace_without_occlusion(self.target)), 102)
+        ordinary = tree._trace_without_occlusion(self.target)
+        self.assertLess(max(y for _x, y in ordinary), 102)
+        self.assertFalse(tree.occluded_connection.preserves_visible_route(ordinary, route))
         # Requesting the actual neighbouring contour cannot silently use
         # the inferred far fragment as a way to hop to that target.
         self.assertIsNone(tree.occluded_connection.trace(self.neighbour))
@@ -216,6 +218,74 @@ class OccludedConnectionQgisTests(unittest.TestCase):
             button=lambda: _qt_value("LeftButton", "MouseButton"), modifiers=lambda: 0,
         ))
         self.assertEqual(self._coordinates(self.tool.path_points), expected)
+        before = self.layer.undoStack().index()
+        self.assertTrue(self.tool.save_to_layer(closed=False, elevation=600.0))
+        self.assertEqual(self.layer.featureCount(), 1)
+        feature = next(self.layer.getFeatures())
+        self.assertEqual(self._coordinates(feature.geometry().asPolyline()), expected)
+        self.assertEqual(self.layer.dataProvider().featureCount(), 0)
+        self.assertEqual(self.layer.undoStack().index(), before + 1)
+        self.layer.undoStack().undo()
+        self.assertEqual(self.layer.featureCount(), 0)
+
+    def test_matching_visible_arms_keep_original_smoothed_preview_save_and_undo(self):
+        from dataclasses import replace
+        from ai_vectorizer.tools.smart_trace_tool import _qt_value
+
+        self._start()
+        tree = self.tool._livewire_tree
+        connection = tree.occluded_connection
+        self.assertIsNotNone(connection)
+        inferred = connection.trace(self.target)
+        self.assertIsNotNone(inferred)
+        ordinary = [tuple(point) for point in inferred]
+        # The controlled old path differs only well inside the detected
+        # printed label. Its actual native ends and visible arms stay fixed.
+        # Only the old pixel-tree result is injected; RGB detection, sparse
+        # routing and the preservation decision all run their real code.
+        changed = 0
+        ox, oy = connection.origin
+        for index, (x, y) in enumerate(ordinary[1:-1], 1):
+            cx, cy = int(round(x - ox)), int(round(y - oy))
+            if (1 <= cx < connection.shape[1] - 1
+                    and 1 <= cy < connection.shape[0] - 1
+                    and connection.mask[cy - 1:cy + 2, cx - 1:cx + 2].all()):
+                ordinary[index] = (x, y + 0.4)
+                changed += 1
+        self.assertGreater(changed, 5)
+        self.assertNotEqual(ordinary, inferred)
+        self.assertTrue(connection.preserves_visible_route(ordinary, inferred))
+
+        with mock.patch.object(type(tree), "_trace_without_occlusion", return_value=ordinary):
+            route, provenance = tree.trace_with_provenance(self.target)
+            self.assertEqual(provenance, "ink")
+            self.assertEqual(route, ordinary)
+            self.tool._present_livewire_cursor_preview(
+                self._target_map(), request_tree=False, schedule_recovery=False,
+            )
+            preserved_preview = self._coordinates(self.tool.preview_path)
+            raw_preview = self._coordinates([
+                self.tool.pixel_to_map(x, y) for x, y in ordinary[1:]
+            ])
+            # Returning the ordinary provenance retains the existing Ink
+            # smoothing instead of exposing the unsmoothed inference path.
+            self.assertNotEqual(preserved_preview, raw_preview)
+            self.tool._livewire_tree = replace(tree, occluded_connection=None)
+            self.tool._present_livewire_cursor_preview(
+                self._target_map(), request_tree=False, schedule_recovery=False,
+            )
+            self.assertEqual(self._coordinates(self.tool.preview_path), preserved_preview)
+            self.tool._livewire_tree = tree
+            self.tool._present_livewire_cursor_preview(
+                self._target_map(), request_tree=False, schedule_recovery=False,
+            )
+            expected = self._coordinates(self.tool.path_points) + preserved_preview
+            self.tool.toMapCoordinates = lambda _point: QgsPointXY(self._target_map())
+            self.tool.canvasPressEvent(SimpleNamespace(
+                pos=lambda: QPointF(*self.target),
+                button=lambda: _qt_value("LeftButton", "MouseButton"), modifiers=lambda: 0,
+            ))
+            self.assertEqual(self._coordinates(self.tool.path_points), expected)
         before = self.layer.undoStack().index()
         self.assertTrue(self.tool.save_to_layer(closed=False, elevation=600.0))
         self.assertEqual(self.layer.featureCount(), 1)

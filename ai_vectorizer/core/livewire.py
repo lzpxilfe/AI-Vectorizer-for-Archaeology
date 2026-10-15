@@ -241,6 +241,12 @@ class LiveWireTree:
             # intersecting that old shortcut is not a prerequisite.
             candidate = connection.trace(target)
             if candidate is not None:
+                full_ordinary = (
+                    ordinary if self.strength == 1.0
+                    else replace(self, strength=1.0)._trace_without_occlusion(target)
+                )
+                if connection.preserves_visible_route(full_ordinary, candidate):
+                    return ordinary, "ink"
                 displayed = blend_path_with_cursor(candidate, self.root, target, self.strength)
                 if connection.accepts_display(displayed):
                     return displayed, "automatic-label-gap"

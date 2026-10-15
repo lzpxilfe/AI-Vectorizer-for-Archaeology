@@ -349,6 +349,9 @@ def _run_trace_scenario(
     end_map = QgsPointXY(*fixture["end"])
     try:
         canvas.setMapTool(tool)
+        prepare_input = fixture.get("prepare_input")
+        if prepare_input is not None:
+            prepare_input(tool)
         if freehand or edge_weight <= 0.0:
             if tool._needs_edge_cache():
                 raise SmokeFailure(f"{name} unexpectedly requested raster evidence.")
@@ -357,7 +360,7 @@ def _run_trace_scenario(
         elif not defer_during_cache:
             _wait_until(
                 lambda: tool._ink_evidence_task is None
-                and tool.cached_edges is not None,
+                and tool.cached_edges is not None and not tool.cache_dirty,
                 f"{name} Ink cache",
             )
             if tool.cached_ink_evidence is None:
@@ -367,7 +370,19 @@ def _run_trace_scenario(
 
         # Awaited event loops may finish a dock layout and resize the canvas.
         # Convert immediately before each gesture, as a real mouse event does.
+        if prepare_input is not None:
+            prepare_input(tool)
+            if not freehand and edge_weight > 0.0 and not defer_during_cache:
+                _wait_until(
+                    lambda: tool._ink_evidence_task is None
+                    and tool.cached_edges is not None and not tool.cache_dirty,
+                    f"{name} pixel-aligned Ink cache",
+                )
+                if learned_guide and learned_engine is not None:
+                    _wait_until(lambda: tool._learned_prior is not None and tool._learned_task is None,
+                                f"{name} pixel-aligned learned prior", timeout_seconds=40)
         start_screen = tool.toCanvasCoordinates(start_map)
+        actual_start_map = tool.toMapCoordinates(start_screen)
         tool.canvasPressEvent(Event(start_screen, button=left_button))
         if not tool.is_tracing:
             raise SmokeFailure(f"{name} did not begin tracing.")
@@ -405,7 +420,11 @@ def _run_trace_scenario(
                 f"{name} color-guided LiveWire tree",
             )
 
+        validate_input = fixture.get("validate_input")
+        if validate_input is not None:
+            validate_input(tool)
         end_screen = tool.toCanvasCoordinates(end_map)
+        actual_end_map = tool.toMapCoordinates(end_screen)
         tool.canvasMoveEvent(Event(end_screen))
         route_provenance = None
         route_diagnostics = None
@@ -584,6 +603,14 @@ def _run_trace_scenario(
 
         return {
             "name": name,
+            "input_map_xy": {
+                "start": [actual_start_map.x(), actual_start_map.y()],
+                "end": [actual_end_map.x(), actual_end_map.y()],
+            },
+            "input_screen_xy": {
+                "start": [start_screen.x(), start_screen.y()],
+                "end": [end_screen.x(), end_screen.y()],
+            },
             "vertices": len(vertices),
             "vertices_xy": [(point.x(), point.y()) for point in vertices],
             "route_provenance": route_provenance,

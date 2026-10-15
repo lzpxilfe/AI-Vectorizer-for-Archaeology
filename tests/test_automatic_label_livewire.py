@@ -95,6 +95,9 @@ def test_only_a_broken_outside_connection_and_clear_display_can_replace_existing
     checked = []
 
     class Proposal:
+        def preserves_visible_route(self, ordinary, inferred):
+            return False
+
         def outside_route(self, point):
             return None if broken else base.trace(target)
 
@@ -117,3 +120,31 @@ def test_only_a_broken_outside_connection_and_clear_display_can_replace_existing
     else:
         assert route == base.trace(target)
         assert provenance == "ink"
+
+
+def test_visible_route_preservation_uses_full_evidence_and_keeps_the_original_partial_blend():
+    image, line = _scene()
+    base = _tree(image, line, strength=0.75, config=livewire.LiveWireConfig(
+        max_window_size=96, automatic_label_occlusion=False,
+    ))
+    target = (64.0, 20.0)
+    candidate = [(24.0, 20.0), (44.0, 65.0), target]
+    full_old = replace(base, strength=1.0)._trace_without_occlusion(target)
+
+    class Proposal:
+        def outside_route(self, point):
+            return None
+
+        def trace(self, point):
+            return candidate
+
+        def preserves_visible_route(self, ordinary, inferred):
+            assert ordinary == full_old
+            assert inferred == candidate
+            return True
+
+        def accepts_display(self, points):
+            raise AssertionError("preserved geometry must not be blended again")
+
+    tree = replace(base, occluded_connection=Proposal())
+    assert tree.trace_with_provenance(target) == (base.trace(target), "ink")

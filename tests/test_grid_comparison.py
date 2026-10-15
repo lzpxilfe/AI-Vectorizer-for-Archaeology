@@ -132,3 +132,72 @@ def test_hidden_curve_shape_is_excluded_from_visible_accuracy(comparison, tmp_pa
     assert scores["scores"]["ink_before"]["visible_f1_2px"] == 1.0
     assert scores["scores"]["ink_after"]["visible_f1_2px"] == 1.0
     assert "f1_2px" not in scores["scores"]["ink_after"]
+
+
+@pytest.mark.parametrize("viewport", [(1024, 1024), (1827, 1295), (1828, 1296)])
+def test_native_view_keeps_all_frozen_pixel_centres_exact_integer_events(comparison, viewport):
+    left, bottom, right, top = comparison.native_pixel_extent(viewport, (512, 512))
+    assert right - left == viewport[0] / 2
+    assert top - bottom == viewport[1] / 2
+    # Include the neighbouring fractional-anchor boundary which previously
+    # changed the 600 U route after QGIS rounded a fitted-raster mouse event.
+    for col, row in [(0, 0), (511, 511), (225, 326), (252, 324), (153, 261)]:
+        screen_x, screen_y = (col + 0.5 - left) * 2, (top - (511.5 - row)) * 2
+        assert screen_x == round(screen_x)
+        assert screen_y == round(screen_y)
+        assert 0 <= screen_x < viewport[0]
+        assert 0 <= screen_y < viewport[1]
+        assert round(screen_x) / 2 + left == col + 0.5
+        assert top - round(screen_y) / 2 == 511.5 - row
+
+
+@pytest.mark.parametrize("viewport", [(1023, 1024), (1024, 1023), (0, 1200), (1200.0, 1200), (True, 1200)])
+def test_native_view_refuses_cropped_or_invalid_canvas(comparison, viewport):
+    with pytest.raises(ValueError):
+        comparison.native_pixel_extent(viewport, (512, 512))
+
+
+def _archive_comparison(phase):
+    return {
+        "ok": True, "fixtures_sha256": "same-frozen-pixels-and-prompts",
+        "qgis_version": "same-real-runtime", "models": {"usgs": "same-model-sha"},
+        "archive": phase + ".zip", "archive_sha256": phase + "-sha", "qgis_exit_code": 0,
+        "after_config": {"automatic_label_occlusion": True},
+        "cases": [{"id": "case-1", "traces": {
+            method + "_" + phase: {
+                "input_map_xy": {"start": [225.5, 185.5], "end": [252.5, 187.5]},
+                "vertices_xy": [[225.5, 185.5], [252.5, 187.5]],
+            } for method in ("ink", "usgs", "korea")}}],
+    }
+
+
+def test_product_zip_comparison_retains_baseline_and_binds_matching_mouse_events(comparison):
+    before, after = _archive_comparison("before"), _archive_comparison("after")
+    merged = comparison.merge_archive_comparisons(before, after)
+    assert merged["baseline_archive_sha256"] == "before-sha"
+    assert merged["archive_sha256"] == "after-sha"
+    assert merged["before_config"]["automatic_label_occlusion"] is True
+    assert len(merged["cases"][0]["traces"]) == 6
+
+
+@pytest.mark.parametrize("gesture", ["start", "end"])
+def test_product_zip_comparison_rejects_subpixel_anchor_changes(comparison, gesture):
+    before, after = _archive_comparison("before"), _archive_comparison("after")
+    after["cases"][0]["traces"]["korea_after"]["input_map_xy"][gesture][0] += 0.143
+    with pytest.raises(ValueError, match="real mouse input"):
+        comparison.merge_archive_comparisons(before, after)
+
+
+@pytest.mark.parametrize("key", ["fixtures_sha256", "qgis_version", "models"])
+def test_product_zip_comparison_rejects_context_changes(comparison, key):
+    before, after = _archive_comparison("before"), _archive_comparison("after")
+    after[key] = "changed"
+    with pytest.raises(ValueError, match="same QGIS|identical"):
+        comparison.merge_archive_comparisons(before, after)
+
+
+def test_product_zip_comparison_rejects_missing_actual_mouse_input(comparison):
+    before, after = _archive_comparison("before"), _archive_comparison("after")
+    del before["cases"][0]["traces"]["ink_before"]["input_map_xy"]
+    with pytest.raises(ValueError, match="recorded real mouse inputs"):
+        comparison.merge_archive_comparisons(before, after)

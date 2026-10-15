@@ -267,10 +267,12 @@ click to accept. This needs SciPy and assistance above 0%; no OCR or extra model
 installation is required.
 
 A label mask cannot manufacture a new endpoint by cutting an intact contour.
+Visible continuous strokes in its padding remain in the native graph.
 Healthy native paths outside the mask take priority, including at partial
 assistance. Each route can contain only one inferred gap. Short competing arms,
 cursor proximity, crossings and contact with neighboring ink after assistance
-blending are checked. Active manual, color or learned avoidance costs retain
+blending are checked. An existing route that already retains the selected
+visible arms keeps its original geometry and smoothing. Active manual, color or learned avoidance costs retain
 their existing routing. Fused glyphs, open letters and actual junctions remain
 ambiguous. The explicit `G` preview is available when automatic routing declines:
 
@@ -291,13 +293,15 @@ skipped nearby terminals and sustained foreign-line crossings are rejected.
 The hidden curve is an inference. Real label cases, existing-case comparisons
 and remaining failures are recorded in the [label-gap check](learning/LABEL_GAP_CHECK_2026-10-15.md).
 
-In QGIS, the `700`/`600` U bends now produce saved, undoable automatic previews
-with ordinary clicks. The user identified the former diagonal `600` pair as a
-neighboring-contour hop, so its positive reference and scores are withdrawn.
-That wrong pair is now refused; its correct hidden continuation is unresolved.
-All 21 saved-coordinate pairs from seven existing cases and three methods remain
-identical. These are development diagnostics, with unknown hidden geometry;
-see the [automatic gap check](learning/AUTOMATIC_LABEL_GAP_CHECK_2026-10-15.md).
+In QGIS, ordinary clicks now save undoable paths for the U bends and the diagonal
+`600` **outer pair selected by a new raw audit**. The diagonal keeps the visible
+arch and connects its actual gap; all three methods reach visible F1@2px 1.000.
+The former wrong inner-contour request remains refused. Retaining an already
+good Ink route restores the `600` U score from 0.957 to 1.000; the two learned
+guides remain at 0.957. All 21 saved-coordinate pairs from seven existing cases
+and three methods remain identical. Hidden geometry remains unknown. See the
+[follow-up comparison](learning/DIAGONAL_LABEL_FOLLOWUP_2026-10-15.md) for exact
+mouse inputs, the corrected pair and remaining limits.
 
 The declared OpenCV range is 4.8–4.11:
 

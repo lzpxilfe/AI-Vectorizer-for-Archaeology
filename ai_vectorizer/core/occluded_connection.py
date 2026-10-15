@@ -187,9 +187,17 @@ class OccludedConnectionTree:
         full = self.trace(points[-1])
         if full is None:
             return False
+        selected = self._selected_connector(full)
+        if selected is None:
+            return False
+        _source, _target, _curve, start, end, _region = selected
+        # Only the original native prefix/suffix and the two genuine ends
+        # establish ownership of nearby observed pixels. The virtual curve
+        # cannot claim a foreign stroke merely because it passes near it.
+        owned = np.concatenate((np.asarray(full[:start + 1]), np.asarray(full[end - 1:])))
         height, width = self.shape
         allowed = set()
-        for x, y in np.asarray(full) - np.asarray(self.origin):
+        for x, y in owned - np.asarray(self.origin):
             for cy in range(max(0, int(math.floor(y - 1.25))), min(height, int(math.ceil(y + 1.25)) + 1)):
                 for cx in range(max(0, int(math.floor(x - 1.25))), min(width, int(math.ceil(x + 1.25)) + 1)):
                     if math.hypot(cx - x, cy - y) <= 1.25:
@@ -211,6 +219,36 @@ class OccludedConnectionTree:
                             return False
         return True
 
+    def _selected_connector(self, inferred):
+        """Locate the retained virtual interval in one completed route."""
+        points = np.asarray(inferred, dtype=np.float64)
+        if points.ndim != 2 or points.shape[1] != 2 or len(points) > 8192:
+            return None
+        origin = np.asarray(self.origin)
+        for source, target, curve, region in self.connectors:
+            expected = np.asarray(curve, dtype=np.float64) + origin
+            starts = np.flatnonzero(np.linalg.norm(points - expected[0], axis=1) < 1e-7)
+            for start in starts:
+                end = start + len(expected)
+                if end <= len(points) and np.allclose(points[start:end], expected, rtol=0, atol=1e-7):
+                    return source, target, curve, int(start), int(end), region
+        return None
+
+    def preserves_visible_route(self, ordinary, inferred):
+        """Retain an existing route which already follows the selected ends."""
+        from .occlusion_route_guard import preserves_visible_route
+
+        selected = self._selected_connector(inferred)
+        if selected is not None:
+            source, target, _curve, _start, _end, _region = selected
+            origin = np.asarray(self.origin)
+            return preserves_visible_route(
+                ordinary, inferred, mask=self.mask, origin=self.origin,
+                source_xy=tuple(np.asarray(source) + origin),
+                target_xy=tuple(np.asarray(target) + origin),
+            )
+        return False
+
 
 def _region_mask(region, shape):
     result = np.zeros(shape, dtype=bool)
@@ -225,6 +263,29 @@ def _region_mask(region, shape):
     else:
         raise ValueError("occlusion mask dimensions do not match its box")
     return result, (x0, y0, x1, y1)
+
+
+def _glyph_core(region, proposal):
+    """Keep visible strokes in the detector's padding outside glyph ink.
+
+    A proposal's two-pixel collar collects nearby ends; it is not authority
+    to erase a continuous contour. The undilated convex glyph footprint is
+    the only uncertain area excluded from the native routing graph.
+    """
+    polygon = np.asarray(getattr(region, "polygon_xy", ()), dtype=np.float64)
+    if polygon.size == 0:
+        return proposal.copy()
+    if polygon.ndim != 2 or polygon.shape[1] != 2 or len(polygon) < 3 or not np.isfinite(polygon).all():
+        raise ValueError("glyph core needs a finite polygon")
+    x0, y0, x1, y1 = region.bbox_xyxy
+    yy, xx = np.mgrid[y0:y1, x0:x1]
+    local = np.ones(xx.shape, dtype=bool)
+    for first, last in zip(polygon, np.roll(polygon, -1, axis=0)):
+        local &= ((last[0] - first[0]) * (yy - first[1])
+                  - (last[1] - first[1]) * (xx - first[0])) >= -1e-8
+    core = np.zeros(proposal.shape, dtype=bool)
+    core[y0:y1, x0:x1] = local
+    return core & proposal
 
 
 def _perimeter(point, box):
@@ -242,7 +303,7 @@ def _perimeter(point, box):
 
 
 def _arm(mask, endpoint, width_image, box):
-    """Fit the last sustained 8--12 visible pixels, allowing a later fork."""
+    """Keep sustained native identity while fitting a local endpoint tangent."""
     previous = None
     current = endpoint
     points = [endpoint]
@@ -267,24 +328,45 @@ def _arm(mask, endpoint, width_image, box):
         return None
     context = np.asarray(points, dtype=np.float64)
     distances = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(context, axis=0), axis=1))]
-    if float(np.linalg.norm(context[-1] - context[0])) < distances[-1] * 0.70:
-        return None
-    signed = -distances
-    design = np.column_stack((signed, signed ** 2))
-    coefficients = np.linalg.lstsq(design, context - context[0], rcond=None)[0]
-    residual = design @ coefficients - (context - context[0])
-    if float(np.sqrt(np.mean(np.sum(residual ** 2, axis=1)))) > 1.25:
-        return None
-    outward = coefficients[0]
-    norm = float(np.linalg.norm(outward))
-    if not 0.4 <= norm <= 2.0:
-        return None
-    outward /= norm
-    nearest = max(1, int(np.searchsorted(distances, 4.0)))
-    secant = context[0] - context[nearest]
-    secant /= np.linalg.norm(secant)
-    if float(np.dot(outward, secant)) < 0.65:
-        return None
+
+    def fit_tangent(fit_context, fit_distances, chord_ratio, residual_limit, agreement):
+        if float(np.linalg.norm(fit_context[-1] - fit_context[0])) < fit_distances[-1] * chord_ratio:
+            return None
+        signed = -fit_distances
+        design = np.column_stack((signed, signed ** 2))
+        coefficients = np.linalg.lstsq(design, fit_context - fit_context[0], rcond=None)[0]
+        residual = design @ coefficients - (fit_context - fit_context[0])
+        if float(np.sqrt(np.mean(np.sum(residual ** 2, axis=1)))) > residual_limit:
+            return None
+        outward = coefficients[0]
+        norm = float(np.linalg.norm(outward))
+        if not 0.4 <= norm <= 2.0:
+            return None
+        outward /= norm
+        nearest = max(1, int(np.searchsorted(fit_distances, 4.0)))
+        secant = fit_context[0] - fit_context[nearest]
+        secant /= np.linalg.norm(secant)
+        if float(np.dot(outward, secant)) < agreement:
+            return None
+        return outward
+
+    # Retain the previous fit exactly whenever its sustained context succeeds.
+    # A tight visible bend farther along the same native stroke can invalidate
+    # that fit without making its endpoint or its immediate tangent ambiguous.
+    outward = fit_tangent(context, distances, 0.70, 1.25, 0.65)
+    if outward is None:
+        local_fits = []
+        for extent in (4.0, 6.0):
+            last = int(np.searchsorted(distances, extent)) + 1
+            local = fit_tangent(context[:last], distances[:last], 0.75, 0.60, 0.90)
+            if local is None:
+                return None
+            local_fits.append(local)
+        # Separate local scales must agree; short glyph fragments, forks and
+        # a tangent that changes with the fit window do not gain authority.
+        if float(np.dot(local_fits[0], local_fits[1])) < 0.95:
+            return None
+        outward = local_fits[0]
     stroke_width = 1.0
     if width_image is not None:
         samples = np.asarray(points, dtype=int)[(distances >= 3.0) & (distances <= 10.0)]
@@ -301,7 +383,7 @@ def _curve_cells(points, shape):
     return pixels[valid]
 
 
-def _connectors(mask, region_mask, box, width_image, orientation, cancel):
+def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, original_degree=None):
     from scipy.ndimage import distance_transform_edt
     degree = _degree(mask)
     near = distance_transform_edt(~region_mask)
@@ -337,6 +419,11 @@ def _connectors(mask, region_mask, box, width_image, orientation, cancel):
             last = arms[j]
             if not first.outward or not last.outward:
                 continue
+            if original_degree is not None and (
+                original_degree[first.pixel[1], first.pixel[0]] != 1
+                or original_degree[last.pixel[1], last.pixel[0]] != 1
+            ):
+                continue
             # Non-crossing contours meet a simply connected occlusion boundary
             # in paired order. Skipping an odd number of sustained arms would
             # force a crossing or an unpaired neighbouring contour.
@@ -348,7 +435,18 @@ def _connectors(mask, region_mask, box, width_image, orientation, cancel):
                 continue
             span = abs(float(np.dot(np.asarray(last.pixel) - first.pixel, axis)))
             if span < max(4.0, extent * 0.60):
-                continue
+                # A contour can cross just one digit near a tight bend.
+                # The text baseline is not the contour's direction. Such a
+                # short crossing still needs genuine ends and two signed
+                # local tangents pointing into the same hidden interval.
+                delta = np.asarray(last.pixel, dtype=float) - first.pixel
+                length = float(np.linalg.norm(delta))
+                if original_degree is None or length < 4.0:
+                    continue
+                chord = delta / length
+                if (np.dot(first.outward, chord) < 0.50
+                        or np.dot(last.outward, -chord) < 0.50):
+                    continue
             ratio = max(first.width, last.width) / min(first.width, last.width)
             if width_image is not None and ratio > 1.55:
                 continue
@@ -451,6 +549,8 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
         return None
     masks = [_region_mask(region, native.shape) for region in regions]
     union = np.logical_or.reduce([value[0] for value in masks])
+    cores = [_glyph_core(region, mask) for region, (mask, _box) in zip(regions, masks)]
+    core_union = np.logical_or.reduce(cores)
     root_array = np.asarray(root, dtype=float)
     origin_array = np.asarray(origin, dtype=int)
     if root_array.shape != (2,) or origin_array.shape != (2,) or not np.isfinite(root_array).all():
@@ -460,7 +560,7 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
         raise ValueError("root must lie in the centerline window")
     if union[local_root[1], local_root[0]]:
         return None
-    outside = native & ~union
+    outside = native & ~core_union
     cancel()
     # A native detector can place the centre of a broad printed stroke just
     # beyond the ordinary two-pixel anchor. Permit one extra pixel only here,
@@ -488,7 +588,8 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
     for region_index, (region, (region_mask, box)) in enumerate(zip(regions, masks)):
         cancel()
         orientation = getattr(region, "baseline_xy", getattr(region, "orientation_xy", (1.0, 0.0)))
-        selected, arms = _connectors(outside, region_mask, box, width_image, orientation, cancel)
+        selected, arms = _connectors(outside, region_mask, box, width_image, orientation, cancel,
+                                     original_degree=original_degree)
         for first, last, curve in selected:
             # Automatic reconstruction requires actual observed terminals.
             # A glyph footprint can overlap an ordinary continuous contour;

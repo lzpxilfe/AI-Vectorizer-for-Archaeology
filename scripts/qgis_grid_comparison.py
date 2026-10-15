@@ -2,8 +2,9 @@
 """Compare saved QGIS traces on frozen, visually inspected contour cases.
 
 References are agent visual inspections, not human-approved benchmark labels.
-The fixture file is frozen before model outputs are opened. Source pixels stay
-outside git; image hashes, points and review notes make each case reviewable.
+Raw controls are versioned before their comparisons; post-output negative
+corrections record their review history. Source pixels stay outside git;
+image hashes, points and review notes make each case reviewable.
 """
 from __future__ import annotations
 
@@ -27,6 +28,105 @@ if _bootstrap is not None:
 
 SPEC_ENV = "ARCHAEOTRACE_GRID_COMPARISON_SPEC"
 CASE_AUDIT_PATH = Path(_script_path).resolve().parents[1] / "learning/data/korea-contour-case-audit-v1.json"
+
+
+def native_pixel_extent(viewport_size, image_size, *, screen_scale=2):
+    """Map native cell centres to integer screen positions without rounding.
+
+    A full-raster fit uses a fractional map-units-per-screen-pixel scale.
+    Rounding its events can change the nearest skeleton anchor between QGIS
+    layouts. An integer zoom keeps the frozen source pixel prompts exact while
+    retaining ordinary mouse event handlers. Two screen pixels per native
+    pixel also keep short diagnostic spans outside the spot-height gesture.
+    """
+    viewport_width, viewport_height = viewport_size
+    image_width, image_height = image_size
+    values = (*viewport_size, *image_size, screen_scale)
+    if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0
+           for value in values):
+        raise ValueError("Viewport and image sizes must be positive integers")
+    if viewport_width < image_width * screen_scale or viewport_height < image_height * screen_scale:
+        raise ValueError("Comparison canvas must show the complete native raster")
+    left = 0.5 - ((viewport_width - image_width * screen_scale) // 2) / screen_scale
+    top = image_height - 0.5 + ((viewport_height - image_height * screen_scale) // 2) / screen_scale
+    return left, top - viewport_height / screen_scale, left + viewport_width / screen_scale, top
+
+
+def prepare_native_input(canvas, image_size, prompts):
+    """Return a view preparation hook; never inject a path or move a prompt."""
+    def view_coordinates():
+        # QgsMapCanvas includes its frame; the map transform uses outputSize.
+        viewport = canvas.mapSettings().outputSize()
+        extent = native_pixel_extent((viewport.width(), viewport.height()), image_size)
+        current = canvas.extent()
+        actual = (current.xMinimum(), current.yMinimum(), current.xMaximum(), current.yMaximum())
+        return extent, actual
+
+    def validate(tool):
+        from qgis.core import QgsPointXY
+
+        extent, actual = view_coordinates()
+        if any(abs(first - second) > 1e-8 for first, second in zip(actual, extent)):
+            raise smoke.SmokeFailure("Native pixel input view changed during a trace")
+        for prompt in prompts:
+            point = QgsPointXY(*prompt)
+            screen = tool.toCanvasCoordinates(point)
+            mapped = tool.toMapCoordinates(screen)
+            if math.hypot(mapped.x() - point.x(), mapped.y() - point.y()) > 1e-7:
+                raise smoke.SmokeFailure("Integer mouse event changed a frozen source-pixel prompt")
+
+    def prepare(tool):
+        from qgis.core import QgsRectangle
+
+        extent, actual = view_coordinates()
+        if any(abs(first - second) > 1e-8 for first, second in zip(actual, extent)):
+            canvas.setExtent(QgsRectangle(*extent))
+            canvas.refresh()
+            smoke._wait_until(lambda: not canvas.isDrawing(), "native pixel input view")
+        validate(tool)
+    prepare.validate = validate
+    return prepare
+
+
+def merge_archive_comparisons(before, after):
+    """Bind product-version comparisons to matching real mouse coordinates."""
+    if before.get("fixtures_sha256") != after.get("fixtures_sha256"):
+        raise ValueError("Product comparisons require identical frozen fixtures")
+    if before.get("qgis_version") != after.get("qgis_version"):
+        raise ValueError("Product comparisons require the same QGIS runtime")
+    if before.get("models") != after.get("models"):
+        raise ValueError("Product comparisons require identical learned models")
+    old_cases = {case["id"]: case for case in before["cases"]}
+    new_cases = {case["id"]: case for case in after["cases"]}
+    if old_cases.keys() != new_cases.keys():
+        raise ValueError("Product comparisons require identical case IDs")
+    for case_id, row in new_cases.items():
+        previous = old_cases[case_id]["traces"]
+        merged_traces = {}
+        for method in ("ink", "usgs", "korea"):
+            old_key, new_key = method + "_before", method + "_after"
+            old_trace, new_trace = previous[old_key], row["traces"][new_key]
+            old_input, new_input = old_trace.get("input_map_xy"), new_trace.get("input_map_xy")
+            if not isinstance(old_input, dict) or not isinstance(new_input, dict):
+                raise ValueError("Product comparisons require recorded real mouse inputs")
+            for gesture in ("start", "end"):
+                first, second = old_input.get(gesture), new_input.get(gesture)
+                if (not isinstance(first, (tuple, list)) or len(first) != 2
+                        or not isinstance(second, (tuple, list)) or len(second) != 2
+                        or any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+                               for value in (*first, *second))
+                        or math.hypot(first[0] - second[0], first[1] - second[1]) > 1e-7):
+                    raise ValueError("Product comparisons changed a real mouse input: " + case_id)
+            merged_traces[old_key] = old_trace
+            merged_traces[new_key] = new_trace
+        row["traces"] = merged_traces
+    after["baseline_archive"] = before["archive"]
+    after["baseline_archive_sha256"] = before["archive_sha256"]
+    after["baseline_qgis_exit_code"] = before["qgis_exit_code"]
+    after["baseline_isolated_profile_removed_after_run"] = before.get("isolated_profile_removed_after_run")
+    after["before_config"] = before["after_config"]
+    after["input_policy"] = "integer mouse events at exact native cell centres; matching inputs verified"
+    return after
 
 
 def load_cases(fixtures, dataset, *, allow_withdrawn=False):
@@ -131,7 +231,8 @@ def run_comparison():
         project = QgsProject.instance()
         project.setCrs(QgsCoordinateReferenceSystem("EPSG:3857"))
         canvas = qgis.utils.iface.mapCanvas()
-        qgis.utils.iface.mainWindow().resize(960, 760)
+        # Leave room for the plugin dock and a complete 512px native raster.
+        qgis.utils.iface.mainWindow().resize(1800, 1480)
         results = []
         gdal.UseExceptions()
         for case in cases:
@@ -148,11 +249,15 @@ def run_comparison():
             ds.FlushCache()
             ds = None
             reference = case.get("prompt_rc", case["reference_rc"])
-            # The product permits a 6px target snap. Canvas integer input
-            # rounding adds at most sqrt(0.5) native pixels at this scale.
+            # Retain the historical endpoint allowance for the product's
+            # six-pixel target snap. Actual input coordinates are recorded
+            # independently and must match exactly in version comparisons.
             fixture = {"curve_row": None, "endpoint_tolerance_px": 6.75,
                        "start": (reference[0][1] + 0.5, height - reference[0][0] - 0.5),
                        "end": (reference[-1][1] + 0.5, height - reference[-1][0] - 0.5)}
+            fixture["prepare_input"] = prepare_native_input(
+                canvas, (width, height), (fixture["start"], fixture["end"]))
+            fixture["validate_input"] = fixture["prepare_input"].validate
             layer = QgsRasterLayer(str(path), case["id"])
             if not layer.isValid():
                 raise smoke.SmokeFailure("Invalid fixture raster")
@@ -164,11 +269,14 @@ def run_comparison():
             row = {"id": case["id"], "traces": {}}
             for label, engine in [("ink", None), *engines.items()]:
                 for after in (False, True):
+                    if spec.get("single_phase") is not None and after != (spec["single_phase"] == "after"):
+                        continue
                     key = label + ("_after" if after else "_before")
                     weights = model_guidance_parameters(engine.manifest if engine is not None else None)
                     if not after:
-                        old = (engine.manifest["provenance"].get("selected_guidance") or {}) if engine is not None else {}
-                        weights = (old.get("support", 0.8), old.get("avoidance", 6.0))
+                        if not spec.get("product_comparison", False):
+                            old = (engine.manifest["provenance"].get("selected_guidance") or {}) if engine is not None else {}
+                            weights = (old.get("support", 0.8), old.get("avoidance", 6.0))
                         if spec.get("before_avoidance") is not None:
                             weights = (weights[0], spec["before_avoidance"])
                     elif spec.get("after_avoidance") is not None:
@@ -186,7 +294,7 @@ def run_comparison():
                             "learned_route_guard": after and spec.get("route_guard", False),
                             "observed_connections": (after or spec.get("compare_label_gaps", False) or spec.get("compare_occluded_labels", False)) and not spec.get("disable_observed", False),
                             "label_gap_connections": (spec.get("compare_occluded_labels", False) or (after and spec.get("compare_label_gaps", False))) and not spec.get("disable_label_gaps", False),
-                            "automatic_label_occlusion": after and spec.get("compare_occluded_labels", False),
+                            "automatic_label_occlusion": (after or spec.get("product_comparison", False)) and spec.get("compare_occluded_labels", False),
                         },
                     )
             results.append(row)
@@ -195,6 +303,7 @@ def run_comparison():
                   "review_level": "agent_visual_inspection", "human_approved": False,
                   "withdrawn_references": [case["id"] for case in cases if case["withdrawn_reference"]],
                   "fixtures_sha256": smoke.sha256_file(Path(spec["fixtures"])),
+                  "input_policy": "integer mouse events at exact native cell centres; prompt round trips verified",
                   "after_config": {"grid_avoidance": True,
                                    "observed_connections": not spec.get("disable_observed", False),
                                    "label_gap_comparison": spec.get("compare_label_gaps", False),
@@ -228,6 +337,8 @@ def run_comparison():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--zip", dest="archive", type=Path, required=True)
+    parser.add_argument("--baseline-zip", type=Path,
+                        help="Compare an earlier installed product ZIP at identical real mouse inputs; automatic labels stay enabled in both")
     parser.add_argument("--fixtures", type=Path, required=True)
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--old-model", type=Path, required=True)
@@ -261,9 +372,13 @@ def main():
     args = parser.parse_args()
     if args.compare_label_gaps and args.compare_occluded_labels:
         parser.error("Choose one path-change comparison at a time")
+    if args.baseline_zip and not args.compare_occluded_labels:
+        parser.error("--baseline-zip requires --compare-occluded-labels")
+    if args.baseline_zip and not args.grid_in_both:
+        parser.error("--baseline-zip requires --grid-in-both to retain the same grid policy")
     os.environ[SCRIPT_ENV] = str(Path(__file__).resolve())
     load_cases(args.fixtures, args.dataset, allow_withdrawn=args.allow_withdrawn_cases)
-    os.environ[SPEC_ENV] = json.dumps({
+    comparison_spec = {
         "fixtures": str(args.fixtures.resolve()), "dataset": str(args.dataset.resolve()),
         "observation_gate": args.observation_gate, "route_guard": args.route_guard,
         "grid_in_both": args.grid_in_both, "after_avoidance": args.after_avoidance,
@@ -272,10 +387,23 @@ def main():
         "compare_occluded_labels": args.compare_occluded_labels,
         "trace_diagnostics_dir": str(args.trace_diagnostics_dir.resolve()) if args.trace_diagnostics_dir else None,
         "allow_withdrawn": args.allow_withdrawn_cases,
-        "models": {"usgs": str(args.old_model.resolve()), "korea": str(args.new_model.resolve())}})
+        "models": {"usgs": str(args.old_model.resolve()), "korea": str(args.new_model.resolve())},
+        "product_comparison": args.baseline_zip is not None}
     args.qgis_executable = Path("/Applications/QGIS.app/Contents/MacOS/QGIS")
     args.expected_version = smoke.DEFAULT_EXPECTED_VERSION
-    result = smoke.run_outer(args, bootstrap_script=Path(__file__))
+    if args.baseline_zip:
+        baseline_args = argparse.Namespace(**vars(args))
+        baseline_args.archive = args.baseline_zip
+        if args.profile_root is not None:
+            baseline_args.profile_root = args.profile_root / "baseline"
+            args.profile_root = args.profile_root / "current"
+        os.environ[SPEC_ENV] = json.dumps({**comparison_spec, "single_phase": "before"})
+        before = smoke.run_outer(baseline_args, bootstrap_script=Path(__file__))
+        os.environ[SPEC_ENV] = json.dumps({**comparison_spec, "single_phase": "after"})
+        result = merge_archive_comparisons(before, smoke.run_outer(args, bootstrap_script=Path(__file__)))
+    else:
+        os.environ[SPEC_ENV] = json.dumps(comparison_spec)
+        result = smoke.run_outer(args, bootstrap_script=Path(__file__))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n")
     score_and_render(result, load_cases(args.fixtures, args.dataset, allow_withdrawn=args.allow_withdrawn_cases), args.output.parent)
