@@ -1,0 +1,16 @@
+{
+  "schema_version": "archaeotrace-contour-case-audit/1",
+  "review_level": "agent_visual_inspection",
+  "human_approved": false,
+  "withdrawn": [
+    {
+      "case_id": "kr-10-crop-01-clear-w",
+      "original_fixture": "korea-contour-visual-cases-v1.json",
+      "original_fixture_sha256": "2d6a9344248fe3dd8bedaebafa71826fe6a556f6b42786fd6fcab0b431b051ee",
+      "reason": "Start (x223,y45) is on a neighboring near-vertical contour limb, while the selected contour is near x228 at that row. The first reference segment crosses paper onto a different contour. This is not a valid same-contour accuracy or no-regression case. The nearby stroke is not a map grid rule.",
+      "replacement_case_id": "kr-10-crop-01-clear-w-corrected-raw-v1",
+      "replacement_fixture": "korea-contour-visual-cases-v3.json",
+      "original_artifacts_policy": "Keep original reference and result bytes as withdrawn evidence; do not revise historical values or combine aggregate scores."
+    }
+  ]
+}

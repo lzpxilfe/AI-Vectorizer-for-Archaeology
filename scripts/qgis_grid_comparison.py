@@ -26,9 +26,10 @@ if _bootstrap is not None:
     os.environ["ARCHAEOTRACE_CLEAN_PROFILE_BOOTSTRAP"] = _bootstrap
 
 SPEC_ENV = "ARCHAEOTRACE_GRID_COMPARISON_SPEC"
+CASE_AUDIT_PATH = Path(_script_path).resolve().parents[1] / "learning/data/korea-contour-case-audit-v1.json"
 
 
-def load_cases(fixtures, dataset):
+def load_cases(fixtures, dataset, *, allow_withdrawn=False):
     document = json.loads(Path(fixtures).read_text())
     if (not isinstance(document, dict)
             or document.get("schema_version") != "archaeotrace-visual-contour-cases/1"
@@ -36,11 +37,15 @@ def load_cases(fixtures, dataset):
             or document.get("human_approved") is not False):
         raise ValueError("Cases require a frozen, explicitly non-human-approved visual review record")
     cases = document["cases"]
+    withdrawn = {row["case_id"] for row in json.loads(CASE_AUDIT_PATH.read_text())["withdrawn"]}
+    if not allow_withdrawn and any(case["id"] in withdrawn for case in cases):
+        raise ValueError("Withdrawn same-contour case: use the audited v3 cohort; historical replay requires --allow-withdrawn-cases")
     manifest = json.loads((Path(dataset) / "manifest.json").read_text())
     if document.get("dataset_id") != manifest.get("dataset_id"):
         raise ValueError("Cases belong to a different dataset")
     samples = {row["id"]: row for row in manifest["samples"]}
     for case in cases:
+        case["withdrawn_reference"] = case["id"] in withdrawn
         if (case.get("continuous_same_contour") is not True
                 or case.get("predictions_seen_before_freeze") is not False):
             raise ValueError("Cases must be inspected on one contour before viewing predictions")
@@ -74,7 +79,7 @@ def run_comparison():
         import qgis.utils
 
         spec = json.loads(os.environ[SPEC_ENV])
-        cases = load_cases(spec["fixtures"], spec["dataset"])
+        cases = load_cases(spec["fixtures"], spec["dataset"], allow_withdrawn=spec.get("allow_withdrawn", False))
         dependency_path = os.environ.get("ARCHAEOTRACE_SMOKE_LEARNED_DEPENDENCIES")
         if dependency_path:
             sys.path.append(dependency_path)
@@ -125,6 +130,8 @@ def run_comparison():
                     if not after:
                         old = (engine.manifest["provenance"].get("selected_guidance") or {}) if engine is not None else {}
                         weights = (old.get("support", 0.8), old.get("avoidance", 6.0))
+                        if spec.get("before_avoidance") is not None:
+                            weights = (weights[0], spec["before_avoidance"])
                     elif spec.get("after_avoidance") is not None:
                         weights = (weights[0], spec["after_avoidance"])
                     row["traces"][key] = smoke._run_trace_scenario(
@@ -137,14 +144,18 @@ def run_comparison():
                         livewire_config_overrides={
                             "learned_observation_gate": after and spec.get("observation_gate", False),
                             "learned_route_guard": after and spec.get("route_guard", False),
+                            "observed_connections": after and not spec.get("disable_observed", False),
                         },
                     )
             results.append(row)
             project.removeMapLayer(layer.id())
         result = {"ok": True, "qgis_version": Qgis.QGIS_VERSION,
                   "review_level": "agent_visual_inspection", "human_approved": False,
+                  "withdrawn_references": [case["id"] for case in cases if case["withdrawn_reference"]],
                   "fixtures_sha256": smoke.sha256_file(Path(spec["fixtures"])),
                   "after_config": {"grid_avoidance": True,
+                                   "observed_connections": not spec.get("disable_observed", False),
+                                   "before_avoidance_override": spec.get("before_avoidance"),
                                    "grid_in_both": spec.get("grid_in_both", False),
                                    "avoidance_override": spec.get("after_avoidance"),
                                    "unconfigured_model_avoidance": 0.0,
@@ -184,24 +195,32 @@ def main():
                         help="Keep current grid costs in both runs to isolate the learned-cost change")
     parser.add_argument("--after-avoidance", type=float, choices=(0.0, 2.0, 4.0, 6.0),
                         help="Explicit diagnostic override; omit to use the model's cost policy")
+    parser.add_argument("--before-avoidance", type=float, choices=(0.0, 2.0, 4.0, 6.0),
+                        help="Explicit baseline override; use 0 to isolate observed connectivity")
+    parser.add_argument("--no-observed-connections", action="store_true",
+                        help="Disable the observed connection candidate for historical comparison")
+    parser.add_argument("--allow-withdrawn-cases", action="store_true",
+                        help="Historical diagnostic only: include references withdrawn by raw review")
     parser.add_argument("--observation-gate", action="store_true",
                         help="Diagnostic only: restrict learned support to visible Ink (known regressions)")
     parser.add_argument("--route-guard", action="store_true",
                         help="Diagnostic only: prefer Ink over learned candidates (known regressions)")
     args = parser.parse_args()
     os.environ[SCRIPT_ENV] = str(Path(__file__).resolve())
-    load_cases(args.fixtures, args.dataset)
+    load_cases(args.fixtures, args.dataset, allow_withdrawn=args.allow_withdrawn_cases)
     os.environ[SPEC_ENV] = json.dumps({
         "fixtures": str(args.fixtures.resolve()), "dataset": str(args.dataset.resolve()),
         "observation_gate": args.observation_gate, "route_guard": args.route_guard,
         "grid_in_both": args.grid_in_both, "after_avoidance": args.after_avoidance,
+        "before_avoidance": args.before_avoidance, "disable_observed": args.no_observed_connections,
+        "allow_withdrawn": args.allow_withdrawn_cases,
         "models": {"usgs": str(args.old_model.resolve()), "korea": str(args.new_model.resolve())}})
     args.qgis_executable = Path("/Applications/QGIS.app/Contents/MacOS/QGIS")
     args.expected_version = smoke.DEFAULT_EXPECTED_VERSION
     result = smoke.run_outer(args, bootstrap_script=Path(__file__))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n")
-    score_and_render(result, load_cases(args.fixtures, args.dataset), args.output.parent)
+    score_and_render(result, load_cases(args.fixtures, args.dataset, allow_withdrawn=args.allow_withdrawn_cases), args.output.parent)
     print(json.dumps({"ok": result["ok"], "cases": len(result["cases"]), "output": str(args.output)}))
 
 
@@ -256,7 +275,9 @@ def score_and_render(result, cases, output):
                         draw.line(to_tile(points), fill=(0, 120, 255), width=2)
                     for x, y in to_tile([points[0], points[-1]]):
                         draw.ellipse((x - 6, y - 6, x + 6, y + 6), outline=(230, 0, 0), width=2)
-                    label = "Raw + endpoints" if row == 0 else "Inspected reference"
+                    label = "Raw + endpoints" if row == 0 else (
+                        "WITHDRAWN reference" if fixture.get("withdrawn_reference") else "Inspected reference"
+                    )
                 else:
                     label = method + ("_after" if after else "_before")
                     saved = [(x, source.height - y) for x, y in case["traces"][label]["vertices_xy"]]
@@ -267,6 +288,7 @@ def score_and_render(result, cases, output):
         panel.save(output / (case["id"] + "-comparison.png"))
         scored.append({"id": case["id"], "scores": scores})
     summary = {"scope": "agent visually inspected validation diagnostics; no human approval or holdout",
+               "withdrawn_references": result.get("withdrawn_references", []),
                "cases": scored}
     (output / "scores.json").write_text(json.dumps(summary, indent=2) + "\n")
 

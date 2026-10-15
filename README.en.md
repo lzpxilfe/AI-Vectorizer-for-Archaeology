@@ -209,8 +209,8 @@ Korean contours better. The first same-click comparison was withdrawn because it
 machine reference hopped between neighbouring contours and some clicks sat on grid
 lines. In the one case whose reference follows a single contour, the new guide drew
 the same line as Ink while the USGS-only guide cut across it; on a dense sheet with
-grid lines all three methods failed. Click pairs verified on one contour, reviewed
-answers, blue-contour sheets, and Calibration/Holdout evaluation remain pending,
+grid lines all three methods failed. Later development pairs were re-audited on
+raw pixels; human-reviewed answers, blue-contour sheets, and Calibration/Holdout evaluation remain pending,
 and the model stays a default-OFF experiment. See the
 [Korean execution record](learning/COLAB_KOREA_WEAK_RUN_2026-10-15.md).
 
@@ -234,18 +234,12 @@ rotation, and short or broken grids can be missed; thick grid shoulders can
 still attract the route. Classification depends on
 the available cache context and is not guaranteed to stay identical after panning.
 
-A trial guard that preferred Ink over learned routes regressed a real case where
-Ink was wrong and the model was correct. That guard and the trial visible-ink
-support restriction are **disabled by default**. Learned guidance remains
-default OFF, and switching to neighboring contours is still unresolved. Explicit
-reconstruction across numeric labels uses the reviewed `Label-gap bridge`
-preview below.
-
-On four validation cases inspected at enlarged native resolution before model
-outputs, grid avoidance preserved the existing successes and failures. Synthetic
-grid improvements are not evidence of higher accuracy on real maps. See the
-[grid and continuity check](learning/GRID_CONTINUITY_CHECK_2026-10-15.md) for
-settings, regressions and failures.
+Ink v2 now prefers a connected native centerline between the clicks, retaining
+deep U bends over shorter cross-contour routes. A compact tree is prepared once
+in the worker. Missing connections, excessive detours, avoidance hints and
+existing gap bridges use the pixel-cost route. Actual junction identity remains
+ambiguous; inspect the green preview. The former Ink-route guard and visible-ink
+support restriction remain disabled. Learned guidance itself stays default OFF.
 
 Models without a recorded path-cost selection now use **contour support only**.
 An arbitrary text/road penalty no longer charges true contours misclassified by
@@ -254,12 +248,14 @@ evaluation hashes retain those settings; manual avoidance and ink-color guidance
 still apply. Useful text/road exclusion can also be lost, so this is not a claim
 that every model becomes more accurate.
 
-Across seven enlarged, agent-inspected validation cases traced and saved in QGIS,
-the Korea guide's F1@2px=1.000 count changed from three to five. Two deep U-shaped
-cases still failed, including a small regression from 0.484 to 0.483. No human
-approval, independent evaluation or retraining occurred. See the
-[avoidance-cost diagnostic](learning/UNCALIBRATED_AVOIDANCE_CHECK_2026-10-15.md)
-for all results and remaining failures.
+A raw-only re-audit found one old starting click on a neighboring contour. That
+row and aggregates containing it are withdrawn; original files are retained.
+With a separately frozen corrected pair, the new seven-case diagnostic preserves
+five existing successes and follows the same contour through both U bends. Ink
+and the Korea guide score 1.000/0.991 F1@2px and 0.966/1.982px p95 on those bends.
+There was no human approval, independent performance evaluation or retraining.
+See the [raw audit and U-bend check](learning/U_CONTOUR_CHECK_2026-10-15.md) and
+the separate [historical avoidance-cost record](learning/UNCALIBRATED_AVOIDANCE_CHECK_2026-10-15.md).
 
 ## Experimental: label-gap bridge
 

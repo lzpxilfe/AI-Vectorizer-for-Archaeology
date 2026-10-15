@@ -92,9 +92,11 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 짧거나 끊긴 격자·큰 회전·채도 높은 파란 격자는 놓칠 수 있고, 두꺼운 격자의
 가장자리를 따라갈 수도 있습니다. 화면의 캐시 문맥에 따라 판정이 달라질 수 있습니다.
 
-기존 Ink를 우선 보존하는 학습 경로 보호와 관측 잉크 주변으로 학습 지지를 제한하는
-후보는 실제 사례의 퇴행 때문에 기본 적용하지 않습니다. 학습 보조는 계속 기본 OFF이며,
-옆 등고선으로 넘어가는 문제는 해결되지 않았습니다. 초록색 선을 검수하세요.
+Ink v2에서 두 클릭 사이에 이어지는 원본 중심선 연결을 우선 따라가 깊은 U자를
+짧은 옆 선으로 가로지르는 것을 줄입니다. 끊김·너무 긴 우회·회피 힌트·기존 공백
+연결은 기존 픽셀 비용 경로를 유지합니다. 실제 분기에서는 다른 선을 고를 수 있습니다.
+기존 Ink 경로 보호와 관측 주변 지지 제한 후보는 기본 OFF이며 학습 모델도 기본 OFF입니다.
+초록색 선을 검수하세요.
 숫자 공백은 `Label-gap bridge`에서 지정한 두 끝점을 곡선 미리보기로 연결합니다.
 
 경로 비용 선택 기록이 없는 모델은 `등고선 지지만 사용 · 문자 회피 설정 없음`으로
@@ -366,10 +368,11 @@ first use.
   to Ink on failure. Saturated blue, broken or highly rotated grids can be missed,
   thick grid shoulders can still attract the route, and classification depends
   on the cache context after panning.
-- Trial restrictions on learned support and a guard preferring Ink regressed
-  real validation cases, so both stay disabled by default. Learned guidance
-  remains default OFF. Neighboring-contour switching is unresolved; inspect
-  the green preview.
+- Ink v2 prefers a connected native centerline between the clicks, retaining
+  deep bends over cross-contour shortcuts. Missing connections, long detours,
+  avoidance hints and existing gap bridges keep the pixel-cost route. Actual
+  junctions can still select the wrong line; inspect the green preview. The old
+  Ink-route guard, support restriction and learned model remain default OFF.
 - Models without report-bound selected path costs use contour support only;
   ready/active status states that text avoidance has no selected setting.
   Configured bundles retain their costs. Manual avoidance and ink-color guidance

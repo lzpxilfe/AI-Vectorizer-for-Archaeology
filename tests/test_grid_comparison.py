@@ -52,3 +52,14 @@ def test_changed_source_pixels_and_unverified_pair_are_rejected(comparison, tmp_
     path.write_text(json.dumps(doc))
     with pytest.raises(ValueError, match="one contour"):
         comparison.load_cases(path, tmp_path)
+
+
+def test_withdrawn_click_pair_cannot_reenter_accuracy_comparison(comparison, tmp_path):
+    path, image = _cohort(tmp_path)
+    doc = json.loads(path.read_text())
+    doc["cases"][0]["id"] = "kr-10-crop-01-clear-w"
+    path.write_text(json.dumps(doc))
+    assert comparison.load_cases(path, tmp_path, allow_withdrawn=True)
+    image.unlink()
+    with pytest.raises(ValueError, match="Withdrawn same-contour"):
+        comparison.load_cases(path, tmp_path)

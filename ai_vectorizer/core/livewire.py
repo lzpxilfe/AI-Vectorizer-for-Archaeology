@@ -19,6 +19,11 @@ from .line_evidence import LineEvidence
 from .learned_prior import LearnedLinePrior
 from .trace_guidance import TraceGuidance
 from .map_grid import MapGridPrior
+from .observed_connection import (
+    ObservedConnectionCancelled,
+    ObservedConnectionTree,
+    build_observed_connection,
+)
 from .smart_recovery import arbitrate_routes
 
 
@@ -57,6 +62,7 @@ class LiveWireConfig:
     # ordinary tracing preserves the existing learned-prior behaviour.
     learned_observation_gate: bool = False
     learned_route_guard: bool = False
+    observed_connections: bool = True
     map_grid_cost_weight: float = 10.0
     heading_cost_weight: float = 3.0
     heading_decay_pixels: float = 22.0
@@ -77,6 +83,8 @@ class LiveWireConfig:
             raise ValueError("learned_observation_gate must be a boolean")
         if not isinstance(self.learned_route_guard, bool):
             raise ValueError("learned_route_guard must be a boolean")
+        if not isinstance(self.observed_connections, bool):
+            raise ValueError("observed_connections must be a boolean")
         if (
             isinstance(self.max_window_size, bool)
             or not isinstance(self.max_window_size, int)
@@ -189,6 +197,7 @@ class LiveWireTree:
     config: LiveWireConfig
     champion_tree: Optional["LiveWireTree"] = None
     route_evidence: Optional[LineEvidence] = None
+    observed_connection: Optional[ObservedConnectionTree] = None
 
     @property
     def width(self) -> int:
@@ -220,12 +229,23 @@ class LiveWireTree:
         if self.strength <= 0.0 or not self.contains(target):
             return direct
 
+        observed = None
+        if self.observed_connection is not None:
+            observed = self.observed_connection.trace(target)
+            if observed is not None and self.observed_connection.gap_outward is None:
+                return blend_path_with_cursor(
+                    observed, self.root, (target_x, target_y), self.strength
+                )
+
         end_index = self._select_target_index(
             target_x, target_y,
             snap_strength=1.0 if self.champion_tree is not None else None,
         )
         if end_index is None:
-            return direct
+            return (
+                blend_path_with_cursor(observed, self.root, target, self.strength)
+                if observed is not None else direct
+            )
 
         root_local_x = self.root[0] - self.origin[0]
         root_local_y = self.root[1] - self.origin[1]
@@ -234,9 +254,13 @@ class LiveWireTree:
             self.predecessors,
             root_index,
             end_index,
+            max_steps=2 * max(self.shape) + 2 if observed is not None else None,
         )
         if not local_indices:
-            return direct
+            return (
+                blend_path_with_cursor(observed, self.root, target, self.strength)
+                if observed is not None else direct
+            )
 
         assisted = [
             (
@@ -246,7 +270,24 @@ class LiveWireTree:
             for index in local_indices
         ]
         if len(assisted) < 2:
-            return direct
+            return (
+                blend_path_with_cursor(observed, self.root, target, self.strength)
+                if observed is not None else direct
+            )
+        if (
+            observed is not None
+            and (
+                not _detour_is_reasonable(
+                    assisted, self.root, (target_x, target_y), self.config
+                )
+                or not self.observed_connection.preserves_collinear_gap(
+                    assisted, max_gap_pixels=self.config.continuity_bridge_max_gap_pixels
+                )
+            )
+        ):
+            return blend_path_with_cursor(
+                observed, self.root, (target_x, target_y), self.strength
+            )
         if not _detour_is_reasonable(
             assisted,
             self.root,
@@ -464,6 +505,13 @@ def build_livewire_tree(
     )
     _raise_if_cancelled(cancel_check)
 
+    # Preserve the existing coloured scan-gap bridge when it contributed
+    # support outside the native skeleton. A strict connection must not
+    # replace an intentional missing-stroke bridge with a long network detour.
+    has_continuity_bridge = bool(
+        crop_evidence is not None
+        and np.any(line_confidence > np.maximum(crop_evidence[0], crop_evidence[1]))
+    )
     crop_avoidance_cost = None
     if learned_prior is not None and strength > 0.0:
         # Apply the optional score after the observed centreline maximum.
@@ -529,6 +577,29 @@ def build_livewire_tree(
         return_predecessors=True,
     )
     _raise_if_cancelled(cancel_check)
+    observed_connection = None
+    active_avoidance = bool(
+        (crop_guidance is not None and config.avoidance_cost_weight > 0.0
+         and np.any(crop_guidance > 0.0))
+        or (crop_avoidance_cost is not None and np.any(crop_avoidance_cost > 0.0))
+    )
+    if (
+        config.observed_connections and strength > 0.0 and crop_evidence is not None
+        and not active_avoidance and not has_continuity_bridge
+    ):
+        try:
+            observed_connection = build_observed_connection(
+                graph, crop_evidence[1], (root_x, root_y), (x0, y0),
+                sparse=sparse, dijkstra=dijkstra, cancel_check=cancel_check,
+            )
+        except ObservedConnectionCancelled as exc:
+            raise LiveWireCancelled(str(exc)) from exc
+        except LiveWireCancelled:
+            raise
+        except (RuntimeError, MemoryError):
+            # The complete pixel tree is already available. An optional
+            # compact runtime failure must not discard that valid fallback.
+            observed_connection = None
     champion_tree = None
     if (
         learned_prior is not None and config.learned_route_guard and strength > 0.0
@@ -554,6 +625,7 @@ def build_livewire_tree(
         config=config,
         champion_tree=champion_tree,
         route_evidence=evidence if champion_tree is not None else None,
+        observed_connection=observed_connection,
     )
 
 
@@ -1180,15 +1252,20 @@ def _paired_slices(length: int, delta: int):
     return slice(0, length), slice(0, length)
 
 
-def _trace_predecessors(predecessors, root_index: int, target_index: int) -> list[int]:
+def _trace_predecessors(
+    predecessors, root_index: int, target_index: int, *, max_steps=None
+) -> list[int]:
     if target_index == root_index:
         return [root_index]
     result = [int(target_index)]
     current = int(target_index)
-    maximum_steps = int(np.asarray(predecessors).size) + 1
+    array_size = int(np.asarray(predecessors).size)
+    maximum_steps = array_size + 1
+    if max_steps is not None:
+        maximum_steps = min(maximum_steps, max_steps)
     for _ in range(maximum_steps):
         previous = int(predecessors[current])
-        if previous < 0 or previous >= maximum_steps - 1:
+        if previous < 0 or previous >= array_size:
             return []
         result.append(previous)
         if previous == root_index:

@@ -67,7 +67,9 @@ Windows에서는 `.venv\Scripts\python.exe`를 사용하세요. 선택 SAM backe
    수동 라벨 공백 preview 변경은 `tests/test_manual_gap_qgis.py`도 실제 QGIS Python으로
    실행합니다. 선 색상 지정·guidance 변경은 `tests/test_ink_color_qgis.py`를 실제
    QGIS Python으로 실행합니다. 격자 회피·캐시 변경은 `tests/test_map_grid_qgis.py`도
-   실제 QGIS Python에서 확인합니다. QGIS 런타임 suite는 일반 Python의 skip 결과로 대체하지 않습니다.
+   실제 QGIS Python에서 확인합니다. 관측 중심선 연결·Live-Wire 경로 변경은
+   `tests/test_observed_connection_qgis.py`로 깊은 굽이, 비용 회피, 빠른 클릭, 취소와
+   저장·Undo를 실제 QGIS Python에서 확인합니다. QGIS 런타임 suite는 일반 Python의 skip 결과로 대체하지 않습니다.
    학습 보조·주석 변경은 `tests/test_learned_qgis.py`와 `tests/test_annotation_qgis.py`도
    실제 QGIS Python에서 확인합니다. 주석 버튼 흐름은 `tests/test_annotation_ui_qgis.py`로
    실제 dock·지도 canvas·GeoPackage 편집과 JSON 내보내기를 확인합니다.
