@@ -5,9 +5,8 @@ The second weak-label experiment added 149 crops from black-ink AMS Korea
 `label_gaps` augmentations. All three seeds finished on a Colab T4, one FP32
 ONNX bundle was exported, and local CPU and real-QGIS checks passed. Every
 label is machine generated: 0 crops are human approved, and Calibration and
-Holdout were never opened. The comparisons below use the same validation crops
-that selected the seed and a machine reference; they show direction, not
-contour accuracy or general Korean-map performance.
+Holdout were never opened. The same-click QGIS comparison in this record used
+an invalid machine reference and is withdrawn; see that section.
 
 ## Training
 
@@ -80,44 +79,36 @@ with this bundle: the guided trace followed the synthetic blue line with a
 RSS growth 435 MiB, preview coordinates saved unchanged, one Undo, and no
 inference at 0% assist.
 
-## Same-click QGIS comparison
+## Same-click QGIS comparison (withdrawn)
 
 Ten validation crops were traced in QGIS with the same two clicks for Ink, the
-USGS-only guide and the new guide. The reference follows weak-label centerline
-pixels between the clicks. The two Ink runs repeated within 1.41 px.
+USGS-only guide and the new guide, and scored against a reference built from
+weak-label centerline pixels. An inspection at native resolution showed that
+this reference is not valid. The builder joins label fragments with a dilation
+and follows the longest path, so on dense Korean sheets the path hops between
+neighbouring contours. On kr-10-crop-08 and kr-10-crop-09 both clicks also sit
+on straight grid lines, so no single contour connects them. Distances to such a
+reference reward any line that stays near it, including one that cuts across
+contours, and the averages first reported here (Ink 11.7 px, USGS-only 5.5 px,
+Korea guide 3.6 px) are withdrawn.
 
-| Crop | Ink median / p95 px | USGS-only guide | Korea guide |
-| --- | --- | --- | --- |
-| kr-09-crop-08 | 3.61 / 16.31 | 6.80 / 18.83 | 3.44 / 14.29 |
-| kr-09-crop-03 | 0.62 / 7.56 | 1.00 / 7.55 | 0.37 / 4.26 |
-| kr-09-crop-04 | 0.60 / 7.55 | 0.99 / 6.13 | 0.37 / 4.27 |
-| kr-10-crop-04 | 0.21 / 0.60 | 6.37 / 19.03 | 0.21 / 0.56 |
-| kr-10-crop-08 | 51.22 / 63.99 | 14.07 / 26.99 | 11.10 / 26.29 |
-| kr-10-crop-09 | 13.68 / 18.73 | 4.03 / 13.12 | 6.12 / 18.20 |
-| sheet-07-crop-12 | 0.41 / 7.27 | 0.34 / 15.74 | 0.50 / 7.16 |
-| sheet-08-crop-03 | 0.36 / 14.05 | 0.37 / 5.43 | 0.50 / 19.41 |
-| sheet-08-crop-04 | 9.95 / 28.91 | 0.27 / 3.05 | 0.26 / 3.63 |
-| sheet-08-crop-09 | 0.20 / 0.50 | 0.20 / 0.50 | 0.20 / 0.52 |
+Of the six Korean rows, only kr-10-crop-04 has a reference that follows one
+contour from click to click. There Ink and the Korea guide both follow that
+contour (median 0.21 px), while the USGS-only guide cut across it (6.37 px). On
+kr-10-crop-08 every method failed: Ink followed the grid, the USGS-only guide
+cut straight across, and the Korea guide also crossed contours diagonally. The
+USGS rows were not re-inspected and are not used as evidence either.
 
-kr-09-crop-03 and kr-09-crop-04 overlap in the source sheet and trace the same
-contour segment, so the Korean rows hold five independent cases. Averaged over
-the six Korean rows, the median distance was Ink 11.66 px, USGS-only guide
-5.54 px and Korea guide 3.60 px; reference coverage within 2 px was 0.41, 0.29
-and 0.53.
-
-On kr-10-crop-04 the USGS-only guide left a clean black contour that Ink traced
-exactly; the new guide keeps Ink's path. On kr-10-crop-08 Ink followed a
-straight black grid line and the USGS-only guide cut straight across the
-contours; the new guide follows contour shape but still crosses to a
-neighbouring contour, so that case remains a failure. On kr-10-crop-09 it was
-better than Ink and worse than the USGS-only guide. On USGS crops it kept the
-sheet-08-crop-04 correction, but sheet-08-crop-03 regressed at p95 (19.4 px
-against Ink 14.1 px and USGS-only 5.4 px).
+The comparison therefore shows only that the Korea guide no longer breaks a
+clean black contour that Ink already traces. It does not show better tracing on
+dense Korean contours. Grid lines remain a separate problem: Ink snaps to them
+when a click lands on or near one.
 
 ## Remaining work
 
-These results come from weak labels, one selection-biased validation set and
-five independent Korean cases. Human review of Korean and USGS crops,
+These results come from weak labels and one selection-biased validation set,
+and no valid Korean tracing comparison exists yet. A comparison needs click
+pairs verified to lie on one contour, away from grid lines. Human review of Korean and USGS crops,
 Calibration of the support weight and avoidance cost, a reviewed Holdout
 comparison against Ink and Smart Recovery, and blue-contour Korean sheets
 (the cohort is black ink only; blue is covered only through `ink_recolor`)

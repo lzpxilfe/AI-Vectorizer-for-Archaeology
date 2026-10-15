@@ -202,12 +202,12 @@ M4 Mac CPU, prepared tile p95 was 56 ms with 253 MiB of extra RAM.
 
 The new model supports the synthetic blue and black lines that the first model
 avoided (support 0.88 and 0.89), and its QGIS deviation from the synthetic blue
-line fell from 37.7 px to 0.19 px. With the same clicks on Korean validation
-crops, the mean median distance to the machine reference was 11.7 px for Ink,
-5.5 px for the USGS-only guide, and 3.6 px for the new guide. One dense case with
-grid lines still crossed to a neighbouring contour, and one USGS crop got worse
-at p95. There are only five independent Korean cases, and both the reference and
-the validation set are machine labelled, so this shows direction only. Reviewed
+line fell from 37.7 px to 0.19 px. There is not yet evidence that it traces real
+Korean contours better. The first same-click comparison was withdrawn because its
+machine reference hopped between neighbouring contours and some clicks sat on grid
+lines. In the one case whose reference follows a single contour, the new guide drew
+the same line as Ink while the USGS-only guide cut across it; on a dense sheet with
+grid lines all three methods failed. Click pairs verified on one contour, reviewed
 answers, blue-contour sheets, and Calibration/Holdout evaluation remain pending,
 and the model stays a default-OFF experiment. See the
 [Korean execution record](learning/COLAB_KOREA_WEAK_RUN_2026-10-15.md).
