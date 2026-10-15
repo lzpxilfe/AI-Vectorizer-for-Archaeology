@@ -43,7 +43,8 @@ inference service.
 - 🧪 [Learned contour pilot](learning/README.md): 144 prepared USGS crops, QGIS annotation
   tools, a resumable Colab notebook, CPU evaluation, and a default-OFF local ONNX
   guide. Human-approved annotations remain at zero; a separate weak-label
-  experiment has completed three-seed training, ONNX export, and QGIS checks.
+  experiment has completed three-seed training, ONNX export, and QGIS checks on
+  USGS and Korean historical-map crops.
 - Freehand tracing with no additional model
 - Default multi-scale Ink Centerline evidence for dark and colored printed strokes
 - Optional Smart Recovery that uses a verified EfficientSAM-Ti model only as a
@@ -174,13 +175,42 @@ PyTorch by at most `1.7e-6`. On an M4 Mac CPU, prepared tile inference p95 was
 unchanged, undid in one step, and ran no inference at 0% assist.
 
 The model learned USGS brown-contour conventions. It treats the same line drawn
-in black or blue as something to avoid, so do not use it on maps with black or
-blue contours, including many Korean maps. In a five-crop QGIS comparison on
+in black or blue as something to avoid, so use the Korean retrained model below
+for maps with black or blue contours, including many Korean maps. In a five-crop QGIS comparison on
 validation sheets, it corrected one case where Ink jumped to a neighbouring
 contour; the others were similar or not interpretable. That comparison uses a
 machine reference and only shows direction. Human review, Calibration, and
 Holdout evaluation remain pending; the [execution record](learning/COLAB_WEAK_RUN_2026-10-14.md)
 holds the hashes and measurements.
+
+On 2026-10-15 a second weak-label experiment added 149 crops from 16 black-ink
+AMS Korea 1:50,000 (Series L751) sheets to the 144 USGS crops. Korean labels also
+come from stroke geometry without human review: long, thin, curved black strokes
+are contour candidates; blue overprint, straight grid lines, glyphs, and filled
+symbols are other ink; unresolved pixels are excluded from the loss. Two
+augmentations were enabled. `ink_recolor` repaints contour ink black, grey, blue,
+or brown so colour alone cannot identify a contour, and `label_gaps` writes
+elevation-style numbers across contours and cuts the printed line while the
+target stays continuous, teaching the model to treat the number as other ink and
+join the cut line.
+
+The [Korean notebook](learning/colab_train_korea_weak.ipynb) trained all three
+seeds for 60 epochs on a Colab T4 with 162 train and 48 validation crops.
+Validation loss alone selected seed 3408 (0.860), exported as the 47.5 MiB FP32
+`ai-weak-contour-guide-korea-v1`; Calibration and Holdout stayed unopened. On an
+M4 Mac CPU, prepared tile p95 was 56 ms with 253 MiB of extra RAM.
+
+The new model supports the synthetic blue and black lines that the first model
+avoided (support 0.88 and 0.89), and its QGIS deviation from the synthetic blue
+line fell from 37.7 px to 0.19 px. With the same clicks on Korean validation
+crops, the mean median distance to the machine reference was 11.7 px for Ink,
+5.5 px for the USGS-only guide, and 3.6 px for the new guide. One dense case with
+grid lines still crossed to a neighbouring contour, and one USGS crop got worse
+at p95. There are only five independent Korean cases, and both the reference and
+the validation set are machine labelled, so this shows direction only. Reviewed
+answers, blue-contour sheets, and Calibration/Holdout evaluation remain pending,
+and the model stays a default-OFF experiment. See the
+[Korean execution record](learning/COLAB_KOREA_WEAK_RUN_2026-10-15.md).
 
 For the human-reviewed pilot, calibration freezes path costs before the holdout
 comparison. Human-reviewed Colab training, reviewed holdout results, and
