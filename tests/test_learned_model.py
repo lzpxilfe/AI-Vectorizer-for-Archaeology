@@ -15,6 +15,7 @@ from ai_vectorizer.core.edge_detector import EdgeDetector
 from ai_vectorizer.core.learned_model import (
     LearnedContourEngine, LearnedModelCancelled, LearnedModelError,
     build_bundle_manifest, import_local_bundle, inspect_bundle, plan_source_tiles,
+    model_guidance_parameters,
 )
 from ai_vectorizer.core.livewire import LiveWireConfig, build_livewire_tree, is_livewire_available
 
@@ -44,7 +45,7 @@ def _model_bytes(*, raw_weights=None, raw_bias=None):
     return model.SerializeToString()
 
 
-def _write_bundle(path, model_bytes=None):
+def _write_bundle(path, model_bytes=None, *, selected_guidance=None):
     path.mkdir(parents=True, exist_ok=True)
     model_bytes = _model_bytes() if model_bytes is None else model_bytes
     provenance = {
@@ -56,6 +57,8 @@ def _write_bundle(path, model_bytes=None):
         "license_spdx": "MIT",
         "diagnostic": True,
     }
+    if selected_guidance is not None:
+        provenance["selected_guidance"] = selected_guidance
     manifest = build_bundle_manifest(model_bytes, provenance, model_id="diagnostic-v1")
     (path / "model.onnx").write_bytes(model_bytes)
     (path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -145,6 +148,39 @@ def test_local_import_is_hash_bound_atomic_and_offline(tmp_path, monkeypatch):
     assert (imported / "model.onnx").read_bytes() == original
 
 
+def test_unconfigured_import_uses_support_without_an_arbitrary_avoidance_cost(tmp_path):
+    source = _write_bundle(tmp_path / "source")
+    imported = import_local_bundle(source, tmp_path / "cache")
+    inspection = inspect_bundle(imported)
+    assert inspection.ready
+    assert "selected_guidance" not in inspection.manifest["provenance"]
+    assert model_guidance_parameters(None) == (0.8, 0.0)
+    assert model_guidance_parameters(inspection.manifest) == (0.8, 0.0)
+    runtime = LearnedContourEngine(imported)
+    assert runtime.guidance_parameters == (0.8, 0.0)
+    assert not runtime.has_selected_guidance
+    # The policy does not alter either exported model head or bundle bytes.
+    prior = runtime.predict_tile(np.zeros((512, 512, 3), dtype=np.uint8))
+    assert np.all(prior.avoidance_score == 0.5)
+    assert (source / "model.onnx").read_bytes() == (imported / "model.onnx").read_bytes()
+
+
+@pytest.mark.parametrize("support,avoidance", [(0.4, 2), (0.8, 4), (0.4, 6)])
+def test_report_bound_selected_guidance_preserves_its_explicit_costs(tmp_path, support, avoidance):
+    selected = {
+        "support": support, "avoidance": avoidance,
+        "calibration_sha256": "a" * 64, "holdout_report_sha256": "b" * 64,
+        "source_bundle_sha256": "c" * 64, "pilot_gates_passed": True,
+    }
+    source = _write_bundle(tmp_path / "configured", selected_guidance=selected)
+    imported = import_local_bundle(source, tmp_path / "cache")
+    runtime = LearnedContourEngine(imported)
+    assert runtime.has_selected_guidance
+    assert runtime.guidance_parameters == (support, avoidance)
+    assert model_guidance_parameters(runtime.manifest) == (support, avoidance)
+    assert runtime.manifest["provenance"]["selected_guidance"] == selected
+
+
 def test_import_never_replaces_a_concurrent_empty_cache_directory(tmp_path, monkeypatch):
     import ai_vectorizer.core.learned_model as module
     source = _write_bundle(tmp_path / "source")
@@ -204,6 +240,8 @@ def test_sealed_guidance_metadata_rejects_invalid_weights_or_report_binding(tmp_
     manifest["provenance"]["selected_guidance"]=selected
     path.write_text(json.dumps(manifest))
     assert not inspect_bundle(source).ready
+    with pytest.raises(LearnedModelError, match="selected guidance"):
+        model_guidance_parameters(manifest)
 
 
 @pytest.mark.parametrize("unsafe", ["external", "custom", "shape"])
@@ -236,9 +274,19 @@ def test_nonfinite_inference_is_rejected(tmp_path):
 
 
 @pytest.mark.skipif(not is_livewire_available(), reason="SciPy is not installed")
-def test_actual_onnx_prior_and_ink_detector_prefer_contour_over_black_shortcut(tmp_path):
+def test_explicit_diagnostic_costs_and_actual_onnx_prefer_contour_over_black_shortcut(tmp_path):
     model = _model_bytes(raw_weights=[[15, 0, -15], [-6, -6, -6]], raw_bias=[-2, 6])
-    runtime = LearnedContourEngine(_write_bundle(tmp_path / "color-diagnostic", model))
+    # The hand-built diagnostic depends on its avoidance head. Declare its
+    # fixture-only selected costs instead of silently enabling arbitrary
+    # avoidance for every imported, uncalibrated model.
+    selected = {
+        "support": 0.8, "avoidance": 6,
+        "calibration_sha256": "a" * 64, "holdout_report_sha256": "b" * 64,
+        "pilot_gates_passed": True,
+    }
+    runtime = LearnedContourEngine(_write_bundle(
+        tmp_path / "color-diagnostic", model, selected_guidance=selected,
+    ))
     height, width = 82, 145
     image = np.full((height, width, 3), 245, dtype=np.uint8)
     desired = []
@@ -252,7 +300,12 @@ def test_actual_onnx_prior_and_ink_detector_prefer_contour_over_black_shortcut(t
     observed = evidence.centerline.copy()
     prior = runtime.predict_crop(lambda bounds: image, (0, 0, width, height), (width, height))
     edges = np.zeros(evidence.shape, dtype=np.uint8)
-    config = LiveWireConfig(max_window_size=160, target_snap_radius=0)
+    support_weight, avoidance_weight = runtime.guidance_parameters
+    config = LiveWireConfig(
+        max_window_size=160, target_snap_radius=0,
+        learned_support_cap=support_weight,
+        learned_avoidance_cost_weight=avoidance_weight,
+    )
     baseline = build_livewire_tree(image, edges, desired[0], evidence=evidence, config=config)
     guided = build_livewire_tree(image, edges, desired[0], evidence=evidence, learned_prior=prior, config=config)
     reference = np.asarray(desired)

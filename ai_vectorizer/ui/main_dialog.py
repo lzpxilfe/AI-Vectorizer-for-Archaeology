@@ -1163,7 +1163,18 @@ class AIVectorizerDock(QDockWidget):
             "active": self._tr("학습 보조: 적용 중", "Learned guide: active"),
             "fallback": self._tr("학습 보조: Ink 사용", "Learned guide: using Ink"),
         }
-        self.learned_status.setText(labels.get(state, state) + (": " + detail if detail else ""))
+        status = labels.get(state, state) + (": " + detail if detail else "")
+        if (
+            state in ("ready", "active")
+            and self.learned_engine is not None
+            and not self.learned_engine.has_selected_guidance
+        ):
+            status += " · " + self._tr(
+                "등고선 지지만 사용 · 문자 회피 설정 없음",
+                "Contour support only · no text avoidance setting",
+            )
+        self.learned_status.setText(status)
+        self.learned_status.setToolTip(status)
 
     def _cancel_learned_prepare(self):
         self._learned_prepare_generation += 1
@@ -1210,9 +1221,8 @@ class AIVectorizerDock(QDockWidget):
 
     def _learned_guidance_parameters(self):
         if self.learned_engine is None:
-            return 0.8, 6
-        selected = self.learned_engine.manifest["provenance"].get("selected_guidance", {})
-        return selected.get("support", 0.8), selected.get("avoidance", 6)
+            return 0.8, 0.0
+        return self.learned_engine.guidance_parameters
 
     def import_learned_model(self):
         if self.active_tool is not None:

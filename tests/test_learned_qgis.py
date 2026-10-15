@@ -355,6 +355,49 @@ class LearnedDialogLifecycleTests(unittest.TestCase):
         self.dock.learned_import_btn.setEnabled.assert_called_once_with(False)
 
 
+class LearnedDialogGuidancePolicyTests(unittest.TestCase):
+    def setUp(self):
+        self.engine = SimpleNamespace(
+            guidance_parameters=(0.8, 0.0), has_selected_guidance=False,
+            manifest=mock.Mock(name="manifest_not_revalidated_by_ui"),
+        )
+        self.status = SimpleNamespace(setText=mock.Mock(), setToolTip=mock.Mock())
+        self.dock = SimpleNamespace(
+            learned_engine=self.engine, learned_status=self.status,
+            _tr=lambda ko, en: en,
+        )
+
+    def test_trace_parameters_use_prepared_policy_and_missing_model_is_support_only(self):
+        read = _dialog_method("_learned_guidance_parameters")
+        self.assertEqual(read(self.dock), (0.8, 0.0))
+        self.engine.guidance_parameters = (0.4, 4.0)
+        self.engine.has_selected_guidance = True
+        self.assertEqual(read(self.dock), (0.4, 4.0))
+        self.engine.manifest.assert_not_called()
+        self.dock.learned_engine = None
+        self.assertEqual(read(self.dock), (0.8, 0.0))
+
+    def test_ready_and_active_status_and_tooltip_explain_support_only_in_both_languages(self):
+        update = _dialog_method("_on_learned_state_changed")
+        for language, expected in (
+            ("en", "Contour support only · no text avoidance setting"),
+            ("ko", "등고선 지지만 사용 · 문자 회피 설정 없음"),
+        ):
+            self.dock._tr = (lambda ko, en: ko) if language == "ko" else (lambda ko, en: en)
+            for state in ("ready", "active"):
+                with self.subTest(language=language, state=state):
+                    update(self.dock, state, "pilot")
+                    self.assertIn(expected, self.status.setText.call_args.args[0])
+                    self.assertIn(expected, self.status.setToolTip.call_args.args[0])
+        self.engine.has_selected_guidance = True
+        update(self.dock, "ready")
+        self.assertNotIn("문자 회피 설정 없음", self.status.setText.call_args.args[0])
+        self.assertNotIn("문자 회피 설정 없음", self.status.setToolTip.call_args.args[0])
+        self.engine.has_selected_guidance = False
+        update(self.dock, "off")
+        self.assertNotIn("문자 회피 설정 없음", self.status.setText.call_args.args[0])
+
+
 try:
     from qgis.core import QgsApplication
     HAS_QGIS = True
@@ -422,6 +465,99 @@ class LearnedQgsTaskTests(unittest.TestCase):
         engine.predict_crop.side_effect = cancel_after_native_call
         self.assertFalse(current.run())
         self.assertIs(current.prior, prior)
+
+    def test_support_only_model_keeps_user_avoidance_in_actual_livewire_worker(self):
+        from ai_vectorizer.core.learned_model import model_guidance_parameters
+        from ai_vectorizer.core.line_evidence import LineEvidence
+        from ai_vectorizer.core.livewire import LiveWireConfig, is_livewire_available
+        from ai_vectorizer.core.trace_guidance import TraceGuidance
+        from ai_vectorizer.tools.smart_trace_tool import _LiveWireTreeTask
+
+        if not is_livewire_available():
+            self.skipTest("Actual Live-Wire worker requires SciPy")
+        shape = (64, 64)
+        centerline = np.zeros(shape, dtype=bool)
+        centerline[20, 8:57] = True
+        centerline[40, 8:57] = True
+        centerline[20:41, (8, 56)] = True
+        evidence = LineEvidence(centerline.astype(np.float32), centerline)
+        image = np.full(shape + (3,), 245, dtype=np.uint8)
+        image[centerline] = 25
+        avoidance = np.zeros(shape, dtype=np.float32)
+        avoidance[:36, 27:38] = 1.0
+        manual = TraceGuidance(avoidance)
+        # An unconfigured model can emit high other-ink scores; it cannot
+        # suppress or replace the user's independent avoidance selection.
+        prior = LearnedLinePrior(np.zeros(shape), np.ones(shape))
+        support_weight, avoidance_weight = model_guidance_parameters(None)
+        config = LiveWireConfig(
+            max_window_size=64, target_snap_radius=0,
+            direction_cost_weight=0, heading_cost_weight=0,
+            learned_support_cap=support_weight,
+            learned_avoidance_cost_weight=avoidance_weight,
+        )
+        paths = []
+        for guidance in (None, manual):
+            task = _LiveWireTreeTask(
+                image=image, edges=centerline.astype(np.uint8) * 255,
+                evidence=evidence, guidance=guidance, anchor_pixel=(8, 20),
+                incoming_direction=None, strength=1.0, generation=1,
+                config=config, callback=mock.Mock(), learned_prior=prior,
+            )
+            self.assertTrue(task.run(), task.error)
+            self.assertIs(task.guidance, guidance)
+            paths.append(task.tree.trace((56, 20)))
+        self.assertEqual(max(y for x, y in paths[0]), 20)
+        self.assertGreaterEqual(max(y for x, y in paths[1]), 36)
+        np.testing.assert_array_equal(manual.avoidance_score, avoidance)
+
+    def test_actual_map_tool_infers_bundle_policy_and_preserves_explicit_diagnostic_costs(self):
+        from qgis.core import QgsCoordinateReferenceSystem, QgsVectorLayer
+        from qgis.gui import QgsMapCanvas
+        from ai_vectorizer.core.learned_model import build_bundle_manifest
+        from ai_vectorizer.tools.smart_trace_tool import SmartTraceTool
+
+        provenance = {
+            "dataset_manifest_sha256": "a" * 64,
+            "training_code_commit": "b" * 40, "export_code_commit": "c" * 40,
+            "architecture": "policy-diagnostic", "seed": 0, "license_spdx": "MIT",
+        }
+        unconfigured = build_bundle_manifest(b"policy-only-fixture", provenance)
+        configured = build_bundle_manifest(b"policy-only-fixture", dict(
+            provenance,
+            selected_guidance={
+                "support": 0.4, "avoidance": 4,
+                "calibration_sha256": "d" * 64,
+                "holdout_report_sha256": "e" * 64, "pilot_gates_passed": True,
+            },
+        ))
+        canvas = QgsMapCanvas()
+        crs = QgsCoordinateReferenceSystem("EPSG:3857")
+        layer = QgsVectorLayer("LineString?crs=EPSG:3857", "policy test", "memory")
+        try:
+            for manifest, overrides, expected in (
+                (unconfigured, {}, (0.8, 0.0)),
+                (configured, {}, (0.4, 4.0)),
+                (unconfigured, {"learned_avoidance_weight": 6.0}, (0.8, 6.0)),
+            ):
+                with self.subTest(expected=expected):
+                    tool = SmartTraceTool(
+                        canvas, SimpleNamespace(crs=lambda: crs), layer,
+                        freehand=True, learned_engine=SimpleNamespace(manifest=manifest),
+                        **overrides,
+                    )
+                    try:
+                        config = tool._livewire_config()
+                        self.assertEqual(
+                            (config.learned_support_cap, config.learned_avoidance_cost_weight),
+                            expected,
+                        )
+                    finally:
+                        tool.dispose()
+                        tool.deleteLater()
+        finally:
+            canvas.deleteLater()
+            self.application.processEvents()
 
 
 if __name__ == "__main__":

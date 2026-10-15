@@ -7,6 +7,10 @@
 기본 적용하는 구성으로 다시 검사했다. 거부된 후보와 채택한 기본 구성을 아래에서
 구분한다.
 
+후속 [회피 비용 분리 검사](UNCALIBRATED_AVOIDANCE_CHECK_2026-10-15.md)는
+선택된 경로 비용이 없는 모델에 회피 비용 6을 자동 적용하던 동작을 수정한다.
+아래 표는 그 수정 전의 역사 기록이며 후속 결과와 합산하지 않는다.
+
 ## 비교 범위와 기준선
 
 - 자료: `usgs-ams-korea-contour-ai-weak-v1`의 Validation 크롭 4개. Calibration과
@@ -119,8 +123,9 @@ python scripts/qgis_grid_comparison.py \
 ```
 
 거부된 결합 후보를 별도로 비교하려면 같은 명령에
-`--observation-gate --route-guard`를 추가하고
+`--after-avoidance 6 --observation-gate --route-guard`를 추가하고
 별도 출력 위치를 사용한다. 이 진단은 제품 기본 설정과 구분해야 한다.
+이 문서의 격자 단독 비교를 재현할 때는 `--after-avoidance 6`만 추가한다.
 
 사전 검사에서 Validation 분할, 이미지 해시, 사전 동결·같은 등고선 확인 표식을
 검사한다. ONNX Runtime 1.31.0의 CPU provider, 순차 실행, intra/inter-op 각 1 thread,

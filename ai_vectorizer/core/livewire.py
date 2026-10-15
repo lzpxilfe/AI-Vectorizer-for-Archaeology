@@ -50,7 +50,9 @@ class LiveWireConfig:
     direction_cost_weight: float = 5.0
     avoidance_cost_weight: float = 6.0
     learned_support_cap: float = 0.8
-    learned_avoidance_cost_weight: float = 6.0
+    # An unconfigured model must not turn a false other-ink prediction into
+    # a tracing penalty. Calibrated bundles pass their selected weight.
+    learned_avoidance_cost_weight: float = 0.0
     # Diagnostic candidates only: both regress real validation cases, so
     # ordinary tracing preserves the existing learned-prior behaviour.
     learned_observation_gate: bool = False

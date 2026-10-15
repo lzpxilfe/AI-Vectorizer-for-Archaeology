@@ -115,6 +115,24 @@ def build_bundle_manifest(
     return _validate_manifest(document)
 
 
+def model_guidance_parameters(manifest: Optional[dict]) -> Tuple[float, float]:
+    """Read sealed path costs, or use contour support alone for a pilot.
+
+    An exported second head is not evidence that its path penalty has been
+    selected and evaluated. Only the manifest's validated, report-bound
+    ``selected_guidance`` may enable learned avoidance. This does not affect
+    the separate avoidance regions drawn by the user.
+    """
+
+    if manifest is None:
+        return 0.8, 0.0
+    validated = _validate_manifest(manifest)
+    selected = validated["provenance"].get("selected_guidance")
+    if selected is None:
+        return 0.8, 0.0
+    return float(selected["support"]), float(selected["avoidance"])
+
+
 def inspect_bundle(bundle_dir) -> BundleInspection:
     """Inspect local immutable bytes only; never create or download files."""
 
@@ -232,6 +250,9 @@ class LearnedContourEngine:
         self._validate_session(session)
         self._session = session
         self.manifest = manifest
+        # Resolve the policy once at preparation, not on mouse movement.
+        self.guidance_parameters = model_guidance_parameters(manifest)
+        self.has_selected_guidance = manifest["provenance"].get("selected_guidance") is not None
         self.bundle_sha256 = digest
         self.model_sha256 = manifest["model"]["sha256"]
         self.is_ready = True

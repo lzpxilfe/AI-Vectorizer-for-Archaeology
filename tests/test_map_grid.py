@@ -217,7 +217,7 @@ def test_learned_route_guard_keeps_observed_contour_when_both_heads_favor_neighb
     evidence = EdgeDetector.detect_ink_evidence(image)
     edges = np.where(evidence.centerline, 255, 0).astype(np.uint8)
     prior = LearnedLinePrior(np.ones((size, size)), avoid)
-    config = LiveWireConfig(max_window_size=size, target_snap_radius=0, learned_observation_gate=True, learned_route_guard=True)
+    config = LiveWireConfig(max_window_size=size, target_snap_radius=0, learned_observation_gate=True, learned_route_guard=True, learned_avoidance_cost_weight=6)
     # A guard can preserve the wrong Ink path too. It stays diagnostic;
     # the normal product must not silently enable either rejected candidate.
     assert not LiveWireConfig().learned_observation_gate

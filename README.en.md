@@ -247,6 +247,20 @@ grid improvements are not evidence of higher accuracy on real maps. See the
 [grid and continuity check](learning/GRID_CONTINUITY_CHECK_2026-10-15.md) for
 settings, regressions and failures.
 
+Models without a recorded path-cost selection now use **contour support only**.
+An arbitrary text/road penalty no longer charges true contours misclassified by
+the model. The ready/active status says so. Bundles with selected costs and
+evaluation hashes retain those settings; manual avoidance and ink-color guidance
+still apply. Useful text/road exclusion can also be lost, so this is not a claim
+that every model becomes more accurate.
+
+Across seven enlarged, agent-inspected validation cases traced and saved in QGIS,
+the Korea guide's F1@2px=1.000 count changed from three to five. Two deep U-shaped
+cases still failed, including a small regression from 0.484 to 0.483. No human
+approval, independent evaluation or retraining occurred. See the
+[avoidance-cost diagnostic](learning/UNCALIBRATED_AVOIDANCE_CHECK_2026-10-15.md)
+for all results and remaining failures.
+
 ## Experimental: label-gap bridge
 
 This is a reviewed, explicit action for a black or brown contour that a numeric

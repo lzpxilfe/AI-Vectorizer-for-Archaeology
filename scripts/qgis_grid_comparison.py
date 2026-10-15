@@ -81,7 +81,7 @@ def run_comparison():
         if not qgis.utils.loadPlugin(smoke.PLUGIN_ID) or not qgis.utils.startPlugin(smoke.PLUGIN_ID):
             raise smoke.SmokeFailure("QGIS rejected the installed plugin")
         qgis.utils.plugins[smoke.PLUGIN_ID].run()
-        from ai_vectorizer.core.learned_model import LearnedContourEngine
+        from ai_vectorizer.core.learned_model import LearnedContourEngine, model_guidance_parameters
 
         engines = {name: LearnedContourEngine.from_bundle(path) for name, path in spec["models"].items()}
         project = QgsProject.instance()
@@ -121,12 +121,19 @@ def run_comparison():
             for label, engine in [("ink", None), *engines.items()]:
                 for after in (False, True):
                     key = label + ("_after" if after else "_before")
+                    weights = model_guidance_parameters(engine.manifest if engine is not None else None)
+                    if not after:
+                        old = (engine.manifest["provenance"].get("selected_guidance") or {}) if engine is not None else {}
+                        weights = (old.get("support", 0.8), old.get("avoidance", 6.0))
+                    elif spec.get("after_avoidance") is not None:
+                        weights = (weights[0], spec["after_avoidance"])
                     row["traces"][key] = smoke._run_trace_scenario(
                         canvas=canvas, raster_layer=layer, fixture=fixture,
                         name=case["id"] + "-" + key, edge_weight=1.0,
                         freehand=False, smart_recovery=False,
                         learned_engine=engine, learned_guide=engine is not None,
-                        grid_avoidance=after,
+                        learned_weights=weights,
+                        grid_avoidance=after or spec.get("grid_in_both", False),
                         livewire_config_overrides={
                             "learned_observation_gate": after and spec.get("observation_gate", False),
                             "learned_route_guard": after and spec.get("route_guard", False),
@@ -138,6 +145,9 @@ def run_comparison():
                   "review_level": "agent_visual_inspection", "human_approved": False,
                   "fixtures_sha256": smoke.sha256_file(Path(spec["fixtures"])),
                   "after_config": {"grid_avoidance": True,
+                                   "grid_in_both": spec.get("grid_in_both", False),
+                                   "avoidance_override": spec.get("after_avoidance"),
+                                   "unconfigured_model_avoidance": 0.0,
                                    "learned_observation_gate": spec.get("observation_gate", False),
                                    "learned_route_guard": spec.get("route_guard", False)},
                   "models": {name: engine.metadata for name, engine in engines.items()},
@@ -170,6 +180,10 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--profile-root", type=Path)
+    parser.add_argument("--grid-in-both", action="store_true",
+                        help="Keep current grid costs in both runs to isolate the learned-cost change")
+    parser.add_argument("--after-avoidance", type=float, choices=(0.0, 2.0, 4.0, 6.0),
+                        help="Explicit diagnostic override; omit to use the model's cost policy")
     parser.add_argument("--observation-gate", action="store_true",
                         help="Diagnostic only: restrict learned support to visible Ink (known regressions)")
     parser.add_argument("--route-guard", action="store_true",
@@ -180,6 +194,7 @@ def main():
     os.environ[SPEC_ENV] = json.dumps({
         "fixtures": str(args.fixtures.resolve()), "dataset": str(args.dataset.resolve()),
         "observation_gate": args.observation_gate, "route_guard": args.route_guard,
+        "grid_in_both": args.grid_in_both, "after_avoidance": args.after_avoidance,
         "models": {"usgs": str(args.old_model.resolve()), "korea": str(args.new_model.resolve())}})
     args.qgis_executable = Path("/Applications/QGIS.app/Contents/MacOS/QGIS")
     args.expected_version = smoke.DEFAULT_EXPECTED_VERSION

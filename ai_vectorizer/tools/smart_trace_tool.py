@@ -1010,7 +1010,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                  recovery_engine=None, smart_recovery=False,
                  recovery_state_callback=None, ink_color_callback=None,
                  learned_engine=None, learned_guide=False, learned_state_callback=None,
-                 learned_support_weight=0.8, learned_avoidance_weight=6.0,
+                 learned_support_weight=None, learned_avoidance_weight=None,
                  grid_avoidance_enabled=True):
         self.canvas = canvas
         super().__init__(self.canvas)
@@ -1057,9 +1057,19 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.learned_engine = learned_engine
         self.learned_guide_requested = bool(learned_guide)
         self.learned_state_callback = learned_state_callback
+        if learned_support_weight is None or learned_avoidance_weight is None:
+            from ..core.learned_model import model_guidance_parameters
+
+            selected_support, selected_avoidance = model_guidance_parameters(
+                getattr(learned_engine, "manifest", None)
+            )
+            if learned_support_weight is None:
+                learned_support_weight = selected_support
+            if learned_avoidance_weight is None:
+                learned_avoidance_weight = selected_avoidance
         self.learned_support_weight = float(learned_support_weight)
         self.learned_avoidance_weight = float(learned_avoidance_weight)
-        if self.learned_support_weight not in (0.4, 0.8) or self.learned_avoidance_weight not in (2.0, 4.0, 6.0):
+        if self.learned_support_weight not in (0.4, 0.8) or self.learned_avoidance_weight not in (0.0, 2.0, 4.0, 6.0):
             raise ValueError("Unsupported learned-guide configuration")
         self._learned_task = None
         self._learned_generation = 0

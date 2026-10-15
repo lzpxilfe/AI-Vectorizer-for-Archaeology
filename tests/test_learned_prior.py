@@ -42,7 +42,7 @@ def test_crop_and_shapes_are_checked():
             crop_learned_prior(prior, bounds)
 
 
-@pytest.mark.parametrize("learned_weight", [2.0, 4.0, 6.0])
+@pytest.mark.parametrize("learned_weight", [0.0, 2.0, 4.0, 6.0])
 def test_weighted_composition_preserves_manual_cost(learned_weight):
     manual = TraceGuidance(np.array([[1.0, 0.0]], dtype=np.float32))
     prior = LearnedLinePrior(np.zeros((1, 2)), np.ones((1, 2)))
@@ -77,12 +77,18 @@ def test_optional_none_and_zero_prior_preserve_exact_baseline():
     for tree in (explicit, empty):
         np.testing.assert_array_equal(tree.distances, baseline.distances)
         np.testing.assert_array_equal(tree.predecessors, baseline.predecessors)
+    # Without selected costs, a false other-ink prediction cannot penalize
+    # observed ink. An explicit calibrated weight is tested separately below.
+    false_avoidance = LearnedLinePrior(np.zeros(evidence.shape), np.ones(evidence.shape))
+    support_only = build_livewire_tree(image, edges, (10, 20), evidence=evidence, learned_prior=false_avoidance)
+    np.testing.assert_array_equal(support_only.distances, baseline.distances)
+    np.testing.assert_array_equal(support_only.predecessors, baseline.predecessors)
     literal = build_livewire_tree(image, edges, (10, 20), evidence=evidence, learned_prior=zero, strength=0.0)
     assert literal.trace((25.2, 30.3)) == [(10.0, 20.0), (25.2, 30.3)]
 
 
 @pytest.mark.skipif(not is_livewire_available(), reason="SciPy is not installed")
-@pytest.mark.parametrize("learned_weight", [2.0, 4.0, 6.0])
+@pytest.mark.parametrize("learned_weight", [0.0, 2.0, 4.0, 6.0])
 def test_graph_cost_max_composes_weights_and_keeps_routes_reachable(learned_weight):
     image, edges, evidence = _straight_evidence()
     prior = LearnedLinePrior(np.zeros(evidence.shape), np.ones(evidence.shape))

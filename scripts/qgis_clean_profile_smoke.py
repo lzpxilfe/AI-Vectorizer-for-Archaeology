@@ -278,6 +278,7 @@ def _run_trace_scenario(
     sample_color: bool = False,
     learned_engine=None,
     learned_guide: bool = False,
+    learned_weights=None,
     grid_avoidance: bool = True,
     livewire_config_overrides=None,
 ) -> dict:
@@ -304,6 +305,8 @@ def _run_trace_scenario(
         recovery_engine=None,
         learned_engine=learned_engine,
         learned_guide=learned_guide,
+        learned_support_weight=learned_weights[0] if learned_weights is not None else None,
+        learned_avoidance_weight=learned_weights[1] if learned_weights is not None else None,
         grid_avoidance_enabled=grid_avoidance,
         recovery_state_callback=lambda state, detail: state_events.append(
             (state, detail)
@@ -563,6 +566,8 @@ def _run_trace_scenario(
             "enhanced_preview_preserved": bool(enhanced_accept),
             "sampled_ink_color_rgb": sampled_color,
             "learned_guide_requested": learned_guide,
+            "learned_support_weight": tool.learned_support_weight,
+            "learned_avoidance_weight": tool.learned_avoidance_weight,
             "grid_avoidance": grid_avoidance,
             "detected_grid": grid_summary,
             "learned_preview_preserved": bool(learned_guide and edge_weight > 0),

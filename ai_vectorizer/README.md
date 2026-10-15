@@ -97,6 +97,12 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 옆 등고선으로 넘어가는 문제는 해결되지 않았습니다. 초록색 선을 검수하세요.
 숫자 공백은 `Label-gap bridge`에서 지정한 두 끝점을 곡선 미리보기로 연결합니다.
 
+경로 비용 선택 기록이 없는 모델은 `등고선 지지만 사용 · 문자 회피 설정 없음`으로
+표시하며, 학습된 문자·도로 회피 비용을 적용하지 않습니다. 실제 등고선을 문자로
+오판한 비용을 줄이기 위한 변경입니다. 평가 해시에 결속된 선택 비용이 있는 모델은
+그 설정을 사용합니다. 수동 회피와 선 색상 지정은 유지됩니다. 유용한 학습 회피도
+빠질 수 있으며, 모든 모델의 정확도가 좋아진다는 뜻은 아닙니다.
+
 ### 🧠 Experimental: 학습 등고선 보조
 
 1. `Advanced: 기존 추적 모델 / Advanced: legacy tracing models`를 펼치고
@@ -364,6 +370,10 @@ first use.
   real validation cases, so both stay disabled by default. Learned guidance
   remains default OFF. Neighboring-contour switching is unresolved; inspect
   the green preview.
+- Models without report-bound selected path costs use contour support only;
+  ready/active status states that text avoidance has no selected setting.
+  Configured bundles retain their costs. Manual avoidance and ink-color guidance
+  still apply, but useful learned text/road exclusion can also be lost.
 - After starting an Ink trace, hover over a clear colored contour and press `C`;
   the sample button uses that last map position. `Shift+C` clears it. Ready
   native Byte RGB Ink v2 evidence, SciPy, and assist above 0% are required;

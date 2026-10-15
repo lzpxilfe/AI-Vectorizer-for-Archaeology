@@ -294,6 +294,9 @@ class MapGridQgisTests(unittest.TestCase):
         self.tool._tree_learned_prior = LearnedLinePrior(
             self.np.zeros_like(manual), learned,
         )
+        # Explicitly enable the learned avoidance head for this composition
+        # test; bundles without selected costs now default to support only.
+        self.tool.learned_avoidance_weight = 6.0
         self.tool.smart_recovery_enabled = True
         self.tool.recovery_engine = SimpleNamespace(
             encode=lambda _image: "encoding",
