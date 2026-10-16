@@ -56,15 +56,62 @@ class OccludedConnectionTree:
     routes: tuple
     connectors: tuple
     outside_connection: Optional[ObservedConnectionTree] = None
+    outside_degree: Optional[np.ndarray] = None
 
     def outside_route(self, target):
-        """Return an admissible observed-only route outside all label masks."""
+        """Preserve a healthy native route, without privileging a junction detour."""
         if self.outside_connection is None:
             return None
         points = self.outside_connection.trace(target)
         if points is not None and tuple(points[0]) != self.root:
             points = [self.root] + points
+        if points is not None and self.outside_degree is not None:
+            # Native connectivity through distant grid/glyph junctions does
+            # not establish contour identity. Prefer an already admissible
+            # genuine-endpoint bridge only when its two visible arms remain
+            # unbranched and the competing outside route crosses a junction.
+            # A continuous unbranched outside U retains its existing priority.
+            candidate = self.trace(target)
+            selected = None if candidate is None else self._selected_connector(candidate)
+            if selected is not None and self._has_native_junction(points) is True:
+                _source, _target, _curve, start, end, _region = selected
+                arms = [*candidate[:start + 1], *candidate[end - 1:]]
+                if self._has_native_junction(arms) is False:
+                    return None
         return points
+
+    def _has_native_junction(self, points):
+        """Read prepared native degrees only; uncertain geometry keeps priority."""
+        values = np.asarray(points, dtype=np.float64)
+        if (values.ndim != 2 or values.shape[1] != 2 or not 2 <= len(values) <= 8192
+                or not np.isfinite(values).all()):
+            return None
+        local = values - np.asarray(self.origin)
+        pixels = np.rint(local).astype(np.int64)
+        height, width = self.shape
+        valid = ((pixels[:, 0] >= 0) & (pixels[:, 0] < width)
+                 & (pixels[:, 1] >= 0) & (pixels[:, 1] < height))
+        if not np.all(valid):
+            return None
+        valid &= self.outside_native[pixels[:, 1], pixels[:, 0]]
+        # Literal root/cursor positions can sit beside the skeleton; all
+        # intermediate arm vertices must be original native observations.
+        if not np.all(valid[1:-1]):
+            return None
+        if np.any(self.outside_degree[pixels[valid, 1], pixels[valid, 0]] > 2):
+            return True
+        # The routing graph retains all eight neighbor edges. A unit
+        # diagonal can therefore bypass the shared orthogonal T pixel even
+        # though pruned context adjacency correctly gives that pixel degree3.
+        # Inspect only those actual edge corners, not a dilated neighborhood.
+        delta = np.diff(pixels, axis=0)
+        diagonal = (valid[:-1] & valid[1:] & (np.abs(delta[:, 0]) == 1)
+                    & (np.abs(delta[:, 1]) == 1))
+        for first, last in zip(pixels[:-1][diagonal], pixels[1:][diagonal]):
+            for x, y in ((first[0], last[1]), (last[0], first[1])):
+                if self.outside_native[y, x] and self.outside_degree[y, x] > 2:
+                    return True
+        return False
 
     def intersects(self, path):
         """Whether an existing route enters an independently detected label."""
@@ -635,4 +682,9 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
         return None
     union.setflags(write=False)
     outside.setflags(write=False)
-    return OccludedConnectionTree(tuple(root_array), tuple(origin_array), tuple(native.shape), union, outside, tuple(routes), tuple(retained), baseline)
+    outside_degree = _degree(outside)
+    outside_degree.setflags(write=False)
+    return OccludedConnectionTree(
+        tuple(root_array), tuple(origin_array), tuple(native.shape), union,
+        outside, tuple(routes), tuple(retained), baseline, outside_degree,
+    )

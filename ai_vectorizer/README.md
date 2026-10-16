@@ -172,10 +172,14 @@ Ink v2는 일부 숫자 공백을 **`G` 없이** 연결합니다. 원본 Byte �
 
 양쪽 모두 원본 중심선에서도 끝점이어야 합니다. 문자 마스크의 여유 영역에 걸친
 연속선은 보존합니다. 마스크가 멀쩡한 선을 잘라 만든
-끝점은 거부하고, 마스크 밖에서 이어지는 기존 경로는 보존합니다. 경로당 추론 공백은
+끝점은 거부하고, 마스크 밖에서 분기 없이 이어지는 기존 경로는 보존합니다. 경로당 추론 공백은
 하나이며 짧은 경쟁 조각·가까운 옆 선·교차·보조율 적용 후 접촉을 확인합니다.
 수동·색상·학습 회피 비용이 있거나 글자와 선이 붙어 모호하면 기존 Ink를 사용합니다.
 기존 경로가 두 실제 끝점과 보이는 선을 이미 잘 따르면 원래 경로와 평활화를 유지합니다.
+흐릿하게 붙어 인쇄된 일부 숫자도 검사합니다. 격자·글자와 붙은 분기를 따라
+우회하는 경로가 있어도, 양쪽 실선이 분기 없이 실제 끝점까지 이어지고 옆 선
+검사를 통과한 공백 후보를 검수할 수 있습니다. 선이 붙은 모든 경우를 구별하는
+기능은 아니므로 초록 미리보기를 확인하세요.
 실제 `700`·`600` U자와 새 원본 감사에서 고른 대각선 `600` 바깥 쌍을 일반 클릭으로
 연결했습니다. 대각선의 기존 잘못된 안쪽 선 쌍에는 자동 연결을 제안하지 않으며
 기존 Ink fallback은 유지합니다. `600` U자의 Ink
@@ -403,7 +407,10 @@ first use.
   unique pair of original native endpoints per route. A text mask cannot cut
   an intact contour to manufacture an end; continuous ink in its padding stays
   visible. An already good route keeps its geometry and smoothing. Healthy visible connections take
-  priority. For an established native label-gap pair, a learned shortcut also
+  priority when they remain unbranched. Some compact fused digits are also
+  checked; a route through junctions cannot suppress an admissible gap pair
+  whose visible arms remain unbranched. This does not resolve every joined
+  contour or glyph. For an established native label-gap pair, a learned shortcut also
   competes with the unlearned Ink reference, subject to the same native ends,
   visible-arm agreement and blended-display clearance. Other learned routes keep their
   routing; competing arms, cursor identity and the blended display are checked.

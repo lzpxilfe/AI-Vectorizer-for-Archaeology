@@ -268,13 +268,27 @@ installation is required.
 
 A label mask cannot manufacture a new endpoint by cutting an intact contour.
 Visible continuous strokes in its padding remain in the native graph.
-Healthy native paths outside the mask take priority, including at partial
+Unbranched native paths outside the mask take priority, including at partial
 assistance. Each route can contain only one inferred gap. Short competing arms,
 cursor proximity, crossings and contact with neighboring ink after assistance
 blending are checked. An existing route that already retains the selected
 visible arms keeps its original geometry and smoothing. Active manual, color or learned avoidance costs retain
 their existing routing. Fused glyphs, open letters and actual junctions remain
-ambiguous. The explicit `G` preview is available when automatic routing declines:
+ambiguous.
+
+Some compact fused digits are also checked. A route through junctions cannot
+suppress an admissible gap pair whose visible arms remain unbranched; original
+endpoints and neighboring-line clearance are still required. See the
+[new Korean spatial-window check](learning/UNSEEN_KOREA_GAP_CHECK_2026-10-16.md)
+for source audits, failed references and comparisons.
+On one separately frozen `300` case, all three methods improved visible
+F1@2px from 0.050 to 1.000 and p95 from 41.176 to 0.696px in QGIS. All 36
+saved-coordinate pairs in the existing 12-case comparison stayed identical.
+Six faulty references from the first new comparison were withdrawn. These are
+new spatial windows on known sheets; hidden curves, general text and unseen
+sheet performance remain unverified.
+
+The explicit `G` preview is available when automatic routing declines:
 
 ```text
 Anchor the last visible stroke before the gap → hover its first visible continuation → G → review → click that endpoint

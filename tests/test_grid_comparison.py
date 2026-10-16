@@ -54,7 +54,9 @@ def test_changed_source_pixels_and_unverified_pair_are_rejected(comparison, tmp_
         comparison.load_cases(path, tmp_path)
 
 
-@pytest.mark.parametrize("withdrawn", ["kr-10-crop-01-clear-w", "kr-10-crop-12-label-500-diagonal", "kr-10-crop-12-label-600-diagonal"])
+@pytest.mark.parametrize("withdrawn", ["kr-10-crop-01-clear-w", "kr-10-crop-12-label-500-diagonal", "kr-10-crop-12-label-600-diagonal",
+                                       "kr-09-unseen-02-vertical-index-gap", "kr10-new04-diagonal-700",
+                                       "kr10-new07-bottom-800"])
 def test_withdrawn_click_pair_cannot_reenter_accuracy_comparison(comparison, tmp_path, withdrawn):
     path, image = _cohort(tmp_path)
     doc = json.loads(path.read_text())
@@ -132,6 +134,107 @@ def test_hidden_curve_shape_is_excluded_from_visible_accuracy(comparison, tmp_pa
     assert scores["scores"]["ink_before"]["visible_f1_2px"] == 1.0
     assert scores["scores"]["ink_after"]["visible_f1_2px"] == 1.0
     assert "f1_2px" not in scores["scores"]["ink_after"]
+
+
+def test_unknown_label_box_cannot_hide_contact_with_a_known_neighbor(comparison, tmp_path):
+    from PIL import Image
+
+    path, image = _gap_cohort(tmp_path)
+    Image.new("RGB", (64, 64), "white").save(image)
+    digest = hashlib.sha256(image.read_bytes()).hexdigest()
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    manifest["samples"][0]["image_sha256"] = digest
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest))
+    document = json.loads(path.read_text())
+    document["cases"][0].update(image_sha256=digest,
+        foreign_visible_control_segments_xy=[[[30, 39], [30, 42]]])
+    path.write_text(json.dumps(document))
+    cases = comparison.load_cases(path, tmp_path)
+    straight = [(10.5, 30.5), (20.5, 30.5), (40.5, 30.5), (50.5, 30.5)]
+    bowed = [(10.5, 30.5), (20.5, 30.5), (30.5, 40.5), (40.5, 30.5), (50.5, 30.5)]
+    traces = {method + suffix: {"vertices_xy": [(x, 64 - y) for x, y in points]}
+              for method in ("ink", "usgs", "korea")
+              for suffix, points in (("_before", straight), ("_after", bowed))}
+    comparison.score_and_render({"cases": [{"id": "case-1", "traces": traces}]}, cases, tmp_path)
+    row = json.loads((tmp_path / "scores.json").read_text())["cases"][0]
+    assert row["scores"]["ink_before"]["visible_f1_2px"] == 1.0
+    assert row["scores"]["ink_after"]["visible_f1_2px"] == 1.0
+    assert not row["foreign_visible_contacts"]["ink_before"]["contact_within_1px"]
+    assert row["foreign_visible_contacts"]["ink_after"]["contact_within_1px"]
+
+
+def test_foreign_contact_uses_continuous_distance_at_the_one_pixel_boundary(comparison, tmp_path):
+    from PIL import Image
+
+    image = tmp_path / "parallel.png"
+    Image.new("RGB", (64, 64), "white").save(image)
+    fixture = {"id": "parallel", "image": str(image),
+               "reference_rc": [[10, 10], [10, 20]],
+               "foreign_visible_control_segments_xy": [[[10, 11], [20, 11]]]}
+    # The native foreign line is y11.5. These saved fractional vertices are
+    # .99px away, but .5px-spaced samples give a minimum of1.02108px.
+    saved = [(10.75, 10.51), (20.25, 10.51)]
+    traces = {method + suffix: {"vertices_xy": [(x, 64 - y) for x, y in saved]}
+              for method in ("ink", "usgs", "korea") for suffix in ("_before", "_after")}
+    comparison.score_and_render({"cases": [{"id": "parallel", "traces": traces}]},
+                                [fixture], tmp_path)
+    row = json.loads((tmp_path / "scores.json").read_text())["cases"][0]
+    for contact in row["foreign_visible_contacts"].values():
+        assert contact == {"minimum_distance_px": 0.99, "contact_within_1px": True,
+                           "distance_method": "continuous_segments"}
+
+
+@pytest.mark.parametrize("path, other, expected", [
+    ([[0, 0], [1, 0]], [[[0.123, -1], [0.123, 1]]], 0.0),
+    ([[1, 0], [0, 0]], [[[0.123, 1], [0.123, -1]]], 0.0),
+    ([[0, 0], [4, 0]], [[[3, 0], [7, 0]]], 0.0),
+    ([[0, 0], [4, 0]], [[[5, 0], [7, 0]]], 1.0),
+    ([[2, 2], [2, 2]], [[[0, 0], [4, 0]]], 2.0),
+    ([[0, 0], [4, 0]], [[[2, 2], [2, 2]]], 2.0),
+    ([[0, 0], [0, 0]], [[[3, 4], [3, 4]]], 5.0),
+    ([[2, 0], [2, 0]], [[[0, 0], [4, 0]]], 0.0),
+])
+def test_continuous_segment_distance_covers_crossing_collinear_and_collapsed_lines(
+        comparison, path, other, expected):
+    assert comparison.minimum_polyline_distance(path, other) == pytest.approx(expected)
+
+
+def test_separate_foreign_strokes_do_not_create_an_artificial_contact(comparison):
+    path = [[5, -1], [5, 1]]
+    # Joining these inspected strokes would manufacture a horizontal edge
+    # through the route; neither actual stroke comes within4px of it.
+    foreign = [[[0, 0], [1, 0]], [[9, 0], [10, 0]]]
+    assert comparison.minimum_polyline_distance(path, foreign) == pytest.approx(4.0)
+
+
+@pytest.mark.parametrize("count", [128, 129, 130, 257, 258])
+def test_continuous_distance_includes_the_last_segments_across_chunk_boundaries(comparison, count):
+    route = [[x, 0] for x in range(count)]
+    foreign = [[x, 3] for x in range(count - 1)] + [[count - 1, 2]]
+    assert comparison.minimum_polyline_distance(route, [foreign]) == pytest.approx(2.0)
+
+
+def test_render_shows_a_saved_detour_outside_the_reference_crop(comparison, tmp_path):
+    from PIL import Image
+
+    path, image = _gap_cohort(tmp_path)
+    Image.new("RGB", (128, 128), "white").save(image)
+    digest = hashlib.sha256(image.read_bytes()).hexdigest()
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    manifest["samples"][0]["image_sha256"] = digest
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest))
+    document = json.loads(path.read_text())
+    document["cases"][0]["image_sha256"] = digest
+    path.write_text(json.dumps(document))
+    cases = comparison.load_cases(path, tmp_path)
+    traces = {method + suffix: {"vertices_xy": [(10.5, 97.5), (90.5, 37.5), (50.5, 97.5)]}
+              for method in ("ink", "usgs", "korea") for suffix in ("_before", "_after")}
+    comparison.score_and_render({"cases": [{"id": "case-1", "traces": traces}]}, cases, tmp_path)
+    panel = Image.open(tmp_path / "case-1-comparison.png")
+    # The distant saved vertex at90.5,90.5 must fit in every native context.
+    # A reference-only frame would stop at x69,y49 and conceal the failure.
+    assert panel.width >= 109 * 3 * 4
+    assert panel.height >= (79 * 3 + 24) * 2
 
 
 @pytest.mark.parametrize("viewport", [(1024, 1024), (1827, 1295), (1828, 1296)])

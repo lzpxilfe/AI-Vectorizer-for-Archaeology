@@ -1,0 +1,895 @@
+{
+  "schema_version": "archaeotrace-unseen-native-crop-inventory/2",
+  "created_utc": "2026-10-15T23:55:06.008707+00:00",
+  "frozen_before_model_or_route_outputs": false,
+  "crop_window_frozen": true,
+  "prompt_reference_freeze_pending": true,
+  "scope": "New native nonoverlapping spatial windows from already-known Korean validation maps; raw-only source review allowed. Not independent-map or blind performance validation. No Calibration/Holdout pixels opened.",
+  "prior_manifest": "manifest.json",
+  "prior_manifest_sha256": "b2fd2a087f75de4e5e1d31b44f13dfdb1a8af3963e18e68f81f9cb4a91e32249",
+  "all_new_vs_previous_native_crop_overlap_pixels": 0,
+  "all_new_vs_new_native_crop_overlap_pixels": 0,
+  "selection": "V1 retained verbatim by hash. New four kr09 map-bottom windows selected geometrically before their own model/path outputs, avoiding old24 and all16 v1 native windows. y2752..3264 chosen because map body ends near3250; requested y3200..3712 would mostly contain legend.",
+  "sources": [
+    {
+      "aliases": [],
+      "crop_count": 12,
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "georeferenced": false,
+      "id": "kr-09",
+      "ink_semantics": "monochrome black print with blue romanized overprint",
+      "license": "Public domain (U.S. Government work)",
+      "planned_crop_count": 12,
+      "provenance_id": {
+        "authority": "maps.lib.utexas.edu",
+        "namespace": "pcl-ams-korea-50k",
+        "value": "txu-pclmaps-oclc-6612107-namwon-6620-ii"
+      },
+      "publisher": "U.S. Army Map Service",
+      "quadrangle_name": "Namwon 6620 II",
+      "raster_size": {
+        "height": 4221,
+        "width": 4750
+      },
+      "rights_snapshot": "rights/pcl-ams-korea-rights.txt",
+      "rights_snapshot_sha256": "cd70e60055691a77f762657b712cf1f8569837e0941227e085321d8f7dd86659",
+      "rights_statement_url": "https://maps.lib.utexas.edu/maps/faq.html",
+      "rights_status": "public_domain",
+      "scan_credit": "University of Texas Libraries",
+      "series": "Korea 1:50,000, Series L751, 1945-",
+      "source_bytes": 8109418,
+      "source_sha256": "8086da5974f7ccde7bdc941faff351b222958a0df18f0dd0fe0db4d55e4bbcdf",
+      "source_size": [
+        4750,
+        4221
+      ],
+      "source_url": "https://maps.lib.utexas.edu/maps/ams/korea_50k/txu-pclmaps-oclc-6612107-namwon-6620-ii.jpg",
+      "split": "validation",
+      "state": "kr-ams-l751",
+      "title": "AMS Korea 1:50,000 Series L751, Namwon 6620 II",
+      "prior_used_crops": [
+        {
+          "id": "kr-09-crop-01",
+          "source_crop_xywh": [
+            1838,
+            382,
+            512,
+            512
+          ],
+          "image_sha256": "c03f302a1ad9eb63afa61f34df0a40b6151dd7d2c36ededaafee86d8cf410557"
+        },
+        {
+          "id": "kr-09-crop-02",
+          "source_crop_xywh": [
+            2584,
+            622,
+            512,
+            512
+          ],
+          "image_sha256": "5066ffbd087db377c8e31a41492117aadc35a08d5d79953b4d9591573b7db07f"
+        },
+        {
+          "id": "kr-09-crop-03",
+          "source_crop_xywh": [
+            3291,
+            743,
+            512,
+            512
+          ],
+          "image_sha256": "cbfa2502362fbd4ce9d6100b68c49c2455c14438a231049aac472063679507d8"
+        },
+        {
+          "id": "kr-09-crop-04",
+          "source_crop_xywh": [
+            2922,
+            902,
+            512,
+            512
+          ],
+          "image_sha256": "9b16556434c8e3ee686b6546d1af4b8fac546903d4c3e740ff635bacd3de3b36"
+        },
+        {
+          "id": "kr-09-crop-05",
+          "source_crop_xywh": [
+            1124,
+            1187,
+            512,
+            512
+          ],
+          "image_sha256": "d3366dfcefbda57c8a3f02f9aab4795942bedf9e7841272f270b4f6ec825bb20"
+        },
+        {
+          "id": "kr-09-crop-06",
+          "source_crop_xywh": [
+            2014,
+            1268,
+            512,
+            512
+          ],
+          "image_sha256": "f81a51a9c48ebb133f75f7b0b59abe39d032568beb34de4182f3f7f74bd6b2b5"
+        },
+        {
+          "id": "kr-09-crop-07",
+          "source_crop_xywh": [
+            1524,
+            1328,
+            512,
+            512
+          ],
+          "image_sha256": "5c51cf8630c08cde350eca894cfd2fada3795679a55e3b5ab0eba9f46ee37663"
+        },
+        {
+          "id": "kr-09-crop-08",
+          "source_crop_xywh": [
+            1024,
+            1532,
+            512,
+            512
+          ],
+          "image_sha256": "abcb0144075e4b5514f14100e17624ab84cf9e47cc380e61a6294be9b5f26854"
+        },
+        {
+          "id": "kr-09-crop-09",
+          "source_crop_xywh": [
+            3646,
+            1727,
+            512,
+            512
+          ],
+          "image_sha256": "5758c3accb30091dce65868914fbe6a37c2d65ddedcb1cd596d5b8f26fa3c01e"
+        },
+        {
+          "id": "kr-09-crop-10",
+          "source_crop_xywh": [
+            2884,
+            1728,
+            512,
+            512
+          ],
+          "image_sha256": "363997eb6fa6dcf75945cc352e2e8e4a2eb1f3b39b953b11bda8a1f3a87d4dea"
+        },
+        {
+          "id": "kr-09-crop-11",
+          "source_crop_xywh": [
+            2287,
+            2162,
+            512,
+            512
+          ],
+          "image_sha256": "b5d4ad0d2c9044efd1fc9b5b56b61c21733ab01c15618080fd01fa5891c85dcf"
+        },
+        {
+          "id": "kr-09-crop-12",
+          "source_crop_xywh": [
+            2617,
+            2555,
+            512,
+            512
+          ],
+          "image_sha256": "ff547ee5ea3d8e195eaaaeff765295c8a93f53184a464eece1e4db5ec6aa49c0"
+        }
+      ],
+      "new_crop_count": 12
+    },
+    {
+      "aliases": [],
+      "crop_count": 12,
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "georeferenced": false,
+      "id": "kr-10",
+      "ink_semantics": "monochrome black print with blue romanized overprint",
+      "license": "Public domain (U.S. Government work)",
+      "planned_crop_count": 12,
+      "provenance_id": {
+        "authority": "maps.lib.utexas.edu",
+        "namespace": "pcl-ams-korea-50k",
+        "value": "txu-pclmaps-oclc-6612107-mupungjang-6721-i"
+      },
+      "publisher": "U.S. Army Map Service",
+      "quadrangle_name": "Mupungjang 6721 I",
+      "raster_size": {
+        "height": 4217,
+        "width": 4717
+      },
+      "rights_snapshot": "rights/pcl-ams-korea-rights.txt",
+      "rights_snapshot_sha256": "cd70e60055691a77f762657b712cf1f8569837e0941227e085321d8f7dd86659",
+      "rights_statement_url": "https://maps.lib.utexas.edu/maps/faq.html",
+      "rights_status": "public_domain",
+      "scan_credit": "University of Texas Libraries",
+      "series": "Korea 1:50,000, Series L751, 1945-",
+      "source_bytes": 7810667,
+      "source_sha256": "f9fd5d50d7f1081f1be1d5e0989f15225af8e217542630cb08101b40467e0fac",
+      "source_size": [
+        4717,
+        4217
+      ],
+      "source_url": "https://maps.lib.utexas.edu/maps/ams/korea_50k/txu-pclmaps-oclc-6612107-mupungjang-6721-i.jpg",
+      "split": "validation",
+      "state": "kr-ams-l751",
+      "title": "AMS Korea 1:50,000 Series L751, Mupungjang 6721 I",
+      "prior_used_crops": [
+        {
+          "id": "kr-10-crop-01",
+          "source_crop_xywh": [
+            2484,
+            431,
+            512,
+            512
+          ],
+          "image_sha256": "cf9625c3a90366ee553c336f3fcf99ea65c94a021b4a655688eeb9f52980cad4"
+        },
+        {
+          "id": "kr-10-crop-02",
+          "source_crop_xywh": [
+            1793,
+            560,
+            512,
+            512
+          ],
+          "image_sha256": "480b42c4489accb0627304013a883ba3362cd86597aad9d28131ee7f15c4ca1d"
+        },
+        {
+          "id": "kr-10-crop-03",
+          "source_crop_xywh": [
+            2075,
+            661,
+            512,
+            512
+          ],
+          "image_sha256": "6332638896376b9cde63570ce565913393f7985449eb1b697eb806a41fdbd6bb"
+        },
+        {
+          "id": "kr-10-crop-04",
+          "source_crop_xywh": [
+            2340,
+            973,
+            512,
+            512
+          ],
+          "image_sha256": "d7bbf7ebd696b094a43eaf175018e546c426bbe2bed2eb3a2dc0ab776bf624a7"
+        },
+        {
+          "id": "kr-10-crop-05",
+          "source_crop_xywh": [
+            1443,
+            982,
+            512,
+            512
+          ],
+          "image_sha256": "c5bc27994b3f7ffe67222161dc8e8f4da968e159468191a4736d5c9e092e8af5"
+        },
+        {
+          "id": "kr-10-crop-06",
+          "source_crop_xywh": [
+            3128,
+            989,
+            512,
+            512
+          ],
+          "image_sha256": "f82b1f65dafc859c3b21595fa0ce61acd84bb8d24115283ce5d51a446ac5b210"
+        },
+        {
+          "id": "kr-10-crop-07",
+          "source_crop_xywh": [
+            2762,
+            1123,
+            512,
+            512
+          ],
+          "image_sha256": "28338931e55d4a58bc62db34622f3470f6842f72056f471b51dda5f5d5dc7b10"
+        },
+        {
+          "id": "kr-10-crop-08",
+          "source_crop_xywh": [
+            1178,
+            1227,
+            512,
+            512
+          ],
+          "image_sha256": "79c21b0b938a4d77910882882cd3b824a3a48154f314835632f74122526a6b81"
+        },
+        {
+          "id": "kr-10-crop-09",
+          "source_crop_xywh": [
+            1522,
+            1937,
+            512,
+            512
+          ],
+          "image_sha256": "ca734d89336395b532b760910ace239b5eb0269748ccf9b591d046bb7ac6a450"
+        },
+        {
+          "id": "kr-10-crop-10",
+          "source_crop_xywh": [
+            2168,
+            2130,
+            512,
+            512
+          ],
+          "image_sha256": "899554a751192c940ef34e4497fc6c1f82fabd399b4977167ab23aba3434366d"
+        },
+        {
+          "id": "kr-10-crop-11",
+          "source_crop_xywh": [
+            2524,
+            2132,
+            512,
+            512
+          ],
+          "image_sha256": "40f47af199db5f51752a9fabbef05aad9806f9d0bd2c8a2256d323c5525ec9d0"
+        },
+        {
+          "id": "kr-10-crop-12",
+          "source_crop_xywh": [
+            3157,
+            2522,
+            512,
+            512
+          ],
+          "image_sha256": "ac04da0fce6279e2a7f52b7fd42802864cee129152a39a66832f7cedadab1996"
+        }
+      ],
+      "new_crop_count": 8
+    }
+  ],
+  "samples": [
+    {
+      "id": "kr-09-unseen-native-01",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-01.png",
+      "image_sha256": "a94a504223519087c46f6e17d29368f55faf2d1a96d75e3fe3a8f1084c7bdadd",
+      "image_pixel_sha256": "5680e1662500da2b57efee4e2b0872c0cae1a4d4d0648cfe7cf0ff2178c4af16",
+      "source_crop_xywh": [
+        768,
+        192,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        768,
+        192
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-09-unseen-native-02",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-02.png",
+      "image_sha256": "0f741e4be9de90221f1740ee89651119617faacdf3240d4c95f8ee6a69dc19d2",
+      "image_pixel_sha256": "98263e1005fd37aadcd10de5a7f2eb8c5997a2b570b14cb9f0b3c69abf52bc36",
+      "source_crop_xywh": [
+        3840,
+        2240,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3840,
+        2240
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": true
+    },
+    {
+      "id": "kr-09-unseen-native-03",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-03.png",
+      "image_sha256": "f1efad0a355b7c8d6edef14311ca893d0f7167e56395163af6d6d896b7fd23ee",
+      "image_pixel_sha256": "fb0d1a4b73b379c72e87f00bba32de9a6afbb6ca8296776c535daa471ef4af81",
+      "source_crop_xywh": [
+        3328,
+        192,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3328,
+        192
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-09-unseen-native-04",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-04.png",
+      "image_sha256": "6282a6a32a5b0f449907f8187ed486fc19e6fc0c12786b78cb286562eaac3e01",
+      "image_pixel_sha256": "15a7fe8ecfe626d0511124624b9282aac5501230e5a00bb68753a2c61350d5ea",
+      "source_crop_xywh": [
+        1280,
+        2240,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        1280,
+        2240
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-09-unseen-native-05",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-05.png",
+      "image_sha256": "dbc99e4d84a6ce14d5d15a7391764f9999a73b45eddfc1fdd60dc5208ca22c95",
+      "image_pixel_sha256": "36f9c777bf191fcd54b374ea77059fdc1cd80143b5a5e3c4a087c3fe8abc74bb",
+      "source_crop_xywh": [
+        3840,
+        704,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3840,
+        704
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-09-unseen-native-06",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-06.png",
+      "image_sha256": "a42415cf8603d10638b6e644740b72c59f9d68506c49aa01dfa6ceda5001ef9f",
+      "image_pixel_sha256": "3cd996429b02bc7b7d7d4f98c80265a10c022484dbf55c87c714ab895eddac6d",
+      "source_crop_xywh": [
+        1280,
+        192,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        1280,
+        192
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-09-unseen-native-07",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-07.png",
+      "image_sha256": "7ae47448db4b04e75c63f4c3a15dc8921d9414a9b6b110e64845bcac47b035f9",
+      "image_pixel_sha256": "2af9c165a756c6c678f7fb2db00dc8fbf77d2a5468da5f6bee3b77f1d81e9cb5",
+      "source_crop_xywh": [
+        3840,
+        192,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3840,
+        192
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-09-unseen-native-08",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-08.png",
+      "image_sha256": "cacbd09cef87951966575496149346e96bb1e0b9c188bbb549c791110ee5569b",
+      "image_pixel_sha256": "ec9294724687edfc340e0a6c05cbdbe7d9a072e28780063c27b4534d47e4cb77",
+      "source_crop_xywh": [
+        768,
+        2240,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        768,
+        2240
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-10-unseen-native-01",
+      "source_id": "kr-10",
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "split": "validation",
+      "image": "images/kr-10-unseen-native-01.png",
+      "image_sha256": "1593c6af538d53b34863f6d32c1cfe470bc1a6ca191741a6aa9bec6317382f7e",
+      "image_pixel_sha256": "197cd0f9383b1b2e44d77f4f056783a2eebb85ff51d90b9bc9fa6050426a93b6",
+      "source_crop_xywh": [
+        730,
+        2100,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        730,
+        2100
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-10-unseen-native-02",
+      "source_id": "kr-10",
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "split": "validation",
+      "image": "images/kr-10-unseen-native-02.png",
+      "image_sha256": "238e9b103247061f337b71f094597101b0450684951fa87a8c28f62fbbab2eca",
+      "image_pixel_sha256": "eb1a3f6d1a3cc8e33bdbe8cbcad04f3b4ee0a2ab04727f074ed3cc651667d914",
+      "source_crop_xywh": [
+        2600,
+        2800,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        2600,
+        2800
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-10-unseen-native-03",
+      "source_id": "kr-10",
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "split": "validation",
+      "image": "images/kr-10-unseen-native-03.png",
+      "image_sha256": "8d8aa2f3108acab890db162c5f72ca97131c1b56cc67466fb24a3e287304f137",
+      "image_pixel_sha256": "33b5b6e3f45e9623e52c41a003b97b525cce12ba23cc0c4d26af9bacef408d65",
+      "source_crop_xywh": [
+        3700,
+        1200,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3700,
+        1200
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-10-unseen-native-04",
+      "source_id": "kr-10",
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "split": "validation",
+      "image": "images/kr-10-unseen-native-04.png",
+      "image_sha256": "142e8e6a7005454075c96af41c45b42a624e86107a012f3cb3402de0037c18b2",
+      "image_pixel_sha256": "ab7b37df7ab7353a14676a6bac9767ae1730edd3c64f781acba34c0c7bca0eae",
+      "source_crop_xywh": [
+        3700,
+        2200,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3700,
+        2200
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": true
+    },
+    {
+      "id": "kr-10-unseen-native-05",
+      "source_id": "kr-10",
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "split": "validation",
+      "image": "images/kr-10-unseen-native-05.png",
+      "image_sha256": "30f4cbcd0468e0942eda2501497b7ebcdda3d0a3b29c8f3736a6cc2e79322d73",
+      "image_pixel_sha256": "9cb6115309860cefe1f9127f0b2f1a3320d4c6e216b026abea57d7e285cbcf6d",
+      "source_crop_xywh": [
+        1280,
+        192,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        1280,
+        192
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-10-unseen-native-06",
+      "source_id": "kr-10",
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "split": "validation",
+      "image": "images/kr-10-unseen-native-06.png",
+      "image_sha256": "a1e7eca8e8b5071f288bd65408f46b66b10f31f4a3cf202dc3dd60362ed135f4",
+      "image_pixel_sha256": "3ad6a41c1131d2a0ef3347f523bf8b1e823f7f488653451729f86ba0e9b6b782",
+      "source_crop_xywh": [
+        3328,
+        192,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3328,
+        192
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-10-unseen-native-07",
+      "source_id": "kr-10",
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "split": "validation",
+      "image": "images/kr-10-unseen-native-07.png",
+      "image_sha256": "f0012030457c62a1d7adbc94416b31404176ad687a4ce6b7f582265631e760d5",
+      "image_pixel_sha256": "f98cfeeb044d0db3f7bee4db8319d6308f53826b141822dc792014f7108e97fc",
+      "source_crop_xywh": [
+        768,
+        704,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        768,
+        704
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": true
+    },
+    {
+      "id": "kr-10-unseen-native-08",
+      "source_id": "kr-10",
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "split": "validation",
+      "image": "images/kr-10-unseen-native-08.png",
+      "image_sha256": "30f404b9008c5d4cbb51ccb2da38445873eac5849326728ec357d0ce3d826a2d",
+      "image_pixel_sha256": "7e9e178c3ff7366090ed26c9cc13a8ab824406e39d0a0f3f1e0b0318d3a78de2",
+      "source_crop_xywh": [
+        768,
+        192,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        768,
+        192
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed source-only candidate",
+      "prior_output_seen": true
+    },
+    {
+      "id": "kr-09-unseen-native-09",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-09.png",
+      "image_sha256": "af44d2af4e8c162549eb87e7728ba5c24bd8cd6cf29dbed3f2676ab76e838c70",
+      "image_pixel_sha256": "919b42b30d0248b692e9a6b34888e562e80d43b2098b5918a2f93a3877de044a",
+      "source_crop_xywh": [
+        1280,
+        2752,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        1280,
+        2752
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed second prospective source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-09-unseen-native-10",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-10.png",
+      "image_sha256": "d54dba6b5de0de1e7cf8d9701238adc89afb01a4b11f3059966a724bf019cad2",
+      "image_pixel_sha256": "e5738e6cd8d3e474e5bc3f2a4f47ee156b62aff7ceed35e4788893fe7b592ac7",
+      "source_crop_xywh": [
+        1792,
+        2752,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        1792,
+        2752
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed second prospective source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-09-unseen-native-11",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-11.png",
+      "image_sha256": "84f33c5d3577c6c7837ebc90d4134f3602c62cb4d9852d186366be23e483384d",
+      "image_pixel_sha256": "bdf9ff0b08fce3d1dfd9b1df1910fba0bf155ab57b208c2bc766b308cee3b1c4",
+      "source_crop_xywh": [
+        3200,
+        2752,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3200,
+        2752
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed second prospective source-only candidate",
+      "prior_output_seen": false
+    },
+    {
+      "id": "kr-09-unseen-native-12",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-12.png",
+      "image_sha256": "0545c155de4da4082116190210174eda7f458e76ede4a92bc5bd346c3484f3ff",
+      "image_pixel_sha256": "d19e696588378fcb6a31fce3c57f818b4002e26006e36ef964c52818d975f486",
+      "source_crop_xywh": [
+        3712,
+        2752,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3712,
+        2752
+      ],
+      "georeferenced": false,
+      "width": 512,
+      "height": 512,
+      "native_rgb": true,
+      "resampled": false,
+      "annotations": null,
+      "review_status": "unreviewed second prospective source-only candidate",
+      "prior_output_seen": false
+    }
+  ],
+  "new_extra_crops_frozen_before_their_own_model_or_route_outputs": true,
+  "prior_inventory_sha256": "1dd9a03915bdd6d00c420d7340492689edca33a700119da46e9ed336d2660274",
+  "new_extra_ids": [
+    "kr-09-unseen-native-09",
+    "kr-09-unseen-native-10",
+    "kr-09-unseen-native-11",
+    "kr-09-unseen-native-12"
+  ],
+  "v1_outputs_previously_opened_for_ids": [
+    "kr-09-unseen-native-02",
+    "kr-10-unseen-native-04",
+    "kr-10-unseen-native-07",
+    "kr-10-unseen-native-08"
+  ],
+  "derived_from_original_inventory_sha256": "e5ea10be97442f148f22c0601604d12e26ba44bb0562d7c8c8d5564ee58f2b71",
+  "source_count_note": "Source crop_count/planned_crop_count fields describe the original dataset plan. New diagnostic crop counts are12 Namwon and8 Mupungjang, as listed in samples.",
+  "training_eligible": false,
+  "personal_information": "No personal annotations or user map files; cached public government scans only."
+}

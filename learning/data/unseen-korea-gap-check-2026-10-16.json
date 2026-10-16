@@ -1,0 +1,1870 @@
+{
+  "schema_version": "archaeotrace-unseen-korea-gap-check/1",
+  "scope": "Versioned same-click desktop QGIS validation development diagnostics; no human-approved hidden geometry or independent-map accuracy claim. Source fixtures were frozen before their original outputs.",
+  "baseline_sha256": "14890ade7fad9850c49ebd41a96071d4df852f95004e8d719fb204781e173004",
+  "candidate_sha256": "68ac1c6dfe7ac5c16c060d522fa27f4c59c5c4c92b405c4cd923e8a4c1803667",
+  "groups": {
+    "final-second-candidate": {
+      "fixture_sha256": "1284586b3d66ddb3fc6be08e737767811d4115f115d8d2f3a9f6a2e29c0000ac",
+      "dataset_manifest_sha256": "e76880eddb9fdb2271f16208695a861db55974ff24ea0cffa32875b8360f4885",
+      "models": {
+        "usgs": {
+          "provider_id": "learned-contour-onnx-v1",
+          "model_id": "ai-weak-contour-guide-v1",
+          "model_sha256": "1a1ac337c76057dda3e85c7d3c38933b41b2225fe3e6900ebd0e211f362e07ce",
+          "bundle_sha256": "4ea1e929dabf6afcdbe7adf5c7f559f36803415192553e423d0371728c0aad10",
+          "provider": "CPUExecutionProvider",
+          "onnxruntime_version": "1.31.0",
+          "intra_op_threads": 1,
+          "inter_op_threads": 1,
+          "execution_mode": "ORT_SEQUENTIAL",
+          "tile_size": 512,
+          "core_size": 384,
+          "halo": 64,
+          "context_limit": "fixed_tiles_not_full_image_equivalent"
+        },
+        "korea": {
+          "provider_id": "learned-contour-onnx-v1",
+          "model_id": "ai-weak-contour-guide-korea-v1",
+          "model_sha256": "ae5fbf01e8fb073d686f81ec4f2f23367bd66386eddbfde8b314777e02e70398",
+          "bundle_sha256": "c71496b1f5d12a004b4c606061253915c04b98145370d39d6e16528bd5e27cae",
+          "provider": "CPUExecutionProvider",
+          "onnxruntime_version": "1.31.0",
+          "intra_op_threads": 1,
+          "inter_op_threads": 1,
+          "execution_mode": "ORT_SEQUENTIAL",
+          "tile_size": 512,
+          "core_size": 384,
+          "halo": 64,
+          "context_limit": "fixed_tiles_not_full_image_equivalent"
+        }
+      },
+      "input_policy": "integer mouse events at exact native cell centres; matching inputs verified",
+      "before_config": {
+        "grid_avoidance": true,
+        "observed_connections": true,
+        "label_gap_comparison": false,
+        "label_gap_connections": true,
+        "automatic_label_occlusion": true,
+        "before_avoidance_override": 0.0,
+        "grid_in_both": true,
+        "avoidance_override": null,
+        "unconfigured_model_avoidance": 0.0,
+        "learned_observation_gate": false,
+        "learned_route_guard": false
+      },
+      "after_config": {
+        "grid_avoidance": true,
+        "observed_connections": true,
+        "label_gap_comparison": false,
+        "label_gap_connections": true,
+        "automatic_label_occlusion": true,
+        "before_avoidance_override": 0.0,
+        "grid_in_both": true,
+        "avoidance_override": null,
+        "unconfigured_model_avoidance": 0.0,
+        "learned_observation_gate": false,
+        "learned_route_guard": false
+      },
+      "processes": {
+        "before_exit": 0,
+        "after_exit": 0,
+        "before_profile_removed": true,
+        "after_profile_removed": true
+      },
+      "cases": [
+        {
+          "id": "kr10-second06-index-300",
+          "hidden_geometry_scored": false,
+          "expected_pair": "plausible_same_contour",
+          "methods": {
+            "ink": {
+              "before": {
+                "visible_median_px": 28.202,
+                "visible_p95_px": 41.176,
+                "visible_precision_2px": 0.034,
+                "visible_recall_2px": 0.1,
+                "visible_f1_2px": 0.05
+              },
+              "after": {
+                "visible_median_px": 0.118,
+                "visible_p95_px": 0.696,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  408.5,
+                  197.5
+                ],
+                "end": [
+                  437.5,
+                  191.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": false,
+              "before_route": "ink",
+              "after_route": "automatic-label-gap",
+              "before_candidate_available": false,
+              "after_candidate_available": true,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": {
+                "minimum_distance_px": 7.81,
+                "contact_within_1px": false,
+                "distance_method": "continuous_segments"
+              },
+              "after_foreign_contacts": {
+                "minimum_distance_px": 3.578,
+                "contact_within_1px": false,
+                "distance_method": "continuous_segments"
+              },
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "usgs": {
+              "before": {
+                "visible_median_px": 28.202,
+                "visible_p95_px": 41.176,
+                "visible_precision_2px": 0.034,
+                "visible_recall_2px": 0.1,
+                "visible_f1_2px": 0.05
+              },
+              "after": {
+                "visible_median_px": 0.118,
+                "visible_p95_px": 0.696,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  408.5,
+                  197.5
+                ],
+                "end": [
+                  437.5,
+                  191.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": false,
+              "before_route": "ink",
+              "after_route": "automatic-label-gap",
+              "before_candidate_available": false,
+              "after_candidate_available": true,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": {
+                "minimum_distance_px": 7.81,
+                "contact_within_1px": false,
+                "distance_method": "continuous_segments"
+              },
+              "after_foreign_contacts": {
+                "minimum_distance_px": 3.578,
+                "contact_within_1px": false,
+                "distance_method": "continuous_segments"
+              },
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "korea": {
+              "before": {
+                "visible_median_px": 28.202,
+                "visible_p95_px": 41.176,
+                "visible_precision_2px": 0.034,
+                "visible_recall_2px": 0.1,
+                "visible_f1_2px": 0.05
+              },
+              "after": {
+                "visible_median_px": 0.118,
+                "visible_p95_px": 0.696,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  408.5,
+                  197.5
+                ],
+                "end": [
+                  437.5,
+                  191.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": false,
+              "before_route": "ink",
+              "after_route": "automatic-label-gap",
+              "before_candidate_available": false,
+              "after_candidate_available": true,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": {
+                "minimum_distance_px": 7.81,
+                "contact_within_1px": false,
+                "distance_method": "continuous_segments"
+              },
+              "after_foreign_contacts": {
+                "minimum_distance_px": 3.578,
+                "contact_within_1px": false,
+                "distance_method": "continuous_segments"
+              },
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            }
+          }
+        }
+      ]
+    },
+    "final-regression-labels": {
+      "fixture_sha256": "2866f1a53703e75f939a778e4babcbe2c7828a1dd66cea45653dcef2d75990ac",
+      "dataset_manifest_sha256": "b2fd2a087f75de4e5e1d31b44f13dfdb1a8af3963e18e68f81f9cb4a91e32249",
+      "models": {
+        "usgs": {
+          "provider_id": "learned-contour-onnx-v1",
+          "model_id": "ai-weak-contour-guide-v1",
+          "model_sha256": "1a1ac337c76057dda3e85c7d3c38933b41b2225fe3e6900ebd0e211f362e07ce",
+          "bundle_sha256": "4ea1e929dabf6afcdbe7adf5c7f559f36803415192553e423d0371728c0aad10",
+          "provider": "CPUExecutionProvider",
+          "onnxruntime_version": "1.31.0",
+          "intra_op_threads": 1,
+          "inter_op_threads": 1,
+          "execution_mode": "ORT_SEQUENTIAL",
+          "tile_size": 512,
+          "core_size": 384,
+          "halo": 64,
+          "context_limit": "fixed_tiles_not_full_image_equivalent"
+        },
+        "korea": {
+          "provider_id": "learned-contour-onnx-v1",
+          "model_id": "ai-weak-contour-guide-korea-v1",
+          "model_sha256": "ae5fbf01e8fb073d686f81ec4f2f23367bd66386eddbfde8b314777e02e70398",
+          "bundle_sha256": "c71496b1f5d12a004b4c606061253915c04b98145370d39d6e16528bd5e27cae",
+          "provider": "CPUExecutionProvider",
+          "onnxruntime_version": "1.31.0",
+          "intra_op_threads": 1,
+          "inter_op_threads": 1,
+          "execution_mode": "ORT_SEQUENTIAL",
+          "tile_size": 512,
+          "core_size": 384,
+          "halo": 64,
+          "context_limit": "fixed_tiles_not_full_image_equivalent"
+        }
+      },
+      "input_policy": "integer mouse events at exact native cell centres; matching inputs verified",
+      "before_config": {
+        "grid_avoidance": true,
+        "observed_connections": true,
+        "label_gap_comparison": false,
+        "label_gap_connections": true,
+        "automatic_label_occlusion": true,
+        "before_avoidance_override": 0.0,
+        "grid_in_both": true,
+        "avoidance_override": null,
+        "unconfigured_model_avoidance": 0.0,
+        "learned_observation_gate": false,
+        "learned_route_guard": false
+      },
+      "after_config": {
+        "grid_avoidance": true,
+        "observed_connections": true,
+        "label_gap_comparison": false,
+        "label_gap_connections": true,
+        "automatic_label_occlusion": true,
+        "before_avoidance_override": 0.0,
+        "grid_in_both": true,
+        "avoidance_override": null,
+        "unconfigured_model_avoidance": 0.0,
+        "learned_observation_gate": false,
+        "learned_route_guard": false
+      },
+      "processes": {
+        "before_exit": 0,
+        "after_exit": 0,
+        "before_profile_removed": true,
+        "after_profile_removed": true
+      },
+      "cases": [
+        {
+          "id": "kr-10-crop-01-label-700-u",
+          "hidden_geometry_scored": false,
+          "expected_pair": "plausible_same_contour",
+          "methods": {
+            "ink": {
+              "before": {
+                "visible_median_px": 1.0,
+                "visible_p95_px": 2.0,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "after": {
+                "visible_median_px": 1.0,
+                "visible_p95_px": 2.0,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  219.5,
+                  239.5
+                ],
+                "end": [
+                  256.5,
+                  242.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "automatic-label-gap",
+              "after_route": "automatic-label-gap",
+              "before_candidate_available": true,
+              "after_candidate_available": true,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "usgs": {
+              "before": {
+                "visible_median_px": 1.0,
+                "visible_p95_px": 2.0,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "after": {
+                "visible_median_px": 1.0,
+                "visible_p95_px": 2.0,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  219.5,
+                  239.5
+                ],
+                "end": [
+                  256.5,
+                  242.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "automatic-label-gap",
+              "after_route": "automatic-label-gap",
+              "before_candidate_available": true,
+              "after_candidate_available": true,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "korea": {
+              "before": {
+                "visible_median_px": 1.0,
+                "visible_p95_px": 2.0,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "after": {
+                "visible_median_px": 1.0,
+                "visible_p95_px": 2.0,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  219.5,
+                  239.5
+                ],
+                "end": [
+                  256.5,
+                  242.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "automatic-label-gap",
+              "after_route": "automatic-label-gap",
+              "before_candidate_available": true,
+              "after_candidate_available": true,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            }
+          }
+        },
+        {
+          "id": "kr-10-crop-01-label-600-u",
+          "hidden_geometry_scored": false,
+          "expected_pair": "plausible_same_contour",
+          "methods": {
+            "ink": {
+              "before": {
+                "visible_median_px": 0.152,
+                "visible_p95_px": 0.558,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "after": {
+                "visible_median_px": 0.152,
+                "visible_p95_px": 0.558,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  225.5,
+                  185.5
+                ],
+                "end": [
+                  252.5,
+                  187.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": true,
+              "after_candidate_available": true,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "usgs": {
+              "before": {
+                "visible_median_px": 0.152,
+                "visible_p95_px": 0.558,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "after": {
+                "visible_median_px": 0.152,
+                "visible_p95_px": 0.558,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  225.5,
+                  185.5
+                ],
+                "end": [
+                  252.5,
+                  187.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": true,
+              "after_candidate_available": true,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "korea": {
+              "before": {
+                "visible_median_px": 0.152,
+                "visible_p95_px": 0.558,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "after": {
+                "visible_median_px": 0.152,
+                "visible_p95_px": 0.558,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  225.5,
+                  185.5
+                ],
+                "end": [
+                  252.5,
+                  187.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": true,
+              "after_candidate_available": true,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            }
+          }
+        },
+        {
+          "id": "kr-10-crop-12-label-600-diagonal-outer-raw-v1",
+          "hidden_geometry_scored": false,
+          "expected_pair": "plausible_same_contour",
+          "methods": {
+            "ink": {
+              "before": {
+                "visible_median_px": 0.149,
+                "visible_p95_px": 0.471,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "after": {
+                "visible_median_px": 0.149,
+                "visible_p95_px": 0.471,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  119.5,
+                  249.5
+                ],
+                "end": [
+                  145.5,
+                  278.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "automatic-label-gap",
+              "after_route": "automatic-label-gap",
+              "before_candidate_available": true,
+              "after_candidate_available": true,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "usgs": {
+              "before": {
+                "visible_median_px": 0.149,
+                "visible_p95_px": 0.471,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "after": {
+                "visible_median_px": 0.149,
+                "visible_p95_px": 0.471,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  119.5,
+                  249.5
+                ],
+                "end": [
+                  145.5,
+                  278.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "automatic-label-gap",
+              "after_route": "automatic-label-gap",
+              "before_candidate_available": true,
+              "after_candidate_available": true,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "korea": {
+              "before": {
+                "visible_median_px": 0.149,
+                "visible_p95_px": 0.471,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "after": {
+                "visible_median_px": 0.149,
+                "visible_p95_px": 0.471,
+                "visible_precision_2px": 1.0,
+                "visible_recall_2px": 1.0,
+                "visible_f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  119.5,
+                  249.5
+                ],
+                "end": [
+                  145.5,
+                  278.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "automatic-label-gap",
+              "after_route": "automatic-label-gap",
+              "before_candidate_available": true,
+              "after_candidate_available": true,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            }
+          }
+        },
+        {
+          "id": "kr-10-crop-12-label-600-diagonal-wrong-neighbor",
+          "hidden_geometry_scored": false,
+          "expected_pair": "different_contours",
+          "methods": {
+            "ink": {
+              "before": {
+                "visible_f1_2px": null,
+                "policy": "negative pair; no accuracy reference"
+              },
+              "after": {
+                "visible_f1_2px": null,
+                "policy": "negative pair; no accuracy reference"
+              },
+              "input_map_xy": {
+                "start": [
+                  123.5,
+                  242.5
+                ],
+                "end": [
+                  153.5,
+                  250.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "usgs": {
+              "before": {
+                "visible_f1_2px": null,
+                "policy": "negative pair; no accuracy reference"
+              },
+              "after": {
+                "visible_f1_2px": null,
+                "policy": "negative pair; no accuracy reference"
+              },
+              "input_map_xy": {
+                "start": [
+                  123.5,
+                  242.5
+                ],
+                "end": [
+                  153.5,
+                  250.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "korea": {
+              "before": {
+                "visible_f1_2px": null,
+                "policy": "negative pair; no accuracy reference"
+              },
+              "after": {
+                "visible_f1_2px": null,
+                "policy": "negative pair; no accuracy reference"
+              },
+              "input_map_xy": {
+                "start": [
+                  123.5,
+                  242.5
+                ],
+                "end": [
+                  153.5,
+                  250.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            }
+          }
+        },
+        {
+          "id": "kr-10-crop-01-label-600-wrong-neighbor",
+          "hidden_geometry_scored": false,
+          "expected_pair": "different_contours",
+          "methods": {
+            "ink": {
+              "before": {
+                "visible_f1_2px": null,
+                "policy": "negative pair; no accuracy reference"
+              },
+              "after": {
+                "visible_f1_2px": null,
+                "policy": "negative pair; no accuracy reference"
+              },
+              "input_map_xy": {
+                "start": [
+                  225.5,
+                  185.5
+                ],
+                "end": [
+                  263.5,
+                  184.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "usgs": {
+              "before": {
+                "visible_f1_2px": null,
+                "policy": "negative pair; no accuracy reference"
+              },
+              "after": {
+                "visible_f1_2px": null,
+                "policy": "negative pair; no accuracy reference"
+              },
+              "input_map_xy": {
+                "start": [
+                  225.5,
+                  185.5
+                ],
+                "end": [
+                  263.5,
+                  184.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "korea": {
+              "before": {
+                "visible_f1_2px": null,
+                "policy": "negative pair; no accuracy reference"
+              },
+              "after": {
+                "visible_f1_2px": null,
+                "policy": "negative pair; no accuracy reference"
+              },
+              "input_map_xy": {
+                "start": [
+                  225.5,
+                  185.5
+                ],
+                "end": [
+                  263.5,
+                  184.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            }
+          }
+        }
+      ]
+    },
+    "final-regression-contours": {
+      "fixture_sha256": "5bbab30767226e264bbaff202045f5cd8e403b677ddcedf1728f099edd981b63",
+      "dataset_manifest_sha256": "b2fd2a087f75de4e5e1d31b44f13dfdb1a8af3963e18e68f81f9cb4a91e32249",
+      "models": {
+        "usgs": {
+          "provider_id": "learned-contour-onnx-v1",
+          "model_id": "ai-weak-contour-guide-v1",
+          "model_sha256": "1a1ac337c76057dda3e85c7d3c38933b41b2225fe3e6900ebd0e211f362e07ce",
+          "bundle_sha256": "4ea1e929dabf6afcdbe7adf5c7f559f36803415192553e423d0371728c0aad10",
+          "provider": "CPUExecutionProvider",
+          "onnxruntime_version": "1.31.0",
+          "intra_op_threads": 1,
+          "inter_op_threads": 1,
+          "execution_mode": "ORT_SEQUENTIAL",
+          "tile_size": 512,
+          "core_size": 384,
+          "halo": 64,
+          "context_limit": "fixed_tiles_not_full_image_equivalent"
+        },
+        "korea": {
+          "provider_id": "learned-contour-onnx-v1",
+          "model_id": "ai-weak-contour-guide-korea-v1",
+          "model_sha256": "ae5fbf01e8fb073d686f81ec4f2f23367bd66386eddbfde8b314777e02e70398",
+          "bundle_sha256": "c71496b1f5d12a004b4c606061253915c04b98145370d39d6e16528bd5e27cae",
+          "provider": "CPUExecutionProvider",
+          "onnxruntime_version": "1.31.0",
+          "intra_op_threads": 1,
+          "inter_op_threads": 1,
+          "execution_mode": "ORT_SEQUENTIAL",
+          "tile_size": 512,
+          "core_size": 384,
+          "halo": 64,
+          "context_limit": "fixed_tiles_not_full_image_equivalent"
+        }
+      },
+      "input_policy": "integer mouse events at exact native cell centres; matching inputs verified",
+      "before_config": {
+        "grid_avoidance": true,
+        "observed_connections": true,
+        "label_gap_comparison": false,
+        "label_gap_connections": true,
+        "automatic_label_occlusion": true,
+        "before_avoidance_override": 0.0,
+        "grid_in_both": true,
+        "avoidance_override": null,
+        "unconfigured_model_avoidance": 0.0,
+        "learned_observation_gate": false,
+        "learned_route_guard": false
+      },
+      "after_config": {
+        "grid_avoidance": true,
+        "observed_connections": true,
+        "label_gap_comparison": false,
+        "label_gap_connections": true,
+        "automatic_label_occlusion": true,
+        "before_avoidance_override": 0.0,
+        "grid_in_both": true,
+        "avoidance_override": null,
+        "unconfigured_model_avoidance": 0.0,
+        "learned_observation_gate": false,
+        "learned_route_guard": false
+      },
+      "processes": {
+        "before_exit": 0,
+        "after_exit": 0,
+        "before_profile_removed": true,
+        "after_profile_removed": true
+      },
+      "cases": [
+        {
+          "id": "kr-10-crop-04-clear-w",
+          "hidden_geometry_scored": null,
+          "expected_pair": null,
+          "methods": {
+            "ink": {
+              "before": {
+                "median_px": 0.25,
+                "p95_px": 0.433,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.25,
+                "p95_px": 0.433,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  206.5,
+                  244.5
+                ],
+                "end": [
+                  290.5,
+                  250.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "usgs": {
+              "before": {
+                "median_px": 0.25,
+                "p95_px": 0.433,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.25,
+                "p95_px": 0.433,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  206.5,
+                  244.5
+                ],
+                "end": [
+                  290.5,
+                  250.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "korea": {
+              "before": {
+                "median_px": 0.25,
+                "p95_px": 0.433,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.25,
+                "p95_px": 0.433,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  206.5,
+                  244.5
+                ],
+                "end": [
+                  290.5,
+                  250.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            }
+          }
+        },
+        {
+          "id": "kr-09-crop-08-curving",
+          "hidden_geometry_scored": null,
+          "expected_pair": null,
+          "methods": {
+            "ink": {
+              "before": {
+                "median_px": 0.213,
+                "p95_px": 0.496,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.213,
+                "p95_px": 0.496,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  351.5,
+                  372.5
+                ],
+                "end": [
+                  395.5,
+                  424.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "usgs": {
+              "before": {
+                "median_px": 0.213,
+                "p95_px": 0.496,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.213,
+                "p95_px": 0.496,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  351.5,
+                  372.5
+                ],
+                "end": [
+                  395.5,
+                  424.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "korea": {
+              "before": {
+                "median_px": 0.213,
+                "p95_px": 0.496,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.213,
+                "p95_px": 0.496,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  351.5,
+                  372.5
+                ],
+                "end": [
+                  395.5,
+                  424.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            }
+          }
+        },
+        {
+          "id": "kr-09-crop-05-grid-crossing",
+          "hidden_geometry_scored": null,
+          "expected_pair": null,
+          "methods": {
+            "ink": {
+              "before": {
+                "median_px": 0.381,
+                "p95_px": 1.146,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.381,
+                "p95_px": 1.146,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  155.5,
+                  391.5
+                ],
+                "end": [
+                  162.5,
+                  448.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "usgs": {
+              "before": {
+                "median_px": 0.381,
+                "p95_px": 1.146,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.381,
+                "p95_px": 1.146,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  155.5,
+                  391.5
+                ],
+                "end": [
+                  162.5,
+                  448.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "korea": {
+              "before": {
+                "median_px": 0.381,
+                "p95_px": 1.146,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.381,
+                "p95_px": 1.146,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  155.5,
+                  391.5
+                ],
+                "end": [
+                  162.5,
+                  448.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            }
+          }
+        },
+        {
+          "id": "kr-10-crop-02-deep-u",
+          "hidden_geometry_scored": null,
+          "expected_pair": null,
+          "methods": {
+            "ink": {
+              "before": {
+                "median_px": 0.34,
+                "p95_px": 0.969,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.34,
+                "p95_px": 0.969,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  111.5,
+                  469.5
+                ],
+                "end": [
+                  152.5,
+                  465.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "usgs": {
+              "before": {
+                "median_px": 0.34,
+                "p95_px": 0.969,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.34,
+                "p95_px": 0.969,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  111.5,
+                  469.5
+                ],
+                "end": [
+                  152.5,
+                  465.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "korea": {
+              "before": {
+                "median_px": 0.34,
+                "p95_px": 0.969,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.34,
+                "p95_px": 0.969,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  111.5,
+                  469.5
+                ],
+                "end": [
+                  152.5,
+                  465.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            }
+          }
+        },
+        {
+          "id": "kr-10-crop-06-dense-s",
+          "hidden_geometry_scored": null,
+          "expected_pair": null,
+          "methods": {
+            "ink": {
+              "before": {
+                "median_px": 0.496,
+                "p95_px": 1.147,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.496,
+                "p95_px": 1.147,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  135.5,
+                  269.5
+                ],
+                "end": [
+                  195.5,
+                  230.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "usgs": {
+              "before": {
+                "median_px": 0.496,
+                "p95_px": 1.147,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.496,
+                "p95_px": 1.147,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  135.5,
+                  269.5
+                ],
+                "end": [
+                  195.5,
+                  230.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "korea": {
+              "before": {
+                "median_px": 0.496,
+                "p95_px": 1.147,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.496,
+                "p95_px": 1.147,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  135.5,
+                  269.5
+                ],
+                "end": [
+                  195.5,
+                  230.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            }
+          }
+        },
+        {
+          "id": "kr-09-crop-02-index-u",
+          "hidden_geometry_scored": null,
+          "expected_pair": null,
+          "methods": {
+            "ink": {
+              "before": {
+                "median_px": 0.854,
+                "p95_px": 1.982,
+                "precision_2px": 0.996,
+                "recall_2px": 0.987,
+                "f1_2px": 0.991
+              },
+              "after": {
+                "median_px": 0.854,
+                "p95_px": 1.982,
+                "precision_2px": 0.996,
+                "recall_2px": 0.987,
+                "f1_2px": 0.991
+              },
+              "input_map_xy": {
+                "start": [
+                  218.5,
+                  287.5
+                ],
+                "end": [
+                  253.5,
+                  284.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "usgs": {
+              "before": {
+                "median_px": 0.854,
+                "p95_px": 1.982,
+                "precision_2px": 0.996,
+                "recall_2px": 0.987,
+                "f1_2px": 0.991
+              },
+              "after": {
+                "median_px": 0.854,
+                "p95_px": 1.982,
+                "precision_2px": 0.996,
+                "recall_2px": 0.987,
+                "f1_2px": 0.991
+              },
+              "input_map_xy": {
+                "start": [
+                  218.5,
+                  287.5
+                ],
+                "end": [
+                  253.5,
+                  284.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "korea": {
+              "before": {
+                "median_px": 0.854,
+                "p95_px": 1.982,
+                "precision_2px": 0.996,
+                "recall_2px": 0.987,
+                "f1_2px": 0.991
+              },
+              "after": {
+                "median_px": 0.854,
+                "p95_px": 1.982,
+                "precision_2px": 0.996,
+                "recall_2px": 0.987,
+                "f1_2px": 0.991
+              },
+              "input_map_xy": {
+                "start": [
+                  218.5,
+                  287.5
+                ],
+                "end": [
+                  253.5,
+                  284.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            }
+          }
+        },
+        {
+          "id": "kr-10-crop-01-clear-w-corrected-raw-v1",
+          "hidden_geometry_scored": null,
+          "expected_pair": null,
+          "methods": {
+            "ink": {
+              "before": {
+                "median_px": 0.344,
+                "p95_px": 0.858,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.344,
+                "p95_px": 0.858,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  228.5,
+                  466.5
+                ],
+                "end": [
+                  289.5,
+                  466.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "usgs": {
+              "before": {
+                "median_px": 0.344,
+                "p95_px": 0.858,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.344,
+                "p95_px": 0.858,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  228.5,
+                  466.5
+                ],
+                "end": [
+                  289.5,
+                  466.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            },
+            "korea": {
+              "before": {
+                "median_px": 0.344,
+                "p95_px": 0.858,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "after": {
+                "median_px": 0.344,
+                "p95_px": 0.858,
+                "precision_2px": 1.0,
+                "recall_2px": 1.0,
+                "f1_2px": 1.0
+              },
+              "input_map_xy": {
+                "start": [
+                  228.5,
+                  466.5
+                ],
+                "end": [
+                  289.5,
+                  466.5
+                ]
+              },
+              "inputs_match": true,
+              "endpoints_exactly_match_input": true,
+              "saved_coordinates_unchanged": true,
+              "before_route": "ink",
+              "after_route": "ink",
+              "before_candidate_available": false,
+              "after_candidate_available": false,
+              "one_undo_before_and_after": true,
+              "before_foreign_contacts": null,
+              "after_foreign_contacts": null,
+              "final_path_identical_to_first_candidate": true,
+              "baseline_path_matches_historical_output": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  "totals": {
+    "pairs": 39,
+    "old_pairs": 36,
+    "old_saved_coordinate_pairs_unchanged": 36,
+    "all_effective_inputs_match": true,
+    "all_endpoints_match_input": true,
+    "all_save_undo_pass": true,
+    "negative_method_pairs": 6,
+    "negative_candidates_absent_before_and_after": true,
+    "final_paths_identical_to_first_candidate_pairs": 39,
+    "all_baselines_match_historical_paths": true
+  },
+  "artifact_sha256": {
+    "final-second-candidate/command.json": "211e2ea1245b693b5376023b676f737bb725dd1bc1424c7c3c8140151ebf4f4a",
+    "final-second-candidate/result.json": "52bc817b071eecb46718bbc037bf9dd0a68a202e061e15a91774066246be4d16",
+    "final-second-candidate/scores.json": "14e0333c20574cc3e70f3c9efb26db8e760f7c1acdcfe63a97f0058cec5cbf74",
+    "final-second-candidate/driver.log": "4c5587e3d9ddf8a57189381a5088a9d930f0b9509522fa10cb112fc0ee4c8953",
+    "final-regression-labels/command.json": "f7b275bd6262462713a05592f2e29e86bb8e2ab78891f55a516e941811a95988",
+    "final-regression-labels/result.json": "5c5d7cb8d3b9fde28d155a824c330ed4132063c20e1978d57720710eb049e243",
+    "final-regression-labels/scores.json": "b380e115fd3200a2c638940ea6cae241a7917dc90b501c800140201f446597e9",
+    "final-regression-labels/driver.log": "871c1b24641aa95712def8e16bb42f4800f2c59e72276ed69e9e12cf4f0dd36c",
+    "final-regression-contours/command.json": "8cf064593a7ee7f9896c9680049d9896c6dc57277ba3c62ccb78997c5e2026c3",
+    "final-regression-contours/result.json": "6b0901db3391f8b95bae3bb4ab76ec0d0e365ee272019e74a48492a19722e353",
+    "final-regression-contours/scores.json": "18494e345541dfaab8169f5f8df0120be251ae402ddf2c7a8463857e82b47a6f",
+    "final-regression-contours/driver.log": "9ef3b520c5ba5bf91cf2f5249e7dc75e17a7039ffa1c149ef4b7bb5ff86d7be7",
+    "final-qgis-checks.json": "4679ffad6945f56ef31b17694033d1956607443af3dfa881ad91957d141a12bc",
+    "final-qgis-runtime.log": "a1f0ab72d747329df3f63964d4788548c1d33acf1ece5fa58a63c25afa34f7f7",
+    "final-qgis-import.log": "4077cc2cea9924d29120bd98e8155da59aee5aa8de5d3a593c02d6c3d914f456",
+    "v2-raw-control-qa.json": "3adfad81a75397031b772579488d6a6195194f7933adaace24637ab34edd4522",
+    "post-output-source-audit-v1.json": "88d462a7c974bb390f7b203cbf291db2ed183330d1e091dfab8bcb5221a909f1",
+    "post-output-700-prototype/conclusion-v1.json": "7703ea29a34354ebce9cee427fae365f20082ab0d8e83e4f460d313ce996b0d1",
+    "final-exact-contact/final-second-candidate/scores.json": "3ad82a45a9a062b52e34b2f0d326f6339bde4e16ad213f61e10aaad54a2e5ca8",
+    "final-exact-contact/final-regression-labels/scores.json": "b380e115fd3200a2c638940ea6cae241a7917dc90b501c800140201f446597e9",
+    "final-exact-contact/final-regression-contours/scores.json": "18494e345541dfaab8169f5f8df0120be251ae402ddf2c7a8463857e82b47a6f",
+    "rescore-exact-contact.py": "e7455cc3948a3b09eca5b1ae7335e42f388fb258deb995bbc58a3ccf4ad82672",
+    "final-exact-contact/checks.json": "364e996b0679fb48455289c741abfb8da75b653a954ecaa0e98e850ef26735b9"
+  },
+  "package_core": {
+    "ai_vectorizer/core/label_occlusion.py": {
+      "sha256": "1c0f937fa00c6a1ca187791af30c59ad008a7d7b70e8d8960f505a71dba2f0af",
+      "matches_working_tree_at_audit": true
+    },
+    "ai_vectorizer/core/occluded_connection.py": {
+      "sha256": "a01f9ffcd669d75a371bccdf5a70caab120756ae4aa823979e4ca01f2d39cb50",
+      "matches_working_tree_at_audit": true
+    }
+  },
+  "date": "2026-10-16",
+  "baseline_commit": "42c030cc3675fcb7cf369899f062eae5fcaa01d8",
+  "human_approved": false,
+  "publication_ranking_eligible": false,
+  "training_or_weights_changed": false,
+  "calibration_or_holdout_opened": false,
+  "hidden_geometry_ground_truth": false,
+  "audit_source_sha256": "b3d58ab1d459f345ed1c7aa52da04fd7941c4df8182a67eaac7b1f1e076a36f9",
+  "sampling_scope": "Twenty new nonoverlapping native512 windows from two already-known validation sheets. One defensible prospective numeric case; six initial references withdrawn; blue text remains unscored.",
+  "tests": {
+    "pure": {
+      "passed": 1089,
+      "skipped": 156,
+      "subtests_passed": 171
+    },
+    "qgis_zip_runtime": {
+      "passed": 174,
+      "skipped": 0,
+      "qgis_version": "3.44.8-Solothurn",
+      "archive_import_path_asserted": true,
+      "isolated_profile_removed": true
+    },
+    "zip_package_check": "source byte sync passed"
+  },
+  "control_audit": {
+    "v1_withdrawn": 6,
+    "v1_original_fixture_sha256": "695dab7ef0cd0950812b94d198d0151f8a9575d07e69bba25edce41586dfe28a",
+    "v2_original_source_review_sha256": "1ad98e215d0ebe9008c10fdfc06d5f0badfdc43e465024ef1b9a5553c6923c43",
+    "v2_explicit_dark_pixel_controls": 45,
+    "contour_identity_proved_by_contrast_alone": false
+  },
+  "remaining_limitations": [
+    "One spatial development case does not establish unseen-sheet or general text performance.",
+    "Hidden curve is inferred and unscored.",
+    "Known foreign controls are incomplete; no contact is not proof of every neighboring contour identity.",
+    "Fused two-counter700 prototype remained unsafe and was not adopted; the three-counter extension is distinct."
+  ],
+  "published_source_index_sha256": "8ef8e03c1b8f94424eb18caf28c8c89d4e9a6084f1e73b775562d3c8e61968e2",
+  "foreign_contact_method": "Exact continuous segment/segment geometry, with separate foreign polylines. Original sampled scoring files remain immutable historical evidence. Final exact rescoring used identical saved QGIS vertices; all visible F1/p95 values were unchanged.",
+  "scoring_script_sha256": "c887d17d24833fb16553d92367e13ba9527f0a042c8ef336f37fca68a06bb918",
+  "published_figure_sha256": "ec7e7b1214a750999dddad8cd1a8e9b1e1ebf20832f0b1926343915c116d9ccf"
+}

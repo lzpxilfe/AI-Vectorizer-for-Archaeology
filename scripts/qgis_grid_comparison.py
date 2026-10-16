@@ -141,11 +141,12 @@ def load_cases(fixtures, dataset, *, allow_withdrawn=False):
         raise ValueError("Cases require a frozen, explicitly non-human-approved visual review record")
     cases = document["cases"]
     gap_cases = document["schema_version"] == "archaeotrace-label-gap-cases/1"
-    audit_paths = [CASE_AUDIT_PATH, CASE_AUDIT_PATH.with_name("korea-label-gap-case-audit-v1.json")]
+    audit_paths = [CASE_AUDIT_PATH, CASE_AUDIT_PATH.with_name("korea-label-gap-case-audit-v1.json"),
+                   CASE_AUDIT_PATH.with_name("korea-unseen-label-gap-case-audit-v1.json")]
     withdrawn = {row["case_id"] for path in audit_paths if path.exists()
                  for row in json.loads(path.read_text())["withdrawn"]}
     if not allow_withdrawn and any(case["id"] in withdrawn for case in cases):
-        raise ValueError("Withdrawn same-contour case: use the audited v3 cohort; historical replay requires --allow-withdrawn-cases")
+        raise ValueError("Withdrawn same-contour case: use audited controls; historical replay requires --allow-withdrawn-cases")
     manifest = json.loads((Path(dataset) / "manifest.json").read_text())
     if document.get("dataset_id") != manifest.get("dataset_id"):
         raise ValueError("Cases belong to a different dataset")
@@ -189,6 +190,11 @@ def load_cases(fixtures, dataset, *, allow_withdrawn=False):
                     not isinstance(segments, list) or len(segments) < 2):
                 raise ValueError("Gap accuracy needs visible references on both sides")
             for segment in segments:
+                _validate_points(segment)
+            foreign = case.get("foreign_visible_control_segments_xy", [])
+            if not isinstance(foreign, list):
+                raise ValueError("Foreign visible controls must be native XY segments")
+            for segment in foreign:
                 _validate_points(segment)
             case["reference_rc"] = [p for segment in segments for p in segment] or points
             case["gap_diagnostic"] = True
@@ -410,6 +416,83 @@ def main():
     print(json.dumps({"ok": result["ok"], "cases": len(result["cases"]), "output": str(args.output)}))
 
 
+def minimum_polyline_distance(path, other_polylines):
+    """Return the continuous segment distance without joining separate lines.
+
+    Endpoint projections cover parallel, collinear and zero-length segments;
+    an interior intersection contributes zero. Pairwise arrays are restricted
+    to 128 by 128 segment chunks, independently of the saved route's length.
+    All coordinates must already use the same native pixel-centre convention.
+    """
+    import numpy as np
+
+    def points(value):
+        array = np.asarray(value, dtype=np.float64)
+        if (array.ndim != 2 or array.shape[1] != 2 or len(array) < 2
+                or not np.isfinite(array).all()):
+            raise ValueError("Polyline distances need finite XY lines with at least two points")
+        return array
+
+    route = points(path)
+    others = [points(polyline) for polyline in other_polylines]
+    if not others:
+        raise ValueError("Polyline distances need at least one other line")
+    # Concatenate real segment endpoints, not polyline vertices: no edge may
+    # appear between the end of one inspected stroke and the next stroke.
+    other_starts = np.concatenate([line[:-1] for line in others])
+    other_ends = np.concatenate([line[1:] for line in others])
+
+    def cross(first, last):
+        return first[..., 0] * last[..., 1] - first[..., 1] * last[..., 0]
+
+    def endpoint_squared(endpoint, start, vector):
+        offset = endpoint - start
+        length_squared = np.sum(vector * vector, axis=-1)
+        projection = np.divide(
+            np.sum(offset * vector, axis=-1), length_squared,
+            out=np.zeros(offset.shape[:-1], dtype=np.float64),
+            where=length_squared > 0.0,
+        )
+        residual = offset - np.clip(projection, 0.0, 1.0)[..., None] * vector
+        return np.sum(residual * residual, axis=-1)
+
+    best_squared = float("inf")
+    chunk = 128
+    for first_index in range(0, len(route) - 1, chunk):
+        stop = min(len(route) - 1, first_index + chunk)
+        first = route[first_index:stop, None, :]
+        last = route[first_index + 1:stop + 1, None, :]
+        direction = last - first
+        for other_index in range(0, len(other_starts), chunk):
+            other_first = other_starts[None, other_index:other_index + chunk, :]
+            other_last = other_ends[None, other_index:other_index + chunk, :]
+            other_direction = other_last - other_first
+            offset = other_first - first
+            denominator = cross(direction, other_direction)
+            nonparallel = denominator != 0.0
+            first_fraction = np.divide(
+                cross(offset, other_direction), denominator,
+                out=np.zeros_like(denominator), where=nonparallel,
+            )
+            other_fraction = np.divide(
+                cross(offset, direction), denominator,
+                out=np.zeros_like(denominator), where=nonparallel,
+            )
+            if np.any(nonparallel & (first_fraction >= 0.0) & (first_fraction <= 1.0)
+                      & (other_fraction >= 0.0) & (other_fraction <= 1.0)):
+                return 0.0
+            distances = np.minimum.reduce((
+                endpoint_squared(first, other_first, other_direction),
+                endpoint_squared(last, other_first, other_direction),
+                endpoint_squared(other_first, first, direction),
+                endpoint_squared(other_last, first, direction),
+            ))
+            best_squared = min(best_squared, float(distances.min()))
+            if best_squared == 0.0:
+                return 0.0
+    return math.sqrt(best_squared)
+
+
 def score_and_render(result, cases, output):
     import numpy as np
     from PIL import Image, ImageDraw
@@ -438,16 +521,36 @@ def score_and_render(result, cases, output):
                    for segment in fixture.get("visible_reference_segments_rc", [])]
         reference = np.concatenate([dense(segment) for segment in visible]) if visible else dense(points)
         prompts = [(col + 0.5, row + 0.5) for row, col in fixture.get("prompt_rc", [])] or [points[0], points[-1]]
-        minimum, maximum = reference.min(axis=0) - 18, reference.max(axis=0) + 18
+        # Keep failed detours visible too. Framing only the intended arms can
+        # clip a route which leaves the contour and later returns to the click.
+        displayed = np.concatenate([reference] + [
+            np.asarray([(x, source.height - y) for x, y in trace["vertices_xy"]])
+            for trace in case["traces"].values()
+        ])
+        minimum, maximum = displayed.min(axis=0) - 18, displayed.max(axis=0) + 18
         box = (max(0, int(minimum[0])), max(0, int(minimum[1])),
                min(source.width, int(maximum[0]) + 1), min(source.height, int(maximum[1]) + 1))
         scale = 3
         tile_width, tile_height = (box[2] - box[0]) * scale, (box[3] - box[1]) * scale
         panel = Image.new("RGB", (tile_width * 4, (tile_height + 24) * 2), "white")
         scores = {}
+        foreign_controls = fixture.get("foreign_visible_control_segments_xy", [])
+        foreign = [np.asarray(segment, dtype=np.float64) + 0.5
+                   for segment in foreign_controls]
+        foreign_contacts = {}
         for index, (label, trace) in enumerate(case["traces"].items()):
             saved = [(x, source.height - y) for x, y in trace["vertices_xy"]]
             prediction = dense(saved)
+            if foreign:
+                # These are separately inspected visible neighboring strokes.
+                # A broad label box must not hide contact with known foreign
+                # ink. This does not establish the missing contour's shape.
+                distance = minimum_polyline_distance(saved, foreign)
+                foreign_contacts[label] = {
+                    "minimum_distance_px": round(distance, 3),
+                    "contact_within_1px": distance <= 1.0,
+                    "distance_method": "continuous_segments",
+                }
             if is_gap:
                 if fixture["expected_pair"] != "plausible_same_contour":
                     scores[label] = {"visible_f1_2px": None, "policy": "negative pair; no accuracy reference"}
@@ -495,6 +598,7 @@ def score_and_render(result, cases, output):
                 ImageDraw.Draw(panel).text((col * tile_width + 4, row * (tile_height + 24) + 4), label, fill="black")
         panel.save(output / (case["id"] + "-comparison.png"))
         scored.append({"id": case["id"], "scores": scores,
+                       **({"foreign_visible_contacts": foreign_contacts} if foreign_contacts else {}),
                        **({"hidden_geometry_scored": False, "expected_pair": fixture["expected_pair"]} if is_gap else {})})
     summary = {"scope": "agent visually inspected validation diagnostics; no human approval or holdout",
                "withdrawn_references": result.get("withdrawn_references", []),

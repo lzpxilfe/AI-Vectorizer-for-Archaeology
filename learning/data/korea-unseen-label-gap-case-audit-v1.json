@@ -1,0 +1,50 @@
+{
+  "schema_version": "archaeotrace-contour-case-audit/1",
+  "human_approved": false,
+  "review_level": "agent_visual_inspection",
+  "scope": "Source controls failed pixel and lane-identity audit after baseline outputs. Original fixture and results are retained as failed evidence, not accuracy or optimization targets.",
+  "original_fixture_sha256": "695dab7ef0cd0950812b94d198d0151f8a9575d07e69bba25edce41586dfe28a",
+  "post_output_source_audit_sha256": "88d462a7c974bb390f7b203cbf291db2ed183330d1e091dfab8bcb5221a909f1",
+  "withdrawn": [
+    {
+      "case_id": "kr-09-unseen-02-vertical-index-gap",
+      "reason": "Post-output full source audit found the proposed left control is continuous into a glyph, with another genuine nearby arm. Same-contour correspondence is unresolved; dark-pixel contrast alone did not establish identity.",
+      "original_fixture": "korea-unseen-label-gap-cases-v1.json",
+      "policy": "Retain frozen bytes. Reject routine accuracy comparison; historical replay requires explicit flag. Do not tune to these visible F1 values."
+    },
+    {
+      "case_id": "kr-09-unseen-02-vertical-index-wrong-neighbor",
+      "reason": "The corresponding positive pairing was not established. This negative cannot certify contour identity or automatic rejection.",
+      "original_fixture": "korea-unseen-label-gap-cases-v1.json",
+      "policy": "Retain frozen bytes. Reject routine accuracy comparison; historical replay requires explicit flag. Do not tune to these visible F1 values."
+    },
+    {
+      "case_id": "kr10-new04-diagonal-600",
+      "reason": "Visible end control231,53 lies on paper. Some controls are offset from the native dark ridge; no precision or same-contour performance claim from this reference.",
+      "original_fixture": "korea-unseen-label-gap-cases-v1.json",
+      "policy": "Retain frozen bytes. Reject routine accuracy comparison; historical replay requires explicit flag. Do not tune to these visible F1 values."
+    },
+    {
+      "case_id": "kr10-new04-diagonal-700",
+      "reason": "Left prompt255,105 selects the thinner neighbor; intended index stroke is260,105. Several reference controls and far prompt286,75 lie on paper. Post-output corrections must be a separate development case, never a replacement blind reference.",
+      "original_fixture": "korea-unseen-label-gap-cases-v1.json",
+      "policy": "Retain frozen bytes. Reject routine accuracy comparison; historical replay requires explicit flag. Do not tune to these visible F1 values."
+    },
+    {
+      "case_id": "kr10-new07-bottom-800",
+      "reason": "Several visible end controls lie on paper, including150,490 and148,491. Gap shape and corresponding visible arms are not certified by this reference.",
+      "original_fixture": "korea-unseen-label-gap-cases-v1.json",
+      "policy": "Retain frozen bytes. Reject routine accuracy comparison; historical replay requires explicit flag. Do not tune to these visible F1 values."
+    },
+    {
+      "case_id": "kr10-new04-diagonal-700-wrong-inner",
+      "reason": "Root255,105 selected a thin neighbor, not the claimed index arm. The intended positive and this negative classification are not supported by these original controls.",
+      "original_fixture": "korea-unseen-label-gap-cases-v1.json",
+      "policy": "Retain frozen bytes. Reject routine accuracy comparison; historical replay requires explicit flag. Do not tune to these visible F1 values."
+    }
+  ],
+  "unchanged_unscored_cases": [
+    "kr10-new08-blue-place-name-ambiguous"
+  ],
+  "limitations": "Blue letters and ambiguous vertical digits remain unscored. Dark-pixel QA is necessary for these black-line controls but cannot certify same-contour identity."
+}

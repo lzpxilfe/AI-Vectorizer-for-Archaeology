@@ -95,7 +95,7 @@ class OccludedConnectionQgisTests(unittest.TestCase):
         if hasattr(self, "task_patch"):
             self.task_patch.stop()
 
-    def _publish_scene(self, *, angle=0.0, inner=False, intact_outer=False):
+    def _publish_scene(self, *, angle=0.0, inner=False, intact_outer=False, junction_detour=False):
         from scipy.ndimage import rotate
         from ai_vectorizer.core import edge_detector
 
@@ -117,6 +117,9 @@ class OccludedConnectionQgisTests(unittest.TestCase):
             # exists, but must never replace that visible outside route.
             image[60, 65:75] = 35
             image[60, 100:110] = 35
+        if junction_detour:
+            image[20:71, 74] = image[20:71, 100] = 35
+            image[70, 74:101] = 35
         if inner:
             image[70:97, 78] = 35
             image[70:97, 96] = 35
@@ -145,7 +148,7 @@ class OccludedConnectionQgisTests(unittest.TestCase):
             evidence=self.evidence, cost_map=None,
             read_extent=QgsRectangle(0, 0, self.SIZE, self.SIZE),
             output_size=(self.SIZE, self.SIZE), tile_origin=(0, 0),
-            cache_identity=("printed counters and broad contour", angle, inner, intact_outer),
+            cache_identity=("printed counters and broad contour", angle, inner, intact_outer, junction_detour),
             recovery_compatible=True,
         )
 
@@ -225,6 +228,43 @@ class OccludedConnectionQgisTests(unittest.TestCase):
         self.assertEqual(self._coordinates(feature.geometry().asPolyline()), expected)
         self.assertEqual(self.layer.dataProvider().featureCount(), 0)
         self.assertEqual(self.layer.undoStack().index(), before + 1)
+        self.layer.undoStack().undo()
+        self.assertEqual(self.layer.featureCount(), 0)
+
+    def test_junction_detour_cannot_override_a_genuine_label_pair_save_and_undo(self):
+        from ai_vectorizer.tools.smart_trace_tool import _qt_value
+
+        # A horizontal rule joins the printed-label arms through two actual
+        # T junctions above the gap. Connectivity alone cannot certify
+        # following that separate rule as the same contour.
+        self._publish_scene(junction_detour=True)
+        self._start()
+        tree = self.tool._livewire_tree
+        connection = tree.occluded_connection
+        self.assertIsNotNone(connection)
+        ordinary = tree._trace_without_occlusion(self.target)
+        self.assertLessEqual(min(y for _x, y in ordinary), 70)
+        candidate = connection.trace(self.target)
+        self.assertIsNotNone(candidate)
+        self.assertTrue(connection.accepts_display(candidate))
+        route, provenance = tree.trace_with_provenance(self.target)
+        self.assertEqual(provenance, "automatic-label-gap")
+        self._assert_broad_route(route)
+        self.assertIsNone(connection.trace(self.neighbour))
+        self.tool._present_livewire_cursor_preview(
+            self._target_map(), request_tree=False, schedule_recovery=False,
+        )
+        expected = self._coordinates(self.tool.path_points) + self._coordinates(self.tool.preview_path)
+        self.tool.toMapCoordinates = lambda _point: QgsPointXY(self._target_map())
+        self.tool.canvasPressEvent(SimpleNamespace(
+            pos=lambda: QPointF(*self.target),
+            button=lambda: _qt_value("LeftButton", "MouseButton"), modifiers=lambda: 0,
+        ))
+        self.assertEqual(self._coordinates(self.tool.path_points), expected)
+        self.assertTrue(self.tool.save_to_layer(closed=False, elevation=300.0))
+        self.assertEqual(self.layer.featureCount(), 1)
+        feature = next(self.layer.getFeatures())
+        self.assertEqual(self._coordinates(feature.geometry().asPolyline()), expected)
         self.layer.undoStack().undo()
         self.assertEqual(self.layer.featureCount(), 0)
 

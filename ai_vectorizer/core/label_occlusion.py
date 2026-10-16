@@ -1,7 +1,8 @@
 """Bounded native-pixel proposals for compact printed label occlusions.
 
-Two similarly sized, separately printed enclosed counters can identify a
-small glyph group without reading its number.  This detector deliberately
+Two separately printed counters, or three counters in a compact fused label,
+can identify a small glyph group without reading its number. This detector
+deliberately
 does not infer contour identity or manufacture a bridge.  Its immutable
 masks only say where later geometry checks may inspect a possible text gap.
 Single loops, grid cells and open strokes are insufficient evidence.
@@ -138,6 +139,8 @@ def detect_label_occlusions(
     white, _ = ndi.label(~ink)
     height, width = gray.shape
     holes = []
+    compact_counter_groups = {}
+    counter_candidates = 0
     for index, box in enumerate(ndi.find_objects(white), 1):
         if index % 128 == 0:
             _check_cancel(cancel_check)
@@ -156,8 +159,6 @@ def detect_label_occlusions(
         points = np.column_stack((xs + cols.start, ys + rows.start)).astype(np.float64)
         eigenvalues, eigenvectors = np.linalg.eigh(np.cov(points.T))
         elongation = float(eigenvalues[-1] / max(eigenvalues[0], 0.25))
-        if elongation < 1.5:
-            continue
         # A compact white hole must belong to exactly one printed component.
         # Inspect only its fixed local border, never a full-image mask per hole.
         near = np.s_[rows.start - 1:rows.stop + 1, cols.start - 1:cols.stop + 1]
@@ -167,7 +168,18 @@ def detect_label_occlusions(
         parents = parents[parents > 0]
         if len(parents) != 1:
             continue
-        holes.append((points.mean(axis=0), eigenvectors[:, -1], size, max(h, w), int(parents[0])))
+        counter_candidates += 1
+        if counter_candidates > 512:
+            return ()
+        parent = int(parents[0])
+        parent_rows, parent_cols = component_boxes[parent - 1]
+        if max(parent_rows.stop - parent_rows.start, parent_cols.stop - parent_cols.start) <= 48:
+            compact_counter_groups.setdefault(parent, []).append(points.mean(axis=0))
+            if len(compact_counter_groups) > 512:
+                return ()
+        if elongation < 1.5:
+            continue
+        holes.append((points.mean(axis=0), eigenvectors[:, -1], size, max(h, w), parent))
         if len(holes) > 512:
             return ()
 
@@ -244,6 +256,47 @@ def detect_label_occlusions(
             found.append(LabelOcclusion((int(x0), int(y0), int(x1), int(y1)), local, tuple(axis), 2, score, polygon))
             if len(found) >= 64:
                 return tuple(found)
+
+    # Blur can join an entire short label into one component and make a
+    # small counter round rather than elongated. Three separately enclosed
+    # counters arranged along a compact baseline still provide independent
+    # glyph evidence. A lone loop or the two counters of one 8/B cannot do so.
+    # Existing proposals keep their exact masks and priority.
+    covered_parents = set().union(*used) if used else set()
+    for parent, centers in compact_counter_groups.items():
+        _check_cancel(cancel_check)
+        if parent in covered_parents or not 3 <= len(centers) <= 6:
+            continue
+        centers = np.asarray(centers, dtype=np.float64)
+        eigenvalues, eigenvectors = np.linalg.eigh(np.cov(centers.T))
+        if eigenvalues[-1] < max(eigenvalues[0], 0.25) * 3.0:
+            continue
+        axis = eigenvectors[:, -1]
+        normal = np.asarray((-axis[1], axis[0]))
+        origin = centers.mean(axis=0)
+        offsets = centers - origin
+        residual = float(np.sqrt(np.mean((offsets @ normal) ** 2)))
+        spacing = np.diff(np.sort(offsets @ axis))
+        if (residual > 2.0 or float(spacing.min()) < 3.0
+                or float(spacing.max()) > 14.0
+                or float(spacing.max()) > float(spacing.min()) * 2.5):
+            continue
+        points = component_points(parent)
+        relative = points - origin
+        if np.ptp(relative @ axis) < np.ptp(relative @ normal) * 1.8:
+            continue
+        x0, y0 = np.maximum(0, points.min(axis=0) - 2)
+        x1, y1 = np.minimum((width, height), points.max(axis=0) + 3)
+        local, polygon = _convex_footprint(points, (x0, y0, x1, y1))
+        local = ndi.binary_dilation(local, structure=np.ones((3, 3), dtype=bool), iterations=2)
+        if axis[0] < 0.0 or (abs(axis[0]) < 1e-9 and axis[1] < 0.0):
+            axis = -axis
+        found.append(LabelOcclusion(
+            (int(x0), int(y0), int(x1), int(y1)), local, tuple(axis),
+            len(centers), 1.0 / (1.0 + residual), polygon,
+        ))
+        if len(found) >= 64:
+            break
     return tuple(found)
 
 

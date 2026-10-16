@@ -1,0 +1,532 @@
+{
+  "schema_version": "archaeotrace-label-gap-cases/1",
+  "created_utc": "2026-10-16T00:02:41.909059+00:00",
+  "frozen_before_model_or_route_outputs": true,
+  "predictions_seen_before_freeze": false,
+  "frozen_case_count": 1,
+  "human_approvals": 0,
+  "independent_agent_crossreview": true,
+  "publication_ranking_eligible": false,
+  "scope": "One fresh numeric label development diagnostic from an unrouted native512 validation crop. This crop shares a historical map sheet family with previous development. No unseen-sheet, holdout, generalization or official accuracy claim. Old withdrawn v1 bytes remain unchanged. Only original RGB/native source enlargements and manual coordinate/RGB QA were used for this prospective freeze; no predictions, paths, skeletons or model outputs for this crop were opened.",
+  "source_inventory": "crop-inventory-v2.json",
+  "source_inventory_sha256": "e5ea10be97442f148f22c0601604d12e26ba44bb0562d7c8c8d5564ee58f2b71",
+  "source_proposal": "proposed-kr10-06-case.json",
+  "source_proposal_sha256": "e6eaf83817029c733b8da55b79dad348518e1d45a5f033be9f280cabfad72995",
+  "independent_certificate": "second-crossreview-kr10-06.json",
+  "independent_certificate_sha256": "0aca40ea7eec540ee7cb9790c2691b8dd404ecbaec9fb9a564dfe2f607b8ecf9",
+  "raw_pixel_qa": "proposed-kr10-06-pixel-audit.json",
+  "raw_pixel_qa_sha256": "04e11341f8c1c8f6b95055d33c39f7ca5334085b4f1522f14043e587c485e25b",
+  "raw_transverse_profiles": "proposed-kr10-06-horizontal-profiles.json",
+  "raw_transverse_profiles_sha256": "4b3c8bb4b4a55118f0725271d2308508f0f38b83379eaf0aa9acbea278a1ec65",
+  "coordinate_semantics": "Native XY pixel-center indices, prompt/reference RC is row,column. Unknown rectangles use [x0,y0,x1,y1] source coordinates; hidden geometry is never scored. Visible reference arrays only interpolate each separately traced visible arm at <=1px steps; the two arms are not connected as ground truth.",
+  "scoring_policy": "Only source-visible contour support may be scored. Gap geometry remains unknown. Report direct saved-path contact with sampled visible foreign strokes separately; absence of sampled contact does not prove absence of every neighbor hop. This is one agent-reviewed development case, not official validation.",
+  "excluded_candidates": [
+    {
+      "sample_id": "kr-10-unseen-native-05",
+      "label": "600",
+      "reason": "Ambiguous glyph fusion and a dark fork near blue overprint; no positive pairing frozen."
+    },
+    {
+      "sample_ids": "Other fresh kr09/kr10 native windows",
+      "reason": "No second defensible isolated numeric positive found; no quantity or negative quota forced."
+    }
+  ],
+  "cases": [
+    {
+      "id": "kr10-second06-index-300",
+      "sample_id": "kr-10-unseen-native-06",
+      "image": "images/kr-10-unseen-native-06.png",
+      "image_sha256": "a1e7eca8e8b5071f288bd65408f46b66b10f31f4a3cf202dc3dd60362ed135f4",
+      "glyph_kind": "numeric contour label",
+      "label": "300",
+      "expected_pair": "plausible_same_contour",
+      "prompt_rc": [
+        [
+          314,
+          408
+        ],
+        [
+          320,
+          437
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          425,
+          296
+        ],
+        [
+          443,
+          307
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            408,
+            314
+          ],
+          [
+            410,
+            313
+          ],
+          [
+            412,
+            312
+          ],
+          [
+            413,
+            311
+          ],
+          [
+            414,
+            310
+          ],
+          [
+            416,
+            309
+          ],
+          [
+            416,
+            308
+          ],
+          [
+            416,
+            307
+          ],
+          [
+            417,
+            306
+          ],
+          [
+            417,
+            305
+          ],
+          [
+            418,
+            304
+          ],
+          [
+            418,
+            303
+          ],
+          [
+            419,
+            302
+          ],
+          [
+            420,
+            301
+          ],
+          [
+            421,
+            300
+          ],
+          [
+            422,
+            299
+          ],
+          [
+            423,
+            298
+          ],
+          [
+            424,
+            297
+          ],
+          [
+            425,
+            296
+          ]
+        ],
+        [
+          [
+            443,
+            307
+          ],
+          [
+            443,
+            308
+          ],
+          [
+            442,
+            309
+          ],
+          [
+            441,
+            310
+          ],
+          [
+            440,
+            311
+          ],
+          [
+            440,
+            312
+          ],
+          [
+            439,
+            313
+          ],
+          [
+            438,
+            314
+          ],
+          [
+            438,
+            315
+          ],
+          [
+            437,
+            316
+          ],
+          [
+            437,
+            317
+          ],
+          [
+            437,
+            318
+          ],
+          [
+            437,
+            319
+          ],
+          [
+            437,
+            320
+          ]
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [
+        [
+          [
+            421,
+            294
+          ],
+          [
+            419,
+            296
+          ],
+          [
+            417,
+            298
+          ],
+          [
+            414,
+            302
+          ],
+          [
+            413,
+            304
+          ],
+          [
+            412,
+            306
+          ]
+        ],
+        [
+          [
+            435,
+            308
+          ],
+          [
+            434,
+            310
+          ],
+          [
+            433,
+            312
+          ],
+          [
+            432,
+            314
+          ]
+        ],
+        [
+          [
+            449,
+            308
+          ],
+          [
+            448,
+            310
+          ]
+        ]
+      ],
+      "unknown_boxes_xy": [
+        [
+          426,
+          291,
+          449,
+          307
+        ]
+      ],
+      "hidden_ground_truth": false,
+      "classification": "prospective_source_positive_agent_crossreviewed",
+      "split": "validation",
+      "source_id": "kr-10",
+      "unknown_region_xy": [
+        426,
+        291,
+        449,
+        307
+      ],
+      "unknown_regions_xy": [
+        [
+          426,
+          291,
+          449,
+          307
+        ]
+      ],
+      "hidden_geometry_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "human_approved": false,
+      "review_level": "agent_visual_inspection",
+      "raw_evidence_window_xyxy": [
+        395,
+        280,
+        455,
+        330
+      ],
+      "notes": "Readable 300 lies between nested 280 and 320 contour labels. Both bold visible arms and their far prompts were followed on raw source pixels independently. The gap_endpoint_pair_xy values are manually selected visible support controls, not computed native endpoint truth or hidden curve truth. Nearest annotated neighboring contour is about 4.5px from the left support control, so this is not uniformly isolated by 6px. Foreign controls sample distinct visible strokes only and are not exhaustive semantic ground truth. No actual hidden curve is annotated.",
+      "visible_reference_segments_rc": [
+        [
+          [
+            314.0,
+            408.0
+          ],
+          [
+            313.666667,
+            408.666667
+          ],
+          [
+            313.333333,
+            409.333333
+          ],
+          [
+            313.0,
+            410.0
+          ],
+          [
+            312.666667,
+            410.666667
+          ],
+          [
+            312.333333,
+            411.333333
+          ],
+          [
+            312.0,
+            412.0
+          ],
+          [
+            311.5,
+            412.5
+          ],
+          [
+            311.0,
+            413.0
+          ],
+          [
+            310.5,
+            413.5
+          ],
+          [
+            310.0,
+            414.0
+          ],
+          [
+            309.666667,
+            414.666667
+          ],
+          [
+            309.333333,
+            415.333333
+          ],
+          [
+            309.0,
+            416.0
+          ],
+          [
+            308.0,
+            416.0
+          ],
+          [
+            307.0,
+            416.0
+          ],
+          [
+            306.5,
+            416.5
+          ],
+          [
+            306.0,
+            417.0
+          ],
+          [
+            305.0,
+            417.0
+          ],
+          [
+            304.5,
+            417.5
+          ],
+          [
+            304.0,
+            418.0
+          ],
+          [
+            303.0,
+            418.0
+          ],
+          [
+            302.5,
+            418.5
+          ],
+          [
+            302.0,
+            419.0
+          ],
+          [
+            301.5,
+            419.5
+          ],
+          [
+            301.0,
+            420.0
+          ],
+          [
+            300.5,
+            420.5
+          ],
+          [
+            300.0,
+            421.0
+          ],
+          [
+            299.5,
+            421.5
+          ],
+          [
+            299.0,
+            422.0
+          ],
+          [
+            298.5,
+            422.5
+          ],
+          [
+            298.0,
+            423.0
+          ],
+          [
+            297.5,
+            423.5
+          ],
+          [
+            297.0,
+            424.0
+          ],
+          [
+            296.5,
+            424.5
+          ],
+          [
+            296,
+            425
+          ]
+        ],
+        [
+          [
+            307.0,
+            443.0
+          ],
+          [
+            308.0,
+            443.0
+          ],
+          [
+            308.5,
+            442.5
+          ],
+          [
+            309.0,
+            442.0
+          ],
+          [
+            309.5,
+            441.5
+          ],
+          [
+            310.0,
+            441.0
+          ],
+          [
+            310.5,
+            440.5
+          ],
+          [
+            311.0,
+            440.0
+          ],
+          [
+            312.0,
+            440.0
+          ],
+          [
+            312.5,
+            439.5
+          ],
+          [
+            313.0,
+            439.0
+          ],
+          [
+            313.5,
+            438.5
+          ],
+          [
+            314.0,
+            438.0
+          ],
+          [
+            315.0,
+            438.0
+          ],
+          [
+            315.5,
+            437.5
+          ],
+          [
+            316.0,
+            437.0
+          ],
+          [
+            317.0,
+            437.0
+          ],
+          [
+            318.0,
+            437.0
+          ],
+          [
+            319.0,
+            437.0
+          ],
+          [
+            320,
+            437
+          ]
+        ]
+      ],
+      "review_procedure": "Two independent source-only agent inspections with raw RGB control QA; no human approval"
+    }
+  ],
+  "dataset_id": "ams-korea-unseen-native-gap-diagnostics-v1",
+  "dataset_manifest_sha256": "e76880eddb9fdb2271f16208695a861db55974ff24ea0cffa32875b8360f4885",
+  "frozen_before_model_outputs": true,
+  "human_approved": false,
+  "source_review_sha256": "1ad98e215d0ebe9008c10fdfc06d5f0badfdc43e465024ef1b9a5553c6923c43"
+}

@@ -21,6 +21,7 @@ htmlcov/
 !icon.png
 !ai_vectorizer/**/*.png
 !benchmarks/data/**/*.png
+!learning/evidence/unseen-300-qgis-2026-10-16.png
 ai_vectorizer/models/
 ai_vectorizer/models/*.pt
 ai_vectorizer/models/*.pth

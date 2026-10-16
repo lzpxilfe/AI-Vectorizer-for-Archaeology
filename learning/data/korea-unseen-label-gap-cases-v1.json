@@ -1,0 +1,1280 @@
+{
+  "schema_version": "archaeotrace-label-gap-cases/1",
+  "dataset_id": "ams-korea-unseen-native-gap-diagnostics-v1",
+  "dataset_manifest_sha256": "e76880eddb9fdb2271f16208695a861db55974ff24ea0cffa32875b8360f4885",
+  "frozen_utc": "2026-10-15T23:37:24.450265+00:00",
+  "frozen_before_model_outputs": true,
+  "human_approved": false,
+  "human_approvals": 0,
+  "review_level": "agent_visual_inspection",
+  "independent_review": false,
+  "publication_ranking_eligible": false,
+  "scope": "Prospective source-only controls in four native nonoverlapping crop windows from two previously known Korean validation maps. Not unseen-map or blind performance validation. Four numeric plausible positives, two different-contour negatives, one unscored ambiguous blue-word execution diagnostic.",
+  "coordinate_semantics": "Native pixel-center index controls; rc=row,column, xy=column,row. No resampling. Visible segments remain separate; hidden geometry is unknown.",
+  "scoring_policy": "Only positive visible arms after frozen unknown boxes receive F1. Explicit known foreign visible controls receive a separate 1px contact check even within a broad unknown rectangle. Manual foreign controls have about1px source reading uncertainty; no exhaustive contour semantics or subpixel truth. Negatives and ambiguous pairs unscored.",
+  "source_review_records": {
+    "review-kr09.json": "fd80d16935898398a9738cb9c52a26823d30b8da5c724ea8c2ee83305c6787a8",
+    "review-kr10.json": "da20a67449b5ad775563de35de5806fbbef28a07a542a512cdf1628c964d5baa",
+    "crossreview-kr09.json": "f664c14ea7f277adf3decbf270e809f60ab1f215ebd7e2f7474c6c969520fc38",
+    "crossreview-kr10.json": "b3a619e047e817cd11aeedfc9c9ad1132b49f7d98f93ed91e331ad6448618bb5",
+    "novelty-proof.json": "1756ab84669832d264215cc7ac3f7f6d763935e3ed33fc5b3c5c56437ceaa79c"
+  },
+  "raw_observations_excluded_from_route_batch": [
+    {
+      "id": "kr-09-unseen-02-label-1050-ambiguous",
+      "sample_id": "kr-09-unseen-native-02",
+      "glyph_type": "black_numeric_label",
+      "glyph_description": "Printed 1050 around x330..356,y484..494.",
+      "expected_pair": "ambiguous_unscored",
+      "scored": false,
+      "included_in_route_batch": false,
+      "hidden_ground_truth": false,
+      "review_roi_xyxy": [
+        310,
+        455,
+        375,
+        512
+      ],
+      "unknown_regions_xy": [
+        [
+          324,
+          479,
+          359,
+          498
+        ]
+      ],
+      "tentative_visible_controls_xy": [
+        [
+          327,
+          482
+        ],
+        [
+          338,
+          494
+        ]
+      ],
+      "notes": "One candidate arm abuts digit0 baseline, so it may be glyph ink instead of a free contour arm. Both agents declined positive status. No normal prompts or accuracy reference frozen for this ambiguous pair."
+    },
+    {
+      "id": "kr-09-unseen-05-blue-letter-overprint-ambiguous",
+      "sample_id": "kr-09-unseen-native-05",
+      "glyph_type": "blue_latin_letter_overprint",
+      "glyph_description": "Blue KANGGI-RI/KOKI-RI area-name letters overlap several black parallel contours.",
+      "expected_pair": "ambiguous_unscored",
+      "scored": false,
+      "included_in_route_batch": false,
+      "hidden_ground_truth": false,
+      "review_roi_xyxy": [
+        55,
+        180,
+        165,
+        260
+      ],
+      "unknown_regions_xy": [
+        [
+          65,
+          229,
+          112,
+          244
+        ]
+      ],
+      "notes": "Black contour may continue under blue glyph rather than terminate physically. Multiple parallel arms/fused ink prevent confident same-contour prompt selection. This records the text limitation; do not claim text-gap accuracy or silently promote to a numeric positive."
+    }
+  ],
+  "cases": [
+    {
+      "id": "kr-09-unseen-02-vertical-index-gap",
+      "sample_id": "kr-09-unseen-native-02",
+      "glyph_type": "rotated_black_numeric_label",
+      "glyph_description": "Three vertically arranged dark numeric glyphs; value deliberately not certified from blurred scan. Horizontal printed grid crosses the label.",
+      "expected_pair": "plausible_same_contour",
+      "review_status": "two_agent_raw_agreement_requires_human_review",
+      "hidden_ground_truth": false,
+      "prompt_rc": [
+        [
+          231,
+          148
+        ],
+        [
+          258,
+          184
+        ]
+      ],
+      "visible_terminal_controls_xy": [
+        [
+          157,
+          229
+        ],
+        [
+          169,
+          246
+        ]
+      ],
+      "terminal_precision_note": "Raw visible controls are conservative approximate stroke positions, not a certified binary-skeleton endpoint annotation. Product detector/endpoints remain independently derived.",
+      "unknown_regions_xy": [
+        [
+          157,
+          227,
+          171,
+          248
+        ]
+      ],
+      "visible_controls_rc": [
+        [
+          [
+            231,
+            148
+          ],
+          [
+            230,
+            151
+          ],
+          [
+            230,
+            154
+          ],
+          [
+            229,
+            157
+          ]
+        ],
+        [
+          [
+            246,
+            169
+          ],
+          [
+            246,
+            173
+          ],
+          [
+            246,
+            176
+          ],
+          [
+            248,
+            179
+          ],
+          [
+            250,
+            181
+          ],
+          [
+            254,
+            183
+          ],
+          [
+            258,
+            184
+          ]
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            231.0,
+            148.0
+          ],
+          [
+            230.75,
+            148.75
+          ],
+          [
+            230.5,
+            149.5
+          ],
+          [
+            230.25,
+            150.25
+          ],
+          [
+            230.0,
+            151.0
+          ],
+          [
+            230.0,
+            152.0
+          ],
+          [
+            230.0,
+            153.0
+          ],
+          [
+            230.0,
+            154.0
+          ],
+          [
+            229.75,
+            154.75
+          ],
+          [
+            229.5,
+            155.5
+          ],
+          [
+            229.25,
+            156.25
+          ],
+          [
+            229,
+            157
+          ]
+        ],
+        [
+          [
+            246.0,
+            169.0
+          ],
+          [
+            246.0,
+            170.0
+          ],
+          [
+            246.0,
+            171.0
+          ],
+          [
+            246.0,
+            172.0
+          ],
+          [
+            246.0,
+            173.0
+          ],
+          [
+            246.0,
+            174.0
+          ],
+          [
+            246.0,
+            175.0
+          ],
+          [
+            246.0,
+            176.0
+          ],
+          [
+            246.5,
+            176.75
+          ],
+          [
+            247.0,
+            177.5
+          ],
+          [
+            247.5,
+            178.25
+          ],
+          [
+            248.0,
+            179.0
+          ],
+          [
+            248.6667,
+            179.6667
+          ],
+          [
+            249.3333,
+            180.3333
+          ],
+          [
+            250.0,
+            181.0
+          ],
+          [
+            250.8,
+            181.4
+          ],
+          [
+            251.6,
+            181.8
+          ],
+          [
+            252.4,
+            182.2
+          ],
+          [
+            253.2,
+            182.6
+          ],
+          [
+            254.0,
+            183.0
+          ],
+          [
+            254.8,
+            183.2
+          ],
+          [
+            255.6,
+            183.4
+          ],
+          [
+            256.4,
+            183.6
+          ],
+          [
+            257.2,
+            183.8
+          ],
+          [
+            258,
+            184
+          ]
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [
+        [
+          [
+            155,
+            250
+          ],
+          [
+            160,
+            250
+          ],
+          [
+            166,
+            250
+          ],
+          [
+            172,
+            251
+          ],
+          [
+            176,
+            253
+          ],
+          [
+            178,
+            256
+          ],
+          [
+            179,
+            258
+          ]
+        ]
+      ],
+      "notes": "The visible left arm approaches the upper part of the vertical label; the matching right arm leaves below it and bends down right. The nearby lower continuation at N179258 is a distinct parallel stroke. Printed grid at y234 is not a contour. Hidden connecting curvature is unknown.",
+      "image": "images/kr-09-unseen-native-02.png",
+      "image_sha256": "0f741e4be9de90221f1740ee89651119617faacdf3240d4c95f8ee6a69dc19d2",
+      "split": "validation",
+      "hidden_geometry_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "human_approved": false,
+      "review_level": "agent_visual_inspection"
+    },
+    {
+      "id": "kr-09-unseen-02-vertical-index-wrong-neighbor",
+      "sample_id": "kr-09-unseen-native-02",
+      "glyph_type": "rotated_black_numeric_label",
+      "expected_pair": "different_contours",
+      "review_status": "two_agent_raw_adjacent_stroke_agreement",
+      "hidden_ground_truth": false,
+      "prompt_rc": [
+        [
+          231,
+          148
+        ],
+        [
+          258,
+          179
+        ]
+      ],
+      "unknown_regions_xy": [
+        [
+          157,
+          227,
+          171,
+          248
+        ]
+      ],
+      "rejected_far_contour_point_xy": [
+        179,
+        258
+      ],
+      "correct_far_contour_point_xy": [
+        184,
+        258
+      ],
+      "foreign_visible_control_segments_xy": [
+        [
+          [
+            155,
+            250
+          ],
+          [
+            160,
+            250
+          ],
+          [
+            166,
+            250
+          ],
+          [
+            172,
+            251
+          ],
+          [
+            176,
+            253
+          ],
+          [
+            178,
+            256
+          ],
+          [
+            179,
+            258
+          ]
+        ]
+      ],
+      "notes": "Same left anchor as positive, but far click selects the visibly separate neighboring contour five native pixels left of positive target. Do not score as positive route accuracy; require no automatic virtual pair to this neighbor.",
+      "image": "images/kr-09-unseen-native-02.png",
+      "image_sha256": "0f741e4be9de90221f1740ee89651119617faacdf3240d4c95f8ee6a69dc19d2",
+      "split": "validation",
+      "hidden_geometry_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "human_approved": false,
+      "review_level": "agent_visual_inspection",
+      "visible_reference_segments_rc": []
+    },
+    {
+      "id": "kr10-new04-diagonal-600",
+      "sample_id": "kr-10-unseen-native-04",
+      "image": "images/kr-10-unseen-native-04.png",
+      "image_sha256": "142e8e6a7005454075c96af41c45b42a624e86107a012f3cb3402de0037c18b2",
+      "split": "validation",
+      "source_id": "kr-10",
+      "glyph_kind": "numeric contour label",
+      "label": "600",
+      "expected_pair": "plausible_same_contour",
+      "prompt_rc": [
+        [
+          55,
+          218
+        ],
+        [
+          51,
+          260
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          231,
+          53
+        ],
+        [
+          251,
+          46
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            218,
+            55
+          ],
+          [
+            222,
+            55
+          ],
+          [
+            226,
+            55
+          ],
+          [
+            229,
+            54
+          ],
+          [
+            231,
+            53
+          ]
+        ],
+        [
+          [
+            251,
+            46
+          ],
+          [
+            254,
+            47
+          ],
+          [
+            257,
+            49
+          ],
+          [
+            260,
+            51
+          ]
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            55.0,
+            218.0
+          ],
+          [
+            55.0,
+            219.0
+          ],
+          [
+            55.0,
+            220.0
+          ],
+          [
+            55.0,
+            221.0
+          ],
+          [
+            55.0,
+            222.0
+          ],
+          [
+            55.0,
+            223.0
+          ],
+          [
+            55.0,
+            224.0
+          ],
+          [
+            55.0,
+            225.0
+          ],
+          [
+            55.0,
+            226.0
+          ],
+          [
+            54.75,
+            226.75
+          ],
+          [
+            54.5,
+            227.5
+          ],
+          [
+            54.25,
+            228.25
+          ],
+          [
+            54.0,
+            229.0
+          ],
+          [
+            53.6667,
+            229.6667
+          ],
+          [
+            53.3333,
+            230.3333
+          ],
+          [
+            53.0,
+            231.0
+          ]
+        ],
+        [
+          [
+            46.0,
+            251.0
+          ],
+          [
+            46.25,
+            251.75
+          ],
+          [
+            46.5,
+            252.5
+          ],
+          [
+            46.75,
+            253.25
+          ],
+          [
+            47.0,
+            254.0
+          ],
+          [
+            47.5,
+            254.75
+          ],
+          [
+            48.0,
+            255.5
+          ],
+          [
+            48.5,
+            256.25
+          ],
+          [
+            49.0,
+            257.0
+          ],
+          [
+            49.5,
+            257.75
+          ],
+          [
+            50.0,
+            258.5
+          ],
+          [
+            50.5,
+            259.25
+          ],
+          [
+            51.0,
+            260.0
+          ]
+        ]
+      ],
+      "unknown_region_xy": [
+        232,
+        34,
+        250,
+        55
+      ],
+      "unknown_regions_xy": [
+        [
+          232,
+          34,
+          250,
+          55
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [
+        [
+          [
+            254,
+            55
+          ],
+          [
+            257,
+            56
+          ],
+          [
+            260,
+            59
+          ],
+          [
+            263,
+            60
+          ],
+          [
+            266,
+            57
+          ]
+        ]
+      ],
+      "notes": "The index stroke ends left of the6 and resumes on the lower-right slope after the last0. Its next thinner outer stroke is visible roughly5–8px below the right arm. Hidden bend and sag are unknown; no curve is drawn inside the label.",
+      "hidden_geometry_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "human_approved": false,
+      "review_level": "agent_visual_inspection",
+      "raw_evidence_window_xyxy": [
+        203,
+        31,
+        276,
+        71
+      ]
+    },
+    {
+      "id": "kr10-new04-diagonal-700",
+      "sample_id": "kr-10-unseen-native-04",
+      "image": "images/kr-10-unseen-native-04.png",
+      "image_sha256": "142e8e6a7005454075c96af41c45b42a624e86107a012f3cb3402de0037c18b2",
+      "split": "validation",
+      "source_id": "kr-10",
+      "glyph_kind": "numeric contour label",
+      "label": "700",
+      "expected_pair": "plausible_same_contour",
+      "prompt_rc": [
+        [
+          105,
+          255
+        ],
+        [
+          75,
+          286
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          258,
+          95
+        ],
+        [
+          285,
+          85
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            255,
+            105
+          ],
+          [
+            255,
+            102
+          ],
+          [
+            255,
+            100
+          ],
+          [
+            256,
+            98
+          ],
+          [
+            258,
+            95
+          ]
+        ],
+        [
+          [
+            285,
+            85
+          ],
+          [
+            285,
+            82
+          ],
+          [
+            286,
+            79
+          ],
+          [
+            286,
+            75
+          ]
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            105.0,
+            255.0
+          ],
+          [
+            104.0,
+            255.0
+          ],
+          [
+            103.0,
+            255.0
+          ],
+          [
+            102.0,
+            255.0
+          ],
+          [
+            101.0,
+            255.0
+          ],
+          [
+            100.0,
+            255.0
+          ],
+          [
+            99.3333,
+            255.3333
+          ],
+          [
+            98.6667,
+            255.6667
+          ],
+          [
+            98.0,
+            256.0
+          ],
+          [
+            97.25,
+            256.5
+          ],
+          [
+            96.5,
+            257.0
+          ],
+          [
+            95.75,
+            257.5
+          ],
+          [
+            95.0,
+            258.0
+          ]
+        ],
+        [
+          [
+            85.0,
+            285.0
+          ],
+          [
+            84.0,
+            285.0
+          ],
+          [
+            83.0,
+            285.0
+          ],
+          [
+            82.0,
+            285.0
+          ],
+          [
+            81.25,
+            285.25
+          ],
+          [
+            80.5,
+            285.5
+          ],
+          [
+            79.75,
+            285.75
+          ],
+          [
+            79.0,
+            286.0
+          ],
+          [
+            78.0,
+            286.0
+          ],
+          [
+            77.0,
+            286.0
+          ],
+          [
+            76.0,
+            286.0
+          ],
+          [
+            75.0,
+            286.0
+          ]
+        ]
+      ],
+      "unknown_region_xy": [
+        256,
+        77,
+        283,
+        94
+      ],
+      "unknown_regions_xy": [
+        [
+          256,
+          77,
+          283,
+          94
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [
+        [
+          [
+            279,
+            89
+          ],
+          [
+            281,
+            92
+          ],
+          [
+            283,
+            96
+          ],
+          [
+            283,
+            100
+          ],
+          [
+            283,
+            104
+          ]
+        ]
+      ],
+      "notes": "The left index arm rises toward the7. Its matching outer index arm is the near-vertical stroke to the right of the last0, ending near285,85 and continuing upward. The thinner inner diagonal beginning279,89 is a separate contour and a frozen negative competitor. Full native context was inspected before outputs.",
+      "hidden_geometry_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "human_approved": false,
+      "review_level": "agent_visual_inspection",
+      "raw_evidence_window_xyxy": [
+        240,
+        60,
+        302,
+        121
+      ]
+    },
+    {
+      "id": "kr10-new07-bottom-800",
+      "sample_id": "kr-10-unseen-native-07",
+      "image": "images/kr-10-unseen-native-07.png",
+      "image_sha256": "f0012030457c62a1d7adbc94416b31404176ad687a4ce6b7f582265631e760d5",
+      "split": "validation",
+      "source_id": "kr-10",
+      "glyph_kind": "numeric contour label",
+      "label": "800",
+      "expected_pair": "plausible_same_contour",
+      "prompt_rc": [
+        [
+          498,
+          140
+        ],
+        [
+          498,
+          177
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          150,
+          490
+        ],
+        [
+          169,
+          486
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            140,
+            498
+          ],
+          [
+            143,
+            495
+          ],
+          [
+            146,
+            493
+          ],
+          [
+            148,
+            491
+          ],
+          [
+            150,
+            490
+          ]
+        ],
+        [
+          [
+            169,
+            486
+          ],
+          [
+            172,
+            488
+          ],
+          [
+            174,
+            491
+          ],
+          [
+            176,
+            494
+          ],
+          [
+            177,
+            498
+          ]
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            498.0,
+            140.0
+          ],
+          [
+            497.4,
+            140.6
+          ],
+          [
+            496.8,
+            141.2
+          ],
+          [
+            496.2,
+            141.8
+          ],
+          [
+            495.6,
+            142.4
+          ],
+          [
+            495.0,
+            143.0
+          ],
+          [
+            494.5,
+            143.75
+          ],
+          [
+            494.0,
+            144.5
+          ],
+          [
+            493.5,
+            145.25
+          ],
+          [
+            493.0,
+            146.0
+          ],
+          [
+            492.3333,
+            146.6667
+          ],
+          [
+            491.6667,
+            147.3333
+          ],
+          [
+            491.0,
+            148.0
+          ],
+          [
+            490.6667,
+            148.6667
+          ],
+          [
+            490.3333,
+            149.3333
+          ],
+          [
+            490.0,
+            150.0
+          ]
+        ],
+        [
+          [
+            486.0,
+            169.0
+          ],
+          [
+            486.5,
+            169.75
+          ],
+          [
+            487.0,
+            170.5
+          ],
+          [
+            487.5,
+            171.25
+          ],
+          [
+            488.0,
+            172.0
+          ],
+          [
+            488.75,
+            172.5
+          ],
+          [
+            489.5,
+            173.0
+          ],
+          [
+            490.25,
+            173.5
+          ],
+          [
+            491.0,
+            174.0
+          ],
+          [
+            491.75,
+            174.5
+          ],
+          [
+            492.5,
+            175.0
+          ],
+          [
+            493.25,
+            175.5
+          ],
+          [
+            494.0,
+            176.0
+          ],
+          [
+            494.8,
+            176.2
+          ],
+          [
+            495.6,
+            176.4
+          ],
+          [
+            496.4,
+            176.6
+          ],
+          [
+            497.2,
+            176.8
+          ],
+          [
+            498.0,
+            177.0
+          ]
+        ]
+      ],
+      "unknown_region_xy": [
+        150,
+        479,
+        168,
+        489
+      ],
+      "unknown_regions_xy": [
+        [
+          150,
+          479,
+          168,
+          489
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [
+        [
+          [
+            171,
+            479
+          ],
+          [
+            176,
+            481
+          ],
+          [
+            180,
+            484
+          ],
+          [
+            183,
+            488
+          ]
+        ]
+      ],
+      "notes": "Printed800 interrupts the rounded index contour around the summit. The incoming arm rises northeast into the8; the outgoing arm descends southeast from the right0. The next inner thin contour remains visible above/right and is frozen as a foreign stroke. Raster boundary is14px beyond the two prompts; this is a native crop diagnostic, not fullscan-context inference validation.",
+      "hidden_geometry_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "human_approved": false,
+      "review_level": "agent_visual_inspection",
+      "raw_evidence_window_xyxy": [
+        125,
+        471,
+        193,
+        512
+      ]
+    },
+    {
+      "id": "kr10-new04-diagonal-700-wrong-inner",
+      "sample_id": "kr-10-unseen-native-04",
+      "image": "images/kr-10-unseen-native-04.png",
+      "image_sha256": "142e8e6a7005454075c96af41c45b42a624e86107a012f3cb3402de0037c18b2",
+      "split": "validation",
+      "source_id": "kr-10",
+      "glyph_kind": "numeric contour label",
+      "label": "700",
+      "expected_pair": "different_contours",
+      "prompt_rc": [
+        [
+          105,
+          255
+        ],
+        [
+          100,
+          283
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          258,
+          95
+        ],
+        [
+          279,
+          89
+        ]
+      ],
+      "visible_control_segments_xy": [],
+      "visible_reference_segments_rc": [],
+      "unknown_region_xy": [
+        256,
+        77,
+        283,
+        94
+      ],
+      "unknown_regions_xy": [
+        [
+          256,
+          77,
+          283,
+          94
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [],
+      "notes": "Wrong pairing: the left indexed700 arm to the thinner inner diagonal at279,89. The correct far indexed arm is285,85 and continues upward; this deliberately wrong click pair has no same-contour accuracy reference. Only exclusion of a new automatic candidate is meaningful.",
+      "hidden_geometry_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "human_approved": false,
+      "review_level": "agent_visual_inspection",
+      "raw_evidence_window_xyxy": [
+        240,
+        60,
+        302,
+        121
+      ]
+    },
+    {
+      "id": "kr10-new08-blue-place-name-ambiguous",
+      "sample_id": "kr-10-unseen-native-08",
+      "image": "images/kr-10-unseen-native-08.png",
+      "image_sha256": "30f404b9008c5d4cbb51ccb2da38445873eac5849326728ec357d0ce3d826a2d",
+      "split": "validation",
+      "source_id": "kr-10",
+      "glyph_kind": "blue romanized place-name overprint",
+      "label": "PAEGUN-SAN",
+      "expected_pair": "ambiguous",
+      "prompt_rc": [
+        [
+          235,
+          64
+        ],
+        [
+          235,
+          242
+        ]
+      ],
+      "visible_reference_segments_rc": [],
+      "unknown_regions_xy": [
+        [
+          68,
+          222,
+          234,
+          244
+        ]
+      ],
+      "raw_evidence_window_xyxy": [
+        45,
+        200,
+        260,
+        280
+      ],
+      "hidden_geometry_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "qualitative_only": true,
+      "notes": "Blue place-name letters cross many closely spaced parallel black contour strokes. No unique correspondence between these two sides is established from source pixels; do not turn a convenient output into a same-contour reference. Freeze as an unscored execution/coverage diagnostic. It cannot support a claim that text gaps work.",
+      "human_approved": false,
+      "review_level": "agent_visual_inspection"
+    }
+  ]
+}
