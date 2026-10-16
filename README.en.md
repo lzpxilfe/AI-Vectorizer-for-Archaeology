@@ -202,6 +202,13 @@ Validation loss alone selected seed 3408 (0.860), exported as the 47.5 MiB FP32
 `ai-weak-contour-guide-korea-v1`; Calibration and Holdout stayed unopened. On an
 M4 Mac CPU, prepared tile p95 was 56 ms with 253 MiB of extra RAM.
 
+A separate [Colab text-training notebook](learning/colab_train_korea_text_weak.ipynb)
+adds `word_gaps`: self-drawn Latin, Hanja and Hangul strokes overlay or interrupt
+already continuous training targets. Every neighboring contour remains positive.
+The new diagnostic crops stay outside training. Three fresh seeds and checkpoints
+use a separate experiment directory; exported models require the same QGIS
+comparison before adoption.
+
 The new model supports the synthetic blue and black lines that the first model
 avoided (support 0.88 and 0.89), and its QGIS deviation from the synthetic blue
 line fell from 37.7 px to 0.19 px. There is not yet evidence that it traces real
@@ -287,6 +294,18 @@ saved-coordinate pairs in the existing 12-case comparison stayed identical.
 Six faulty references from the first new comparison were withdrawn. These are
 new spatial windows on known sheets; hidden curves, general text and unseen
 sheet performance remain unverified.
+
+The subsequent development build also checks some **general text gaps**.
+Compact letter groups and a limited CJK stroke structure produce source-only
+proposals. Original endpoints, neighboring ink, crossings and unbranched visible
+arms remain mandatory. Actual glyph ink is kept separate from its context hull,
+preserving other lines in letter holes. A materially longer old route that follows
+the selected glyph for a sustained interval can yield to the checked curve;
+existing numeric priorities stay unchanged. On one new Yongdam `面` case in QGIS,
+visible F1@2px improved from 0.975 to 1.000 for Ink and the Korea guide; the USGS
+guide retained 1.000. See the [source review and comparison](learning/GENERAL_TEXT_GAP_CHECK_2026-10-16.md).
+All 39 existing saved-coordinate pairs and six new blue-letter control pairs stayed identical.
+Hidden geometry and general text accuracy remain unverified. Review the green preview.
 
 The explicit `G` preview is available when automatic routing declines:
 

@@ -43,6 +43,8 @@ class _Route:
     prefix_length: float
     target_node: int
     region_index: int
+    require_unbranched: bool = False
+    native_prefix_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,7 @@ class OccludedConnectionTree:
     connectors: tuple
     outside_connection: Optional[ObservedConnectionTree] = None
     outside_degree: Optional[np.ndarray] = None
+    text_cores: tuple = ()
 
     def outside_route(self, target):
         """Preserve a healthy native route, without privileging a junction detour."""
@@ -205,6 +208,18 @@ class OccludedConnectionTree:
                 backwards.append(current)
                 previous = current
                 if node == route.target_node:
+                    if route.require_unbranched:
+                        # Printed words can sit over a network joined by a
+                        # distant grid or glyph. That global component does
+                        # not authorize switching contours after the gap.
+                        # Degrees were prepared in the worker, including
+                        # diagonal corners that bypass an actual junction.
+                        native_prefix = route.prefix[:route.native_prefix_count]
+                        if any(
+                            len(arm) > 1 and self._has_native_junction(arm) is not False
+                            for arm in (native_prefix, backwards)
+                        ):
+                            break
                     points = [*route.prefix, *backwards[-2::-1], tuple(point)]
                     points = [p for i, p in enumerate(points) if not i or p != points[i - 1]]
                     options.append((float(costs[index]) + route.prefix_length * 2, points))
@@ -287,13 +302,23 @@ class OccludedConnectionTree:
 
         selected = self._selected_connector(inferred)
         if selected is not None:
-            source, target, _curve, _start, _end, _region = selected
+            source, target, _curve, _start, _end, region = selected
             origin = np.asarray(self.origin)
-            return preserves_visible_route(
+            preserved = preserves_visible_route(
                 ordinary, inferred, mask=self.mask, origin=self.origin,
                 source_xy=tuple(np.asarray(source) + origin),
                 target_xy=tuple(np.asarray(target) + origin),
             )
+            if preserved and region < len(self.text_cores) and self.text_cores[region] is not None:
+                from .text_route_guard import follows_text_ink
+
+                if follows_text_ink(
+                    ordinary, inferred, core=self.text_cores[region], origin=self.origin,
+                    source_xy=tuple(np.asarray(source) + origin),
+                    target_xy=tuple(np.asarray(target) + origin),
+                ):
+                    return False
+            return preserved
         return False
 
 
@@ -319,6 +344,20 @@ def _glyph_core(region, proposal):
     to erase a continuous contour. The undilated convex glyph footprint is
     the only uncertain area excluded from the native routing graph.
     """
+    # General text snapshots distinguish observed glyph ink from their
+    # context hull. A contour through a letter hole or inter-letter space
+    # remains native evidence, even when it lies inside that hull.
+    supplied_core = getattr(region, "core_mask", None)
+    if supplied_core is not None:
+        x0, y0, x1, y1 = region.bbox_xyxy
+        local = np.asarray(supplied_core, dtype=bool)
+        if local.shape != (y1 - y0, x1 - x0) or not local.any():
+            raise ValueError("text core dimensions do not match its box")
+        core = np.zeros(proposal.shape, dtype=bool)
+        core[y0:y1, x0:x1] = local
+        if np.any(core & ~proposal):
+            raise ValueError("text core must stay inside its proposal")
+        return core
     polygon = np.asarray(getattr(region, "polygon_xy", ()), dtype=np.float64)
     if polygon.size == 0:
         return proposal.copy()
@@ -430,7 +469,8 @@ def _curve_cells(points, shape):
     return pixels[valid]
 
 
-def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, original_degree=None):
+def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, original_degree=None,
+                thin_width_uncertainty=False):
     from scipy.ndimage import distance_transform_edt
     degree = _degree(mask)
     near = distance_transform_edt(~region_mask)
@@ -529,7 +569,15 @@ def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, ori
                             blocked = True
             if blocked:
                 continue
-            score = (ratio - 1) * 3 + (curve.detour_ratio - 1) + curve.gap_length_pixels / 128
+            # At native resolution EDT radii 1 and sqrt(2) can describe the
+            # same thin stroke at different angles. New text proposals must
+            # not rank a distant equal-width neighbor above that uncertainty.
+            # The hard width gate, uniqueness margin and crossing rejection
+            # stay intact; established numeric ranking remains unchanged.
+            width_penalty = ratio - 1
+            if thin_width_uncertainty and max(first.width, last.width) <= math.sqrt(2) + 1e-6:
+                width_penalty = 0.0
+            score = width_penalty * 3 + (curve.detour_ratio - 1) + curve.gap_length_pixels / 128
             idx = len(pairs)
             pairs.append((i, j, curve, score))
             votes[i].append((score, idx))
@@ -634,9 +682,11 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
     height, width = native.shape
     for region_index, (region, (region_mask, box)) in enumerate(zip(regions, masks)):
         cancel()
+        general_text = getattr(region, "core_mask", None) is not None
         orientation = getattr(region, "baseline_xy", getattr(region, "orientation_xy", (1.0, 0.0)))
         selected, arms = _connectors(outside, region_mask, box, width_image, orientation, cancel,
-                                     original_degree=original_degree)
+                                     original_degree=original_degree,
+                                     thin_width_uncertainty=general_text)
         for first, last, curve in selected:
             # Automatic reconstruction requires actual observed terminals.
             # A glyph footprint can overlap an ordinary continuous contour;
@@ -674,7 +724,10 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
                 cancel()
                 for value in (indices, lookup, distances, predecessors):
                     value.setflags(write=False)
-                routes.append(_Route(indices, lookup, predecessors, distances, points, prefix_length, target_node, region_index))
+                routes.append(_Route(
+                    indices, lookup, predecessors, distances, points, prefix_length, target_node,
+                    region_index, general_text, len(points) - len(curve_points) + 1,
+                ))
                 retained.append((start.pixel, end.pixel, curve_points, region_index))
                 if len(routes) > 16:
                     return None
@@ -684,7 +737,11 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
     outside.setflags(write=False)
     outside_degree = _degree(outside)
     outside_degree.setflags(write=False)
+    text_cores = []
+    for region, core in zip(regions, cores):
+        core.setflags(write=False)
+        text_cores.append(core if getattr(region, "core_mask", None) is not None else None)
     return OccludedConnectionTree(
         tuple(root_array), tuple(origin_array), tuple(native.shape), union,
-        outside, tuple(routes), tuple(retained), baseline, outside_degree,
+        outside, tuple(routes), tuple(retained), baseline, outside_degree, tuple(text_cores),
     )

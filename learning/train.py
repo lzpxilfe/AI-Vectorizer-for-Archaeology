@@ -34,6 +34,7 @@ class TrainConfig:
     augment: bool = True
     ink_recolor: bool = False
     label_gaps: bool = False
+    word_gaps: bool = False
 
     def validate(self):
         import math
@@ -52,7 +53,7 @@ class TrainConfig:
             raise ValueError("checkpoint_seconds must be finite and nonnegative")
         if not math.isfinite(self.topology_weight) or self.topology_weight < 0:
             raise ValueError("topology_weight must be finite and nonnegative")
-        for name in ("amp", "augment", "ink_recolor", "label_gaps"):
+        for name in ("amp", "augment", "ink_recolor", "label_gaps", "word_gaps"):
             if type(getattr(self, name)) is not bool:
                 raise ValueError(name + " must be a boolean")
         return self
@@ -66,7 +67,7 @@ def code_identity():
     """Bind both Git base and actual local training bytes, including dirty code."""
     root = Path(__file__).resolve().parents[1]
     paths = [root / "learning" / name for name in (
-        "model.py", "losses.py", "augmentation.py", "train.py", "dataset.py", "annotations.py",
+        "model.py", "losses.py", "augmentation.py", "text_glyphs.py", "train.py", "dataset.py", "annotations.py",
     )] + [root / "requirements-learning.txt"]
     files = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in paths if path.is_file()}
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
@@ -179,7 +180,7 @@ def validate_checkpoint_label_policy(checkpoint, *, allow_weak_labels=False):
         raise ValueError("machine-label provenance cannot claim human-reviewed scope")
 
 
-def _batch(dataset, indices, *, seed, epoch, augmentation, device, ink_recolor=False, label_gaps=False):
+def _batch(dataset, indices, *, seed, epoch, augmentation, device, ink_recolor=False, label_gaps=False, word_gaps=False):
     import numpy as np
     import torch
 
@@ -188,7 +189,7 @@ def _batch(dataset, indices, *, seed, epoch, augmentation, device, ink_recolor=F
         sample = dataset[int(index)]
         if augmentation:
             sample = augment_sample(sample, sample_rng(seed, epoch, sample["sample_id"]),
-                                    ink_recolor=ink_recolor, label_gaps=label_gaps)
+                                    ink_recolor=ink_recolor, label_gaps=label_gaps, word_gaps=word_gaps)
         image = np.asarray(sample["image"])
         if image.dtype != np.uint8 or image.shape != (512, 512, 3):
             raise ValueError("dataset images must be native Byte RGB 512x512")
@@ -298,6 +299,7 @@ def train_run(manifest_path, run_dir, *, config=None, resume=None,
     initialization = model.initialization_provenance
     if restored is not None:
         expected_config = dict(restored["config"])
+        expected_config.setdefault("word_gaps", False)
         if retry_oom:
             expected_config.update(batch_size=1, accumulation_steps=16)
         if expected_config != asdict(config):
@@ -366,7 +368,8 @@ def train_run(manifest_path, run_dir, *, config=None, resume=None,
             try:
                 for indices in batches:
                     batch = _batch(training_dataset, indices, seed=config.seed, epoch=epoch, augmentation=config.augment,
-                                   device=target_device, ink_recolor=config.ink_recolor, label_gaps=config.label_gaps)
+                                   device=target_device, ink_recolor=config.ink_recolor, label_gaps=config.label_gaps,
+                                   word_gaps=config.word_gaps)
                     if not bool(batch["valid_mask"].any()):
                         continue
                     with torch.amp.autocast(device_type=target_device.type, enabled=amp_enabled):
@@ -439,10 +442,16 @@ def main(argv=None):
     parser.add_argument("--max-epochs", type=int, default=60)
     parser.add_argument("--max-optimizer-steps", type=int)
     parser.add_argument("--allow-weak-labels", action="store_true", help="explicit experimental training; human review remains required")
+    parser.add_argument("--ink-recolor", action="store_true")
+    parser.add_argument("--label-gaps", action="store_true")
+    parser.add_argument("--word-gaps", action="store_true", help="train-only self-drawn word/CJK occlusions on known continuous targets")
     args = parser.parse_args(argv)
-    config = TrainConfig(seed=args.seed, max_epochs=args.max_epochs)
+    config = TrainConfig(seed=args.seed, max_epochs=args.max_epochs,
+                         ink_recolor=args.ink_recolor, label_gaps=args.label_gaps, word_gaps=args.word_gaps)
     if args.resume:
         config = TrainConfig(**load_checkpoint(args.resume)["config"])
+        if any(getattr(args, name) and not getattr(config, name) for name in ("ink_recolor", "label_gaps", "word_gaps")):
+            raise ValueError("resume augmentation differs; start a separate experiment for new training options")
     print(json.dumps(train_run(args.manifest, args.run_dir, config=config, resume=args.resume,
         initialize_pretrained=args.initialize_pretrained, encoder_weights_path=args.encoder_weights,
         device=args.device, retry_oom=args.retry_oom, max_optimizer_steps=args.max_optimizer_steps,

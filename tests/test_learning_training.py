@@ -105,7 +105,8 @@ def test_real_gradient_and_resume_match_uninterrupted_training_exactly(tmp_path)
     manifest = synthetic_manifest(tmp_path / "manifest.json")
     training = SyntheticDataset(manifest, "train", count=3)
     validation = SyntheticDataset(manifest, "validation")
-    config = TrainConfig(max_epochs=1, batch_size=1, accumulation_steps=2, amp=False, checkpoint_seconds=0)
+    config = TrainConfig(max_epochs=1, batch_size=1, accumulation_steps=2, amp=False, checkpoint_seconds=0,
+                         word_gaps=True)
     common = {"config": config, "device": "cpu", "synthetic_diagnostic": True,
               "training_dataset": training, "validation_dataset": validation}
     baseline = train_run(manifest, tmp_path / "baseline", **common)
@@ -127,6 +128,12 @@ def test_real_gradient_and_resume_match_uninterrupted_training_exactly(tmp_path)
     assert expected["rng"]["python"] == actual["rng"]["python"]
     assert expected["rng"]["numpy"] == actual["rng"]["numpy"]
     assert actual["selection"] == {"train": training.sample_ids, "validation": validation.sample_ids}
+    assert actual["config"]["word_gaps"] is True
+    assert "learning/text_glyphs.py" in actual["code"]["source_files"]
+    from dataclasses import replace
+    with pytest.raises(ValueError, match="recorded config"):
+        train_run(manifest, tmp_path / "resumed", resume=interrupted["checkpoint"],
+                  **{**common, "config": replace(config, word_gaps=False)})
 
 
 def test_real_training_rejects_unvalidated_injection_and_implicit_weights(tmp_path):

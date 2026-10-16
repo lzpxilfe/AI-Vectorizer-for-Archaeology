@@ -1,0 +1,498 @@
+{
+  "schema_version": "archaeotrace-label-gap-cases/1",
+  "created_utc": "2026-10-16T11:04:48.165010+00:00",
+  "dataset_id": "ams-korea-additional-letter-gap-development-v1",
+  "dataset_manifest_sha256": "311e8a5d2b5373deb8e48a84849de3db0245c3c752f22759dc6933b5cc9eb6eb",
+  "frozen_before_model_outputs": true,
+  "frozen_before_model_or_route_outputs": true,
+  "predictions_seen_before_freeze": false,
+  "human_approved": false,
+  "human_approvals": 0,
+  "independent_agent_crossreview": true,
+  "publication_ranking_eligible": false,
+  "scope": "One native512 window from an additional Korean development map, family disjoint from the original16 assigned sheets. This cached map was previously raw-screened, but no routes/models/skeletons for it were opened before this freeze. One black Hanja \u9762 white-clearance positive and one source-distinct wrong-neighbor pairing. Development evidence only; not official holdout or a generalization estimate.",
+  "coordinate_semantics": "Original native512 XY pixel-centre indices. Prompt/reference RC=row,column. Unknown boxes are xyxy top-left inclusive bottom-right exclusive. Separate source-visible arms interpolate <=1px only; hidden curve never annotated.",
+  "source_review_sha256": "2d0a9aa9c535e0063a86ea31d00d4c276adbb266a4f045322ca8daf9430b3116",
+  "independent_certificate_sha256": "235ed6b8f45f238b412503225f02233ac5e25d420b82f87c2fe1f442271288bb",
+  "raw_profiles_sha256": "e1f30e743bc415f0e8afeea156f06876013b2a9d283336e783ca8f2d062f3739",
+  "source_inventory_sha256": "311e8a5d2b5373deb8e48a84849de3db0245c3c752f22759dc6933b5cc9eb6eb",
+  "additional_source_family_audit_sha256": "bbfa9f65df9b489d562a144001029a64d9204458ef2ca78a4ae010f8396a33b6",
+  "independent_inventory_check_sha256": "6c51d830321af9ee8f4d2fe155780579a858b916b853870a762f7623ad4eb1f8",
+  "cases": [
+    {
+      "sample_id": "extra-yongdam-6621-i-text-02",
+      "image": "images/extra-yongdam-6621-i-text-02.png",
+      "image_sha256": "32502054bc292de112511980cac4124f58fb76ee72de94509a363959cc1c618d",
+      "source_id": "extra-yongdam-6621-i",
+      "split": "validation",
+      "glyph_kind": "black Hanja with white print clearance",
+      "label": "\u9762 (PUGWI-MYON)",
+      "unknown_regions_xy": [
+        [
+          306,
+          155,
+          319,
+          173
+        ]
+      ],
+      "unknown_region_xy": [
+        306,
+        155,
+        319,
+        173
+      ],
+      "hidden_geometry_ground_truth": false,
+      "hidden_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "review_level": "agent_visual_inspection",
+      "human_approved": false,
+      "raw_evidence_window_xyxy": [
+        290,
+        125,
+        342,
+        195
+      ],
+      "id": "yongdam-text02-black-myeon-gap",
+      "expected_pair": "plausible_same_contour",
+      "prompt_rc": [
+        [
+          140,
+          314
+        ],
+        [
+          179,
+          301
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          316,
+          154
+        ],
+        [
+          306,
+          173
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            314,
+            140
+          ],
+          [
+            315,
+            142
+          ],
+          [
+            316,
+            144
+          ],
+          [
+            317,
+            147
+          ],
+          [
+            317,
+            150
+          ],
+          [
+            316,
+            153
+          ],
+          [
+            316,
+            154
+          ]
+        ],
+        [
+          [
+            306,
+            173
+          ],
+          [
+            305,
+            174
+          ],
+          [
+            304,
+            175
+          ],
+          [
+            303,
+            177
+          ],
+          [
+            302,
+            178
+          ],
+          [
+            301,
+            179
+          ]
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            140.0,
+            314.0
+          ],
+          [
+            140.666667,
+            314.333333
+          ],
+          [
+            141.333333,
+            314.666667
+          ],
+          [
+            142.0,
+            315.0
+          ],
+          [
+            142.666667,
+            315.333333
+          ],
+          [
+            143.333333,
+            315.666667
+          ],
+          [
+            144.0,
+            316.0
+          ],
+          [
+            144.75,
+            316.25
+          ],
+          [
+            145.5,
+            316.5
+          ],
+          [
+            146.25,
+            316.75
+          ],
+          [
+            147.0,
+            317.0
+          ],
+          [
+            148.0,
+            317.0
+          ],
+          [
+            149.0,
+            317.0
+          ],
+          [
+            150.0,
+            317.0
+          ],
+          [
+            150.75,
+            316.75
+          ],
+          [
+            151.5,
+            316.5
+          ],
+          [
+            152.25,
+            316.25
+          ],
+          [
+            153.0,
+            316.0
+          ],
+          [
+            154,
+            316
+          ]
+        ],
+        [
+          [
+            173.0,
+            306.0
+          ],
+          [
+            173.5,
+            305.5
+          ],
+          [
+            174.0,
+            305.0
+          ],
+          [
+            174.5,
+            304.5
+          ],
+          [
+            175.0,
+            304.0
+          ],
+          [
+            175.666667,
+            303.666667
+          ],
+          [
+            176.333333,
+            303.333333
+          ],
+          [
+            177.0,
+            303.0
+          ],
+          [
+            177.5,
+            302.5
+          ],
+          [
+            178.0,
+            302.0
+          ],
+          [
+            178.5,
+            301.5
+          ],
+          [
+            179,
+            301
+          ]
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [
+        [
+          [
+            308,
+            140
+          ],
+          [
+            309,
+            144
+          ],
+          [
+            310,
+            147
+          ],
+          [
+            310,
+            150
+          ],
+          [
+            310,
+            154
+          ]
+        ],
+        [
+          [
+            307,
+            163
+          ],
+          [
+            305,
+            165
+          ],
+          [
+            301,
+            169
+          ],
+          [
+            298,
+            172
+          ]
+        ],
+        [
+          [
+            323,
+            140
+          ],
+          [
+            323,
+            144
+          ],
+          [
+            323,
+            148
+          ],
+          [
+            323,
+            152
+          ],
+          [
+            322,
+            154
+          ]
+        ],
+        [
+          [
+            309,
+            181
+          ],
+          [
+            308,
+            182
+          ],
+          [
+            307,
+            184
+          ],
+          [
+            306,
+            186
+          ],
+          [
+            305,
+            188
+          ]
+        ]
+      ],
+      "notes": "Bold nested eastern summit contour terminates at actual white clearance above black Hanja \u9762 and resumes southwest on the bold lower-left arm. Agent full-source reviews distinguish the first left thin and first right thin visible lanes by order and stroke weight. White gap and black glyph are the diagnostic, not a numeric label or already continuous blue overprint. Gap endpoint coordinates are raw support controls, not computed skeleton truth. No inferred hidden curve is supplied or scored."
+    },
+    {
+      "sample_id": "extra-yongdam-6621-i-text-02",
+      "image": "images/extra-yongdam-6621-i-text-02.png",
+      "image_sha256": "32502054bc292de112511980cac4124f58fb76ee72de94509a363959cc1c618d",
+      "source_id": "extra-yongdam-6621-i",
+      "split": "validation",
+      "glyph_kind": "black Hanja with white print clearance",
+      "label": "\u9762 (PUGWI-MYON)",
+      "unknown_regions_xy": [
+        [
+          306,
+          155,
+          319,
+          173
+        ]
+      ],
+      "unknown_region_xy": [
+        306,
+        155,
+        319,
+        173
+      ],
+      "hidden_geometry_ground_truth": false,
+      "hidden_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "review_level": "agent_visual_inspection",
+      "human_approved": false,
+      "raw_evidence_window_xyxy": [
+        290,
+        125,
+        342,
+        195
+      ],
+      "id": "yongdam-text02-black-myeon-wrong-right-neighbor",
+      "expected_pair": "different_contours",
+      "prompt_rc": [
+        [
+          140,
+          314
+        ],
+        [
+          188,
+          305
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          316,
+          154
+        ],
+        [
+          309,
+          181
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            314,
+            140
+          ],
+          [
+            315,
+            142
+          ],
+          [
+            316,
+            144
+          ],
+          [
+            317,
+            147
+          ],
+          [
+            317,
+            150
+          ],
+          [
+            316,
+            153
+          ],
+          [
+            316,
+            154
+          ]
+        ],
+        [
+          [
+            309,
+            181
+          ],
+          [
+            308,
+            182
+          ],
+          [
+            307,
+            184
+          ],
+          [
+            306,
+            186
+          ],
+          [
+            305,
+            188
+          ]
+        ]
+      ],
+      "visible_reference_segments_rc": [],
+      "foreign_visible_control_segments_xy": [
+        [
+          [
+            306,
+            173
+          ],
+          [
+            305,
+            174
+          ],
+          [
+            304,
+            175
+          ],
+          [
+            303,
+            177
+          ],
+          [
+            302,
+            178
+          ],
+          [
+            301,
+            179
+          ]
+        ]
+      ],
+      "notes": "Far prompt305188 is physically on the separately ordered right thin contour. Candidate bridge-exclusion diagnostic only. Do not score click-to-click route accuracy or require no path merely because user-selected prompts belong to different contours."
+    }
+  ],
+  "frozen_case_count": 2,
+  "raw_pixel_qa_sha256": "02ebb859e950de9a3b4165fe8c489cefbf37272b75690c37adaa9c7566750b52",
+  "source_proposal_sha256": "9650caca2f4e0a376b33760b8adef080b2f2127b38444863f523908c22d55464",
+  "freeze_provenance": "Two independent source-only agents reviewed full-source nested lane order, stroke weight, exact original RGB points and white clearance before any route/model/skeleton. Initial rough paper and wrong-lane guesses were rejected before freeze; none were used as positive labels."
+}

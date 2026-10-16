@@ -1,0 +1,1699 @@
+{
+  "schema_version": "archaeotrace-general-text-gap-qgis-check/1",
+  "created_utc": "2026-10-16T11:31:06.472413+00:00",
+  "check_date": "2026-10-16",
+  "check_timezone": "Asia/Seoul",
+  "purpose": "Prospective source-only general-letter development diagnostics and exact regression comparison of actual saved QGIS geometries.",
+  "human_approved": false,
+  "human_approvals": 0,
+  "publication_ranking_eligible": false,
+  "training_eligible": false,
+  "official_holdout_opened": false,
+  "baseline": {
+    "commit": "65cc80a6a704561c3db1f00327a973c7b42bbe6f",
+    "archive_sha256": "68ac1c6dfe7ac5c16c060d522fa27f4c59c5c4c92b405c4cd923e8a4c1803667",
+    "metadata_version": "0.1.6",
+    "release_status": "unreleased development artifact"
+  },
+  "candidate": {
+    "comparison_archive_sha256": "f799971a4b6f9944aa2a04eacd83e40507230e90dba467782e720b5313fcb154",
+    "final_archive_sha256": "1966cecdee2733c6d57cfaff702f5f13a275da7e6504b67c0e546c7f9064d359",
+    "metadata_version": "0.1.6",
+    "release_status": "unreleased development artifact",
+    "final_vs_comparison_changed_entries": [
+      "ai_vectorizer/README.md"
+    ],
+    "all_product_python_bytes_identical": true,
+    "equivalence_record_sha256": "2586e7aa4cb12893ae845620eb9079cdd3ade353d9455ebde969fde1e4b862ef",
+    "core_file_sha256": {
+      "ai_vectorizer/core/text_occlusion.py": "f041536ef8d2b174701489212aa21966ce1ba40accd1462a975cbe433d5e9c85",
+      "ai_vectorizer/core/text_route_guard.py": "f095d2e025d7d466197b40c997df4ad224141d974ad6b6efbf45d1164c4531b2",
+      "ai_vectorizer/core/occluded_connection.py": "085459a0abd2201158b64254689d291d5adc82564244e00c2c54c31c82102c8a",
+      "ai_vectorizer/core/occlusion_route_guard.py": "ecbad2655b87676ac6baa71c731c9e008b9430fa1c22519613455d89c0430386",
+      "ai_vectorizer/core/livewire.py": "a251b2f35a8da127c2c77db9a1a6942357d6267094f160dd6aff7cba74de5006",
+      "ai_vectorizer/core/line_evidence.py": "2ae15ea7c63764eaf1505d91f29adb2cd2f2380f0ccf402cf6d792d0509c7b74",
+      "ai_vectorizer/core/map_grid.py": "c45f344d98d39c3e050ae002c629b7827e519c290ac7608f72e79464a2c347d6",
+      "ai_vectorizer/tools/smart_trace_tool.py": "f9cae82541eb4bdef946516c982695a52c4532b80886421b9e153eda811b281a"
+    }
+  },
+  "runtime": {
+    "qgis": "3.44.8-Solothurn",
+    "python": "3.12.11",
+    "numpy": "1.26.4",
+    "scipy": "1.17.0",
+    "machine": "arm64",
+    "system": "Darwin",
+    "macos": "26.6.2",
+    "native_thinning_backend": "portable NumPy (QGIS runtime; no scikit-image acceleration)",
+    "onnxruntime": "1.31.0",
+    "provider": "CPUExecutionProvider",
+    "isolated_temporary_profiles": true
+  },
+  "models": {
+    "usgs": {
+      "provider_id": "learned-contour-onnx-v1",
+      "model_id": "ai-weak-contour-guide-v1",
+      "model_sha256": "1a1ac337c76057dda3e85c7d3c38933b41b2225fe3e6900ebd0e211f362e07ce",
+      "bundle_sha256": "4ea1e929dabf6afcdbe7adf5c7f559f36803415192553e423d0371728c0aad10",
+      "provider": "CPUExecutionProvider",
+      "onnxruntime_version": "1.31.0",
+      "intra_op_threads": 1,
+      "inter_op_threads": 1,
+      "execution_mode": "ORT_SEQUENTIAL",
+      "tile_size": 512,
+      "core_size": 384,
+      "halo": 64,
+      "context_limit": "fixed_tiles_not_full_image_equivalent"
+    },
+    "korea": {
+      "provider_id": "learned-contour-onnx-v1",
+      "model_id": "ai-weak-contour-guide-korea-v1",
+      "model_sha256": "ae5fbf01e8fb073d686f81ec4f2f23367bd66386eddbfde8b314777e02e70398",
+      "bundle_sha256": "c71496b1f5d12a004b4c606061253915c04b98145370d39d6e16528bd5e27cae",
+      "provider": "CPUExecutionProvider",
+      "onnxruntime_version": "1.31.0",
+      "intra_op_threads": 1,
+      "inter_op_threads": 1,
+      "execution_mode": "ORT_SEQUENTIAL",
+      "tile_size": 512,
+      "core_size": 384,
+      "halo": 64,
+      "context_limit": "fixed_tiles_not_full_image_equivalent"
+    }
+  },
+  "comparison_options": {
+    "before": {
+      "grid_avoidance": true,
+      "observed_connections": true,
+      "label_gap_comparison": false,
+      "label_gap_connections": true,
+      "automatic_label_occlusion": true,
+      "before_avoidance_override": 0.0,
+      "grid_in_both": true,
+      "avoidance_override": null,
+      "unconfigured_model_avoidance": 0.0,
+      "learned_observation_gate": false,
+      "learned_route_guard": false
+    },
+    "after": {
+      "grid_avoidance": true,
+      "observed_connections": true,
+      "label_gap_comparison": false,
+      "label_gap_connections": true,
+      "automatic_label_occlusion": true,
+      "before_avoidance_override": 0.0,
+      "grid_in_both": true,
+      "avoidance_override": null,
+      "unconfigured_model_avoidance": 0.0,
+      "learned_observation_gate": false,
+      "learned_route_guard": false
+    },
+    "assistance_strength": 1.0,
+    "smart_recovery": false,
+    "input_policy": "integer mouse events at exact native cell centres; matching inputs verified",
+    "screen_pixels_per_native_pixel": 2,
+    "original_native_rgb_size": [
+      512,
+      512
+    ],
+    "resize": false,
+    "same_context_prompts_models_and_cpu_conditions": true,
+    "core_cache_arrays_compared": [
+      "image",
+      "edges",
+      "centerline",
+      "center_score",
+      "tangent_x",
+      "tangent_y",
+      "coherence",
+      "root",
+      "origin",
+      "target"
+    ]
+  },
+  "frozen_fixtures": {
+    "learning/data/korea-general-text-gap-cases-v1.json": {
+      "sha256": "46d2b13c7b3c4f88a58c909641ecce06c92790b4aab7514dfa062bd2a887bf05",
+      "cases": 2
+    },
+    "learning/data/korea-general-text-gap-cases-v2.json": {
+      "sha256": "aba0da201662a9341c8a2777a046585f361abdbc1f894c0fe3656372d3cf0e49",
+      "cases": 2
+    },
+    "learning/data/korea-contour-visual-cases-v3.json": {
+      "sha256": "5bbab30767226e264bbaff202045f5cd8e403b677ddcedf1728f099edd981b63",
+      "cases": 7
+    },
+    "learning/data/korea-label-gap-visual-cases-v4.json": {
+      "sha256": "2866f1a53703e75f939a778e4babcbe2c7828a1dd66cea45653dcef2d75990ac",
+      "cases": 5
+    },
+    "learning/data/korea-unseen-label-gap-cases-v2.json": {
+      "sha256": "1284586b3d66ddb3fc6be08e737767811d4115f115d8d2f3a9f6a2e29c0000ac",
+      "cases": 1
+    }
+  },
+  "source_provenance": {
+    "crop_index_file": "learning/data/korea-general-text-crop-index-v1.json",
+    "crop_index_sha256": "b506e9508a739d11932752638eb14586e3cc4acfded296cf8e7e2a61e531e9de",
+    "known_validation_diagnostic_manifest_sha256": "bfedb61aff47a0314a14460198cabff0531ad730d69d076c552718d9ccd7e739",
+    "additional_development_diagnostic_manifest_sha256": "311e8a5d2b5373deb8e48a84849de3db0245c3c752f22759dc6933b5cc9eb6eb",
+    "known_native_inventory_independent_check_sha256": "aef9b0c53a0ca58068ce7403ed7b8b10f28eafe1a04020a3848446ae18427ac2",
+    "additional_native_inventory_independent_check_sha256": "6c51d830321af9ee8f4d2fe155780579a858b916b853870a762f7623ad4eb1f8",
+    "blue_letter_source_certificate_sha256": "3a9d7384c3f4bab5d79329e7ce8d0b41b62ec83a1240050b2a37f5603b082659",
+    "black_hanja_source_certificate_sha256": "235ed6b8f45f238b412503225f02233ac5e25d420b82f87c2fe1f442271288bb",
+    "scope": "15 previously raw-inspected unrouted native windows from two known validation maps, plus six new native windows from two previously unassigned raw-screened development families. Only two positive cases and two wrong-neighbor pairings were selected. Original Calibration/Holdout remained sealed.",
+    "rights": "Public-domain U.S. Army Map Service maps; University of Texas Libraries scans. Exact source URLs, hashes, crop coordinates and rights snapshot hash are in the crop index.",
+    "raw_control_policy": "Both agents checked physically dark source pixels, visible arms and neighboring lane order before first route/model/skeleton outputs. Hidden curves were never supplied to the product or scored."
+  },
+  "initial_baseline_repeatability": {
+    "blue_case_method_pairs": 6,
+    "black_case_method_pairs": 6,
+    "all12_pairs_reproduce_exact_saved_coordinates": true,
+    "all12_pairs_same_native_mouse_inputs": true,
+    "all12_pairs_original_cache_arrays_equal": true,
+    "all12_pairs_one_undo": true,
+    "all4_qgis_processes_exit0_and_profiles_removed": true,
+    "blue_result_sha256": "dcd58f2175a8f99c5fd82d49a324360bd77f2a46401172ea9ea56a8aa0a5e5bb",
+    "black_result_sha256": "68868fb39d932dcb842662094967e7bf527adf98d6ab881cbc80f144706b14c3",
+    "blue_consistency_sha256": "573cbebedfa0cf1cdb511bf7e63dc5b6258e3209f1ef59a97d57f1fb91b7dad6",
+    "black_consistency_sha256": "7fe7e8bddd292a6d80a7351330440dd4fcafa41dbf780be9527b3e9f44a347ff"
+  },
+  "preserved_initial_unsuccessful_probe": {
+    "archive_sha256": "7a10ecdee5003cd82b6c51fbba6a4220b98e182fa61d171ba57e5a99f3f5d855",
+    "black_result_sha256": "8400d7498d1e2424f77be5f08bf85fe3452d8cf4ec103be9d5de708d6867091b",
+    "changed_saved_method_pairs": 0,
+    "accepted_text_positive_method_pairs": 0,
+    "finding": "Detector and correct connector were available in bundled QGIS Python, but existing visible-arm preservation kept Ink. Candidate availability did not establish a changed final trace.",
+    "subsequent_change": "Selected actual-glyph-ink contacts distinguish sustained glyph following from a shorter brief crossing, after the same genuine ends and visible arms are already preserved."
+  },
+  "diagnostic_mechanism": {
+    "black_glyph": "Hanja 面",
+    "detection": "Two elongated cells in a compact branched ink body plus one independently aligned detached heading stroke. Exact actual source ink is distinct from the context hull.",
+    "original_genuine_endpoint_xy": [
+      [
+        316,
+        153
+      ],
+      [
+        307,
+        173
+      ]
+    ],
+    "wrong_neighbor_target_xy": [
+      305,
+      188
+    ],
+    "width_ranking": "Text-only uncertainty for EDT radii1 versus sqrt(2); hard1.55 width-ratio gate, mutual uniqueness0.15 and crossing rejection remain.",
+    "neighbor_safety": "Text candidates require unbranched original visible prefix/suffix; a grid-junction escape toward a wrong contour is refused. Legacy numeric route defaults are unchanged.",
+    "arbitration": "Only after visible-arm preservation succeeds: old source-ink run>=8px, >=2*new run and >=4px longer; old actual-ink contact>=1.5*new and >=4px longer; old gap arc>=4px longer. Sampling is uniform native arclength, not vertex count.",
+    "source_ink_metrics_sha256": "ab94076c675f58dac541489dd5cbd77d5b8a4aa343cfab19021f848759a74c20",
+    "source_ink_metrics": {
+      "raw_ordinary_with_grid": {
+        "source_distance_px": 0.04657287525381548,
+        "target_distance_px": 0.06129150101526193,
+        "gap_length_px": 29.5,
+        "core_distinct_pixels": 20,
+        "core_contact_length_px": 22.25,
+        "longest_core_run_px": 17.25,
+        "core_runs_px": [
+          4.5,
+          17.25
+        ],
+        "absolute_turn_degrees_resampled1px": 509.21706327858766,
+        "max_turn_degrees_resampled1px": 81.50853398718488,
+        "substantial_turn_sign_changes_2deg": 5
+      },
+      "raw_candidate": {
+        "source_distance_px": 0.0465728752538083,
+        "target_distance_px": 0.04746028510790031,
+        "gap_length_px": 23.375,
+        "core_distinct_pixels": 9,
+        "core_contact_length_px": 8.375,
+        "longest_core_run_px": 3.75,
+        "core_runs_px": [
+          1.875,
+          2.0,
+          3.75
+        ],
+        "absolute_turn_degrees_resampled1px": 53.99299757857388,
+        "max_turn_degrees_resampled1px": 6.733975957743747,
+        "substantial_turn_sign_changes_2deg": 0
+      },
+      "saved_ordinary_ink": {
+        "source_distance_px": 0.042066044537136804,
+        "target_distance_px": 0.1897517580611479,
+        "gap_length_px": 25.875,
+        "core_distinct_pixels": 20,
+        "core_contact_length_px": 16.75,
+        "longest_core_run_px": 12.75,
+        "core_runs_px": [
+          2.0,
+          1.25,
+          12.75
+        ],
+        "absolute_turn_degrees_resampled1px": 278.6258842765245,
+        "max_turn_degrees_resampled1px": 22.366700105467817,
+        "substantial_turn_sign_changes_2deg": 3
+      },
+      "saved_ordinary_usgs": {
+        "source_distance_px": 0.042066044537136804,
+        "target_distance_px": 0.31528391190065774,
+        "gap_length_px": 25.0,
+        "core_distinct_pixels": 18,
+        "core_contact_length_px": 15.0,
+        "longest_core_run_px": 11.0,
+        "core_runs_px": [
+          2.0,
+          1.25,
+          11.0
+        ],
+        "absolute_turn_degrees_resampled1px": 244.56410242432761,
+        "max_turn_degrees_resampled1px": 21.680917359201604,
+        "substantial_turn_sign_changes_2deg": 3
+      },
+      "saved_ordinary_korea": {
+        "source_distance_px": 0.042066044537136804,
+        "target_distance_px": 0.1859730051797373,
+        "gap_length_px": 25.875,
+        "core_distinct_pixels": 20,
+        "core_contact_length_px": 16.75,
+        "longest_core_run_px": 12.75,
+        "core_runs_px": [
+          2.0,
+          1.25,
+          12.75
+        ],
+        "absolute_turn_degrees_resampled1px": 268.70264168304317,
+        "max_turn_degrees_resampled1px": 21.680917359201604,
+        "substantial_turn_sign_changes_2deg": 3
+      }
+    }
+  },
+  "actual_qgis_comparison": {
+    "total_cases": 17,
+    "method_pairs": 51,
+    "intentional_black_positive_changes": 3,
+    "unchanged_black_wrong_neighbor_pairs": 3,
+    "preserved_prior13_case_pairs": 39,
+    "preserved_new_blue_pairings": 6,
+    "all_other48_saved_coordinate_pairs_exact": true,
+    "all51_exact_native_mouse_input_pairs_equal": true,
+    "all51_original_cached_evidence_arrays_equal": true,
+    "all51_save_and_one_undo_checks_passed": true,
+    "all10_comparison_qgis_processes_exit0_and_profiles_removed": true,
+    "cohorts": [
+      {
+        "name": "candidate-black-probe2",
+        "cases": 2,
+        "method_pairs": 6,
+        "changed_pairs": 3,
+        "archive_sha256": "f799971a4b6f9944aa2a04eacd83e40507230e90dba467782e720b5313fcb154",
+        "baseline_archive_sha256": "68ac1c6dfe7ac5c16c060d522fa27f4c59c5c4c92b405c4cd923e8a4c1803667",
+        "fixtures_sha256": "aba0da201662a9341c8a2777a046585f361abdbc1f894c0fe3656372d3cf0e49",
+        "result_sha256": "ca1e2e59a6b13c0abfa07b9cef3a45e643ed25ca72a55077d51e83b6c111cc54",
+        "scores_sha256": "d3f9418f6938cc4f581069879f5e4d239f4e6f498ae579aee682200c18d6f8e9",
+        "both_qgis_exit0": true,
+        "both_profiles_removed": true,
+        "qgis_version": "3.44.8-Solothurn"
+      },
+      {
+        "name": "regression-blue-probe2",
+        "cases": 2,
+        "method_pairs": 6,
+        "changed_pairs": 0,
+        "archive_sha256": "f799971a4b6f9944aa2a04eacd83e40507230e90dba467782e720b5313fcb154",
+        "baseline_archive_sha256": "68ac1c6dfe7ac5c16c060d522fa27f4c59c5c4c92b405c4cd923e8a4c1803667",
+        "fixtures_sha256": "46d2b13c7b3c4f88a58c909641ecce06c92790b4aab7514dfa062bd2a887bf05",
+        "result_sha256": "b1a4d8afc1c24a12b75129f79075b4135c4b66089618ef179e152f184e98ce33",
+        "scores_sha256": "f0dd3e56a477a32f2929931f5b669ed010c9dacb553dafbe3939ce32a26426b7",
+        "both_qgis_exit0": true,
+        "both_profiles_removed": true,
+        "qgis_version": "3.44.8-Solothurn"
+      },
+      {
+        "name": "regression-old7-probe2",
+        "cases": 7,
+        "method_pairs": 21,
+        "changed_pairs": 0,
+        "archive_sha256": "f799971a4b6f9944aa2a04eacd83e40507230e90dba467782e720b5313fcb154",
+        "baseline_archive_sha256": "68ac1c6dfe7ac5c16c060d522fa27f4c59c5c4c92b405c4cd923e8a4c1803667",
+        "fixtures_sha256": "5bbab30767226e264bbaff202045f5cd8e403b677ddcedf1728f099edd981b63",
+        "result_sha256": "90ef1bcc8d5fe8ca7ffd0baca600c5f3c2b8b5b2d1856a62d34edcb796f0ef36",
+        "scores_sha256": "18494e345541dfaab8169f5f8df0120be251ae402ddf2c7a8463857e82b47a6f",
+        "both_qgis_exit0": true,
+        "both_profiles_removed": true,
+        "qgis_version": "3.44.8-Solothurn"
+      },
+      {
+        "name": "regression-old5-probe2",
+        "cases": 5,
+        "method_pairs": 15,
+        "changed_pairs": 0,
+        "archive_sha256": "f799971a4b6f9944aa2a04eacd83e40507230e90dba467782e720b5313fcb154",
+        "baseline_archive_sha256": "68ac1c6dfe7ac5c16c060d522fa27f4c59c5c4c92b405c4cd923e8a4c1803667",
+        "fixtures_sha256": "2866f1a53703e75f939a778e4babcbe2c7828a1dd66cea45653dcef2d75990ac",
+        "result_sha256": "3ef0122d7593a11416f8983e345882ca949a3e8b89dc000b517c89b6b6b4b69a",
+        "scores_sha256": "b380e115fd3200a2c638940ea6cae241a7917dc90b501c800140201f446597e9",
+        "both_qgis_exit0": true,
+        "both_profiles_removed": true,
+        "qgis_version": "3.44.8-Solothurn"
+      },
+      {
+        "name": "regression-old300-probe2",
+        "cases": 1,
+        "method_pairs": 3,
+        "changed_pairs": 0,
+        "archive_sha256": "f799971a4b6f9944aa2a04eacd83e40507230e90dba467782e720b5313fcb154",
+        "baseline_archive_sha256": "68ac1c6dfe7ac5c16c060d522fa27f4c59c5c4c92b405c4cd923e8a4c1803667",
+        "fixtures_sha256": "1284586b3d66ddb3fc6be08e737767811d4115f115d8d2f3a9f6a2e29c0000ac",
+        "result_sha256": "d571f334e4168f4bd8cc92b7278588e562b3bdf91d8721f889f952d20ca225bd",
+        "scores_sha256": "af51a36ed77208d899980c9820413cbbfc302f6ad8fff8642324bd35201d0771",
+        "both_qgis_exit0": true,
+        "both_profiles_removed": true,
+        "qgis_version": "3.44.8-Solothurn"
+      }
+    ],
+    "rows": [
+      {
+        "cohort": "candidate-black-probe2",
+        "case_id": "yongdam-text02-black-myeon-gap",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": false,
+        "before_scores": {
+          "visible_median_px": 0.327,
+          "visible_p95_px": 1.668,
+          "visible_precision_2px": 0.951,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 0.975
+        },
+        "after_scores": {
+          "visible_median_px": 0.333,
+          "visible_p95_px": 1.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "automatic-text-gap",
+        "after_text_candidate": true,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 5.821,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "candidate-black-probe2",
+        "case_id": "yongdam-text02-black-myeon-gap",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": false,
+        "before_scores": {
+          "visible_median_px": 0.269,
+          "visible_p95_px": 1.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 0.333,
+          "visible_p95_px": 1.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "automatic-text-gap",
+        "after_text_candidate": true,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 5.821,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "candidate-black-probe2",
+        "case_id": "yongdam-text02-black-myeon-gap",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": false,
+        "before_scores": {
+          "visible_median_px": 0.334,
+          "visible_p95_px": 1.651,
+          "visible_precision_2px": 0.952,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 0.975
+        },
+        "after_scores": {
+          "visible_median_px": 0.333,
+          "visible_p95_px": 1.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "automatic-text-gap",
+        "after_text_candidate": true,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 5.821,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "candidate-black-probe2",
+        "case_id": "yongdam-text02-black-myeon-wrong-right-neighbor",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 5.0,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "candidate-black-probe2",
+        "case_id": "yongdam-text02-black-myeon-wrong-right-neighbor",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 5.0,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "candidate-black-probe2",
+        "case_id": "yongdam-text02-black-myeon-wrong-right-neighbor",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 5.0,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "regression-blue-probe2",
+        "case_id": "kr10-text05-blue-a-gap",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.314,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.314,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 4.243,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "regression-blue-probe2",
+        "case_id": "kr10-text05-blue-a-gap",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.314,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.314,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 4.243,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "regression-blue-probe2",
+        "case_id": "kr10-text05-blue-a-gap",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.314,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.314,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 4.243,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "regression-blue-probe2",
+        "case_id": "kr10-text05-blue-a-wrong-right-neighbor",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 4.353,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "regression-blue-probe2",
+        "case_id": "kr10-text05-blue-a-wrong-right-neighbor",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 4.353,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "regression-blue-probe2",
+        "case_id": "kr10-text05-blue-a-wrong-right-neighbor",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 4.353,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-10-crop-04-clear-w",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.25,
+          "p95_px": 0.433,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.25,
+          "p95_px": 0.433,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-10-crop-04-clear-w",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.25,
+          "p95_px": 0.433,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.25,
+          "p95_px": 0.433,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-10-crop-04-clear-w",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.25,
+          "p95_px": 0.433,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.25,
+          "p95_px": 0.433,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-09-crop-08-curving",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.213,
+          "p95_px": 0.496,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.213,
+          "p95_px": 0.496,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-09-crop-08-curving",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.213,
+          "p95_px": 0.496,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.213,
+          "p95_px": 0.496,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-09-crop-08-curving",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.213,
+          "p95_px": 0.496,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.213,
+          "p95_px": 0.496,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-09-crop-05-grid-crossing",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.381,
+          "p95_px": 1.146,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.381,
+          "p95_px": 1.146,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-09-crop-05-grid-crossing",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.381,
+          "p95_px": 1.146,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.381,
+          "p95_px": 1.146,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-09-crop-05-grid-crossing",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.381,
+          "p95_px": 1.146,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.381,
+          "p95_px": 1.146,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-10-crop-02-deep-u",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.34,
+          "p95_px": 0.969,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.34,
+          "p95_px": 0.969,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-10-crop-02-deep-u",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.34,
+          "p95_px": 0.969,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.34,
+          "p95_px": 0.969,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-10-crop-02-deep-u",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.34,
+          "p95_px": 0.969,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.34,
+          "p95_px": 0.969,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-10-crop-06-dense-s",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.496,
+          "p95_px": 1.147,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.496,
+          "p95_px": 1.147,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-10-crop-06-dense-s",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.496,
+          "p95_px": 1.147,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.496,
+          "p95_px": 1.147,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-10-crop-06-dense-s",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.496,
+          "p95_px": 1.147,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.496,
+          "p95_px": 1.147,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-09-crop-02-index-u",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.854,
+          "p95_px": 1.982,
+          "precision_2px": 0.996,
+          "recall_2px": 0.987,
+          "f1_2px": 0.991
+        },
+        "after_scores": {
+          "median_px": 0.854,
+          "p95_px": 1.982,
+          "precision_2px": 0.996,
+          "recall_2px": 0.987,
+          "f1_2px": 0.991
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-09-crop-02-index-u",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.854,
+          "p95_px": 1.982,
+          "precision_2px": 0.996,
+          "recall_2px": 0.987,
+          "f1_2px": 0.991
+        },
+        "after_scores": {
+          "median_px": 0.854,
+          "p95_px": 1.982,
+          "precision_2px": 0.996,
+          "recall_2px": 0.987,
+          "f1_2px": 0.991
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-09-crop-02-index-u",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.854,
+          "p95_px": 1.982,
+          "precision_2px": 0.996,
+          "recall_2px": 0.987,
+          "f1_2px": 0.991
+        },
+        "after_scores": {
+          "median_px": 0.854,
+          "p95_px": 1.982,
+          "precision_2px": 0.996,
+          "recall_2px": 0.987,
+          "f1_2px": 0.991
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-10-crop-01-clear-w-corrected-raw-v1",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.344,
+          "p95_px": 0.858,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.344,
+          "p95_px": 0.858,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-10-crop-01-clear-w-corrected-raw-v1",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.344,
+          "p95_px": 0.858,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.344,
+          "p95_px": 0.858,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old7-probe2",
+        "case_id": "kr-10-crop-01-clear-w-corrected-raw-v1",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "median_px": 0.344,
+          "p95_px": 0.858,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_scores": {
+          "median_px": 0.344,
+          "p95_px": 0.858,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-01-label-700-u",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 1.0,
+          "visible_p95_px": 2.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 1.0,
+          "visible_p95_px": 2.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "automatic-label-gap",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-01-label-700-u",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 1.0,
+          "visible_p95_px": 2.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 1.0,
+          "visible_p95_px": 2.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "automatic-label-gap",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-01-label-700-u",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 1.0,
+          "visible_p95_px": 2.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 1.0,
+          "visible_p95_px": 2.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "automatic-label-gap",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-01-label-600-u",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.558,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.558,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-01-label-600-u",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.558,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.558,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-01-label-600-u",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.558,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.558,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-12-label-600-diagonal-outer-raw-v1",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 0.149,
+          "visible_p95_px": 0.471,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 0.149,
+          "visible_p95_px": 0.471,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "automatic-label-gap",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-12-label-600-diagonal-outer-raw-v1",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 0.149,
+          "visible_p95_px": 0.471,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 0.149,
+          "visible_p95_px": 0.471,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "automatic-label-gap",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-12-label-600-diagonal-outer-raw-v1",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 0.149,
+          "visible_p95_px": 0.471,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 0.149,
+          "visible_p95_px": 0.471,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "automatic-label-gap",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-12-label-600-diagonal-wrong-neighbor",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-12-label-600-diagonal-wrong-neighbor",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-12-label-600-diagonal-wrong-neighbor",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-01-label-600-wrong-neighbor",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-01-label-600-wrong-neighbor",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old5-probe2",
+        "case_id": "kr-10-crop-01-label-600-wrong-neighbor",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_scores": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "after_provenance": "ink",
+        "after_text_candidate": false
+      },
+      {
+        "cohort": "regression-old300-probe2",
+        "case_id": "kr10-second06-index-300",
+        "method": "ink",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 0.118,
+          "visible_p95_px": 0.696,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 0.118,
+          "visible_p95_px": 0.696,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "automatic-label-gap",
+        "after_text_candidate": false,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 3.578,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "regression-old300-probe2",
+        "case_id": "kr10-second06-index-300",
+        "method": "usgs",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 0.118,
+          "visible_p95_px": 0.696,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 0.118,
+          "visible_p95_px": 0.696,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "automatic-label-gap",
+        "after_text_candidate": false,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 3.578,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      },
+      {
+        "cohort": "regression-old300-probe2",
+        "case_id": "kr10-second06-index-300",
+        "method": "korea",
+        "same_exact_native_mouse_inputs": true,
+        "original_cached_image_and_evidence_equal": true,
+        "one_undo_before_after": true,
+        "saved_coordinates_equal": true,
+        "before_scores": {
+          "visible_median_px": 0.118,
+          "visible_p95_px": 0.696,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_scores": {
+          "visible_median_px": 0.118,
+          "visible_p95_px": 0.696,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "after_provenance": "automatic-label-gap",
+        "after_text_candidate": false,
+        "after_foreign_contacts": {
+          "minimum_distance_px": 3.578,
+          "contact_within_1px": false,
+          "distance_method": "continuous_segments"
+        }
+      }
+    ],
+    "local_combined_evidence_sha256": "943ebc52e111560067d91cd746e5f7c209eef002cc275f2501fc1708dd61f675"
+  },
+  "repository_validation": {
+    "pure_suite": {
+      "passed": 1182,
+      "skipped_optional_runtime": 159,
+      "subtests_passed": 171
+    },
+    "learning_runtime_suite": {
+      "passed": 26,
+      "skipped": 0,
+      "covers": [
+        "word augmentation",
+        "actual PyTorch optimizer training",
+        "exact checkpoint resume",
+        "changed curriculum refusal",
+        "FP32 ONNX export",
+        "Colab notebook compile and semantics"
+      ]
+    },
+    "packaged_qgis": {
+      "qgis_version": "3.44.8-Solothurn",
+      "tests": 177,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "import_smoke": true,
+      "isolated_profile_removed": true
+    },
+    "package_check": true,
+    "python_compilation": true,
+    "ci_policy": "GitHub Actions are checked after pushing the implementation on main."
+  },
+  "limits": [
+    "One black Hanja positive from one additional development map is evidence of this corrected example, not a population accuracy or generalization estimate.",
+    "The blue Latin-letter case was already good on the source-visible arms and is preserved; it is not an improvement result.",
+    "Visible F1@2px and p95 compare only separately observed source arms. The hidden curve remains unknown and unscored.",
+    "Wrong-neighbor cases check refusal of the optional inferred text connector. Ordinary routes for deliberately cross-contour user clicks are not scored as correct contours.",
+    "Foreign controls cover a finite set of known visible strokes. No contact with them cannot certify every possible future neighbor hop.",
+    "Large whole-word gaps, ambiguous fused glyph/contour strokes and arbitrary Hanja/Korean typography are not established by this experiment.",
+    "Previous unsuccessful outputs, source-control revisions and the immutable prior numeric/curve fixtures are preserved."
+  ]
+}

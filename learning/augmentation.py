@@ -168,7 +168,108 @@ def synthetic_label_gaps(result, rng, *, max_labels=3):
     return result
 
 
-def augment_sample(sample, rng, *, ink_recolor=False, label_gaps=False):
+def synthetic_word_gaps(result, rng, *, max_labels=2):
+    """Hide known continuous targets with declared synthetic word glyphs.
+
+    Existing unknown gaps remain unknown. All neighboring contour targets
+    remain positive; only new glyph ink outside every contour corridor becomes
+    other-ink supervision. This cannot teach contour instance identity.
+    """
+    import numpy as np
+
+    from .text_glyphs import ATLAS_VERSION, WORDS, render_word_mask
+
+    if not 1 <= max_labels <= 2:
+        raise ValueError("synthetic word count must be one or two")
+    if rng.uniform() < 0.5:
+        return result
+    radius = 48
+    centerline = result["centerline"]
+    valid = result["valid_mask"]
+    height, width = centerline.shape
+    candidates = np.argwhere((centerline >= 0.97) & valid)
+    candidates = candidates[(candidates[:, 0] >= radius) & (candidates[:, 0] < height - radius)
+                            & (candidates[:, 1] >= radius) & (candidates[:, 1] < width - radius)]
+    if not len(candidates):
+        return result
+    image = result["image"].astype(np.float32)
+    other = result["other_ink"].copy()
+    paper = _paper_rgb(image)
+    size = 2 * radius + 1
+    yy, xx = np.mgrid[-radius:radius + 1, -radius:radius + 1]
+    distance = np.hypot(xx, yy)
+    events = []
+    for _ in range(int(rng.integers(1, max_labels + 1))):
+        need_parallel = bool(rng.integers(0, 2))
+        for _attempt in range(16):
+            y, x = (int(value) for value in candidates[int(rng.integers(0, len(candidates)))])
+            window = np.s_[y - radius:y + radius + 1, x - radius:x + radius + 1]
+            line = centerline[window]
+            components, _count = _components(line >= 0.6)
+            identity = int(components[radius, radius])
+            if not identity:
+                continue
+            band = components == identity
+            parallel = (components > 0) & ~band & (distance <= 24)
+            if need_parallel and int(parallel.sum()) < 8:
+                continue
+            nearby = np.argwhere(band & (line >= 0.9) & (distance <= 8)).astype(np.float32)
+            if len(nearby) < 6:
+                continue
+            direction = np.linalg.svd(nearby - nearby.mean(axis=0), full_matrices=False)[2][0]
+            tangent_angle = float(np.degrees(np.arctan2(-direction[0], direction[1])))
+            angle = tangent_angle if rng.integers(0, 2) else float(rng.uniform(-180.0, 180.0))
+            text = WORDS[int(rng.integers(0, len(WORDS)))]
+            glyph = render_word_mask(text, scale=int(rng.integers(1, 4)), angle=angle,
+                                     tracking=int(rng.integers(1, 3)), stroke=int(rng.integers(1, 3)))
+            glyph_height, glyph_width = glyph.shape
+            if max(glyph.shape) > size - 12:
+                continue
+            top, left = radius - glyph_height // 2, radius - glyph_width // 2
+            alpha = np.zeros((size, size), dtype=np.float32)
+            alpha[top:top + glyph_height, left:left + glyph_width] = glyph
+            clearance = np.zeros((size, size), dtype=bool)
+            clearance[max(0, top - 1):min(size, top + glyph_height + 1),
+                      max(0, left - 1):min(size, left + glyph_width + 1)] = True
+            hidden = band & clearance
+            if int(hidden.sum()) < 6:
+                continue
+            # Both observed arms must continue beyond the synthetic footprint.
+            # A pre-existing endpoint or a branch cannot invent bridge truth.
+            outside, count = _components(band & ~clearance)
+            if count != 2:
+                continue
+            reach = float(distance[hidden].max())
+            if any(int((outside == identity).sum()) < 8
+                   or float(distance[outside == identity].max()) < reach + 6.0 for identity in (1, 2)):
+                continue
+            knockout = bool(rng.integers(0, 2))
+            erased = clearance & (line >= 0.3) if knockout else np.zeros_like(clearance)
+            affected = (alpha > 0.0) | erased
+            if np.any(affected & ~valid[window]):
+                continue
+            patch = image[window]
+            patch[erased] = paper
+            colour = np.asarray(INK_PALETTE[int(rng.integers(0, len(INK_PALETTE)))], dtype=np.float32)
+            # Independent text colour prevents blue/black from becoming a
+            # contour-class shortcut. Dark glyphs include scan antialiasing.
+            colour = np.clip(colour + rng.normal(0.0, 8.0, 3), 0.0, 255.0)
+            patch[:] = patch * (1.0 - alpha[..., None]) + colour * alpha[..., None]
+            image[window] = patch
+            glyph_ink = (alpha >= 0.3) & (line < 0.3)
+            other[window] = np.where(glyph_ink, 1.0, other[window])
+            events.append({"atlas": ATLAS_VERSION, "text": text, "anchor_rc": [y, x],
+                           "style": "white_clearance" if knockout else "overprint",
+                           "parallel_contour_pixels": int(parallel.sum()),
+                           "erased_known_contour_pixels": int(erased.sum())})
+            break
+    result["image"] = np.rint(np.clip(image, 0.0, 255.0)).astype(np.uint8)
+    result["other_ink"] = (other * valid).astype(result["other_ink"].dtype)
+    result["synthetic_word_gap_events"] = tuple(events)
+    return result
+
+
+def augment_sample(sample, rng, *, ink_recolor=False, label_gaps=False, word_gaps=False):
     """Return a new sample; all labels/ignore pixels share geometry exactly."""
     import numpy as np
 
@@ -184,6 +285,8 @@ def augment_sample(sample, rng, *, ink_recolor=False, label_gaps=False):
         result[key] = np.ascontiguousarray(value)
     if label_gaps:
         result = synthetic_label_gaps(result, rng)
+    if word_gaps:
+        result = synthetic_word_gaps(result, rng)
     if ink_recolor:
         if rng.uniform() < 0.5:
             result = recolor_contour_ink(result, rng)

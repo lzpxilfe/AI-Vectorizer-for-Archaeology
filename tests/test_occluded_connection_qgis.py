@@ -179,6 +179,100 @@ class OccludedConnectionQgisTests(unittest.TestCase):
     def _target_map(self):
         return self.tool.pixel_to_map(*self.target)
 
+    def _publish_text_scene(self):
+        from ai_vectorizer.core import edge_detector
+
+        np = self.np
+        image = np.full((self.SIZE, self.SIZE, 3), 245, dtype=np.uint8)
+        blue = (10, 15, 140)
+        for x in (34, 50):
+            image[30:44, x:x + 2] = blue
+        for y in (30, 36, 42):
+            image[y:y + 2, 34:44] = blue
+        image[30:44, 58:60] = image[36:38, 50:60] = blue
+        image[30:32, 66:76] = image[32:44, 70:72] = blue
+        image[8:26, 39] = image[48:86, 39] = image[8:86, 82] = 15
+        with mock.patch.object(edge_detector, "_skimage_skeletonize", None), mock.patch.object(
+            edge_detector, "get_cv2", return_value=None,
+        ):
+            self.evidence = edge_detector.EdgeDetector.detect_ink_evidence(image)
+        image.setflags(write=False)
+        self.image = image
+        self.root, self.target, self.neighbour = (39, 15), (39, 75), (82, 75)
+        self.tool._publish_edge_cache(
+            rgb_image=image, edges=self.evidence.centerline.astype(np.uint8) * 255,
+            evidence=self.evidence, cost_map=None,
+            read_extent=QgsRectangle(0, 0, self.SIZE, self.SIZE),
+            output_size=(self.SIZE, self.SIZE), tile_origin=(0, 0),
+            cache_identity=("open printed letters and genuine contour ends",),
+            recovery_compatible=True,
+        )
+
+    def test_general_text_rgb_worker_preview_save_and_one_undo(self):
+        from ai_vectorizer.tools.smart_trace_tool import _qt_value
+
+        self._publish_text_scene()
+        self._start()
+        tree = self.tool._livewire_tree
+        self.assertIsNone(tree.occluded_connection)
+        self.assertIsNotNone(tree.text_occluded_connection)
+        self.assertIsNotNone(tree.text_occluded_connection.trace(self.target))
+        self.assertIsNone(tree.text_occluded_connection.trace(self.neighbour))
+        # A straight Ink path already follows these two genuine arms. Having
+        # a text candidate must not replace that sound displayed path.
+        self.assertEqual(tree.trace_with_provenance(self.target)[1], "ink")
+        self.tool._present_livewire_cursor_preview(
+            self._target_map(), request_tree=False, schedule_recovery=False,
+        )
+        expected = self._coordinates(self.tool.path_points) + self._coordinates(self.tool.preview_path)
+        self.tool.toMapCoordinates = lambda _point: QgsPointXY(self._target_map())
+        self.tool.canvasPressEvent(SimpleNamespace(
+            pos=lambda: QPointF(*self.target),
+            button=lambda: _qt_value("LeftButton", "MouseButton"), modifiers=lambda: 0,
+        ))
+        self.assertEqual(self._coordinates(self.tool.path_points), expected)
+        self.assertTrue(self.tool.save_to_layer(closed=False, elevation=600.0))
+        self.assertEqual(self._coordinates(next(self.layer.getFeatures()).geometry().asPolyline()), expected)
+        self.layer.undoStack().undo()
+        self.assertEqual(self.layer.featureCount(), 0)
+
+    def test_general_text_detection_cancellation_publishes_no_partial_tree(self):
+        from ai_vectorizer.core import text_occlusion
+
+        self._publish_text_scene()
+        self.dispatcher.immediate = False
+        self._start()
+        task = self.dispatcher.tasks[-1]
+        detect = text_occlusion.detect_text_occlusions
+
+        def cancel_after(*args, **kwargs):
+            regions = detect(*args, **kwargs)
+            self.assertTrue(regions)
+            task.cancel()
+            return regions
+
+        with mock.patch.object(text_occlusion, "detect_text_occlusions", side_effect=cancel_after):
+            self.assertFalse(task.run())
+        task.finished(False)
+        self.assertIsNone(self.tool._livewire_tree)
+        self.assertIsNone(task.tree)
+        self.assertEqual(len(self.tool.path_points), 1)
+
+    def test_general_text_late_result_cannot_replace_a_pending_click_after_dispose(self):
+        self._publish_text_scene()
+        self.dispatcher.immediate = False
+        self._start()
+        task = self.dispatcher.tasks[-1]
+        self.assertTrue(self.tool._defer_click_until_livewire_ready(self._target_map()))
+        self.assertTrue(task.run(), task.error)
+        self.assertIsNotNone(task.tree.text_occluded_connection)
+        self.tool.dispose()
+        task.finished(True)
+        self.assertIsNone(self.tool._livewire_tree)
+        self.assertIsNone(self.tool._pending_livewire_accept_point)
+        self.assertFalse(self.tool.path_points)
+        self.assertEqual(self.layer.featureCount(), 0)
+
     def _assert_broad_route(self, route):
         self.assertEqual(tuple(route[0]), tuple(map(float, self.root)))
         self.assertEqual(tuple(route[-1]), tuple(map(float, self.target)))

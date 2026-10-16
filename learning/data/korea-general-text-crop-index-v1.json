@@ -1,0 +1,823 @@
+{
+  "schema_version": "archaeotrace-general-text-native-crop-index/1",
+  "created_utc": "2026-10-16T11:17:48.119973+00:00",
+  "scope": "Source reconstruction and provenance for 21 native development windows, not 21 annotated or successful cases. Fifteen windows from two known validation maps were previously available for raw-only inspection but had no known earlier model/path outputs; six windows from two previously unassigned raw-screened map families were added for development. Original Calibration/Holdout pixels remain sealed.",
+  "baseline_commit": "65cc80a",
+  "training_eligible": false,
+  "publication_ranking_eligible": false,
+  "human_approvals": 0,
+  "native_crop_count": 21,
+  "selected_diagnostic_positive_count": 2,
+  "selected_wrong_neighbor_pair_count": 2,
+  "selected_sample_ids": [
+    "kr-10-unseen-native-05",
+    "extra-yongdam-6621-i-text-02"
+  ],
+  "known_validation_diagnostic_manifest_sha256": "bfedb61aff47a0314a14460198cabff0531ad730d69d076c552718d9ccd7e739",
+  "additional_development_diagnostic_manifest_sha256": "311e8a5d2b5373deb8e48a84849de3db0245c3c752f22759dc6933b5cc9eb6eb",
+  "original16_manifest_sha256": "b2fd2a087f75de4e5e1d31b44f13dfdb1a8af3963e18e68f81f9cb4a91e32249",
+  "source_inventory_sha256": "678ee656a6237d745c0f74f3e7075a08cf716994f1c8f17a909ccd29d42f1382",
+  "spatial_checks": {
+    "known15_vs_original24_overlap_pixels": 0,
+    "known20_native_windows_within_source_overlap_pixels": 0,
+    "known15_share_original_validation_map_families": true,
+    "excluded_prior_routed_native_ids": [
+      "kr-09-unseen-native-02",
+      "kr-10-unseen-native-04",
+      "kr-10-unseen-native-06",
+      "kr-10-unseen-native-07",
+      "kr-10-unseen-native-08"
+    ],
+    "additional6_within_source_overlap_pixels": 0,
+    "additional_families_disjoint_original16_assigned_groups": true,
+    "calibration_or_holdout_pixels_opened": false,
+    "cross_map_geographic_overlap_measured": false
+  },
+  "sources": [
+    {
+      "id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "source_url": "https://maps.lib.utexas.edu/maps/ams/korea_50k/txu-pclmaps-oclc-6612107-namwon-6620-ii.jpg",
+      "source_sha256": "8086da5974f7ccde7bdc941faff351b222958a0df18f0dd0fe0db4d55e4bbcdf",
+      "source_size": [
+        4750,
+        4221
+      ],
+      "raster_size": {
+        "height": 4221,
+        "width": 4750
+      },
+      "publisher": "U.S. Army Map Service",
+      "scan_credit": "University of Texas Libraries",
+      "license": "Public domain (U.S. Government work)",
+      "rights_status": "public_domain",
+      "rights_snapshot_sha256": "cd70e60055691a77f762657b712cf1f8569837e0941227e085321d8f7dd86659",
+      "rights_statement_url": "https://maps.lib.utexas.edu/maps/faq.html",
+      "provenance_id": {
+        "authority": "maps.lib.utexas.edu",
+        "namespace": "pcl-ams-korea-50k",
+        "value": "txu-pclmaps-oclc-6612107-namwon-6620-ii"
+      },
+      "quadrangle_name": "Namwon 6620 II",
+      "title": "AMS Korea 1:50,000 Series L751, Namwon 6620 II",
+      "series": "Korea 1:50,000, Series L751, 1945-",
+      "role": "known_validation_map",
+      "georeferenced": false,
+      "previously_raw_screened": true,
+      "prior_assigned_to_original16": true,
+      "selected_native_crop_count": 11
+    },
+    {
+      "id": "kr-10",
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "split": "validation",
+      "source_url": "https://maps.lib.utexas.edu/maps/ams/korea_50k/txu-pclmaps-oclc-6612107-mupungjang-6721-i.jpg",
+      "source_sha256": "f9fd5d50d7f1081f1be1d5e0989f15225af8e217542630cb08101b40467e0fac",
+      "source_size": [
+        4717,
+        4217
+      ],
+      "raster_size": {
+        "height": 4217,
+        "width": 4717
+      },
+      "publisher": "U.S. Army Map Service",
+      "scan_credit": "University of Texas Libraries",
+      "license": "Public domain (U.S. Government work)",
+      "rights_status": "public_domain",
+      "rights_snapshot_sha256": "cd70e60055691a77f762657b712cf1f8569837e0941227e085321d8f7dd86659",
+      "rights_statement_url": "https://maps.lib.utexas.edu/maps/faq.html",
+      "provenance_id": {
+        "authority": "maps.lib.utexas.edu",
+        "namespace": "pcl-ams-korea-50k",
+        "value": "txu-pclmaps-oclc-6612107-mupungjang-6721-i"
+      },
+      "quadrangle_name": "Mupungjang 6721 I",
+      "title": "AMS Korea 1:50,000 Series L751, Mupungjang 6721 I",
+      "series": "Korea 1:50,000, Series L751, 1945-",
+      "role": "known_validation_map",
+      "georeferenced": false,
+      "previously_raw_screened": true,
+      "prior_assigned_to_original16": true,
+      "selected_native_crop_count": 4
+    },
+    {
+      "id": "extra-odae-san-6927-iii",
+      "family_id": "kr-ams-l751-odae-san-6927-iii",
+      "split": "validation",
+      "source_url": "https://maps.lib.utexas.edu/maps/ams/korea_50k/txu-pclmaps-oclc-6612107-odae-san-6927-iii.jpg",
+      "source_sha256": "63ea0c42cd5d99e59d315050c83a96191f9de5d80f646ab03362def1011fd904",
+      "source_size": [
+        4704,
+        4173
+      ],
+      "publisher": "U.S. Army Map Service",
+      "scan_credit": "University of Texas Libraries",
+      "license": "Public domain (U.S. Government work)",
+      "rights_status": "public_domain",
+      "rights_snapshot_sha256": "cd70e60055691a77f762657b712cf1f8569837e0941227e085321d8f7dd86659",
+      "role": "additional_development_map",
+      "georeferenced": false,
+      "previously_raw_screened": true,
+      "prior_assigned_to_original16": false,
+      "rights_statement_url": "https://maps.lib.utexas.edu/maps/faq.html",
+      "selected_native_crop_count": 3
+    },
+    {
+      "id": "extra-yongdam-6621-i",
+      "family_id": "kr-ams-l751-yongdam-6621-i",
+      "split": "validation",
+      "source_url": "https://maps.lib.utexas.edu/maps/ams/korea_50k/txu-pclmaps-oclc-6612107-yongdam-6621-i.jpg",
+      "source_sha256": "c236752dbe3b3843310bd177a0261402c366aa65c16c4c213f7eced6e0e61e57",
+      "source_size": [
+        4691,
+        4246
+      ],
+      "publisher": "U.S. Army Map Service",
+      "scan_credit": "University of Texas Libraries",
+      "license": "Public domain (U.S. Government work)",
+      "rights_status": "public_domain",
+      "rights_snapshot_sha256": "cd70e60055691a77f762657b712cf1f8569837e0941227e085321d8f7dd86659",
+      "role": "additional_development_map",
+      "georeferenced": false,
+      "previously_raw_screened": true,
+      "prior_assigned_to_original16": false,
+      "rights_statement_url": "https://maps.lib.utexas.edu/maps/faq.html",
+      "selected_native_crop_count": 3
+    }
+  ],
+  "samples": [
+    {
+      "id": "kr-09-unseen-native-01",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-01.png",
+      "image_sha256": "a94a504223519087c46f6e17d29368f55faf2d1a96d75e3fe3a8f1084c7bdadd",
+      "image_pixel_sha256": "5680e1662500da2b57efee4e2b0872c0cae1a4d4d0648cfe7cf0ff2178c4af16",
+      "source_crop_xywh": [
+        768,
+        192,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        768,
+        192
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-09-unseen-native-03",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-03.png",
+      "image_sha256": "f1efad0a355b7c8d6edef14311ca893d0f7167e56395163af6d6d896b7fd23ee",
+      "image_pixel_sha256": "fb0d1a4b73b379c72e87f00bba32de9a6afbb6ca8296776c535daa471ef4af81",
+      "source_crop_xywh": [
+        3328,
+        192,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3328,
+        192
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-09-unseen-native-04",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-04.png",
+      "image_sha256": "6282a6a32a5b0f449907f8187ed486fc19e6fc0c12786b78cb286562eaac3e01",
+      "image_pixel_sha256": "15a7fe8ecfe626d0511124624b9282aac5501230e5a00bb68753a2c61350d5ea",
+      "source_crop_xywh": [
+        1280,
+        2240,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        1280,
+        2240
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-09-unseen-native-05",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-05.png",
+      "image_sha256": "dbc99e4d84a6ce14d5d15a7391764f9999a73b45eddfc1fdd60dc5208ca22c95",
+      "image_pixel_sha256": "36f9c777bf191fcd54b374ea77059fdc1cd80143b5a5e3c4a087c3fe8abc74bb",
+      "source_crop_xywh": [
+        3840,
+        704,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3840,
+        704
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-09-unseen-native-06",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-06.png",
+      "image_sha256": "a42415cf8603d10638b6e644740b72c59f9d68506c49aa01dfa6ceda5001ef9f",
+      "image_pixel_sha256": "3cd996429b02bc7b7d7d4f98c80265a10c022484dbf55c87c714ab895eddac6d",
+      "source_crop_xywh": [
+        1280,
+        192,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        1280,
+        192
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-09-unseen-native-07",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-07.png",
+      "image_sha256": "7ae47448db4b04e75c63f4c3a15dc8921d9414a9b6b110e64845bcac47b035f9",
+      "image_pixel_sha256": "2af9c165a756c6c678f7fb2db00dc8fbf77d2a5468da5f6bee3b77f1d81e9cb5",
+      "source_crop_xywh": [
+        3840,
+        192,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3840,
+        192
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-09-unseen-native-08",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-08.png",
+      "image_sha256": "cacbd09cef87951966575496149346e96bb1e0b9c188bbb549c791110ee5569b",
+      "image_pixel_sha256": "ec9294724687edfc340e0a6c05cbdbe7d9a072e28780063c27b4534d47e4cb77",
+      "source_crop_xywh": [
+        768,
+        2240,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        768,
+        2240
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-10-unseen-native-01",
+      "source_id": "kr-10",
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "split": "validation",
+      "image": "images/kr-10-unseen-native-01.png",
+      "image_sha256": "1593c6af538d53b34863f6d32c1cfe470bc1a6ca191741a6aa9bec6317382f7e",
+      "image_pixel_sha256": "197cd0f9383b1b2e44d77f4f056783a2eebb85ff51d90b9bc9fa6050426a93b6",
+      "source_crop_xywh": [
+        730,
+        2100,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        730,
+        2100
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-10-unseen-native-02",
+      "source_id": "kr-10",
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "split": "validation",
+      "image": "images/kr-10-unseen-native-02.png",
+      "image_sha256": "238e9b103247061f337b71f094597101b0450684951fa87a8c28f62fbbab2eca",
+      "image_pixel_sha256": "eb1a3f6d1a3cc8e33bdbe8cbcad04f3b4ee0a2ab04727f074ed3cc651667d914",
+      "source_crop_xywh": [
+        2600,
+        2800,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        2600,
+        2800
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-10-unseen-native-03",
+      "source_id": "kr-10",
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "split": "validation",
+      "image": "images/kr-10-unseen-native-03.png",
+      "image_sha256": "8d8aa2f3108acab890db162c5f72ca97131c1b56cc67466fb24a3e287304f137",
+      "image_pixel_sha256": "33b5b6e3f45e9623e52c41a003b97b525cce12ba23cc0c4d26af9bacef408d65",
+      "source_crop_xywh": [
+        3700,
+        1200,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3700,
+        1200
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-10-unseen-native-05",
+      "source_id": "kr-10",
+      "family_id": "kr-ams-l751-mupungjang-6721-i",
+      "split": "validation",
+      "image": "images/kr-10-unseen-native-05.png",
+      "image_sha256": "30f4cbcd0468e0942eda2501497b7ebcdda3d0a3b29c8f3736a6cc2e79322d73",
+      "image_pixel_sha256": "9cb6115309860cefe1f9127f0b2f1a3320d4c6e216b026abea57d7e285cbcf6d",
+      "source_crop_xywh": [
+        1280,
+        192,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        1280,
+        192
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-09-unseen-native-09",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-09.png",
+      "image_sha256": "af44d2af4e8c162549eb87e7728ba5c24bd8cd6cf29dbed3f2676ab76e838c70",
+      "image_pixel_sha256": "919b42b30d0248b692e9a6b34888e562e80d43b2098b5918a2f93a3877de044a",
+      "source_crop_xywh": [
+        1280,
+        2752,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        1280,
+        2752
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-09-unseen-native-10",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-10.png",
+      "image_sha256": "d54dba6b5de0de1e7cf8d9701238adc89afb01a4b11f3059966a724bf019cad2",
+      "image_pixel_sha256": "e5738e6cd8d3e474e5bc3f2a4f47ee156b62aff7ceed35e4788893fe7b592ac7",
+      "source_crop_xywh": [
+        1792,
+        2752,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        1792,
+        2752
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-09-unseen-native-11",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-11.png",
+      "image_sha256": "84f33c5d3577c6c7837ebc90d4134f3602c62cb4d9852d186366be23e483384d",
+      "image_pixel_sha256": "bdf9ff0b08fce3d1dfd9b1df1910fba0bf155ab57b208c2bc766b308cee3b1c4",
+      "source_crop_xywh": [
+        3200,
+        2752,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3200,
+        2752
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "kr-09-unseen-native-12",
+      "source_id": "kr-09",
+      "family_id": "kr-ams-l751-namwon-6620-ii",
+      "split": "validation",
+      "image": "images/kr-09-unseen-native-12.png",
+      "image_sha256": "0545c155de4da4082116190210174eda7f458e76ede4a92bc5bd346c3484f3ff",
+      "image_pixel_sha256": "d19e696588378fcb6a31fce3c57f818b4002e26006e36ef964c52818d975f486",
+      "source_crop_xywh": [
+        3712,
+        2752,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3712,
+        2752
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "existing_validation_unrouted_at_task_start",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "extra-odae-san-6927-iii-text-01",
+      "source_id": "extra-odae-san-6927-iii",
+      "family_id": "kr-ams-l751-odae-san-6927-iii",
+      "split": "validation",
+      "image": "images/extra-odae-san-6927-iii-text-01.png",
+      "image_sha256": "f5e6095977e1c7716c5313b5bd0f477b7ce1c52a1f153d2097813eb1bf8fc132",
+      "image_pixel_sha256": "0aafdeaf4577752fbd9652f2a690a1176cf7ffec169f667e81f90b57af8400df",
+      "source_crop_xywh": [
+        2600,
+        880,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        2600,
+        880
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "additional_development_native_windows",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "extra-odae-san-6927-iii-text-02",
+      "source_id": "extra-odae-san-6927-iii",
+      "family_id": "kr-ams-l751-odae-san-6927-iii",
+      "split": "validation",
+      "image": "images/extra-odae-san-6927-iii-text-02.png",
+      "image_sha256": "a80f357f0f5ede38c36d1ae5ca2c41e2036ec6b580d52b86e4bf9d76b1849797",
+      "image_pixel_sha256": "a8cf36b2a60edc03bf0316b75fa0bfddc0daadef160c90b45c9e5acedaee250f",
+      "source_crop_xywh": [
+        2850,
+        1420,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        2850,
+        1420
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "additional_development_native_windows",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "extra-odae-san-6927-iii-text-03",
+      "source_id": "extra-odae-san-6927-iii",
+      "family_id": "kr-ams-l751-odae-san-6927-iii",
+      "split": "validation",
+      "image": "images/extra-odae-san-6927-iii-text-03.png",
+      "image_sha256": "e5d28315b72eb29bb2798f40b465f5170e77d4bc0a3ddc1430d67778e5a80e5b",
+      "image_pixel_sha256": "d7ddda0d9775b6aaad4a8063caab8a2e8a5942dc12a8652cf2fc58e85bee9033",
+      "source_crop_xywh": [
+        3600,
+        2420,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        3600,
+        2420
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "additional_development_native_windows",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "extra-yongdam-6621-i-text-01",
+      "source_id": "extra-yongdam-6621-i",
+      "family_id": "kr-ams-l751-yongdam-6621-i",
+      "split": "validation",
+      "image": "images/extra-yongdam-6621-i-text-01.png",
+      "image_sha256": "1c3d3306e036a2dab0d3b39e14f3e9208c9f77c872fda5a23aa30159382316ea",
+      "image_pixel_sha256": "02378c9d673244b7461a4e9d17cebf5da5b2ef8edb13682f49f8122650efc1db",
+      "source_crop_xywh": [
+        2150,
+        1610,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        2150,
+        1610
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "additional_development_native_windows",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "extra-yongdam-6621-i-text-02",
+      "source_id": "extra-yongdam-6621-i",
+      "family_id": "kr-ams-l751-yongdam-6621-i",
+      "split": "validation",
+      "image": "images/extra-yongdam-6621-i-text-02.png",
+      "image_sha256": "32502054bc292de112511980cac4124f58fb76ee72de94509a363959cc1c618d",
+      "image_pixel_sha256": "8849e938d559c8d6579756c110f26959a68a2a0bf4a1eb866cb4e9ada510b58e",
+      "source_crop_xywh": [
+        2200,
+        2700,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        2200,
+        2700
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "additional_development_native_windows",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    },
+    {
+      "id": "extra-yongdam-6621-i-text-03",
+      "source_id": "extra-yongdam-6621-i",
+      "family_id": "kr-ams-l751-yongdam-6621-i",
+      "split": "validation",
+      "image": "images/extra-yongdam-6621-i-text-03.png",
+      "image_sha256": "b55ddce36f7826add51c5d001b2c263b874d9fcaec157543f44c81c3403f615f",
+      "image_pixel_sha256": "867ce1ca33575cc5cd1d7ae8d98457dfc8810b10fa8319ba488b1a0e09a2f471",
+      "source_crop_xywh": [
+        1530,
+        1730,
+        512,
+        512
+      ],
+      "source_tile_origin_xy": [
+        1530,
+        1730
+      ],
+      "width": 512,
+      "height": 512,
+      "georeferenced": false,
+      "native_rgb": true,
+      "resampled": false,
+      "scope": "additional_development_native_windows",
+      "prior_raw_review_possible": true,
+      "model_or_route_outputs_before_this_task_known": false,
+      "annotations_are_training_labels": false
+    }
+  ],
+  "frozen_source_review_artifacts": [
+    {
+      "artifact": "source-crop-inventory.json",
+      "sha256": "678ee656a6237d745c0f74f3e7075a08cf716994f1c8f17a909ccd29d42f1382",
+      "storage": "preserved_work_artifact"
+    },
+    {
+      "artifact": "independent-inventory-check-v1.json",
+      "sha256": "aef9b0c53a0ca58068ce7403ed7b8b10f28eafe1a04020a3848446ae18427ac2",
+      "storage": "preserved_work_artifact"
+    },
+    {
+      "artifact": "additional-source-family-audit-v1.json",
+      "sha256": "bbfa9f65df9b489d562a144001029a64d9204458ef2ca78a4ae010f8396a33b6",
+      "storage": "preserved_work_artifact"
+    },
+    {
+      "artifact": "additional-independent-inventory-check-v1.json",
+      "sha256": "6c51d830321af9ee8f4d2fe155780579a858b916b853870a762f7623ad4eb1f8",
+      "storage": "preserved_work_artifact"
+    },
+    {
+      "artifact": "source-review-blue-a-v1.json",
+      "sha256": "214d39d68412268c5a23d7b2ed548f3fe0afde94f217365268408a686be7b488",
+      "storage": "preserved_work_artifact"
+    },
+    {
+      "artifact": "crossreview-kr10-05-blue-a-source-v1.json",
+      "sha256": "3a9d7384c3f4bab5d79329e7ce8d0b41b62ec83a1240050b2a37f5603b082659",
+      "storage": "preserved_work_artifact"
+    },
+    {
+      "artifact": "blue-a-source-transverse-profiles-v1.json",
+      "sha256": "7c9cf35eb1902674d4108840c95b52966b2a783a5797a580a987bb1ef931b55e",
+      "storage": "preserved_work_artifact"
+    },
+    {
+      "artifact": "blue-a-visible-control-qa-v1.json",
+      "sha256": "5bb1318bc01664da21ea2edaeb8c1bc5d3cbcac4697f3a0418873c7b39a9b463",
+      "storage": "preserved_work_artifact"
+    },
+    {
+      "artifact": "source-review-black-myeon-v1.json",
+      "sha256": "2d0a9aa9c535e0063a86ea31d00d4c276adbb266a4f045322ca8daf9430b3116",
+      "storage": "preserved_work_artifact"
+    },
+    {
+      "artifact": "crossreview-yongdam02-black-myeon-source-v2.json",
+      "sha256": "235ed6b8f45f238b412503225f02233ac5e25d420b82f87c2fe1f442271288bb",
+      "storage": "preserved_work_artifact"
+    },
+    {
+      "artifact": "myeon-source-transverse-profiles-v1.json",
+      "sha256": "e1f30e743bc415f0e8afeea156f06876013b2a9d283336e783ca8f2d062f3739",
+      "storage": "preserved_work_artifact"
+    },
+    {
+      "artifact": "myeon-visible-control-qa-v1.json",
+      "sha256": "02ebb859e950de9a3b4165fe8c489cefbf37272b75690c37adaa9c7566750b52",
+      "storage": "preserved_work_artifact"
+    },
+    {
+      "artifact": "data/korea-general-text-gap-cases-v1.json",
+      "sha256": "46d2b13c7b3c4f88a58c909641ecce06c92790b4aab7514dfa062bd2a887bf05",
+      "storage": "repository"
+    },
+    {
+      "artifact": "data/korea-general-text-gap-cases-v2.json",
+      "sha256": "aba0da201662a9341c8a2777a046585f361abdbc1f894c0fe3656372d3cf0e49",
+      "storage": "repository"
+    }
+  ],
+  "reconstruction": "Fetch the public JPEG at source_url, verify source_sha256, decode original Byte RGB without resampling, then crop source_crop_xywh. Verify image_pixel_sha256 on interleaved RGB bytes. PNG byte hashes also identify retained files; encoding metadata may differ if recreated with another encoder. Source imagery itself is not duplicated in this index.",
+  "rights": "U.S. Government public-domain work as recorded in the rights snapshot; publisher U.S. Army Map Service and scan credit University of Texas Libraries. See each rights_statement_url and rights_snapshot_sha256.",
+  "georeferencing": "All four sources and 21 windows are unreferenced scans; native pixel diagnostics do not establish geographic position accuracy.",
+  "privacy": "Only public map URLs, source-derived pixel coordinates, hashes and review metadata are included. No workstation paths, user profiles, Drive locations or credentials.",
+  "known_limits": [
+    "Two source-only agent-reviewed positives plus two wrong-neighbor pairings are development diagnostics, not human-approved ground truth.",
+    "The exact hidden curves are unknown and unscored. Passing raw dark-pixel QA is not proof of contour identity.",
+    "New map families had earlier raw automatic screening; this is not a blind unseen-map validation.",
+    "Visible foreign-stroke controls are sampled and do not cover every possible neighboring contour.",
+    "Additional development sources must not be silently merged into the frozen training/calibration/holdout splits."
+  ]
+}

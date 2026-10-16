@@ -1,0 +1,450 @@
+{
+  "schema_version": "archaeotrace-label-gap-cases/1",
+  "created_utc": "2026-10-16T10:54:40.877809+00:00",
+  "dataset_id": "ams-korea-unrouted-general-text-diagnostics-v1",
+  "dataset_manifest_sha256": "bfedb61aff47a0314a14460198cabff0531ad730d69d076c552718d9ccd7e739",
+  "source_inventory_sha256": "678ee656a6237d745c0f74f3e7075a08cf716994f1c8f17a909ccd29d42f1382",
+  "frozen_before_model_outputs": true,
+  "frozen_before_model_or_route_outputs": true,
+  "predictions_seen_before_freeze": false,
+  "human_approved": false,
+  "human_approvals": 0,
+  "independent_agent_crossreview": true,
+  "publication_ranking_eligible": false,
+  "scope": "One unrouted native512 Korean validation crop, one blue Latin-letter local gap and one source-distinct wrong-neighbor pairing. Previously raw-inspected known validation map, not unseen-sheet or blind evaluation. Does not establish black Hanja or whole-word reconstruction. Exact hidden curve is unknown and unscored.",
+  "coordinate_semantics": "Native original512 XY pixel-centre indices; prompts and references RC=row,column. Unknown rectangle xyxy top-left inclusive bottom-right exclusive. Visible references interpolate separate raw-visible arms only.",
+  "source_review_sha256": "214d39d68412268c5a23d7b2ed548f3fe0afde94f217365268408a686be7b488",
+  "independent_certificate_sha256": "3a9d7384c3f4bab5d79329e7ce8d0b41b62ec83a1240050b2a37f5603b082659",
+  "raw_profiles_sha256": "7c9cf35eb1902674d4108840c95b52966b2a783a5797a580a987bb1ef931b55e",
+  "cases": [
+    {
+      "sample_id": "kr-10-unseen-native-05",
+      "image": "images/kr-10-unseen-native-05.png",
+      "image_sha256": "30f4cbcd0468e0942eda2501497b7ebcdda3d0a3b29c8f3736a6cc2e79322d73",
+      "split": "validation",
+      "source_id": "kr-10",
+      "glyph_kind": "blue Latin letter overprint",
+      "label": "a (Hadugil-ri)",
+      "unknown_regions_xy": [
+        [
+          137,
+          267,
+          143,
+          277
+        ]
+      ],
+      "unknown_region_xy": [
+        137,
+        267,
+        143,
+        277
+      ],
+      "hidden_geometry_ground_truth": false,
+      "hidden_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "review_level": "agent_visual_inspection",
+      "human_approved": false,
+      "raw_evidence_window_xyxy": [
+        126,
+        248,
+        162,
+        292
+      ],
+      "id": "kr10-text05-blue-a-gap",
+      "expected_pair": "plausible_same_contour",
+      "prompt_rc": [
+        [
+          258,
+          137
+        ],
+        [
+          287,
+          152
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          138,
+          266
+        ],
+        [
+          140,
+          277
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            137,
+            258
+          ],
+          [
+            137,
+            263
+          ],
+          [
+            138,
+            266
+          ]
+        ],
+        [
+          [
+            140,
+            277
+          ],
+          [
+            141,
+            278
+          ],
+          [
+            143,
+            279
+          ],
+          [
+            146,
+            281
+          ],
+          [
+            149,
+            284
+          ],
+          [
+            150,
+            285
+          ],
+          [
+            152,
+            287
+          ]
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            258.0,
+            137.0
+          ],
+          [
+            259.0,
+            137.0
+          ],
+          [
+            260.0,
+            137.0
+          ],
+          [
+            261.0,
+            137.0
+          ],
+          [
+            262.0,
+            137.0
+          ],
+          [
+            263.0,
+            137.0
+          ],
+          [
+            263.75,
+            137.25
+          ],
+          [
+            264.5,
+            137.5
+          ],
+          [
+            265.25,
+            137.75
+          ],
+          [
+            266,
+            138
+          ]
+        ],
+        [
+          [
+            277.0,
+            140.0
+          ],
+          [
+            277.5,
+            140.5
+          ],
+          [
+            278.0,
+            141.0
+          ],
+          [
+            278.333333,
+            141.666667
+          ],
+          [
+            278.666667,
+            142.333333
+          ],
+          [
+            279.0,
+            143.0
+          ],
+          [
+            279.5,
+            143.75
+          ],
+          [
+            280.0,
+            144.5
+          ],
+          [
+            280.5,
+            145.25
+          ],
+          [
+            281.0,
+            146.0
+          ],
+          [
+            281.6,
+            146.6
+          ],
+          [
+            282.2,
+            147.2
+          ],
+          [
+            282.8,
+            147.8
+          ],
+          [
+            283.4,
+            148.4
+          ],
+          [
+            284.0,
+            149.0
+          ],
+          [
+            284.5,
+            149.5
+          ],
+          [
+            285.0,
+            150.0
+          ],
+          [
+            285.666667,
+            150.666667
+          ],
+          [
+            286.333333,
+            151.333333
+          ],
+          [
+            287,
+            152
+          ]
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [
+        [
+          [
+            142,
+            258
+          ],
+          [
+            142,
+            261
+          ],
+          [
+            143,
+            264
+          ],
+          [
+            144,
+            267
+          ],
+          [
+            145,
+            269
+          ]
+        ],
+        [
+          [
+            150,
+            278
+          ],
+          [
+            153,
+            281
+          ],
+          [
+            154,
+            283
+          ],
+          [
+            155,
+            284
+          ],
+          [
+            156,
+            285
+          ]
+        ],
+        [
+          [
+            137,
+            281
+          ],
+          [
+            139,
+            282
+          ],
+          [
+            141,
+            284
+          ],
+          [
+            144,
+            286
+          ],
+          [
+            146,
+            288
+          ]
+        ]
+      ],
+      "notes": "Blue Latin a right stroke locally obscures thin native contour. Root-side native ridge x137 y258..263 bends to138266, resumes140277 and bends southeast to152287. Separate neighboring native contours preserve lane ordering. No invisible curve is supplied as ground truth; gap endpoint controls are visible source supports, not computed skeleton ends. Blue overprint is not a white-erased numeric label. Agent crossreview only; no human approval."
+    },
+    {
+      "sample_id": "kr-10-unseen-native-05",
+      "image": "images/kr-10-unseen-native-05.png",
+      "image_sha256": "30f4cbcd0468e0942eda2501497b7ebcdda3d0a3b29c8f3736a6cc2e79322d73",
+      "split": "validation",
+      "source_id": "kr-10",
+      "glyph_kind": "blue Latin letter overprint",
+      "label": "a (Hadugil-ri)",
+      "unknown_regions_xy": [
+        [
+          137,
+          267,
+          143,
+          277
+        ]
+      ],
+      "unknown_region_xy": [
+        137,
+        267,
+        143,
+        277
+      ],
+      "hidden_geometry_ground_truth": false,
+      "hidden_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "review_level": "agent_visual_inspection",
+      "human_approved": false,
+      "raw_evidence_window_xyxy": [
+        126,
+        248,
+        162,
+        292
+      ],
+      "id": "kr10-text05-blue-a-wrong-right-neighbor",
+      "expected_pair": "different_contours",
+      "prompt_rc": [
+        [
+          258,
+          137
+        ],
+        [
+          285,
+          156
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          138,
+          266
+        ],
+        [
+          150,
+          278
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            137,
+            258
+          ],
+          [
+            137,
+            263
+          ],
+          [
+            138,
+            266
+          ]
+        ],
+        [
+          [
+            150,
+            278
+          ],
+          [
+            153,
+            281
+          ],
+          [
+            154,
+            283
+          ],
+          [
+            155,
+            284
+          ],
+          [
+            156,
+            285
+          ]
+        ]
+      ],
+      "visible_reference_segments_rc": [],
+      "foreign_visible_control_segments_xy": [
+        [
+          [
+            140,
+            277
+          ],
+          [
+            141,
+            278
+          ],
+          [
+            143,
+            279
+          ],
+          [
+            146,
+            281
+          ],
+          [
+            149,
+            284
+          ],
+          [
+            150,
+            285
+          ],
+          [
+            152,
+            287
+          ]
+        ]
+      ],
+      "notes": "The far prompt156285 lies on separately visible right neighboring contour. Wrong-pair candidate-exclusion diagnostic only: do not score click-to-click path accuracy or require a correct line when user prompts specify different lines. Hidden gap geometry remains unknown."
+    }
+  ],
+  "frozen_case_count": 2,
+  "raw_pixel_qa_sha256": "5bb1318bc01664da21ea2edaeb8c1bc5d3cbcac4697f3a0418873c7b39a9b463",
+  "source_proposal_sha256": "f4f0d6adddd5e691df02ab86394a2fcb50e48264c3a7d592b4ca8201347f8842",
+  "freeze_provenance": "Both agents completed raw-only source and physical-pixel QA before any new route, skeleton or model output. First rough paper points rejected before freeze. Cases immutable after this timestamp."
+}

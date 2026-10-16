@@ -210,6 +210,7 @@ class LiveWireTree:
     observed_connection: Optional[ObservedConnectionTree] = None
     label_gap_connection: Optional[LabelGapConnectionTree] = None
     occluded_connection: Optional[OccludedConnectionTree] = None
+    text_occluded_connection: Optional[OccludedConnectionTree] = None
     occlusion_reference_tree: Optional["LiveWireTree"] = None
 
     @property
@@ -231,11 +232,13 @@ class LiveWireTree:
     def trace_with_provenance(self, target: Sequence[float]):
         """Return the displayed route and whether a detected label was bridged."""
         ordinary = self._trace_without_occlusion(target)
-        connection = self.occluded_connection
-        if (
-            connection is not None and self.strength > 0.0 and self.contains(target)
-            and connection.outside_route(target) is None
+        for connection, provenance in (
+            (self.occluded_connection, "automatic-label-gap"),
+            (self.text_occluded_connection, "automatic-text-gap"),
         ):
+            if (connection is None or self.strength <= 0.0 or not self.contains(target)
+                    or connection.outside_route(target) is not None):
+                continue
             # A healthy visible connection outside independently detected
             # text takes priority, including at partial assistance. A broken
             # contour's old pixel shortcut may avoid the label entirely, so
@@ -259,7 +262,7 @@ class LiveWireTree:
                             return displayed, "ink"
                 displayed = blend_path_with_cursor(candidate, self.root, target, self.strength)
                 if connection.accepts_display(displayed):
-                    return displayed, "automatic-label-gap"
+                    return displayed, provenance
         return ordinary, "ink"
 
     def _trace_without_occlusion(self, target: Sequence[float]) -> list[FloatPixel]:
@@ -672,6 +675,7 @@ def build_livewire_tree(
         except (RuntimeError, MemoryError):
             label_gap_connection = None
     occluded_connection = None
+    text_occluded_connection = None
     if (
         config.automatic_label_occlusion and config.observed_connections
         and strength > 0.0 and crop_evidence is not None
@@ -681,10 +685,10 @@ def build_livewire_tree(
         if raw_image.dtype == np.uint8 and (
             raw_image.ndim == 2 or (raw_image.ndim == 3 and raw_image.shape[2] == 3)
         ):
+            raw_crop = raw_image[y0:y1, x0:x1]
             try:
                 from .label_occlusion import detect_label_occlusions
                 from .occluded_connection import build_occluded_connection
-                raw_crop = raw_image[y0:y1, x0:x1]
                 regions = detect_label_occlusions(raw_crop, cancel_check=cancel_check)
                 if regions:
                     occluded_connection = build_occluded_connection(
@@ -697,6 +701,33 @@ def build_livewire_tree(
                 raise
             except (RuntimeError, MemoryError):
                 occluded_connection = None
+            try:
+                from .text_occlusion import detect_text_occlusions
+                from .occluded_connection import build_occluded_connection
+                # Keep the established numeric detector and its search budget
+                # independent. Extra letters cannot evict a numeric proposal.
+                text_regions = detect_text_occlusions(raw_crop, cancel_check=cancel_check)
+                text_regions = sorted(
+                    text_regions,
+                    key=lambda region: (
+                        max(region.bbox_xyxy[0] - (root_x - x0), 0,
+                            (root_x - x0) - region.bbox_xyxy[2]) ** 2
+                        + max(region.bbox_xyxy[1] - (root_y - y0), 0,
+                              (root_y - y0) - region.bbox_xyxy[3]) ** 2,
+                        -region.score, region.bbox_xyxy,
+                    ),
+                )[:16]
+                if text_regions:
+                    text_occluded_connection = build_occluded_connection(
+                        graph, crop_evidence[1], (root_x, root_y), (x0, y0), text_regions,
+                        image=raw_crop, sparse=sparse, dijkstra=dijkstra, cancel_check=cancel_check,
+                    )
+            except ObservedConnectionCancelled as exc:
+                raise LiveWireCancelled(str(exc)) from exc
+            except LiveWireCancelled:
+                raise
+            except (RuntimeError, MemoryError, ValueError):
+                text_occluded_connection = None
     champion_tree = None
     if (
         learned_prior is not None and config.learned_route_guard and strength > 0.0
@@ -714,7 +745,7 @@ def build_livewire_tree(
             cancel_check=cancel_check,
         )
     occlusion_reference_tree = None
-    if (occluded_connection is not None and learned_prior is not None
+    if ((occluded_connection is not None or text_occluded_connection is not None) and learned_prior is not None
             and config.learned_support_cap > 0.0 and np.any(learned_support > 0.0)):
         # A learned pixel shortcut can hide an otherwise sound Ink route
         # from the label-specific preservation check. Prepare its reference
@@ -751,6 +782,7 @@ def build_livewire_tree(
         observed_connection=observed_connection,
         label_gap_connection=label_gap_connection,
         occluded_connection=occluded_connection,
+        text_occluded_connection=text_occluded_connection,
         occlusion_reference_tree=occlusion_reference_tree,
     )
 

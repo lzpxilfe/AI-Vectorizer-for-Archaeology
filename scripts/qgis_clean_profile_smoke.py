@@ -445,6 +445,14 @@ def _run_trace_scenario(
                     "outside_route_available": connection.outside_route(cursor_pixel) is not None if connection is not None else False,
                     "display_accepted": connection.accepts_display(candidate) if candidate is not None else False,
                 }
+                text_connection = getattr(tree, "text_occluded_connection", None)
+                text_candidate = text_connection.trace(cursor_pixel) if text_connection is not None else None
+                route_diagnostics["text_occlusion"] = {
+                    "available": text_connection is not None,
+                    "candidate": text_candidate,
+                    "outside_route_available": text_connection.outside_route(cursor_pixel) is not None if text_connection is not None else False,
+                    "display_accepted": text_connection.accepts_display(text_candidate) if text_candidate is not None else False,
+                }
                 diagnostic_path = Path(trace_diagnostics_dir)
                 diagnostic_path.mkdir(parents=True, exist_ok=True)
                 evidence = tool.cached_ink_evidence

@@ -3258,7 +3258,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # again could move that curve onto a neighbouring visible line.
             if (
                 len(pixel_path) > self.LIVEWIRE_SMOOTH_WINDOW_SIZE
-                and provenance != "automatic-label-gap"
+                and provenance not in ("automatic-label-gap", "automatic-text-gap")
             ):
                 smoothed = list(
                     smooth_pixel_path(
