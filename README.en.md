@@ -2,464 +2,123 @@
 
 [한국어](README.md)
 
-ArchaeoTrace is a local-first, open-source QGIS plugin for human-reviewed
-tracing of elevation contours on historical maps and for building DEM and
-hillshade outputs from saved elevations. Its purpose is to make the complete
-workflow inspectable and repeatable without sending map data to a remote
-inference service.
+A QGIS plugin for tracing elevation contours on scanned historical maps with a
+human in the loop, and for building a DEM and hillshade from the traced contours.
+Everything runs on your own computer; map data is never sent to a remote server.
 
-## Current status
+![QGIS 3.22-4.99](https://img.shields.io/badge/QGIS-3.22--4.99-3c8c3c.svg)
+![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-3776ab.svg)
+![Experimental](https://img.shields.io/badge/status-experimental-f28c28.svg)
+![Local first](https://img.shields.io/badge/processing-local--first-2f855a.svg)
+![License GPLv2](https://img.shields.io/badge/license-GPLv2-d64541.svg)
 
-- The [QGIS plugin repository](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.5/)
-  published experimental `0.1.5` on 2026-08-26. Current source is the
-  experimental `0.1.6` candidate with Ink v2, Smart Recovery, and an optional
-  learned contour guide. It has not been published as a QGIS version, GitHub
-  Release, or tag.
-- The official QGIS `0.1.5` ZIP is 1,483,635 bytes with SHA-256
-  `24f1def6acd63d483ea6bf7c20b944f56507ead52190667ec4f35562fca6c964`.
-  The repository's `dist/ai_vectorizer-0.1.5.zip` is an earlier local candidate
-  from commit `89b9f20` (SHA-256 `d2925198…`), not the
-  official download.
-- Ink v2, Smart Recovery, and later fixes on `main` are now grouped into the
-  `0.1.6` candidate. Further development does not bump metadata, retag, or republish a same-version QGIS
-  artifact. The `0.1.5–0.1.7` values in Git history and the unpublished `0.1.8`
-  worktree did not represent additional QGIS releases; history is preserved.
-- The metadata target is QGIS `3.22–4.99`, and the source contract is Python
-  `3.8+`. Local checks cover Python 3.8/3.10/3.12 and macOS QGIS 3.44.8.
-  Exact candidate commit `f48111a` passed QGIS 3.22.16/3.44.13/4.2.1 packaged
-  import and runtime-safety checks plus deterministic Linux/Windows ZIP builds
-  in [CI run 33344520364](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/33344520364).
-  The commit, ZIP, and CI run are bound in the
-  [0.1.6 release-readiness record](docs/RELEASE_READINESS_0.1.6.md).
-- Implementation snapshot `3bf2b5a2c9e793f54286bfc633351bcb4aa2a095` on `main`
-  passed all 12 jobs in [CI run 38437848923](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/38437848923).
-  This is source validation, not a new release or evidence of trained-model accuracy.
-- If you manually installed an older unpublished `0.1.7–0.1.8` source or ZIP,
-  QGIS may not treat `0.1.6` as an update. Remove that plugin before installing
-  the `0.1.6` ZIP. Verified model files remain outside the plugin directory.
+## Why
+
+Hand-digitising contours from old map scans is slow, repetitive and easy to get
+subtly wrong. Fully automatic extraction, on the other hand, often trips over
+elevation labels, grid lines and faded ink, and finding where it went wrong becomes
+a job of its own.
+
+ArchaeoTrace sits in between. The plugin proposes the path to follow as a green
+preview; you check it and click to accept. **Only the segments you accept become
+geometry.** Edge maps and AI masks are never saved as results.
 
 ## Features
 
-- 🧪 [Learned contour pilot](learning/README.md): 144 prepared USGS crops, QGIS annotation
-  tools, a resumable Colab notebook, CPU evaluation, and a default-OFF local ONNX
-  guide. Human-approved annotations remain at zero; a separate weak-label
-  experiment has completed three-seed training, ONNX export, and QGIS checks on
-  USGS and Korean historical-map crops.
-- Freehand tracing with no additional model
-- Default multi-scale Ink Centerline evidence for dark and colored printed strokes
-- Automatic dark-grid detection in native Byte Ink raises the cost of following
-  a grid while allowing contours to cross it.
-- Optional Smart Recovery that uses a verified EfficientSAM-Ti model only as a
-  corridor prior; it is experimental, default OFF, and keeps the Ink route on failure
-- Bounded, direction-aware Live-Wire with literal 0–100% coordinate blending
-- Session-only manual avoid regions for text, symbols, or stains in Ink tracing
-- Optional, session-only ink color sampling with `C`; `Shift+C` clears it
-- Automatic Ink previews for some numeric gaps, plus the explicit `Label-gap
-  bridge` (`G`); review the green path and click to accept
-- LSD, HED, MobileSAM, SAM ViT-B, and Legacy Canny preserved under
-  `Advanced / Legacy methods`
-- A green preview of the path that the next click will accept
-- New features and contour extensions through the QGIS edit buffer and Undo
-- Elevation attributes and optional spot heights
-- Experimental linear-TIN DEM and GDAL hillshade generation
-- Korean and English UI
-
-The existing tracing and DEM architecture is described in
-[Features and architecture](docs/FEATURES_AND_ARCHITECTURE.md). The learned
-pilot's data, training, and evaluation contract is in the [learning guide](learning/README.md).
+- **Ink Centerline (default)** follows the centre of printed lines at several
+  stroke widths. Works without extra packages.
+- **Assist strength** from `0%` (exactly where your cursor is) to `100%` (exactly
+  the proposed path).
+- **Handling historical-map clutter** bridges contours broken by elevation labels
+  (`G`), discourages following grid lines, lets you mark text or stains to avoid
+  (`Alt`+click), and lets you pick a contour colour (`C`).
+- **Optional AI assistance (off by default)** Smart Recovery uses EfficientSAM-Ti
+  only on uncertain Ink segments, and a learned contour guide runs a local ONNX
+  model. Both fall back to the Ink path on any failure.
+- **Terrain reconstruction** turns contour elevations and spot heights into a
+  linear-TIN DEM and hillshade.
+- **Native QGIS editing** respects the edit buffer, single-step Undo and
+  `Save Layer Edits`.
+- **Korean and English UI**
 
 ## How it works
 
 ```text
-Raster
-  → source-grid multi-scale Ink score and tangent/coherence
-  → optional local learned contour support and noncontour avoidance
-  → bounded Live-Wire Ink champion
-  → optional EfficientSAM corridor challenger on uncertain segments
-  → challenger only when every safety check passes
-  → human-reviewed green preview and anchors
-  → QGIS edit buffer and Undo
-  → elevation contours and optional spot heights
-  → linear-TIN DEM and hillshade
+Scanned map → line evidence → proposed path (green preview) → you click to accept
+            → saved to a QGIS layer → elevations → DEM · hillshade
 ```
 
-An edge map or model mask is never saved as an archaeological fact. Only
-segments accepted by the user become candidate geometry, and the final commit
-remains an explicit QGIS `Save Layer Edits` action.
+Optional AI assistance only improves the proposed path, and is discarded when it
+fails safety checks. See [Features and architecture](docs/FEATURES_AND_ARCHITECTURE.md)
+for the design and module map.
 
-## Modes and optional dependencies
+## Installation
 
-| Mode | Role | Additional runtime |
-| --- | --- | --- |
-| Freehand | Direct user input | No additional pip package or model |
-| Ink Centerline | Multi-scale/color line evidence and bounded Live-Wire | None; SciPy/scikit-image optional |
-| Learned contour guide | Experimental contour support and noncontour avoidance for Ink | SciPy, ONNX, ONNX Runtime, and an explicitly imported local model bundle |
-| Smart Recovery | EfficientSAM corridor challenger for low-confidence Ink segments | ONNX Runtime and an explicitly installed, fixed-hash model |
-| LSD | OpenCV line segments and shared Live-Wire | Advanced/legacy; OpenCV; SciPy optional |
-| HED | Caffe HED edge map and shared Live-Wire | Advanced/legacy; OpenCV, a 56.1 MiB model; SciPy optional |
-| MobileSAM | Point mask, edge/skeleton guidance, and A* | Advanced/legacy; OpenCV, PyTorch, backend, 38.8 MiB weights |
-| SAM ViT-B | Point mask, edge/skeleton guidance, and A* | Advanced/legacy; OpenCV, PyTorch, backend, 357.7 MiB checkpoint |
-| Legacy Canny | Gradient edge and Live-Wire | Advanced/legacy; OpenCV and SciPy optional |
-
-NumPy from the QGIS Python environment is a common plugin prerequisite. Without
-SciPy, every non-SAM edge mode (Ink/LSD/HED/Canny) falls back from
-direction-aware Live-Wire to a bounded NumPy nearby-edge snap. A bounded search
-can still follow adjacent contours, text, or symbols;
-review the green path and correct it with anchors or Freehand. Smart Recovery
-never saves the SAM mask as a line or binary-ORs it with Ink; it accepts a
-challenger only after endpoint, detour, strong-Ink retention, and branch-switch
-checks. Assist at `0%` skips model and evidence work.
-
-## Experimental: ink color sampling
-
-After starting an Ink trace, hover over a colored contour away from crossings,
-text, and paper, then press `C`. `Sample ink color` also uses the last map
-cursor position; the status shows the selected RGB. `Shift+C` or `Clear color`
-removes it. Sampling requires ready native Byte RGB Ink v2 evidence, SciPy,
-and assist above `0%`. Gray ink, paper, and ambiguous nearby colors are refused.
-
-The optional sample adds finite soft cost to differently colored ink. It is
-combined with avoid regions using the per-pixel maximum and shared by Ink and
-Recovery. Same-color text and symbols remain ambiguous, so review the green
-route. The color is reapplied to a new cache after panning and cleared when the
-trace finishes, is cancelled, or resets. It is neither saved nor uploaded.
-Historical-map accuracy and user-time improvement have not been established.
-
-## Experimental: learned contour guide
-
-This guide is **default OFF**. Open **Advanced: legacy tracing models** and
-import a local directory containing `model.onnx`
-and its hash/provenance `manifest.json` with **Import local model**, then enable
-the checkbox. QGIS runs background CPU inference; PyTorch and the training stack
-stay outside QGIS. Install the optional runtime using
-[`requirements-learned-guide.txt`](requirements-learned-guide.txt) in the selected
-QGIS Python environment. It requires Python 3.10+; older environments retain Ink.
-
-The guide needs SciPy, Ink mode, assist above `0%`, and an aligned local
-three-band Byte RGB GeoTIFF, PNG, or JPEG. It reads native 512×512 source-anchored
-tiles and uses their central 384×384 cores with 64px halos. This fixes the context
-for each source pixel during panning; it does not promise whole-image-equivalent
-predictions. Missing or corrupt models, missing runtimes, invalid outputs, and
-unsupported rasters fall back to Ink. Assist at `0%` skips inference.
-
-Contour support joins the existing line evidence, while finite noncontour
-avoidance costs combine with manual avoid regions and color hints and also reach
-Smart Recovery. Late results cannot change an offered preview or a pending click.
-Review the green path before accepting it; the usual edit-buffer, save, and Undo
-workflow still applies.
-
-The separate pilot freezes **16 USGS sheets / 144 native crops** before cropping:
-72 train, 24 validation, 24 calibration, and 24 holdout. The lossless crops are
-staged and verified against their declared source pixels, but **all labels remain
-drafts without human approval**. Use **Annotate training crop** and **Review /
-export labels** to correct the Ink draft, mark every visible contour in reviewed
-areas, label other ink, and mask uncertain areas with `ignore`. A single reviewer
-is recorded as an experimental pilot, not independent publication review.
-
-The [Colab notebook](learning/colab_train.ipynb) uses a pinned public Git commit and
-a separate Python 3.12 environment. It trains an ImageNet ResNet18 encoder with a
-small U-Net decoder for `contour_support` and `other_ink_risk`, saves resumable
-checkpoints to Drive, and selects one of three seeds using validation alone.
-
-Before human review, a separate [weak-label notebook](learning/colab_train_weak_labels.ipynb)
-can train a distinct experimental dataset with explicit `--allow-weak-labels`.
-Annotations remain `machine_labeled`; checkpoints and ONNX provenance retain
-`human_review_required=true`. Validation measures agreement with weak labels,
-not actual contour accuracy. These models cannot enter human-reviewed pilot
-Calibration/Holdout evaluation or be sealed as passing pilot models.
-
-On 2026-10-14, all three seeds trained on the frozen 144-crop dataset on Colab
-runtime `2026.07` (Python 3.12.13, Tesla T4), using 72 train and 24 validation
-crops. Validation loss alone selected seed 3408 (60 epochs, weak-label loss
-1.0018), exported as a 47.5 MiB FP32 ONNX model whose probabilities differ from
-PyTorch by at most `1.7e-6`. On an M4 Mac CPU, prepared tile inference p95 was
-69 ms with 254 MiB of extra RAM, and QGIS 3.44.8 saved preview coordinates
-unchanged, undid in one step, and ran no inference at 0% assist.
-
-The model learned USGS brown-contour conventions. It treats the same line drawn
-in black or blue as something to avoid, so use the Korean retrained model below
-for maps with black or blue contours, including many Korean maps. In a five-crop QGIS comparison on
-validation sheets, it corrected one case where Ink jumped to a neighbouring
-contour; the others were similar or not interpretable. That comparison uses a
-machine reference and only shows direction. Human review, Calibration, and
-Holdout evaluation remain pending; the [execution record](learning/COLAB_WEAK_RUN_2026-10-14.md)
-holds the hashes and measurements.
-
-On 2026-10-15 a second weak-label experiment added 149 crops from 16 black-ink
-AMS Korea 1:50,000 (Series L751) sheets to the 144 USGS crops. Korean labels also
-come from stroke geometry without human review: long, thin, curved black strokes
-are contour candidates; blue overprint, straight grid lines, glyphs, and filled
-symbols are other ink; unresolved pixels are excluded from the loss. Two
-augmentations were enabled. `ink_recolor` repaints contour ink black, grey, blue,
-or brown so colour alone cannot identify a contour, and `label_gaps` writes
-elevation-style numbers across contours and cuts the printed line while the
-target stays continuous, teaching the model to treat the number as other ink and
-join the cut line.
-
-The [Korean notebook](learning/colab_train_korea_weak.ipynb) trained all three
-seeds for 60 epochs on a Colab T4 with 162 train and 48 validation crops.
-Validation loss alone selected seed 3408 (0.860), exported as the 47.5 MiB FP32
-`ai-weak-contour-guide-korea-v1`; Calibration and Holdout stayed unopened. On an
-M4 Mac CPU, prepared tile p95 was 56 ms with 253 MiB of extra RAM.
-
-A separate [Colab text-training notebook](learning/colab_train_korea_text_weak.ipynb)
-adds `word_gaps`: self-drawn Latin, Hanja and Hangul strokes overlay or interrupt
-already continuous training targets. Every neighboring contour remains positive.
-The new diagnostic crops stay outside training. Three fresh seeds and checkpoints
-use a separate experiment directory; exported models require the same QGIS
-comparison before adoption.
-
-The new model supports the synthetic blue and black lines that the first model
-avoided (support 0.88 and 0.89), and its QGIS deviation from the synthetic blue
-line fell from 37.7 px to 0.19 px. There is not yet evidence that it traces real
-Korean contours better. The first same-click comparison was withdrawn because its
-machine reference hopped between neighbouring contours and some clicks sat on grid
-lines. In the one case whose reference follows a single contour, the new guide drew
-the same line as Ink while the USGS-only guide cut across it; on a dense sheet with
-grid lines all three methods failed. Later development pairs were re-audited on
-raw pixels; human-reviewed answers, blue-contour sheets, and Calibration/Holdout evaluation remain pending,
-and the model stays a default-OFF experiment. See the
-[Korean execution record](learning/COLAB_KOREA_WEAK_RUN_2026-10-15.md).
-
-For the human-reviewed pilot, calibration freezes path costs before the holdout
-comparison. Human-reviewed Colab training, reviewed holdout results, and
-Korean-map validation are still pending.
-Synthetic diagnostic bundles only verify the software path and carry
-`research_ready=false`; they are not domain-trained contour models. See the
-[learning guide](learning/README.md) for annotation, training, export, and
-evaluation commands. Elevation-number and legend reading with Unsloth remains
-a later stage.
-
-## Grid avoidance and contour continuity
-
-Native Byte Ink caches detect long, dark, low-chroma grid candidates when at
-least two separated horizontal and two vertical strokes are present. Small scan
-rotation is supported. Live-Wire raises the finite cost of following the grid;
-Recovery also receives a weaker finite cost. Raster pixels stay intact and
-transverse contour crossings remain possible. Saturated blue grids, large
-rotation, and short or broken grids can be missed; thick grid shoulders can
-still attract the route. Classification depends on
-the available cache context and is not guaranteed to stay identical after panning.
-
-Ink v2 now prefers a connected native centerline between the clicks, retaining
-deep U bends over shorter cross-contour routes. A compact tree is prepared once
-in the worker. Missing connections, excessive detours, avoidance hints and
-existing gap bridges use the pixel-cost route. Actual junction identity remains
-ambiguous; inspect the green preview. The former Ink-route guard and visible-ink
-support restriction remain disabled. Learned guidance itself stays default OFF.
-
-Models without a recorded path-cost selection now use **contour support only**.
-An arbitrary text/road penalty no longer charges true contours misclassified by
-the model. The ready/active status says so. Bundles with selected costs and
-evaluation hashes retain those settings; manual avoidance and ink-color guidance
-still apply. Useful text/road exclusion can also be lost, so this is not a claim
-that every model becomes more accurate.
-
-A raw-only re-audit found one old starting click on a neighboring contour. That
-row and aggregates containing it are withdrawn; original files are retained.
-With a separately frozen corrected pair, the new seven-case diagnostic preserves
-five existing successes and follows the same contour through both U bends. Ink
-and the Korea guide score 1.000/0.991 F1@2px and 0.966/1.982px p95 on those bends.
-There was no human approval, independent performance evaluation or retraining.
-See the [raw audit and U-bend check](learning/U_CONTOUR_CHECK_2026-10-15.md) and
-the separate [historical avoidance-cost record](learning/UNCALIBRATED_AVOIDANCE_CHECK_2026-10-15.md).
-
-## Experimental: label-gap bridge
-
-Ink v2 now connects some numeric gaps **without pressing `G`**. It finds compact
-groups of enclosed glyph spaces in native Byte pixels, then requires mutually
-unique ends that are **already endpoints in the original evidence**. Click along
-the contour, move to its visible continuation, inspect the green preview and
-click to accept. This needs SciPy and assistance above 0%; no OCR or extra model
-installation is required.
-
-A label mask cannot manufacture a new endpoint by cutting an intact contour.
-Visible continuous strokes in its padding remain in the native graph.
-Unbranched native paths outside the mask take priority, including at partial
-assistance. Each route can contain only one inferred gap. Short competing arms,
-cursor proximity, crossings and contact with neighboring ink after assistance
-blending are checked. An existing route that already retains the selected
-visible arms keeps its original geometry and smoothing. Active manual, color or learned avoidance costs retain
-their existing routing. Fused glyphs, open letters and actual junctions remain
-ambiguous.
-
-Some compact fused digits are also checked. A route through junctions cannot
-suppress an admissible gap pair whose visible arms remain unbranched; original
-endpoints and neighboring-line clearance are still required. See the
-[new Korean spatial-window check](learning/UNSEEN_KOREA_GAP_CHECK_2026-10-16.md)
-for source audits, failed references and comparisons.
-On one separately frozen `300` case, all three methods improved visible
-F1@2px from 0.050 to 1.000 and p95 from 41.176 to 0.696px in QGIS. All 36
-saved-coordinate pairs in the existing 12-case comparison stayed identical.
-Six faulty references from the first new comparison were withdrawn. These are
-new spatial windows on known sheets; hidden curves, general text and unseen
-sheet performance remain unverified.
-
-The subsequent development build also checks some **general text gaps**.
-Compact letter groups and a limited CJK stroke structure produce source-only
-proposals. Original endpoints, neighboring ink, crossings and unbranched visible
-arms remain mandatory. Actual glyph ink is kept separate from its context hull,
-preserving other lines in letter holes. A materially longer old route that follows
-the selected glyph for a sustained interval can yield to the checked curve;
-existing numeric priorities stay unchanged. On one new Yongdam `面` case in QGIS,
-visible F1@2px improved from 0.975 to 1.000 for Ink and the Korea guide; the USGS
-guide retained 1.000. See the [source review and comparison](learning/GENERAL_TEXT_GAP_CHECK_2026-10-16.md).
-All 39 existing saved-coordinate pairs and six new blue-letter control pairs stayed identical.
-Hidden geometry and general text accuracy remain unverified. Review the green preview.
-
-The explicit `G` preview is available when automatic routing declines:
-
-```text
-Anchor the last visible stroke before the gap → hover its first visible continuation → G → review → click that endpoint
-```
-
-| Evidence at the explicit endpoints | Result |
-| --- | --- |
-| Outward Ink support on both sides agrees with the gap | A bounded, assist-weighted curve preview |
-| A glyph corrupts the 3px local direction field | Re-check only the outward 12px centerline support |
-| The hidden interval makes a broad U turn | Use signed visible directions for a bounded Bézier preview; shorten its handles if it touches a neighboring stroke |
-| No intended contour, only a parallel line/glyph, or diffuse direction | **Keep the existing Ink preview; create no bridge** |
-
-Click the displayed endpoint to accept. `Esc` or a click elsewhere cancels only
-the proposal, while hovering preserves it. `G` does not move the specified ends;
-skipped nearby terminals and sustained foreign-line crossings are rejected.
-The hidden curve is an inference. Real label cases, existing-case comparisons
-and remaining failures are recorded in the [label-gap check](learning/LABEL_GAP_CHECK_2026-10-15.md).
-
-In QGIS, ordinary clicks now save undoable paths for the U bends and the diagonal
-`600` **outer pair selected by a new raw audit**. The diagonal keeps the visible
-arch and connects its actual gap; all three methods reach visible F1@2px 1.000.
-No automatic bridge is offered for the former wrong inner pair; its ordinary
-Ink fallback is unchanged. The `600` U now reaches
-visible F1 1.000 with Ink and both learned guides. Learned support had made a
-short pixel route cheaper, excluding the good Ink path from preservation.
-Only for an established native gap pair, the unlearned path is also checked
-against those same ends, visible arms and final display clearance.
-All 21 saved-coordinate pairs from seven existing cases
-and three methods remain identical. Hidden geometry remains unknown. See the
-[learned U follow-up](learning/LEARNED_U_FOLLOWUP_2026-10-16.md) for exact
-mouse inputs, the corrected pair and remaining limits.
-
-The declared OpenCV range is 4.8–4.11:
-
-```bash
-<QGIS_PYTHON> -m pip install "opencv-python-headless>=4.8,<4.12"
-```
-
-The [plugin user guide](ai_vectorizer/README.md), which is included in the ZIP,
-contains backend-specific installation commands, model hashes, manual paths,
-shortcuts, and troubleshooting guidance.
+1. In QGIS, open `Plugins > Manage and Install Plugins` and enable **Show also
+   experimental plugins** in Settings.
+2. Search for `ArchaeoTrace` and install it, or use `Install from ZIP` with a
+   release ZIP.
+3. That is all the default modes (Freehand, Ink Centerline) need. For AI assistance
+   or OpenCV-based modes, follow the optional steps in the
+   [user guide](ai_vectorizer/README.md).
 
 ## Quick start
 
-1. Use `Plugins > Manage and Install Plugins > Install from ZIP` and enable
-   ArchaeoTrace.
-2. Select a georeferenced raster and a 2D line output layer.
-3. Choose the default Ink Centerline or Freehand and an assist strength. Enable
-   Smart Recovery or an imported learned guide only when wanted.
-4. Inspect the green preview and the `Ink`, `Recovering`, `Enhanced`, or
-   `Ink fallback` state. Older methods are under `Advanced / Legacy methods`.
-5. In Ink tracing, Alt+click two corners to mark text/noise to avoid. The orange
-   region is a soft local cost hint, not a hard wall; `Alt+Backspace` removes the
-   latest region and `Alt+Shift+Backspace` clears all regions for that trace.
-6. Accept anchors with clicks; use `Enter` or right-click to add the result to
-   the edit buffer. Closing near the first point allows elevation entry.
-7. Run `Save Layer Edits`, then use `Step 4 > Build DEM…` to review the grid and
-   output paths.
+1. Choose a georeferenced map raster and a line layer to write to.
+2. Choose `Ink Centerline` and an assist strength.
+3. Click along a contour, checking and accepting the green preview. Press `Enter`
+   or right-click to finish the line.
+4. Enter the elevation and run `Save Layer Edits`.
+5. Use `Step 4 > Build DEM…` to create the DEM and hillshade.
 
-## Data and safety boundary
+Shortcuts and troubleshooting are in the [user guide](ai_vectorizer/README.md).
 
-- Raster crops, vector geometry, and local inference results are not uploaded
-  to a remote inference service. There is no default telemetry.
-- Network access occurs only when the user explicitly installs a Recovery model
-  or downloads HED/SAM models. Recovery never auto-downloads; the
-  content-addressed size, SHA-256, and ONNX session are prepared in a background
-  task while Ink remains available. A corrupt regular cache object is
-  quarantined and re-fetched only through the explicit `Repair Recovery Model`
-  action; unsafe objects are never changed automatically. Recovery runs only on native Byte rasters;
-  wider integer rasters retain Ink v2. SAM
-  Check/Status verifies a valid local checkpoint offline and queries its pinned
-  source only when the file is missing. The EfficientSAM benchmark uses network
-  access only for an explicit `model fetch`.
-- A SAM status report can include the current working directory, QGIS/Python
-  environment values, and model paths, and it is also copied to the clipboard.
-  Review and redact it before sharing.
-- Model artifacts use pinned sources, exact sizes and SHA-256 values, staged
-  writes, `fsync`, atomic publication, and rollback. Symlinked storage targets
-  are rejected.
-- Learned-guide import uses a local verified bundle and never downloads a model.
-  Dataset preparation and Colab encoder initialization are explicit, separate
-  research commands; they are not QGIS inference uploads.
-- Trace changes remain in the QGIS edit buffer until the user saves them.
+## Used in
 
-See [SECURITY.md](SECURITY.md) for vulnerability reporting and diagnostic-data
-redaction.
+- [Geoawesome, "Digitising Historical Maps: Testing AI-Assisted Contour Tracing in QGIS"](https://geoawesome.com/digitising-historical-maps-testing-ai-assisted-contour-tracing-in-qgis/)
+  (October 2026) An external case study that digitised a 1929-39 WIG 1:25,000
+  sheet and a 1960s-80s topographic map of a small Polish sand mine to rebuild the
+  terrain before, during and after extraction, and compared it with a present-day
+  LiDAR DEM.
 
-## Terrain limitations
+If you use ArchaeoTrace in research or practice, please open an issue so it can be
+listed here.
 
-The DEM path requires saved 2D contours, finite numeric elevations, at least two
-distinct elevation values, non-collinear vertices, and a projected metre CRS.
-The default grid limit is 25 million cells. Staged outputs are validated before
-the DEM and hillshade pair is published.
+## Status and limitations
 
-Linear TIN is sensitive to sparse, incorrect, and out-of-range contours.
-The `0.1.6` candidate does not yet produce topology QA, uncertainty/NoData layers, or
-a provenance sidecar. Treat the output as a terrain hypothesis for review, not
-as archaeological ground truth.
+- The plugin is experimental. Version `0.1.5` was published in the official QGIS
+  plugin repository on 2026-08-26, and `main` is the `0.1.6` candidate. See the
+  [CHANGELOG](CHANGELOG.md).
+- Accuracy against human-reviewed reference lines and time savings for users are
+  **still being evaluated**. Progress is recorded in
+  [benchmarks](benchmarks/README.md) and [learning](learning/README.md).
+- A generated DEM is a **terrain hypothesis to review**, not ground truth. It is
+  sensitive to sparse or wrong contours and does not yet include topology QA or
+  uncertainty layers.
+- Always inspect proposed lines before accepting them.
 
-## Repository guide
+## Data and privacy
 
-- [Features and architecture](docs/FEATURES_AND_ARCHITECTURE.md): implemented
-  flows, safety boundaries, and module map
-- [Roadmap](ROADMAP.md): implemented work, next stages, and deliberate non-goals
-- [Open-source development plan](docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md): principles
-  and delivery gates
-- [0.1.6 release readiness](docs/RELEASE_READINESS_0.1.6.md): current candidate evidence and
-  residual risk
-- [0.1.5 historical readiness](docs/RELEASE_READINESS_0.1.5.md): published and
-  frozen artifact identities
-- [Contributing](CONTRIBUTING.md): development setup, test tiers, documentation,
-  translation, and dataset contributions
-- [Security](SECURITY.md): private reporting and safe diagnostics
-- [Learning guide](learning/README.md): the separate USGS pilot, annotation
-  review, Colab training/resume, ONNX export, and calibrated CPU evaluation
+Maps, traced geometry and inference results never leave your computer, and there is
+no telemetry. The network is used only when you explicitly download an AI model,
+and downloaded models are verified against a fixed size and SHA-256. See
+[SECURITY](SECURITY.md) for details.
 
-Routine development uses `main`, the repository's only named branch. Do not
-create feature/release branches or pull requests automatically. If isolation is
-needed, use a detached worktree, integrate the completed work into `main`, and
-remove the temporary checkout; see [AGENTS.md](AGENTS.md).
+## Further reading
 
-The harness registers independent Ink v1, Ink v2, EfficientSAM, and product-like
-Recovery method IDs. The first USGS HTMC sheet and six lossless crops are now
-staged in the rights-and-annotation-validating 8-sheet/48-crop plan. The
-remaining seven sheets and all independent review are still incomplete, so
-`publication_ranking_eligible=false`. It does
-not establish historical-map accuracy or superiority over another tool. See
-[benchmarks/README.md](benchmarks/README.md) for its evidence format.
+| Document | Contents |
+| --- | --- |
+| [User guide](ai_vectorizer/README.md) | Optional installs, modes, shortcuts, troubleshooting |
+| [Features and architecture](docs/FEATURES_AND_ARCHITECTURE.md) | Implementation flow, safety boundaries, module map |
+| [Roadmap](ROADMAP.md) | Next steps and deliberate non-goals |
+| [Learning pilot](learning/README.md) | Data, training, evaluation and run records for the learned guide |
+| [Benchmarks](benchmarks/README.md) | Reproducible evaluation harness and evidence format |
+| [Contributing](CONTRIBUTING.md) | Development setup, tests, release procedure |
 
-## Versioning, citation, and license
+## Citation, contributing and license
 
-`ai_vectorizer/metadata.txt` is the release-version source of truth. Normal
-development stays under `Unreleased`; metadata changes once when release
-preparation begins. See [CHANGELOG.md](CHANGELOG.md) and
-[CONTRIBUTING.md](CONTRIBUTING.md).
+If you use ArchaeoTrace in research, teaching or applied work, please cite it with
+[CITATION.cff](CITATION.cff). Bug reports, translations, documentation and
+redistributable sample maps are welcome; start with [CONTRIBUTING](CONTRIBUTING.md).
 
-Validate current source through an isolated package; this does not touch the
-repository-local `0.1.5` or `0.1.6` candidate ZIP/release trees:
-
-```bash
-current_source_dir="$(mktemp -d)"
-current_source_zip="$current_source_dir/ai_vectorizer-unreleased.zip"
-python3 scripts/package_release.py --output "$current_source_zip"
-python3 scripts/package_release.py --check --output "$current_source_zip"
-```
-
-The metadata-derived repository-local candidate ZIP cannot be replaced when
-the current-source hash differs from its recorded frozen SHA-256. That guard
-hash is not the identity of the official QGIS download. A deliberate new
-release requires the exact metadata version through
-`--approve-release-overwrite VERSION`.
-
-Use [CITATION.cff](CITATION.cff) for citation metadata.
-
-GNU General Public License v2.0. [LICENSE](LICENSE)
+GNU General Public License v2.0 · [LICENSE](LICENSE)

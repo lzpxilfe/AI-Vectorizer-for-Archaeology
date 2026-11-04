@@ -98,7 +98,9 @@ class DependencyDeclarationTests(unittest.TestCase):
         development = (ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
         self.assertIn("pytest>=9.0.3,<10", development)
         self.assertIn("Development dependencies require Python 3.10+", development)
-        for relative_path in ("README.md", "ai_vectorizer/README.md"):
+        # Install commands live in the packaged user guide; the root README
+        # links to it instead of repeating dependency pins.
+        for relative_path in ("ai_vectorizer/README.md",):
             document = (ROOT / relative_path).read_text(encoding="utf-8")
             self.assertIn("opencv-python-headless>=4.8,<4.12", document)
             self.assertIn("OpenCV 4.8–4.11", document)
@@ -292,7 +294,9 @@ class ReleasePackagingTests(unittest.TestCase):
             ROOT / "docs" / "RELEASE_READINESS_0.1.5.md"
         ).read_text(encoding="utf-8")
         self.assertIn(frozen_hash, release_record)
-        for relative_path in ("README.md", "README.en.md"):
+        # Release commands live in the contributor guide; the READMEs stay
+        # user-facing overviews.
+        for relative_path in ("CONTRIBUTING.md",):
             document = (ROOT / relative_path).read_text(encoding="utf-8")
             self.assertIn("--output", document)
             self.assertIn("--approve-release-overwrite VERSION", document)

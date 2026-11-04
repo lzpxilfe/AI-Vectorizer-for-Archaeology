@@ -144,6 +144,27 @@ identity를 결속하고 취소, model switch, layer removal과 unload 뒤 늦�
   추가합니다.
 - 과거 commit과 tag를 rewrite하거나 개발판 흔적을 공개판처럼 설명하지 않습니다.
 - package unit test에는 제품 버전 대신 `9.8.7` 같은 독립 fixture를 사용합니다.
+- 저장소는 `main` 하나를 유지합니다. 작업 규칙은 [`AGENTS.md`](AGENTS.md)에 있습니다.
+
+### Release artifacts
+
+개발 중인 현재 source는 공개 artifact 이름과 분리된 임시 ZIP으로 검증하세요.
+이 명령은 repository-local `0.1.5`·`0.1.6` 후보 ZIP이나 release tree를
+건드리지 않습니다.
+
+```bash
+current_source_dir="$(mktemp -d)"
+current_source_zip="$current_source_dir/ai_vectorizer-unreleased.zip"
+python3 scripts/package_release.py --output "$current_source_zip"
+python3 scripts/package_release.py --check --output "$current_source_zip"
+```
+
+metadata에서 파생된 repository-local 후보 ZIP은 기록된 동결 SHA-256과 현재 source
+build가 다르면 기본 명령으로 덮어쓸 수 없습니다. 이 보호 해시는 공식 QGIS 다운로드의
+identity가 아니니 두 artifact를 혼동하지 마세요. 새 release를 승인할 때만 metadata와
+같은 버전을 `--approve-release-overwrite VERSION`에 명시합니다. 후속 `Unreleased`
+구현에서 새 tag, GitHub Release 또는 QGIS upload를 만들지 않으며, 실제 게시에는 별도
+승인과 동일 ZIP 검증이 필요합니다.
 
 ## Documentation and translations
 
