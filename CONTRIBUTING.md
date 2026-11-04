@@ -47,7 +47,7 @@ Windows에서는 `.venv\Scripts\python.exe`를 사용하세요. 선택 SAM backe
    ```
 
    metadata-derived 기본 경로는 공식 QGIS artifact가 아닌 repository-local
-   후보를 동결한 자리입니다. 현재 `0.1.6` 이후의 일반 `Unreleased` 검증에서는 위처럼
+   후보를 동결한 자리입니다. 공개된 `0.1.6` 이후의 일반 `Unreleased` 검증에서는 위처럼
    반드시 별도 `--output` ZIP을 사용하세요.
 
 2. Python 3.8 source 계약

@@ -1,7 +1,7 @@
 # ArchaeoTrace features and architecture
 
-이 문서는 ArchaeoTrace의 공식 experimental `0.1.5` 기준선과 현재
-experimental `0.1.6` 후보에 들어 있는
+이 문서는 ArchaeoTrace의 공개판 experimental `0.1.6`(2026-09-09)과 현재 `main`의
+`0.1.7` 작업분에 들어 있는
 기능, 각 기능이 구현된 방식,
 현재 안전 경계와 아직 구현되지 않은 계획을 한곳에 정리합니다. ArchaeoTrace는
 고지도 등고선을 사용자가 검수하며 벡터화하고, 고도 의미를 부여한 뒤 검토 가능한

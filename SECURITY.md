@@ -29,8 +29,9 @@ maintainer는 best-effort로 수신을 확인하고 재현 범위, 임시 완화
 ## Supported versions
 
 보안 수정은 현재 `main`과 공식 QGIS plugin 저장소의 최신 공개판을 우선합니다.
-현재 `main`은 experimental `0.1.6` 후보이며 공식 QGIS 저장소의 최신 공개판은
-`0.1.5`입니다. 과거 미공개 개발판 `0.1.7–0.1.8`은 별도 지원 line이 아닙니다.
+공식 QGIS 저장소의 최신 공개판은 experimental `0.1.6`(2026-09-09)이며, 현재 `main`은
+다음 공개판 `0.1.7`을 준비 중입니다. Git history에 남은 개발용 버전 표시
+(`0.1.7`, `0.1.8`)는 공개판이 아니며 별도 지원 대상이 아닙니다.
 오래된 ZIP에서 문제가 재현되면 먼저 최신 검증 artifact로 재현 여부를 확인해 주세요.
 
 ## Diagnostic-data warning

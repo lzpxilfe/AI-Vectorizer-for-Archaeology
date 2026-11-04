@@ -12,11 +12,9 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 
 ## 🚧 Current Source Status
 
-- 공식 QGIS 저장소에 experimental `0.1.5`가 2026-08-26 공개됐습니다.
-  현재 checkout과 설치 후보는 metadata `0.1.6`, `experimental=True`이며 아래
-  Ink v2·Smart Recovery와 Unreleased 학습 등고선 보조·주석 도구를 포함합니다.
-  `0.1.6`은 아직 QGIS 저장소나 GitHub
-  Release에 게시되지 않은 검증 후보입니다.
+- 공식 QGIS 저장소의 최신 공개판은 experimental `0.1.6`(2026-09-09)입니다.
+  현재 `main`은 그 이후의 학습 등고선 보조·주석 도구·문자 공백 연결을 포함한
+  `0.1.7` 작업분이며, metadata 숫자는 release 준비 때 올립니다.
 - 공식 `0.1.5` artifact와 Ink v1 fallback은 보존합니다. 현재 `0.1.6` UI와 사용법은
   이 문서가 source of truth이며, 정확한 후보 ZIP·commit·CI 범위는 repository의
   `docs/RELEASE_READINESS_0.1.6.md`에 기록합니다.
@@ -38,8 +36,8 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 - 지도와 추적 처리는 로컬에서 수행됩니다. model 다운로드는 network를 사용합니다.
   SAM Check/Status는 유효한 local checkpoint가 있으면 size와 SHA-256을 offline
   확인하고, 파일이 없을 때만 고정 source의 availability를 조회합니다.
-- 과거 미공개 개발판 `0.1.7–0.1.8`을 설치했다면 QGIS가 `0.1.6`을 자동 update로
-  보지 않을 수 있습니다. 기존 plugin을 제거한 뒤 `0.1.6` ZIP을 설치하세요.
+- 예전에 Git의 개발용 `0.1.7`·`0.1.8` 표시가 붙은 ZIP을 직접 설치했다면 QGIS가
+  `0.1.6`을 자동 update로 보지 않을 수 있습니다. 기존 plugin을 제거한 뒤 `0.1.6` ZIP을 설치하세요.
   profile에 저장된 검증 model은 plugin 폴더 밖에 유지됩니다.
 
 ## 🎯 What You Can Do
@@ -390,7 +388,7 @@ first use.
 ## 🇬🇧 English Summary
 
 - ArchaeoTrace is a local-first QGIS plugin for tracing elevation contours on historical maps and building reviewable terrain hypotheses.
-- The QGIS repository published experimental `0.1.5` on 2026-08-26. This guide describes the unpublished experimental `0.1.6` candidate and its Unreleased learned-contour and annotation additions.
+- The QGIS repository published experimental `0.1.6` on 2026-09-09. This guide also describes the learned-contour, annotation and text-gap additions on `main` that are being prepared for `0.1.7`.
 - Cursor movement performs only a predecessor lookup after one asynchronous tree build per accepted anchor; the green line is the exact one-click result.
 - Assist is literal from 0% (exact cursor, no model work), through coordinate blending, to 100% (the full Live-Wire route).
 - `Freehand` needs no additional pip package, external model, or OpenCV, but uses NumPy from the QGIS Python environment.

@@ -12,7 +12,7 @@
 ![Local first](https://img.shields.io/badge/processing-local--first-2f855a.svg)
 ![License GPLv2](https://img.shields.io/badge/license-GPLv2-d64541.svg)
 
-## 왜 만들었나
+## 💡 왜 만들었나
 
 스캔한 고지도에서 등고선을 손으로 따는 일은 느리고 반복적이며 실수하기 쉽습니다.
 그렇다고 완전 자동 추출에 맡기면 고도 숫자, 격자, 흐려진 선에서 자주 틀리고, 어디가
@@ -22,7 +22,7 @@ ArchaeoTrace는 그 중간을 택합니다. 프로그램이 선을 따라갈 경
 제안하면, 사람이 확인하고 클릭해서 채택합니다. **채택한 구간만 결과가 됩니다.**
 검출 결과나 AI 마스크가 그대로 저장되는 일은 없습니다.
 
-## 주요 기능
+## ✨ 주요 기능
 
 - **Ink Centerline (기본)** 인쇄된 선의 중심을 여러 굵기에서 찾아 따라가는 보조 추적입니다.
   추가 설치 없이 동작합니다.
@@ -37,7 +37,7 @@ ArchaeoTrace는 그 중간을 택합니다. 프로그램이 선을 따라갈 경
 - **QGIS 편집 흐름 그대로** edit buffer, 한 번의 Undo, `Save Layer Edits`를 따릅니다.
 - **한국어·English UI**
 
-## 작동 방식
+## ⚙️ 작동 방식
 
 ```text
 스캔 지도 → 선 증거 계산 → 경로 제안(초록 미리보기) → 사람이 클릭해 채택
@@ -48,7 +48,7 @@ ArchaeoTrace는 그 중간을 택합니다. 프로그램이 선을 따라갈 경
 버려집니다. 구조와 모듈별 책임은 [기능과 아키텍처](docs/FEATURES_AND_ARCHITECTURE.md)에
 정리했습니다.
 
-## 설치
+## 📦 설치
 
 1. QGIS에서 `플러그인 > 플러그인 관리 및 설치`를 열고, 설정에서 **실험적 플러그인
    표시**를 켭니다.
@@ -56,7 +56,7 @@ ArchaeoTrace는 그 중간을 택합니다. 프로그램이 선을 따라갈 경
 3. 기본 기능(Freehand, Ink Centerline)은 이것으로 끝입니다. AI 보조나 OpenCV 기반
    방식이 필요할 때만 [사용자 가이드](ai_vectorizer/README.md)의 선택 설치를 따르세요.
 
-## 빠르게 시작하기
+## 🚀 빠르게 시작하기
 
 1. 좌표가 잡힌(georeferenced) 지도 래스터와 저장할 선 레이어를 고릅니다.
 2. `Ink Centerline`과 보조 강도를 고릅니다.
@@ -67,7 +67,7 @@ ArchaeoTrace는 그 중간을 택합니다. 프로그램이 선을 따라갈 경
 
 단축키와 문제 해결은 [사용자 가이드](ai_vectorizer/README.md)에 있습니다.
 
-## 사용 사례
+## 🌍 사용 사례
 
 - [Geoawesome, "Digitising Historical Maps: Testing AI-Assisted Contour Tracing in QGIS"](https://geoawesome.com/digitising-historical-maps-testing-ai-assisted-contour-tracing-in-qgis/)
   (2026-10) 폴란드의 소규모 모래 채굴지를 대상으로 1929-39년 WIG 1:25,000 지도와
@@ -76,10 +76,11 @@ ArchaeoTrace는 그 중간을 택합니다. 프로그램이 선을 따라갈 경
 
 연구나 실무에서 사용하셨다면 이슈로 알려 주세요. 이 목록에 추가하겠습니다.
 
-## 현재 상태와 한계
+## 🚧 현재 상태와 한계
 
-- 실험 단계 플러그인입니다. 공식 QGIS 저장소에는 `0.1.5`가 2026-08-26 공개되어 있고,
-  `main`은 `0.1.6` 후보입니다. 변경 내역은 [CHANGELOG](CHANGELOG.md)에 있습니다.
+- 실험 단계 플러그인입니다. 공식 QGIS 저장소의 최신판은 `0.1.6`(2026-09-09 공개)이고,
+  `main`에서는 학습 등고선 보조와 문자 공백 연결을 담은 `0.1.7`을 준비하고 있습니다.
+  변경 내역은 [CHANGELOG](CHANGELOG.md)에 있습니다.
 - 사람이 검수한 정답 기준의 정확도 평가와 작업 시간 단축 효과는 **아직 검증 중**입니다.
   진행 상황은 [benchmarks](benchmarks/README.md)와 [learning](learning/README.md)에
   기록합니다.
@@ -87,13 +88,13 @@ ArchaeoTrace는 그 중간을 택합니다. 프로그램이 선을 따라갈 경
   민감하며, 위상 검사와 불확실성 레이어는 아직 없습니다.
 - 자동으로 제안된 선은 반드시 눈으로 확인하세요.
 
-## 데이터와 개인정보
+## 🔒 데이터와 개인정보
 
 지도, 추적한 선, AI 추론 결과는 외부로 전송되지 않으며 사용 기록 수집도 없습니다.
 네트워크는 사용자가 직접 AI 모델을 내려받을 때만 사용하고, 받은 모델은 고정된 크기와
 SHA-256으로 검증합니다. 자세한 내용은 [SECURITY](SECURITY.md)에 있습니다.
 
-## 더 읽을거리
+## 📚 더 읽을거리
 
 | 문서 | 내용 |
 | --- | --- |
@@ -104,7 +105,7 @@ SHA-256으로 검증합니다. 자세한 내용은 [SECURITY](SECURITY.md)에 �
 | [벤치마크](benchmarks/README.md) | 재현 가능한 평가 도구와 증거 형식 |
 | [기여 안내](CONTRIBUTING.md) | 개발 환경, 테스트, 릴리스 절차 |
 
-## 인용, 기여, 라이선스
+## 🤝 인용, 기여, 라이선스
 
 연구·교육·실무에 사용하셨다면 [CITATION.cff](CITATION.cff)로 인용해 주세요.
 버그 제보, 번역, 문서, 재배포 가능한 샘플 지도 기여를 환영합니다. 시작은

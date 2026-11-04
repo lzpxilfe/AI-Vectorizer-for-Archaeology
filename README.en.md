@@ -12,7 +12,7 @@ Everything runs on your own computer; map data is never sent to a remote server.
 ![Local first](https://img.shields.io/badge/processing-local--first-2f855a.svg)
 ![License GPLv2](https://img.shields.io/badge/license-GPLv2-d64541.svg)
 
-## Why
+## 💡 Why
 
 Hand-digitising contours from old map scans is slow, repetitive and easy to get
 subtly wrong. Fully automatic extraction, on the other hand, often trips over
@@ -23,7 +23,7 @@ ArchaeoTrace sits in between. The plugin proposes the path to follow as a green
 preview; you check it and click to accept. **Only the segments you accept become
 geometry.** Edge maps and AI masks are never saved as results.
 
-## Features
+## ✨ Features
 
 - **Ink Centerline (default)** follows the centre of printed lines at several
   stroke widths. Works without extra packages.
@@ -41,7 +41,7 @@ geometry.** Edge maps and AI masks are never saved as results.
   `Save Layer Edits`.
 - **Korean and English UI**
 
-## How it works
+## ⚙️ How it works
 
 ```text
 Scanned map → line evidence → proposed path (green preview) → you click to accept
@@ -52,7 +52,7 @@ Optional AI assistance only improves the proposed path, and is discarded when it
 fails safety checks. See [Features and architecture](docs/FEATURES_AND_ARCHITECTURE.md)
 for the design and module map.
 
-## Installation
+## 📦 Installation
 
 1. In QGIS, open `Plugins > Manage and Install Plugins` and enable **Show also
    experimental plugins** in Settings.
@@ -62,7 +62,7 @@ for the design and module map.
    or OpenCV-based modes, follow the optional steps in the
    [user guide](ai_vectorizer/README.md).
 
-## Quick start
+## 🚀 Quick start
 
 1. Choose a georeferenced map raster and a line layer to write to.
 2. Choose `Ink Centerline` and an assist strength.
@@ -73,7 +73,7 @@ for the design and module map.
 
 Shortcuts and troubleshooting are in the [user guide](ai_vectorizer/README.md).
 
-## Used in
+## 🌍 Used in
 
 - [Geoawesome, "Digitising Historical Maps: Testing AI-Assisted Contour Tracing in QGIS"](https://geoawesome.com/digitising-historical-maps-testing-ai-assisted-contour-tracing-in-qgis/)
   (October 2026) An external case study that digitised a 1929-39 WIG 1:25,000
@@ -84,10 +84,11 @@ Shortcuts and troubleshooting are in the [user guide](ai_vectorizer/README.md).
 If you use ArchaeoTrace in research or practice, please open an issue so it can be
 listed here.
 
-## Status and limitations
+## 🚧 Status and limitations
 
-- The plugin is experimental. Version `0.1.5` was published in the official QGIS
-  plugin repository on 2026-08-26, and `main` is the `0.1.6` candidate. See the
+- The plugin is experimental. The latest release in the official QGIS plugin
+  repository is `0.1.6` (published 2026-09-09), and `main` is preparing `0.1.7`
+  with the learned contour guide and text-gap bridging. See the
   [CHANGELOG](CHANGELOG.md).
 - Accuracy against human-reviewed reference lines and time savings for users are
   **still being evaluated**. Progress is recorded in
@@ -97,14 +98,14 @@ listed here.
   uncertainty layers.
 - Always inspect proposed lines before accepting them.
 
-## Data and privacy
+## 🔒 Data and privacy
 
 Maps, traced geometry and inference results never leave your computer, and there is
 no telemetry. The network is used only when you explicitly download an AI model,
 and downloaded models are verified against a fixed size and SHA-256. See
 [SECURITY](SECURITY.md) for details.
 
-## Further reading
+## 📚 Further reading
 
 | Document | Contents |
 | --- | --- |
@@ -115,7 +116,7 @@ and downloaded models are verified against a fixed size and SHA-256. See
 | [Benchmarks](benchmarks/README.md) | Reproducible evaluation harness and evidence format |
 | [Contributing](CONTRIBUTING.md) | Development setup, tests, release procedure |
 
-## Citation, contributing and license
+## 🤝 Citation, contributing and license
 
 If you use ArchaeoTrace in research, teaching or applied work, please cite it with
 [CITATION.cff](CITATION.cff). Bug reports, translations, documentation and

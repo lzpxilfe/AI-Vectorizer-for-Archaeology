@@ -6,7 +6,8 @@
 
 ## Unreleased
 
-다음 변경은 아직 동결된 `0.1.6` 후보의 metadata·tag·ZIP을 바꾸지 않습니다.
+QGIS에 공개된 `0.1.6` 이후의 변경이며, 다음 공개판 `0.1.7`을 준비하는 작업분입니다.
+metadata 숫자는 release 준비를 시작할 때 한 번 바꿉니다.
 
 ### Added
 
@@ -179,12 +180,12 @@
   못하거나 detour가 1.25배를 넘으면 preview조차 만들지 않습니다. 저장은 같은
   endpoint를 다시 클릭해 사용자가 green preview를 확인한 뒤에만 일어납니다.
 
-## 0.1.6 — experimental release candidate (not yet published)
+## 0.1.6 — experimental QGIS release (2026-09-09)
 
-2026-08-31에 현재 Ink v2·Smart Recovery 소스의 metadata를 `0.1.6`으로
-정렬했습니다. 이는 설치·검증을 위한 후보이며 아직 QGIS plugin 저장소, GitHub
-Release 또는 tag로 게시한 릴리스가 아닙니다. 공개일은 정확히 같은 ZIP을 실제로
-게시할 때만 추가합니다.
+2026-08-31에 Ink v2·Smart Recovery 소스의 metadata를 `0.1.6`으로 정렬했고,
+2026-09-09에 QGIS plugin 저장소에 experimental로 공개했습니다. 공개 ZIP이 동결 후보
+(`f48111a`, SHA-256 `fffceee8…`)와 byte-identical인지는 아직 대조하지 않았습니다.
+자세한 내용은 [`RELEASE_READINESS_0.1.6.md`](docs/RELEASE_READINESS_0.1.6.md)에 있습니다.
 
 ### Added
 
@@ -254,9 +255,9 @@ Release 또는 tag로 게시한 릴리스가 아닙니다. 공개일은 정확�
 `dist/ai_vectorizer-0.1.5.zip`(SHA-256 `d2925198…`, 29 entries)은 commit
 `89b9f20`의 이전 로컬 후보이며 공식 artifact identity가 아닙니다.
 
-Git history의 `0.1.5–0.1.7`과 미공개 worktree의 `0.1.8` 표시는 추가 QGIS
-릴리스가 아닌 개발 metadata였습니다. 이력은 rewrite하지 않으며,
-Ink v2·Smart Recovery와 공개 이후 수정은 위 `0.1.6` 후보에서 관리합니다.
+Git history에 남은 개발용 버전 표시 `0.1.5`-`0.1.7`과 미공개 worktree의 `0.1.8`은
+QGIS 릴리스가 아닌 개발 metadata였으며, 앞으로 공개할 `0.1.7`과는 다른 것입니다.
+이력은 rewrite하지 않으며, Ink v2·Smart Recovery는 위 `0.1.6`으로 공개했습니다.
 
 ### Added
 

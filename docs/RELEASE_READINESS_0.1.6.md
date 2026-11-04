@@ -1,4 +1,4 @@
-# ArchaeoTrace 0.1.6 release-candidate readiness
+# ArchaeoTrace 0.1.6 release readiness and publication
 
 후보 버전 지정: 2026-08-31
 
@@ -10,13 +10,28 @@ identity는 [`RELEASE_READINESS_0.1.5.md`](RELEASE_READINESS_0.1.5.md)에 보존
 
 - **로컬 설치·검증 후보: GO.** metadata, plugin changelog와 citation version을
   `0.1.6`으로 맞췄고 결정적 ZIP을 만들었습니다.
-- **QGIS/GitHub 공개: 아직 수행하지 않음.** 이 버전 지정은 tag, GitHub Release,
-  QGIS plugin 저장소 upload를 만들지 않습니다. 실제 공개일도 기록하지 않았습니다.
+- **QGIS 공개: 2026-09-09.** 아래 [Publication](#publication)을 보세요. GitHub tag와
+  Release는 아직 만들지 않았습니다.
 - **Stable 전환: NO-GO.** `experimental=True`를 유지합니다. 나머지 공개 benchmark,
   독립 주석 검수, Windows clean-profile GUI·HiDPI·언어 전환과 upgrade smoke가
   남았습니다.
 - 실제 역사 지도 holdout이 완료되기 전에는 다른 도구보다 정확하거나 빠르다는
   표현을 사용하지 않습니다.
+
+## Publication
+
+| 항목 | 값 |
+| --- | --- |
+| QGIS plugin 저장소 upload | 2026-09-09 09:23:39 UTC (18:23 KST), 승인됨 |
+| 공개 상태 | `experimental`, QGIS 3.22.0-4.99.0 |
+| 공개 changelog | 아래 동결 후보 metadata의 `0.1.6` changelog와 같은 문구 |
+| byte identity | **미확인.** 공개 ZIP의 SHA-256을 아래 동결 후보와 아직 대조하지 않음 |
+| GitHub tag / Release | 없음 |
+
+upload 시점의 `main`에는 동결 후보 이후 커밋(수동 회피 영역, 라벨 공백 연결,
+`a712654` Qt6 키 수정, 2026-09-07-09)도 있었습니다. 공개 metadata의 changelog는
+두 시점에서 같으므로 어느 tree로 빌드했는지는 공개 ZIP의 SHA-256으로만 확정할 수
+있습니다. 확인되면 이 표에 정확한 SHA-256과 source commit을 기록합니다.
 
 ## Frozen repository-local candidate
 
@@ -101,5 +116,5 @@ job이 Linux release job과 같은 ZIP을 import한 뒤 runtime 회귀를 실행
   조직 proxy 설정을 자동 상속하지 못할 수 있음; 사용자가 시작한 설치만 실패하며
   trace는 같은 Ink champion으로 fail closed
 
-이 조건은 현재 ZIP의 설치 테스트를 막지는 않지만 stable 승격, 정확도 순위와
-공식 게시 판단에는 계속 적용됩니다.
+이 조건은 experimental 공개를 막지 않았지만 stable 승격과 정확도 순위 판단에는
+계속 적용됩니다.

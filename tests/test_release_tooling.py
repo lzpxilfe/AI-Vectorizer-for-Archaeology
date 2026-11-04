@@ -141,8 +141,22 @@ class DependencyDeclarationTests(unittest.TestCase):
         self.assertIsNotNone(citation_version)
         self.assertEqual(citation_version.group(1), version)
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertIn(f"## {version} — experimental release candidate", changelog)
-        self.assertNotIn("date-released:", citation)
+        # A version published to the QGIS plugin repository records its date in
+        # the changelog heading and CITATION.cff; an unpublished candidate has
+        # neither.
+        published_dates = {"0.1.6": "2026-09-09"}
+        if version in published_dates:
+            release_date = published_dates[version]
+            self.assertIn(
+                f"## {version} — experimental QGIS release ({release_date})",
+                changelog,
+            )
+            self.assertRegex(
+                citation, rf"(?m)^date-released:\s*{re.escape(release_date)}\s*$"
+            )
+        else:
+            self.assertIn(f"## {version} — experimental release candidate", changelog)
+            self.assertNotIn("date-released:", citation)
 
         for relative_path in (
             "README.md",

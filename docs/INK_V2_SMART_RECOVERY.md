@@ -1,6 +1,6 @@
 # Ink Centerline v2와 Smart Recovery
 
-이 문서는 experimental `0.1.6` 후보의 차세대 추적 경로를 설명합니다. QGIS
+이 문서는 2026-09-09 공개한 experimental `0.1.6`의 차세대 추적 경로를 설명합니다. QGIS
 저장소에 2026-08-26 공개된 experimental `0.1.5` artifact와 Ink v1 기준선은
 그대로 보존합니다. 현재 후보 ZIP은
 [`RELEASE_READINESS_0.1.6.md`](RELEASE_READINESS_0.1.6.md), 공식 0.1.5와 과거

@@ -11,9 +11,9 @@ ArchaeoTrace의 목표는 서버나 유료 서비스에 사용자 자료를 보�
 - 입력, 모델, 파라미터, CRS, 출력을 기록해 결과를 재현할 수 있게 합니다.
 - 자동화 단계마다 고고학적 해석과 표고의 불확실성을 노출합니다.
 
-공식 QGIS 저장소에는 experimental `0.1.5`가 공개되어 있고, 현재 `main`의
-후속 기능은 experimental `0.1.6` 후보입니다. 아직 별도 QGIS/GitHub Release나
-tag로 게시하지 않았습니다. 추적 추론과 지도
+공식 QGIS 저장소에는 experimental `0.1.6`이 2026-09-09 공개되어 있고, 현재 `main`은
+학습 등고선 보조와 문자 공백 연결을 포함한 다음 공개판 `0.1.7`을 준비 중입니다.
+추적 추론과 지도
 데이터는 로컬에 머뭅니다. 모델 다운로드는
 네트워크를 사용하고, SAM 상태 확인은 유효한 로컬 checkpoint가 없을 때만 고정된
 source의 availability를 조회합니다. 유효한 로컬 checkpoint는 오프라인에서 크기와
@@ -44,7 +44,7 @@ ArchaeoTrace는 기능 수를 늘리기보다 다음 고고학 작업의 수직 
 전에는 우선순위에 넣지 않습니다. 기능·구현 경계는
 [`docs/FEATURES_AND_ARCHITECTURE.md`](docs/FEATURES_AND_ARCHITECTURE.md), 개발 원칙과
 Gate A–E는 [`docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md`](docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md),
-현재 `0.1.6` 후보의 검증 결과와 남은 release blocker는
+공개된 `0.1.6`의 검증 결과와 남은 release blocker는
 [`docs/RELEASE_READINESS_0.1.6.md`](docs/RELEASE_READINESS_0.1.6.md), 공식
 `0.1.5`의 역사적 artifact 기록은
 [`docs/RELEASE_READINESS_0.1.5.md`](docs/RELEASE_READINESS_0.1.5.md)에 분리합니다.
@@ -52,7 +52,7 @@ Gate A–E는 [`docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md`](docs/OPEN_SOURCE_DEVELOPM
 ## Release and community-readiness gate
 
 공식 `0.1.5`는 새 모델을 기본으로 추가하지 않은 experimental release입니다.
-현재 `0.1.6` 후보와 다음 release는 데이터 무결성, 모델 공급망, QGIS 편집
+`0.1.6`(2026-09-09 공개)에 이어 다음 release `0.1.7`도 데이터 무결성, 모델 공급망, QGIS 편집
 수명주기, Python/QGIS 호환성, 재현 패키징을 닫아야 합니다. 진입 조건은
 다음과 같습니다.
 
@@ -85,7 +85,7 @@ Gate A–E는 [`docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md`](docs/OPEN_SOURCE_DEVELOPM
 
 ## M0.5 — Human-led Ink Centerline + direction-aware Live-Wire
 
-상태: metadata `0.1.6` experimental 후보 (macOS QGIS 3.44.8 clean-profile 실제
+상태: experimental `0.1.6`으로 2026-09-09 QGIS 공개 (macOS QGIS 3.44.8 clean-profile 실제
 map-tool 저장과 QGIS 3.22.16/3.44.13/4.2.1 원격 package/runtime-safety 계약을
 통과한 기능 소스이며, 버전이 반영된 exact ZIP 증거는 0.1.6 readiness 기록에 결속)
 
