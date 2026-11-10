@@ -1,0 +1,1709 @@
+{
+  "schema_version": "archaeotrace-korea-text-final-comparison/1",
+  "record_date_local": "2026-10-19",
+  "time_zone": "Asia/Seoul",
+  "status": "complete",
+  "decision": {
+    "action": "retain_existing_korea_model",
+    "default_model_replaced": false,
+    "learned_assistance_default_on": false,
+    "reason": "No improvement in 13 scored positive routes or CPU speed demonstrated. Two changed negative routes have no accuracy reference."
+  },
+  "scope": {
+    "review_level": "automated_weak_training_and_agent_visual_diagnostics",
+    "human_approved": false,
+    "publication_ranking_eligible": false,
+    "research_ready": false,
+    "training_uses_new_diagnostic_crops": false,
+    "calibration_opened": false,
+    "holdout_opened": false,
+    "hidden_geometry_scored": false,
+    "caution": "Development/validation diagnostics influenced by prior inspection, not independent human-reviewed performance or held-out generalization."
+  },
+  "training": {
+    "code_commit": "59ad23d041137e1886b594dd983d9de862f98a01",
+    "source_sha256": "9071c099d5c3defb70ac47b9d92530db9786234fff7151eb4f51edd379087ea0",
+    "dataset_manifest_sha256": "b2fd2a087f75de4e5e1d31b44f13dfdb1a8af3963e18e68f81f9cb4a91e32249",
+    "train_count": 162,
+    "validation_count": 48,
+    "protected_calibration_count": 36,
+    "protected_holdout_count": 47,
+    "augmentations": {
+      "ink_recolor": true,
+      "label_gaps": true,
+      "word_gaps": true
+    },
+    "seeds": [
+      {
+        "seed": 3407,
+        "stop_reason": "max_epochs",
+        "epochs_completed": 60,
+        "final_optimizer_steps": 653,
+        "final_training_loss": 0.7788695266217361,
+        "final_validation_loss": 0.8653252273797989,
+        "best_validation_loss": 0.8653252273797989,
+        "best_validation_epoch": 60,
+        "best_checkpoint_sha256": "1f32aedb47675d7888add9d1da96f0e8e5a72597a3d9736f8e05f965c44f3292",
+        "completed_checkpoint_sha256": "1f32aedb47675d7888add9d1da96f0e8e5a72597a3d9736f8e05f965c44f3292",
+        "training_config_sha256": "da87c47c58e74bd36e71123a5585825f0a9d7fa5505515b70254b98ebe02e6e5",
+        "result_sha256": "c35fb841f42789085ee56fda91d14d76c153f2ddd3d8986fa581ddf2c0f86aa3",
+        "completion_verified": true
+      },
+      {
+        "seed": 3408,
+        "stop_reason": "max_epochs",
+        "epochs_completed": 60,
+        "final_optimizer_steps": 655,
+        "final_training_loss": 0.7292750268070786,
+        "final_validation_loss": 0.8533772851030031,
+        "best_validation_loss": 0.8430383851130804,
+        "best_validation_epoch": 59,
+        "best_checkpoint_sha256": "00f57fa4fb11a89701691cdefa1caec9eccec99d8a0703e540efb064f39db90e",
+        "completed_checkpoint_sha256": "4ab8043ba69e899b90ee898e00a3e800e4411847c4fceebe9955d2df5782b255",
+        "training_config_sha256": "3f70809518e7ee8ecc855d02c6dabae05bd4e174d1360a3cfa9d73e615d7a75e",
+        "result_sha256": "cc1e7b66349bc921206e6bd39024344fa72b1a09e81c2e32250e6b64abe44ad9",
+        "completion_verified": true
+      },
+      {
+        "seed": 3409,
+        "stop_reason": "early_stopping",
+        "epochs_completed": 49,
+        "final_optimizer_steps": 535,
+        "final_training_loss": 0.9358664051986035,
+        "final_validation_loss": 1.063840538263321,
+        "best_validation_loss": 1.0264879042903583,
+        "best_validation_epoch": 41,
+        "best_checkpoint_sha256": "8eaa9b92cd65a8479401507c238d07c5241b09e9be630fe35cc1ecf6a6e47835",
+        "completed_checkpoint_sha256": "5749d1d5a19598dab69d25a00181bc032ad40b40ea46be82a3bea95dacb7761e",
+        "training_config_sha256": "8477c6c82aaa7653b24bef7f37234b5ac0ee112b4f69984086155017bb0c595a",
+        "result_sha256": "5556b8ec58c8256aac7c9985d7722d87d4c1935e92e06854ede70b8fa0973da2",
+        "completion_verified": true
+      }
+    ],
+    "selection": {
+      "policy": "minimum_validation_loss",
+      "tie_break": "ascending_seed",
+      "candidate_seeds": [
+        3407,
+        3408,
+        3409
+      ],
+      "all_candidate_bytes_verified": true,
+      "selected_seed": 3408,
+      "selected_checkpoint_epoch": 59,
+      "selected_checkpoint_optimizer_steps": 645,
+      "selected_validation_loss": 0.8430383851130804,
+      "selected_checkpoint_sha256": "00f57fa4fb11a89701691cdefa1caec9eccec99d8a0703e540efb064f39db90e",
+      "selection_file_sha256": "cf3b3ca0118f15cc49d468a6561f04318f2f66196ee1e0f2dc8029939117e447",
+      "selection_canonical_sha256": "ce9e9fc9a519262621f9c7640fb63b719a972c6fc54d3edf2b2a87d5d0c9cd0d"
+    }
+  },
+  "onnx": {
+    "old_korea": {
+      "provider_id": "learned-contour-onnx-v1",
+      "model_id": "ai-weak-contour-guide-korea-v1",
+      "model_sha256": "ae5fbf01e8fb073d686f81ec4f2f23367bd66386eddbfde8b314777e02e70398",
+      "bundle_sha256": "c71496b1f5d12a004b4c606061253915c04b98145370d39d6e16528bd5e27cae",
+      "provider": "CPUExecutionProvider",
+      "onnxruntime_version": "1.31.0",
+      "intra_op_threads": 1,
+      "inter_op_threads": 1,
+      "execution_mode": "ORT_SEQUENTIAL",
+      "tile_size": 512,
+      "core_size": 384,
+      "halo": 64,
+      "context_limit": "fixed_tiles_not_full_image_equivalent"
+    },
+    "new_general_text": {
+      "provider_id": "learned-contour-onnx-v1",
+      "model_id": "ai-weak-contour-guide-korea-text-v1",
+      "model_sha256": "a1f27dfd8421c44defaaed521b5421c18e1358abcad9499ffc987dc33990e4d1",
+      "bundle_sha256": "ab979237b831a13bf2b8d5413599d7793b80e5d82c15fac6c32af5041555d164",
+      "provider": "CPUExecutionProvider",
+      "onnxruntime_version": "1.31.0",
+      "intra_op_threads": 1,
+      "inter_op_threads": 1,
+      "execution_mode": "ORT_SEQUENTIAL",
+      "tile_size": 512,
+      "core_size": 384,
+      "halo": 64,
+      "context_limit": "fixed_tiles_not_full_image_equivalent"
+    },
+    "new_model_size_bytes": 49848570,
+    "new_manifest_sha256": "68017088f93b74e18271b4f40c6f2f0d6abe004bdaab0ae9a316559c01ba2023",
+    "inspect_bundle_ready": true,
+    "fp32": true,
+    "external_weights": false,
+    "colab_probability_parity": {
+      "comparisons": [
+        {
+          "input_sha256": "8fa0e6272386f9cc0ff4228161247ed8a4dcc253e97105e7a6f3230525c9db1d",
+          "max_probability_abs_error": 3.7522656578525826e-06
+        },
+        {
+          "input_sha256": "0a53a4bb1e6a59a918d7879f6563271cdad7f2a38304f565434f4e647d37c81f",
+          "max_probability_abs_error": 2.1913821305896697e-06
+        }
+      ],
+      "fp32": true,
+      "probability_tolerance": 0.0001,
+      "providers": [
+        "CPUExecutionProvider"
+      ]
+    },
+    "independent_cpu_probability_parity": {
+      "state": "passed",
+      "fp32": true,
+      "probability_tolerance": 0.0001,
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "comparisons": [
+        {
+          "input_sha256": "8fa0e6272386f9cc0ff4228161247ed8a4dcc253e97105e7a6f3230525c9db1d",
+          "max_probability_abs_error": 1.039898846777465e-05
+        },
+        {
+          "input_sha256": "0a53a4bb1e6a59a918d7879f6563271cdad7f2a38304f565434f4e647d37c81f",
+          "max_probability_abs_error": 2.1902125442285758e-05
+        }
+      ],
+      "max_probability_abs_error": 2.1902125442285758e-05,
+      "torch_num_threads": 4,
+      "ort_intra_op_num_threads": 4,
+      "ort_inter_op_num_threads": 1,
+      "method": "learning.export._parity_inputs and exact export_checkpoint CPU sigmoid comparison",
+      "export_source_sha256_local": "c8c79a79c4653236a2ec4956895ec125e10cef7d162c695c63e245216cf38d8c"
+    }
+  },
+  "qgis": {
+    "version": "3.44.8-Solothurn",
+    "product_code_commit": "59ad23d041137e1886b594dd983d9de862f98a01",
+    "product_zip_name": "ai_vectorizer-unreleased-general-text-final.zip",
+    "product_zip_sha256": "1966cecdee2733c6d57cfaff702f5f13a275da7e6504b67c0e546c7f9064d359",
+    "packaged_python_files_matching_source": 46,
+    "model_method_mapping": {
+      "usgs_after": "old_korea",
+      "korea_after": "new_general_text"
+    },
+    "compared_phase": "after_vs_after",
+    "input_policy": "Identical original RGB and integer native-pixel mouse clicks; map/screen round trips verified. Smart Recovery OFF. Learned support0.8/avoidance0.0; CPU1/1 threads ORT_SEQUENTIAL.",
+    "after_config": {
+      "grid_avoidance": true,
+      "observed_connections": true,
+      "label_gap_comparison": false,
+      "label_gap_connections": true,
+      "automatic_label_occlusion": true,
+      "before_avoidance_override": 0.0,
+      "grid_in_both": true,
+      "avoidance_override": 0.0,
+      "unconfigured_model_avoidance": 0.0,
+      "learned_observation_gate": false,
+      "learned_route_guard": false
+    },
+    "score_policy": "F1 at2px. Gap scores exclude hidden geometry. p95 is directed saved route to visible reference, not symmetric Hausdorff. Negative pairs have no accuracy reference.",
+    "cohorts": [
+      {
+        "id": "blue",
+        "fixture": "learning/data/korea-general-text-gap-cases-v1.json",
+        "fixture_sha256": "46d2b13c7b3c4f88a58c909641ecce06c92790b4aab7514dfa062bd2a887bf05",
+        "dataset_relative_to_run_artifacts": "dataset",
+        "case_count": 2,
+        "result_artifact": "model-text-vs-old-korea-blue/result.json",
+        "result_sha256": "1a6184455cb0eeeb4e1213f55fadce1e63c12dcb2a297307a473a6a15da664bc",
+        "scores_artifact": "model-text-vs-old-korea-blue/scores.json",
+        "scores_sha256": "f0dd3e56a477a32f2929931f5b669ed010c9dacb553dafbe3939ce32a26426b7",
+        "isolated_profile_removed": true
+      },
+      {
+        "id": "black",
+        "fixture": "learning/data/korea-general-text-gap-cases-v2.json",
+        "fixture_sha256": "aba0da201662a9341c8a2777a046585f361abdbc1f894c0fe3656372d3cf0e49",
+        "dataset_relative_to_run_artifacts": "additional-dataset",
+        "case_count": 2,
+        "result_artifact": "model-text-vs-old-korea-black/result.json",
+        "result_sha256": "275092a1dc90ceceabda7e4fcf6269293185a20d9347aed14056f334e6c67edc",
+        "scores_artifact": "model-text-vs-old-korea-black/scores.json",
+        "scores_sha256": "b4274467ff86e3274d3bab950ee1c0e7430d351c0d5970772933fff9047bd564",
+        "isolated_profile_removed": true
+      },
+      {
+        "id": "old7",
+        "fixture": "learning/data/korea-contour-visual-cases-v3.json",
+        "fixture_sha256": "5bbab30767226e264bbaff202045f5cd8e403b677ddcedf1728f099edd981b63",
+        "dataset_relative_to_run_artifacts": "../korea/dataset",
+        "case_count": 7,
+        "result_artifact": "model-text-vs-old-korea-old7/result.json",
+        "result_sha256": "7861bb1e2b194cebe048683af7fcc0ca24faa9ca62ba8b983551072e010bba2c",
+        "scores_artifact": "model-text-vs-old-korea-old7/scores.json",
+        "scores_sha256": "18494e345541dfaab8169f5f8df0120be251ae402ddf2c7a8463857e82b47a6f",
+        "isolated_profile_removed": true
+      },
+      {
+        "id": "old5",
+        "fixture": "learning/data/korea-label-gap-visual-cases-v4.json",
+        "fixture_sha256": "2866f1a53703e75f939a778e4babcbe2c7828a1dd66cea45653dcef2d75990ac",
+        "dataset_relative_to_run_artifacts": "../korea/dataset",
+        "case_count": 5,
+        "result_artifact": "model-text-vs-old-korea-old5/result.json",
+        "result_sha256": "8f9d69ef9675794c68132d9a524e7f99b92aad04f0c72702600c443a1765be86",
+        "scores_artifact": "model-text-vs-old-korea-old5/scores.json",
+        "scores_sha256": "4b54a7cd435fdba983d33f24b4db18e7a47222c692858731d3f8a24fc830999f",
+        "isolated_profile_removed": true
+      },
+      {
+        "id": "old300",
+        "fixture": "learning/data/korea-unseen-label-gap-cases-v2.json",
+        "fixture_sha256": "1284586b3d66ddb3fc6be08e737767811d4115f115d8d2f3a9f6a2e29c0000ac",
+        "dataset_relative_to_run_artifacts": "../unseen-korea-gap/dataset",
+        "case_count": 1,
+        "result_artifact": "model-text-vs-old-korea-old300/result.json",
+        "result_sha256": "e62cf2789e67f9a8148c575392404ab4218d2378dda0e98f89248a380bf890b2",
+        "scores_artifact": "model-text-vs-old-korea-old300/scores.json",
+        "scores_sha256": "3ad82a45a9a062b52e34b2f0d326f6339bde4e16ad213f61e10aaad54a2e5ca8",
+        "isolated_profile_removed": true
+      }
+    ],
+    "summary": {
+      "total_cases": 17,
+      "positive_cases": 13,
+      "negative_cases": 4,
+      "positive_routes_exactly_equal": 13,
+      "positive_improved": 0,
+      "positive_regressed": 0,
+      "all_exact_saved_coordinate_pairs": 15,
+      "changed_unscored_negative_routes": 2,
+      "negative_inferred_candidates_excluded_both": 4,
+      "negative_complete_route_rejection_claimed": false,
+      "designated_foreign_visible_control_cases": 5,
+      "contacts_within_1px_in_designated_controls": 0,
+      "all_preview_to_save_coordinates_preserved": true,
+      "all_one_undo": true,
+      "all_full_overlays_reviewed": true,
+      "nonlearned_cache_fields_equal_per_case": 10,
+      "learned_prediction_arrays_in_qgis_cache": false,
+      "distinct_standalone_old_new_prediction_hashes_unique_crops": 11
+    },
+    "cases": [
+      {
+        "id": "kr10-text05-blue-a-gap",
+        "cohort": "blue",
+        "positive_accuracy_scored": true,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-10-unseen-native-05",
+          "split": "validation",
+          "image_file_sha256": "30f4cbcd0468e0942eda2501497b7ebcdda3d0a3b29c8f3736a6cc2e79322d73",
+          "input_rgb_u8_sha256": "9cb6115309860cefe1f9127f0b2f1a3320d4c6e216b026abea57d7e285cbcf6d",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "a5e4aee722ecb02b546c32e01b62df7024ef9fdbb8f7b047bf9ae0d7cac1c7fe",
+          "new_prediction_sha256": "1a4976025cf8c9473a7a0292761dce04be3ca9866101f9a2612e5b84d0729996"
+        },
+        "map_clicks": {
+          "start": [
+            137.5,
+            253.5
+          ],
+          "end": [
+            152.5,
+            224.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            482,
+            723
+          ],
+          "end": [
+            512,
+            781
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.314,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "new_score": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.314,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 32,
+        "new_vertex_count": 32,
+        "old_vertices_canonical_sha256": "5baa2b8bea4cc256f523e9ba69a9b29c18e798f8becd7e0ae2fc4778ed2ee48a",
+        "new_vertices_canonical_sha256": "5baa2b8bea4cc256f523e9ba69a9b29c18e798f8becd7e0ae2fc4778ed2ee48a",
+        "old_route_provenance": "ink",
+        "new_route_provenance": "ink",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "ebb8ca8a2cce097f278fa9145bbd9a84cabf3764471109e7ca951bbf8442a15c",
+        "designated_foreign_visible_control": {
+          "minimum_distance_px": 4.242640687119285,
+          "old_equals_new": true,
+          "contact_within_1px": false,
+          "method": "continuous_segments"
+        }
+      },
+      {
+        "id": "kr10-text05-blue-a-wrong-right-neighbor",
+        "cohort": "blue",
+        "positive_accuracy_scored": false,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-10-unseen-native-05",
+          "split": "validation",
+          "image_file_sha256": "30f4cbcd0468e0942eda2501497b7ebcdda3d0a3b29c8f3736a6cc2e79322d73",
+          "input_rgb_u8_sha256": "9cb6115309860cefe1f9127f0b2f1a3320d4c6e216b026abea57d7e285cbcf6d",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "a5e4aee722ecb02b546c32e01b62df7024ef9fdbb8f7b047bf9ae0d7cac1c7fe",
+          "new_prediction_sha256": "1a4976025cf8c9473a7a0292761dce04be3ca9866101f9a2612e5b84d0729996"
+        },
+        "map_clicks": {
+          "start": [
+            137.5,
+            253.5
+          ],
+          "end": [
+            156.5,
+            226.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            482,
+            723
+          ],
+          "end": [
+            520,
+            777
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "new_score": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 32,
+        "new_vertex_count": 32,
+        "old_vertices_canonical_sha256": "28cc3be655afde55e107b9d303bb9ca0107b9e1ed500463287dfa1e4677bc2fc",
+        "new_vertices_canonical_sha256": "28cc3be655afde55e107b9d303bb9ca0107b9e1ed500463287dfa1e4677bc2fc",
+        "old_route_provenance": "ink",
+        "new_route_provenance": "ink",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "b58c9b50607fe782b1a10ab52eae688a82be0b83631c74456b608ef67a99b412",
+        "negative_inferred_candidate_checks": {
+          "old_korea": {
+            "numeric_candidate_null": true,
+            "numeric_display_accepted": false,
+            "text_candidate_null": true,
+            "text_display_accepted": false,
+            "ordinary_ink_route_saved": true
+          },
+          "new_general_text": {
+            "numeric_candidate_null": true,
+            "numeric_display_accepted": false,
+            "text_candidate_null": true,
+            "text_display_accepted": false,
+            "ordinary_ink_route_saved": true
+          }
+        },
+        "designated_foreign_visible_control": {
+          "minimum_distance_px": 4.353253917718471,
+          "old_equals_new": true,
+          "contact_within_1px": false,
+          "method": "continuous_segments"
+        }
+      },
+      {
+        "id": "yongdam-text02-black-myeon-gap",
+        "cohort": "black",
+        "positive_accuracy_scored": true,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "extra-yongdam-6621-i-text-02",
+          "split": "validation",
+          "image_file_sha256": "32502054bc292de112511980cac4124f58fb76ee72de94509a363959cc1c618d",
+          "input_rgb_u8_sha256": "8849e938d559c8d6579756c110f26959a68a2a0bf4a1eb866cb4e9ada510b58e",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "88d3d0c2459637d3d25e95d595bb308272de3f0a39eb61d733ec4e8a19f9a98e",
+          "new_prediction_sha256": "8929454b9b7a062f66aa74b1bd35b01c9499fa1f7e1dd8d54a6ba8465b38cf4c"
+        },
+        "map_clicks": {
+          "start": [
+            314.5,
+            371.5
+          ],
+          "end": [
+            301.5,
+            332.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            836,
+            487
+          ],
+          "end": [
+            810,
+            565
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "visible_median_px": 0.333,
+          "visible_p95_px": 1.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "new_score": {
+          "visible_median_px": 0.333,
+          "visible_p95_px": 1.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 74,
+        "new_vertex_count": 74,
+        "old_vertices_canonical_sha256": "d249b27ad31511139461c2ced25727d7e63f0228afbd69a4e7ba849249c66d41",
+        "new_vertices_canonical_sha256": "d249b27ad31511139461c2ced25727d7e63f0228afbd69a4e7ba849249c66d41",
+        "old_route_provenance": "automatic-text-gap",
+        "new_route_provenance": "automatic-text-gap",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "5f7f3cc8c147d2b36992c46186571a1254a9d16489390fa8e85a7bc7ec83c000",
+        "designated_foreign_visible_control": {
+          "minimum_distance_px": 5.820855000871971,
+          "old_equals_new": true,
+          "contact_within_1px": false,
+          "method": "continuous_segments"
+        }
+      },
+      {
+        "id": "yongdam-text02-black-myeon-wrong-right-neighbor",
+        "cohort": "black",
+        "positive_accuracy_scored": false,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "extra-yongdam-6621-i-text-02",
+          "split": "validation",
+          "image_file_sha256": "32502054bc292de112511980cac4124f58fb76ee72de94509a363959cc1c618d",
+          "input_rgb_u8_sha256": "8849e938d559c8d6579756c110f26959a68a2a0bf4a1eb866cb4e9ada510b58e",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "88d3d0c2459637d3d25e95d595bb308272de3f0a39eb61d733ec4e8a19f9a98e",
+          "new_prediction_sha256": "8929454b9b7a062f66aa74b1bd35b01c9499fa1f7e1dd8d54a6ba8465b38cf4c"
+        },
+        "map_clicks": {
+          "start": [
+            314.5,
+            371.5
+          ],
+          "end": [
+            305.5,
+            323.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            836,
+            487
+          ],
+          "end": [
+            818,
+            583
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "new_score": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 53,
+        "new_vertex_count": 53,
+        "old_vertices_canonical_sha256": "409b10ce27884c53aefac51829be6243b723c74cf1e337624c1b0e9fed64143a",
+        "new_vertices_canonical_sha256": "409b10ce27884c53aefac51829be6243b723c74cf1e337624c1b0e9fed64143a",
+        "old_route_provenance": "ink",
+        "new_route_provenance": "ink",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "7471dbc6708c58bd10131c10e2eb22b828bfecd731ef69ba2ad0bd2c1985d9f5",
+        "negative_inferred_candidate_checks": {
+          "old_korea": {
+            "numeric_candidate_null": true,
+            "numeric_display_accepted": false,
+            "text_candidate_null": true,
+            "text_display_accepted": false,
+            "ordinary_ink_route_saved": true
+          },
+          "new_general_text": {
+            "numeric_candidate_null": true,
+            "numeric_display_accepted": false,
+            "text_candidate_null": true,
+            "text_display_accepted": false,
+            "ordinary_ink_route_saved": true
+          }
+        },
+        "designated_foreign_visible_control": {
+          "minimum_distance_px": 5.0,
+          "old_equals_new": true,
+          "contact_within_1px": false,
+          "method": "continuous_segments"
+        }
+      },
+      {
+        "id": "kr-10-crop-04-clear-w",
+        "cohort": "old7",
+        "positive_accuracy_scored": true,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-10-crop-04",
+          "split": "validation",
+          "image_file_sha256": "d7bbf7ebd696b094a43eaf175018e546c426bbe2bed2eb3a2dc0ab776bf624a7",
+          "input_rgb_u8_sha256": "756c234f589c29345b376c0cb2148564016cc8b6feced6396f2fe3d0f7305c8d",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "b948f0f874a2c8c8da8e3ea5f358ca5159987c66d3f8b19a35fe53cc650d02ad",
+          "new_prediction_sha256": "d52687567933a422a3260e417219131dd4f82f548ad386f0b698db649132169b"
+        },
+        "map_clicks": {
+          "start": [
+            206.5,
+            244.5
+          ],
+          "end": [
+            290.5,
+            250.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            620,
+            741
+          ],
+          "end": [
+            788,
+            729
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "median_px": 0.25,
+          "p95_px": 0.433,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "new_score": {
+          "median_px": 0.25,
+          "p95_px": 0.433,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 119,
+        "new_vertex_count": 119,
+        "old_vertices_canonical_sha256": "a9fd50a63e447bc6f52ebcab890efd340702cbd011399ef98bcb6a68f94c189f",
+        "new_vertices_canonical_sha256": "a9fd50a63e447bc6f52ebcab890efd340702cbd011399ef98bcb6a68f94c189f",
+        "old_route_provenance": "ink",
+        "new_route_provenance": "ink",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "35fe8cc81ffe5ff0004edfbbd53ca780d480cc30e9ec5484e24832bd92462455"
+      },
+      {
+        "id": "kr-09-crop-08-curving",
+        "cohort": "old7",
+        "positive_accuracy_scored": true,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-09-crop-08",
+          "split": "validation",
+          "image_file_sha256": "abcb0144075e4b5514f14100e17624ab84cf9e47cc380e61a6294be9b5f26854",
+          "input_rgb_u8_sha256": "f6b11824f5b16a0a85c7974023c943b884211c57f2de2418f83d4d142acc5def",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "664dbc9af8603cb824b1804d390ef395111dbd20af73ac48c0c0dd1a88a94bb0",
+          "new_prediction_sha256": "ba9f1a21174cae1f57a5126ce0867ba53d4ecf3625ddb9f3b0078b6cdfa74797"
+        },
+        "map_clicks": {
+          "start": [
+            351.5,
+            372.5
+          ],
+          "end": [
+            395.5,
+            424.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            910,
+            485
+          ],
+          "end": [
+            998,
+            381
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "median_px": 0.213,
+          "p95_px": 0.496,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "new_score": {
+          "median_px": 0.213,
+          "p95_px": 0.496,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 69,
+        "new_vertex_count": 69,
+        "old_vertices_canonical_sha256": "a54c125abd844188d8a27b286aa20e11a4109d05565cdf6db87bc9bd0fc739b8",
+        "new_vertices_canonical_sha256": "a54c125abd844188d8a27b286aa20e11a4109d05565cdf6db87bc9bd0fc739b8",
+        "old_route_provenance": "ink",
+        "new_route_provenance": "ink",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "fde9f0dc139fede2955a257b8e7c2f2ae9b79a2d45804c3e9e5093a0d3c253dc"
+      },
+      {
+        "id": "kr-09-crop-05-grid-crossing",
+        "cohort": "old7",
+        "positive_accuracy_scored": true,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-09-crop-05",
+          "split": "validation",
+          "image_file_sha256": "d3366dfcefbda57c8a3f02f9aab4795942bedf9e7841272f270b4f6ec825bb20",
+          "input_rgb_u8_sha256": "9eae831ee5fc8e7750162f28c1340582dfe65afce2b931d96530728ad2472799",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "679b1632b017e49701a1222b3a74f93080b136468306272f72d69739eb6b1cbd",
+          "new_prediction_sha256": "85d60310b647cb28edab3b8bfc5f562263dfeeb99d170b6c93061503d5c9f5a2"
+        },
+        "map_clicks": {
+          "start": [
+            155.5,
+            391.5
+          ],
+          "end": [
+            162.5,
+            448.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            518,
+            447
+          ],
+          "end": [
+            532,
+            333
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "median_px": 0.381,
+          "p95_px": 1.146,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "new_score": {
+          "median_px": 0.381,
+          "p95_px": 1.146,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 102,
+        "new_vertex_count": 102,
+        "old_vertices_canonical_sha256": "aec563cf9ada669d8d0354c7cf532c0261649b9e02b9d87752f68bb96d2ae320",
+        "new_vertices_canonical_sha256": "aec563cf9ada669d8d0354c7cf532c0261649b9e02b9d87752f68bb96d2ae320",
+        "old_route_provenance": "ink",
+        "new_route_provenance": "ink",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "a0adc4cd1e3a9bcd4b34bb53d52e1627493165cca86ea2d40bdc2da39a6508e1"
+      },
+      {
+        "id": "kr-10-crop-02-deep-u",
+        "cohort": "old7",
+        "positive_accuracy_scored": true,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-10-crop-02",
+          "split": "validation",
+          "image_file_sha256": "480b42c4489accb0627304013a883ba3362cd86597aad9d28131ee7f15c4ca1d",
+          "input_rgb_u8_sha256": "975b7c2953682d6dd2f27048d600eae0d0c6d91fbd940e31abf28a2e5b0223ef",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "11d3fbb47dcc301e37f7b479aaceecefb5bb46ce2e73cf443f1540a380d1b832",
+          "new_prediction_sha256": "fedbf9b8df7bbf3939763ec6c16e67e284940aa5e7dae536a5333c165a655c05"
+        },
+        "map_clicks": {
+          "start": [
+            111.5,
+            469.5
+          ],
+          "end": [
+            152.5,
+            465.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            430,
+            291
+          ],
+          "end": [
+            512,
+            299
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "median_px": 0.34,
+          "p95_px": 0.969,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "new_score": {
+          "median_px": 0.34,
+          "p95_px": 0.969,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 93,
+        "new_vertex_count": 93,
+        "old_vertices_canonical_sha256": "ab8cfd36f960089fe86283d20df389dadfc15122648870800557d43e48b7b429",
+        "new_vertices_canonical_sha256": "ab8cfd36f960089fe86283d20df389dadfc15122648870800557d43e48b7b429",
+        "old_route_provenance": "ink",
+        "new_route_provenance": "ink",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "fa44879593047d3e3e6c00fdeb88bbb45f1d6615e739e18a43d8c7c61152081f"
+      },
+      {
+        "id": "kr-10-crop-06-dense-s",
+        "cohort": "old7",
+        "positive_accuracy_scored": true,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-10-crop-06",
+          "split": "validation",
+          "image_file_sha256": "f82b1f65dafc859c3b21595fa0ce61acd84bb8d24115283ce5d51a446ac5b210",
+          "input_rgb_u8_sha256": "8a46ba237e338f8dda038cfc1635d6a334d24a29c2521e777bd94ffc12d716d9",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "684f80f123baf34fbf3bb1910063ab07d980d7f61dc462a16574e86bde162a44",
+          "new_prediction_sha256": "097697feaf6febbadee406484b3de056ed6a29269afa89c3e183bb2e1e7aab95"
+        },
+        "map_clicks": {
+          "start": [
+            135.5,
+            269.5
+          ],
+          "end": [
+            195.5,
+            230.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            478,
+            691
+          ],
+          "end": [
+            598,
+            769
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "median_px": 0.496,
+          "p95_px": 1.147,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "new_score": {
+          "median_px": 0.496,
+          "p95_px": 1.147,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 79,
+        "new_vertex_count": 79,
+        "old_vertices_canonical_sha256": "6f2b235f26983763573a13ea220ba8a1266ec318067a5d2222356d42bafe8171",
+        "new_vertices_canonical_sha256": "6f2b235f26983763573a13ea220ba8a1266ec318067a5d2222356d42bafe8171",
+        "old_route_provenance": "ink",
+        "new_route_provenance": "ink",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "08dc5da53d8f3ac018b693a0888b21597d0186cf63b4d926f64f051c7fc8d0b2"
+      },
+      {
+        "id": "kr-09-crop-02-index-u",
+        "cohort": "old7",
+        "positive_accuracy_scored": true,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-09-crop-02",
+          "split": "validation",
+          "image_file_sha256": "5066ffbd087db377c8e31a41492117aadc35a08d5d79953b4d9591573b7db07f",
+          "input_rgb_u8_sha256": "07d8a33e5627d01e238d77b3430d3ddfb085b898199c7fef522af45eb2f31e32",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "119fc161170ba15b825b140498095a819d75baf4a4d2778180a7737b1c79e693",
+          "new_prediction_sha256": "d572db684bbde657a0de5b2beb28f90544ec36e688d49b908d37b6926216eb14"
+        },
+        "map_clicks": {
+          "start": [
+            218.5,
+            287.5
+          ],
+          "end": [
+            253.5,
+            284.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            644,
+            655
+          ],
+          "end": [
+            714,
+            661
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "median_px": 0.854,
+          "p95_px": 1.982,
+          "precision_2px": 0.996,
+          "recall_2px": 0.987,
+          "f1_2px": 0.991
+        },
+        "new_score": {
+          "median_px": 0.854,
+          "p95_px": 1.982,
+          "precision_2px": 0.996,
+          "recall_2px": 0.987,
+          "f1_2px": 0.991
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 100,
+        "new_vertex_count": 100,
+        "old_vertices_canonical_sha256": "d06747e1e26998075e50d7155c25529298d865119c841195326d98aa602cbed1",
+        "new_vertices_canonical_sha256": "d06747e1e26998075e50d7155c25529298d865119c841195326d98aa602cbed1",
+        "old_route_provenance": "ink",
+        "new_route_provenance": "ink",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "0ddf8caf5cd74e6feea3ebddd6ce8cfbda2e0338393777ed2fb2102eeec0330f"
+      },
+      {
+        "id": "kr-10-crop-01-clear-w-corrected-raw-v1",
+        "cohort": "old7",
+        "positive_accuracy_scored": true,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-10-crop-01",
+          "split": "validation",
+          "image_file_sha256": "cf9625c3a90366ee553c336f3fcf99ea65c94a021b4a655688eeb9f52980cad4",
+          "input_rgb_u8_sha256": "e17066746ba49f6e079766fd691c0389ccab367e23e13c2e6bb827723ec251df",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "b08b5b641015111697766a4dfc4ec1dd712a5eab660837cea32621ddd5f778a8",
+          "new_prediction_sha256": "b1af3ba4a503797bc9cf96550d9d0a9913e1b8a04b7aa48f903b16e3d1b8d548"
+        },
+        "map_clicks": {
+          "start": [
+            228.5,
+            466.5
+          ],
+          "end": [
+            289.5,
+            466.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            664,
+            297
+          ],
+          "end": [
+            786,
+            297
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "median_px": 0.344,
+          "p95_px": 0.858,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "new_score": {
+          "median_px": 0.344,
+          "p95_px": 0.858,
+          "precision_2px": 1.0,
+          "recall_2px": 1.0,
+          "f1_2px": 1.0
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 68,
+        "new_vertex_count": 68,
+        "old_vertices_canonical_sha256": "87d0da7597471803434078089d9ffbbe3631234c12a005bb5bec12bded07e840",
+        "new_vertices_canonical_sha256": "87d0da7597471803434078089d9ffbbe3631234c12a005bb5bec12bded07e840",
+        "old_route_provenance": "ink",
+        "new_route_provenance": "ink",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "a9dc104cc4858cd7db9953fd36f934ce8fb24f7332e6342d2fc28701bea9449e"
+      },
+      {
+        "id": "kr-10-crop-01-label-700-u",
+        "cohort": "old5",
+        "positive_accuracy_scored": true,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-10-crop-01",
+          "split": "validation",
+          "image_file_sha256": "cf9625c3a90366ee553c336f3fcf99ea65c94a021b4a655688eeb9f52980cad4",
+          "input_rgb_u8_sha256": "e17066746ba49f6e079766fd691c0389ccab367e23e13c2e6bb827723ec251df",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "b08b5b641015111697766a4dfc4ec1dd712a5eab660837cea32621ddd5f778a8",
+          "new_prediction_sha256": "b1af3ba4a503797bc9cf96550d9d0a9913e1b8a04b7aa48f903b16e3d1b8d548"
+        },
+        "map_clicks": {
+          "start": [
+            219.5,
+            239.5
+          ],
+          "end": [
+            256.5,
+            242.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            646,
+            751
+          ],
+          "end": [
+            720,
+            745
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "visible_median_px": 1.0,
+          "visible_p95_px": 2.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "new_score": {
+          "visible_median_px": 1.0,
+          "visible_p95_px": 2.0,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 132,
+        "new_vertex_count": 132,
+        "old_vertices_canonical_sha256": "4dda8a53be9e467a894f9ae1c38ae9ab150c3a7513396d6313588d93f465880c",
+        "new_vertices_canonical_sha256": "4dda8a53be9e467a894f9ae1c38ae9ab150c3a7513396d6313588d93f465880c",
+        "old_route_provenance": "automatic-label-gap",
+        "new_route_provenance": "automatic-label-gap",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "4670a88e9c14931e5a4f6428889644e97e6e57e5c645f9ad8132795a553010e9"
+      },
+      {
+        "id": "kr-10-crop-01-label-600-u",
+        "cohort": "old5",
+        "positive_accuracy_scored": true,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-10-crop-01",
+          "split": "validation",
+          "image_file_sha256": "cf9625c3a90366ee553c336f3fcf99ea65c94a021b4a655688eeb9f52980cad4",
+          "input_rgb_u8_sha256": "e17066746ba49f6e079766fd691c0389ccab367e23e13c2e6bb827723ec251df",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "b08b5b641015111697766a4dfc4ec1dd712a5eab660837cea32621ddd5f778a8",
+          "new_prediction_sha256": "b1af3ba4a503797bc9cf96550d9d0a9913e1b8a04b7aa48f903b16e3d1b8d548"
+        },
+        "map_clicks": {
+          "start": [
+            225.5,
+            185.5
+          ],
+          "end": [
+            252.5,
+            187.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            658,
+            859
+          ],
+          "end": [
+            712,
+            855
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.558,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "new_score": {
+          "visible_median_px": 0.152,
+          "visible_p95_px": 0.558,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 48,
+        "new_vertex_count": 48,
+        "old_vertices_canonical_sha256": "19a1fa9c89d987088869858a93e0f6802984ea2b021590ef91f8847b76d38fdc",
+        "new_vertices_canonical_sha256": "19a1fa9c89d987088869858a93e0f6802984ea2b021590ef91f8847b76d38fdc",
+        "old_route_provenance": "ink",
+        "new_route_provenance": "ink",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "9f27d9f4c611b0d0cd6537a2b1291531becb059d7dbee3841dea6e39fe77eccf"
+      },
+      {
+        "id": "kr-10-crop-12-label-600-diagonal-outer-raw-v1",
+        "cohort": "old5",
+        "positive_accuracy_scored": true,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-10-crop-12",
+          "split": "validation",
+          "image_file_sha256": "ac04da0fce6279e2a7f52b7fd42802864cee129152a39a66832f7cedadab1996",
+          "input_rgb_u8_sha256": "cb321a17c1a97cad0cd59425ae85eaad11a3991ba6173af8519cff03be9ce1c3",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "6d6556ede121891cee08f5d0972d0fb3c539a3dc5d50687083f18f45e65b19a4",
+          "new_prediction_sha256": "abcdd573a8b6fb7ae60848997be7370876e42e6f342452d4d3844cb8529d7ca3"
+        },
+        "map_clicks": {
+          "start": [
+            119.5,
+            249.5
+          ],
+          "end": [
+            145.5,
+            278.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            446,
+            731
+          ],
+          "end": [
+            498,
+            673
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "visible_median_px": 0.149,
+          "visible_p95_px": 0.471,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "new_score": {
+          "visible_median_px": 0.149,
+          "visible_p95_px": 0.471,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 94,
+        "new_vertex_count": 94,
+        "old_vertices_canonical_sha256": "7c16b09cf6d9a6acce255755fec4c425f4e23b2f8c142d3ec2a9dc6d84eee5c0",
+        "new_vertices_canonical_sha256": "7c16b09cf6d9a6acce255755fec4c425f4e23b2f8c142d3ec2a9dc6d84eee5c0",
+        "old_route_provenance": "automatic-label-gap",
+        "new_route_provenance": "automatic-label-gap",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "f5fb0d1c9cbf7f62fc2a7dec752be2094deb4a32da9f9615d500aec127d9489f"
+      },
+      {
+        "id": "kr-10-crop-12-label-600-diagonal-wrong-neighbor",
+        "cohort": "old5",
+        "positive_accuracy_scored": false,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-10-crop-12",
+          "split": "validation",
+          "image_file_sha256": "ac04da0fce6279e2a7f52b7fd42802864cee129152a39a66832f7cedadab1996",
+          "input_rgb_u8_sha256": "cb321a17c1a97cad0cd59425ae85eaad11a3991ba6173af8519cff03be9ce1c3",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "6d6556ede121891cee08f5d0972d0fb3c539a3dc5d50687083f18f45e65b19a4",
+          "new_prediction_sha256": "abcdd573a8b6fb7ae60848997be7370876e42e6f342452d4d3844cb8529d7ca3"
+        },
+        "map_clicks": {
+          "start": [
+            123.5,
+            242.5
+          ],
+          "end": [
+            153.5,
+            250.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            454,
+            745
+          ],
+          "end": [
+            514,
+            729
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "new_score": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "saved_vertices_identical": false,
+        "old_vertex_count": 35,
+        "new_vertex_count": 38,
+        "old_vertices_canonical_sha256": "c703b9cb5e2b64db8ede48618b9cbfc377ca3eefe80dfc6013370d0c2f4cd58d",
+        "new_vertices_canonical_sha256": "b85eb34c24d48f6832de7a559771273e0b38fed91abefa16306a4ccbbcd4192f",
+        "old_route_provenance": "ink",
+        "new_route_provenance": "ink",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "2729b2bc52b72aec53f1676259ffbf9fb1c45e8319b4408535624a7306a3f49f",
+        "negative_inferred_candidate_checks": {
+          "old_korea": {
+            "numeric_candidate_null": true,
+            "numeric_display_accepted": false,
+            "text_candidate_null": true,
+            "text_display_accepted": false,
+            "ordinary_ink_route_saved": true
+          },
+          "new_general_text": {
+            "numeric_candidate_null": true,
+            "numeric_display_accepted": false,
+            "text_candidate_null": true,
+            "text_display_accepted": false,
+            "ordinary_ink_route_saved": true
+          }
+        },
+        "unscored_negative_route_change": {
+          "old_length_px": 39.35365759142448,
+          "new_length_px": 40.37750451526205,
+          "length_difference_px": 1.0238469238375743,
+          "endpoints_equal": true,
+          "bbox_equal": true,
+          "bbox_xy": [
+            [
+              123.5,
+              242.5
+            ],
+            [
+              153.5,
+              258.1000061035156
+            ]
+          ],
+          "directed_old_to_new_max_nearest_polyline_px": 1.4264968743464037,
+          "directed_new_to_old_max_nearest_polyline_px": 1.442217547822828,
+          "symmetric_max_nearest_polyline_lower_bound_px": 1.442217547822828,
+          "symmetric_max_nearest_polyline_upper_bound_px": 1.447217547822828,
+          "distance_method": "Source path arc samples <=0.01 native px; exact nearest distance to all continuous target segments. True directed/symmetric maximum is within +0.005px by 1-Lipschitz distance bound.",
+          "old_to_new_worst_source_map_xy": [
+            128.2692335079878,
+            247.44871794871796
+          ],
+          "new_to_old_worst_source_map_xy": [
+            127.0999984741211,
+            248.29998779296875
+          ]
+        }
+      },
+      {
+        "id": "kr-10-crop-01-label-600-wrong-neighbor",
+        "cohort": "old5",
+        "positive_accuracy_scored": false,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-10-crop-01",
+          "split": "validation",
+          "image_file_sha256": "cf9625c3a90366ee553c336f3fcf99ea65c94a021b4a655688eeb9f52980cad4",
+          "input_rgb_u8_sha256": "e17066746ba49f6e079766fd691c0389ccab367e23e13c2e6bb827723ec251df",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "b08b5b641015111697766a4dfc4ec1dd712a5eab660837cea32621ddd5f778a8",
+          "new_prediction_sha256": "b1af3ba4a503797bc9cf96550d9d0a9913e1b8a04b7aa48f903b16e3d1b8d548"
+        },
+        "map_clicks": {
+          "start": [
+            225.5,
+            185.5
+          ],
+          "end": [
+            263.5,
+            184.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            658,
+            859
+          ],
+          "end": [
+            734,
+            861
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "new_score": {
+          "visible_f1_2px": null,
+          "policy": "negative pair; no accuracy reference"
+        },
+        "saved_vertices_identical": false,
+        "old_vertex_count": 51,
+        "new_vertex_count": 52,
+        "old_vertices_canonical_sha256": "115c553cadd867c63376947e370311ca073875916e7f4e11e016ca83b258b87b",
+        "new_vertices_canonical_sha256": "7e59492bf82f8086a07f708f56d4174182960c1fafb50ffacae2b3939ce1da3d",
+        "old_route_provenance": "ink",
+        "new_route_provenance": "ink",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "e19acdbdbc3b44d4d3ce604fd2a4c144782ed1172d85b71098b71ca290d417d8",
+        "negative_inferred_candidate_checks": {
+          "old_korea": {
+            "numeric_candidate_null": true,
+            "numeric_display_accepted": false,
+            "text_candidate_null": true,
+            "text_display_accepted": false,
+            "ordinary_ink_route_saved": true
+          },
+          "new_general_text": {
+            "numeric_candidate_null": true,
+            "numeric_display_accepted": false,
+            "text_candidate_null": true,
+            "text_display_accepted": false,
+            "ordinary_ink_route_saved": true
+          }
+        },
+        "unscored_negative_route_change": {
+          "old_length_px": 56.118806679420274,
+          "new_length_px": 56.50321818525362,
+          "length_difference_px": 0.3844115058333486,
+          "endpoints_equal": true,
+          "bbox_equal": true,
+          "bbox_xy": [
+            [
+              225.5,
+              168.10000610351562
+            ],
+            [
+              263.5,
+              185.5
+            ]
+          ],
+          "directed_old_to_new_max_nearest_polyline_px": 0.5599962768662721,
+          "directed_new_to_old_max_nearest_polyline_px": 0.5656821879940988,
+          "symmetric_max_nearest_polyline_lower_bound_px": 0.5656821879940988,
+          "symmetric_max_nearest_polyline_upper_bound_px": 0.5706821879940988,
+          "distance_method": "Source path arc samples <=0.01 native px; exact nearest distance to all continuous target segments. True directed/symmetric maximum is within +0.005px by 1-Lipschitz distance bound.",
+          "old_to_new_worst_source_map_xy": [
+            228.0999984741211,
+            172.10000610351562
+          ],
+          "new_to_old_worst_source_map_xy": [
+            227.6999969482422,
+            171.70001220703125
+          ]
+        }
+      },
+      {
+        "id": "kr10-second06-index-300",
+        "cohort": "old300",
+        "positive_accuracy_scored": true,
+        "review_level": "agent_visual_inspection",
+        "human_approved": false,
+        "hidden_geometry_scored": false,
+        "input": {
+          "sample_id": "kr-10-unseen-native-06",
+          "split": "validation",
+          "image_file_sha256": "a1e7eca8e8b5071f288bd65408f46b66b10f31f4a3cf202dc3dd60362ed135f4",
+          "input_rgb_u8_sha256": "3ad6a41c1131d2a0ef3347f523bf8b1e823f7f488653451729f86ba0e9b6b782",
+          "shape": [
+            512,
+            512,
+            3
+          ],
+          "old_prediction_sha256": "1b1653a15863c1e9a93e284f6cb7823542d0dedd2b2a8d207e559a926f586554",
+          "new_prediction_sha256": "1e9939c53269895db7fd7ec375729fd80999736eb0689ef7f8d3294e17f17ea7"
+        },
+        "map_clicks": {
+          "start": [
+            408.5,
+            197.5
+          ],
+          "end": [
+            437.5,
+            191.5
+          ]
+        },
+        "screen_clicks": {
+          "start": [
+            1024,
+            835
+          ],
+          "end": [
+            1082,
+            847
+          ]
+        },
+        "input_clicks_identical": true,
+        "old_score": {
+          "visible_median_px": 0.118,
+          "visible_p95_px": 0.696,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "new_score": {
+          "visible_median_px": 0.118,
+          "visible_p95_px": 0.696,
+          "visible_precision_2px": 1.0,
+          "visible_recall_2px": 1.0,
+          "visible_f1_2px": 1.0
+        },
+        "saved_vertices_identical": true,
+        "old_vertex_count": 113,
+        "new_vertex_count": 113,
+        "old_vertices_canonical_sha256": "8e6e4484e2a17a96e2d57a2ce9d1afe41952315d71717b31c535815bcecec022",
+        "new_vertices_canonical_sha256": "8e6e4484e2a17a96e2d57a2ce9d1afe41952315d71717b31c535815bcecec022",
+        "old_route_provenance": "automatic-label-gap",
+        "new_route_provenance": "automatic-label-gap",
+        "learned_preview_to_save_preserved_both": true,
+        "one_undo_both": true,
+        "full_overlay_visually_inspected": true,
+        "overlay_sha256": "ec7e7b1214a750999dddad8cd1a8e9b1e1ebf20832f0b1926343915c116d9ccf",
+        "designated_foreign_visible_control": {
+          "minimum_distance_px": 3.577708763999664,
+          "old_equals_new": true,
+          "contact_within_1px": false,
+          "method": "continuous_segments"
+        }
+      }
+    ],
+    "lifecycle": {
+      "old_korea": {
+        "artifact": "model-old-korea-qgis-lifecycle.json",
+        "sha256": "75914dfc8bea8e88dc077260581933db01877f479778637048e879c746ef1fef",
+        "ok": true,
+        "isolated_profile_removed": true,
+        "scenario_count": 9,
+        "synthetic_input": "synthetic_solid_rgb",
+        "synthetic_centerline_error_px": 0.2393,
+        "prepared_tile_p95_ms": 56.596207432448864,
+        "peak_rss_growth_bytes": 458981376
+      },
+      "new_general_text": {
+        "artifact": "model-text-qgis-lifecycle.json",
+        "sha256": "b8d06db2c331f2669b78c4614058cdae4475353a3f29d4025a2dbbab6b606475",
+        "ok": true,
+        "isolated_profile_removed": true,
+        "scenario_count": 9,
+        "synthetic_input": "synthetic_solid_rgb",
+        "synthetic_centerline_error_px": 0.2393,
+        "prepared_tile_p95_ms": 56.462500244379044,
+        "peak_rss_growth_bytes": 461160448
+      }
+    }
+  },
+  "actual_crop_cpu": {
+    "artifact": "real-crop-cpu-comparison.json",
+    "sha256": "7f6b5b404485e3f5662b248a3cd3cdcfea8721df51bbbe51f31f95836c4812c1",
+    "host_cpu": "Apple M4",
+    "os": "macOS26.6.2 arm64",
+    "dependencies": {
+      "numpy": "2.5.4",
+      "onnx": "1.23.2",
+      "onnxruntime": "1.31.0",
+      "pillow": "12.3.0",
+      "python": "3.12.13 (main, Mar 10 2026, 18:18:07) [Clang 21.1.4 ]"
+    },
+    "protocol": {
+      "cold_construct": "LearnedContourEngine.from_bundle including verification and ONNX/ORT imports",
+      "first_prediction": "separately timed, then one additional untimed warm-up, then 25 timed predict_tile calls",
+      "input": "native 512x512 uint8 RGB, no resize/convert/color transform, decode outside timing",
+      "order": "crop order frozen by cohorts; old/new on even crops and new/old on odd crops",
+      "per_crop_p95": "sorted duration index 23, order statistic 24/25",
+      "pooling": "equal 25-call weight per unique crop; case prompts sharing a crop are not repeated",
+      "prepared_timing": "includes uint8-to-FP32 conversion, inference, sigmoid and immutable prior creation",
+      "processes": "one fresh subprocess per unique image/model pair, strictly sequential",
+      "rss": "process high-water; macOS raw ru_maxrss bytes, Linux KiB x1024; growth clamped at zero",
+      "scope": "17 frozen validation/development diagnostic cases, deduplicated to 11 image SHA256 values"
+    },
+    "summary_by_model": {
+      "new_general_text": {
+        "max_absolute_peak_rss_bytes": 577585152,
+        "max_peak_rss_growth_bytes": 536150016,
+        "max_per_crop_p95_ms": 60.1375,
+        "median_cold_construct_ms": 81.41325,
+        "median_first_prediction_ms": 95.912875,
+        "pooled_p95_order_statistic": "262/275 (one-based)",
+        "pooled_prepared_median_ms": 54.81975,
+        "pooled_prepared_p95_ms": 58.197959,
+        "timed_calls": 275,
+        "unique_crops": 11
+      },
+      "old_korea": {
+        "max_absolute_peak_rss_bytes": 577896448,
+        "max_peak_rss_growth_bytes": 536625152,
+        "max_per_crop_p95_ms": 59.354542,
+        "median_cold_construct_ms": 81.742333,
+        "median_first_prediction_ms": 95.85025,
+        "pooled_p95_order_statistic": "262/275 (one-based)",
+        "pooled_prepared_median_ms": 54.41725,
+        "pooled_prepared_p95_ms": 57.682792,
+        "timed_calls": 275,
+        "unique_crops": 11
+      }
+    },
+    "rss_baseline": "After image/PIL/NumPy/engine-source import, before ONNX/ORT/model construction. Process high-water bytes; not whole QGIS RAM.",
+    "scope_excludes": [
+      "image_decode",
+      "QGIS_UI_latency",
+      "route_computation_latency",
+      "save_latency",
+      "whole_QGIS_RAM",
+      "human_work_time"
+    ],
+    "limitation": "One host, one paired pass, no statistical speed or general accuracy advantage established."
+  },
+  "evidence_artifacts": [
+    {
+      "name": "seed-3407-result-verified.json",
+      "sha256": "c710d059f8b18eff01dc4c1915cef20cdf57248dcb826d7db2e533a43a2feab4"
+    },
+    {
+      "name": "seed-3408-result-verified.json",
+      "sha256": "d75bef47431e191f67fa0bcbac1c3de24ed795fe8e63965411716feb780ed70b"
+    },
+    {
+      "name": "seed-3409-result-verified.json",
+      "sha256": "1f7bcc71bedc8b97bc262fa037d26ccb43193da0a0df19563c38aff4c0a124fb"
+    },
+    {
+      "name": "selection-verified.json",
+      "sha256": "83724fae187aae308004d73f74513b808eac991a9aaddd8aabdc2330bfbd8149"
+    },
+    {
+      "name": "new-onnx-verification.json",
+      "sha256": "8bb6b83e22f6e55844c69e6b8163aaa8c37fdef707afeabf1c52dcb3b512ae07"
+    },
+    {
+      "name": "general-text-qgis-audit.json",
+      "sha256": "6aa3965d646b3975be4c0c9e343dd33cb789d4a341d1332aa2a6a354b4a877fd"
+    },
+    {
+      "name": "regression-qgis-audit.json",
+      "sha256": "ea5b49e0c9761ff38bf6a1386bd891f5704d8539c7205ecad391ef53732a49dd"
+    },
+    {
+      "name": "real-crop-cpu-comparison.json",
+      "sha256": "7f6b5b404485e3f5662b248a3cd3cdcfea8721df51bbbe51f31f95836c4812c1"
+    },
+    {
+      "name": "benchmark_real_crop_cpu.py",
+      "sha256": "5b045b60adbff9390a3934a40289127c41545b835eed406fbdeb3ea295748fa2"
+    },
+    {
+      "name": "run_final_model_comparison.py",
+      "sha256": "52566a344be6e378088a4c1b42f52eb23a3c86be09276d0f3cc1e1defa60d51d"
+    },
+    {
+      "name": "build_public_comparison_summary.py",
+      "sha256": "6f4cda854ecb03e690510b60c4fd05f7045f11b53956df05d5679bd9999d2414"
+    }
+  ],
+  "repository_validation": {
+    "checked_at_utc": "2026-10-18T20:41:07.579956+00:00",
+    "product_commit": "59ad23d041137e1886b594dd983d9de862f98a01",
+    "branch": "main",
+    "pure_suite": {
+      "command": "python -m pytest -q",
+      "exit_code": 0,
+      "passed": 1182,
+      "skipped": 159,
+      "subtests_passed": 171,
+      "duration_seconds": 12.25
+    },
+    "qgis_checks": "Actual QGIS17diagnostic comparisons and2x9scenario lifecycle passed; not replaced by pure-suite skips.",
+    "packaging_evidence": "final-packaging-validation.json",
+    "packaging_passed": true,
+    "diff_check_passed": true,
+    "default_model_replaced": false,
+    "runtime_source_changed": false
+  }
+}
