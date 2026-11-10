@@ -94,10 +94,10 @@ class DependencyDeclarationTests(unittest.TestCase):
         )
         self.assertIn("onnxruntime>=1.17.0,<2", recovery)
         self.assertNotIn("onnxruntime", base)
-        self.assertIn("Pillow>=12.3.0", base)
+        self.assertIn("Pillow>=13.0.0", base)
         development = (ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
         self.assertIn("pytest>=9.0.3,<10", development)
-        self.assertIn("Development dependencies require Python 3.10+", development)
+        self.assertIn("Development dependencies require Python 3.11+", development)
         # Install commands live in the packaged user guide; the root README
         # links to it instead of repeating dependency pins.
         for relative_path in ("ai_vectorizer/README.md",):
@@ -1060,7 +1060,7 @@ class ContinuousIntegrationTests(unittest.TestCase):
             workflow,
             r'(?m)^\s*export PYTHONPATH="\$GITHUB_WORKSPACE"\s*$',
         )
-        self.assertIn('python: ["3.10", "3.12"]', workflow)
+        self.assertIn('python: ["3.11", "3.12"]', workflow)
         self.assertIn("python38-compatibility:", workflow)
         self.assertIn('python-version: "3.8"', workflow)
         self.assertIn("test_count < 260", workflow)

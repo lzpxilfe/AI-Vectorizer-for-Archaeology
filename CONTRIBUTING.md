@@ -17,7 +17,7 @@ ArchaeoTrace는 연구·현장 자료를 안전하게 다루는 QGIS plugin이�
 
 ## Development setup
 
-Python 3.10+의 격리 환경을 권장합니다. 실제 plugin은 QGIS Python에서 실행되므로
+Python 3.11+의 격리 환경을 권장합니다. 실제 plugin은 QGIS Python에서 실행되므로
 system Python에 설치한 package가 QGIS에 보이지 않을 수 있습니다.
 
 ```bash

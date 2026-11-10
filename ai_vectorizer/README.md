@@ -231,8 +231,11 @@ QGIS 3.22/Python 3.8은 기본 ZIP 경로의 source·무의존성 계약 대상�
 수정이 적용된 Pillow/pytest
 의존성 계열을 설치할 수 없습니다. 이 릴리스의 선택적 SciPy/scikit-image,
 OpenCV, SAM pip 스택과 `requirements-dev.txt`는 보안 유지 대상 Python
-3.10+ 환경에서 사용하세요. 가능하면 최신 지원 QGIS/Python을 사용하고,
+3.11+ 환경에서 사용하세요. 가능하면 최신 지원 QGIS/Python을 사용하고,
 공유 QGIS 환경을 변경하기 전에 프로필과 환경을 백업하세요.
+Pillow가 필요한 새 소스·개발 환경은 보안 수정이 포함된 13.0.0 이상을 사용합니다.
+Pillow 13은 Python 3.11 이상이 필요하며, 기존 실험 재현에는 기록된 코드·런타임을
+구분해 보존합니다. [Pillow 13 변경 기록](https://pillow.readthedocs.io/en/stable/releasenotes/13.0.0.html)을 참고하세요.
 
 ```bash
 # LSD / HED / SAM용 OpenCV (Ink Centerline과 Legacy Canny에는 불필요)
@@ -260,12 +263,12 @@ OpenCV, SAM pip 스택과 `requirements-dev.txt`는 보안 유지 대상 Python
   "segment-anything @ git+https://github.com/facebookresearch/segment-anything.git@dca509fe793f601edb92606367a655c15ac00fdf"
 ```
 
-저장소 checkout의 격리된 Python 3.10+ 개발 환경에서는 기본
+저장소 checkout의 격리된 Python 3.11+ 개발 환경에서는 기본
 `requirements.txt`, Smart Recovery용 `requirements-smart-recovery.txt`, OpenCV용
 `requirements-opencv.txt`, 학습 보조용 `requirements-learned-guide.txt`, 백엔드별
 `requirements-sam-mobile.txt` 또는 `requirements-sam-full.txt`를 사용할 수
 있습니다. 학습은 QGIS와 분리한 Python 3.12+·Colab 환경의
-`requirements-learning.txt`를 사용합니다. `requirements-dev.txt`는 Python 3.10+
+`requirements-learning.txt`를 사용합니다. `requirements-dev.txt`는 Python 3.11+
 테스트 전용입니다. QGIS에 PyTorch·SMP를 설치할 필요는 없습니다.
 
 macOS QGIS.app 예시:

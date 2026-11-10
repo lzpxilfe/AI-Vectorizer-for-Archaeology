@@ -3,6 +3,8 @@ torch==2.14.1
 torchvision==0.29.1
 segmentation-models-pytorch==0.5.0
 numpy==2.5.4
-Pillow==12.3.0
+# New runs use the patched decoder. Historical checkpoints keep their frozen
+# code/runtime lineage; do not silently resume them with a changed environment.
+Pillow==13.0.0
 onnx==1.23.2
 onnxruntime==1.31.0
