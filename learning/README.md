@@ -6,6 +6,18 @@ The model is a ResNet18 encoder and a small SMP U-Net decoder with two logits:
 `contour_support` and `other_ink_risk`. RGB input is divided by 255 by the caller;
 ImageNet mean/std normalization belongs to the model and exported ONNX graph.
 
+## Recorded runs and current decision
+
+Three weak-label experiments completed Colab training, ONNX export, local inference and
+QGIS integration. The latest general-text run found no improvement in the saved
+routes of 13 positive cases among 17 development diagnostics. The existing Korea
+model is retained and learned guidance remains default OFF. Human-approved
+annotations are still zero; formal Calibration/Holdout evaluation is pending.
+See the [general-text results](COLAB_KOREA_TEXT_WEAK_RUN_2026-10-19.md) and
+[failure diagnosis](GENERAL_TEXT_FAILURE_DIAGNOSIS_2026-10-19.md) (Korean).
+The following sections describe the training/evaluation protocol; they do not
+mean the human-reviewed pilot has passed it.
+
 ## Prepare and review the pilot dataset
 
 The prepared public pilot contains 16 frozen USGS sheets and 144 lossless native

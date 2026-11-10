@@ -84,6 +84,17 @@ Shortcuts and troubleshooting are in the [user guide](ai_vectorizer/README.md).
 If you use ArchaeoTrace in research or practice, please open an issue so it can be
 listed here.
 
+## 🧪 What the Colab experiments established
+
+Three-seed training, ONNX verification and actual QGIS comparison are complete.
+The new general-text model did not improve the saved routes in 13 positive cases
+among 17 development diagnostics, so the existing Korea model is retained.
+Human-approved annotations remain zero; formal Calibration/Holdout evaluation is pending.
+
+- [Training/QGIS record](learning/COLAB_KOREA_TEXT_WEAK_RUN_2026-10-19.md): conditions, hashes, 17 cases and the model decision.
+- [Failure diagnosis](learning/GENERAL_TEXT_FAILURE_DIAGNOSIS_2026-10-19.md): six development pairs and opt-in logs locate the missing O word group. Detection changes and regression checks come next.
+- [Real-map pilot](docs/REAL_MAP_PILOT_2026-10-19.md): the Ink kernel saved three open fragments without a learned model. This is a small draft with no elevations or geographic coordinates. These detailed records are in Korean.
+
 ## 🚧 Status and limitations
 
 - The plugin is experimental. The latest release in the official QGIS plugin
