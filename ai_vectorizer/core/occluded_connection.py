@@ -24,6 +24,17 @@ from .observed_connection import (
 )
 
 
+def _diagnostic_result(diagnostics, status, reason, **values):
+    if diagnostics is not None:
+        diagnostics.update(status=status, reason=reason, **values)
+
+
+def _diagnostic_count(diagnostics, reason, count=1):
+    if diagnostics is not None:
+        counters = diagnostics.setdefault("rejections", {})
+        counters[reason] = counters.get(reason, 0) + int(count)
+
+
 @dataclass(frozen=True)
 class _Arm:
     pixel: tuple
@@ -139,27 +150,40 @@ class OccludedConnectionTree:
                 return True
         return False
 
-    def trace(self, target):
+    def trace_with_diagnostics(self, target):
+        """Return a route and fresh bounded reasons; never mutate this tree."""
+        diagnostics = {}
+        return self.trace(target, diagnostics=diagnostics), diagnostics
+
+    def trace(self, target, *, diagnostics=None):
+        if diagnostics is not None:
+            diagnostics.clear()
+            diagnostics.update(schema_version="occluded-trace-diagnostics/1", rejections={})
+
+        def decline(reason):
+            _diagnostic_result(diagnostics, "rejected", reason)
+            return None
+
         point = np.asarray(target, dtype=np.float64)
         if point.shape != (2,) or not np.isfinite(point).all():
-            return None
+            return decline("invalid_target")
         local = point - np.asarray(self.origin)
         height, width = self.shape
         if not (0 <= local[0] < width and 0 <= local[1] < height):
-            return None
+            return decline("target_outside_window")
         tx, ty = np.rint(local).astype(int)
         if not (0 <= tx < width and 0 <= ty < height) or self.mask[ty, tx]:
-            return None
+            return decline("target_inside_uncertainty_or_outside")
         chord = float(np.linalg.norm(point - self.root))
         if chord < 1e-9:
-            return None
+            return decline("target_equals_root")
         limit = min(2 * max(self.shape), max(8.0, chord * 6.0))
         yy, xx = np.mgrid[max(0, int(math.floor(local[1] - 2))):min(height, int(math.ceil(local[1] + 2)) + 1),
                           max(0, int(math.floor(local[0] - 2))):min(width, int(math.ceil(local[0] + 2)) + 1)]
         offsets = np.hypot(xx - local[0], yy - local[1])
         native_anchor = self.outside_native[yy, xx] & (offsets <= 2.0 + 1e-6)
         if not np.any(native_anchor):
-            return None
+            return decline("no_native_target_anchor")
         nearest_offset = float(offsets[native_anchor].min())
         closest = native_anchor & (offsets <= nearest_offset + 0.25)
         # Equal nearby arms are an ambiguity, even if a distant intersection
@@ -175,24 +199,28 @@ class OccludedConnectionTree:
                         seen.add((ny, nx))
                         pending.append((ny, nx))
         if any(seed not in seen for seed in seeds):
-            return None
+            return decline("ambiguous_target_arms")
         options = []
         for route in self.routes:
             nodes = route.lookup[yy, xx]
             if np.any(nodes[closest] < 0):
+                _diagnostic_count(diagnostics, "route_excludes_nearest_arm")
                 continue
             valid = (nodes >= 0) & (offsets <= 2.0 + 1e-6)
             if not np.any(valid):
+                _diagnostic_count(diagnostics, "route_has_no_anchor")
                 continue
             # Distance authority comes from *all* original outside arms.
             # A route which excludes the clicked neighbouring arm may not
             # recompute a more convenient, farther anchor on its own graph.
             valid &= offsets <= nearest_offset + 0.25
             if not np.any(valid):
+                _diagnostic_count(diagnostics, "route_has_no_nearest_anchor")
                 continue
             costs = route.distances[nodes[valid]] + offsets[valid] * 4.0
             index = int(np.argmin(costs))
             if not math.isfinite(float(costs[index])):
+                _diagnostic_count(diagnostics, "route_target_unreachable")
                 continue
             node = int(nodes[valid][index])
             length = float(offsets[valid][index]) + route.prefix_length
@@ -204,6 +232,7 @@ class OccludedConnectionTree:
                 if backwards:
                     length += math.hypot(current[0] - previous[0], current[1] - previous[1])
                 if length > limit:
+                    _diagnostic_count(diagnostics, "route_length_limit")
                     break
                 backwards.append(current)
                 previous = current
@@ -219,6 +248,7 @@ class OccludedConnectionTree:
                             len(arm) > 1 and self._has_native_junction(arm) is not False
                             for arm in (native_prefix, backwards)
                         ):
+                            _diagnostic_count(diagnostics, "text_arm_branched_or_uncertain")
                             break
                     points = [*route.prefix, *backwards[-2::-1], tuple(point)]
                     points = [p for i, p in enumerate(points) if not i or p != points[i - 1]]
@@ -226,32 +256,44 @@ class OccludedConnectionTree:
                     break
                 node = int(route.predecessors[node])
                 if node < 0 or node >= len(route.native_indices):
+                    _diagnostic_count(diagnostics, "invalid_predecessor")
                     break
+            else:
+                _diagnostic_count(diagnostics, "route_step_limit")
         if not options:
-            return None
+            return decline("no_admissible_target_route")
         options.sort(key=lambda value: value[0])
         # Different inferred continuations to the exact same target must be
         # clearly distinguished, not resolved by their enumeration order.
         if len(options) > 1 and options[1][0] - options[0][0] <= 0.5:
-            return None
+            return decline("ambiguous_route_cost")
+        _diagnostic_result(diagnostics, "accepted", "unique_target_route", options=len(options))
         return options[0][1]
 
-    def accepts_display(self, displayed):
+    def accepts_display(self, displayed, *, diagnostics=None):
         """Reject a strength blend that touches a different visible stroke.
 
         Only immutable geometry and native pixels are read. Glyph pixels in
         the independently detected mask remain uncertain, not obstacles.
         """
+        if diagnostics is not None:
+            diagnostics.clear()
+            diagnostics["schema_version"] = "occluded-display-diagnostics/1"
+
+        def decline(reason):
+            _diagnostic_result(diagnostics, "rejected", reason)
+            return False
+
         points = np.asarray(displayed, dtype=np.float64)
         if (points.ndim != 2 or points.shape[1] != 2 or not 2 <= len(points) <= 8192
                 or not np.isfinite(points).all()):
-            return False
+            return decline("invalid_display")
         full = self.trace(points[-1])
         if full is None:
-            return False
+            return decline("no_target_route")
         selected = self._selected_connector(full)
         if selected is None:
-            return False
+            return decline("missing_selected_connector")
         _source, _target, _curve, start, end, _region = selected
         # Only the original native prefix/suffix and the two genuine ends
         # establish ownership of nearby observed pixels. The virtual curve
@@ -270,15 +312,16 @@ class OccludedConnectionTree:
             steps = max(1, int(math.ceil(float(np.linalg.norm(last - first)) * 2)))
             work += steps
             if work > 16384:
-                return False
+                return decline("display_work_limit")
             for x, y in first + np.linspace(0.0, 1.0, steps + 1)[:, None] * (last - first):
                 if not (0 <= x < width and 0 <= y < height):
-                    return False
+                    return decline("display_outside_window")
                 for cy in range(max(0, int(math.floor(y - 1.0))), min(height, int(math.ceil(y + 1.0)) + 1)):
                     for cx in range(max(0, int(math.floor(x - 1.0))), min(width, int(math.ceil(x + 1.0)) + 1)):
                         if (self.outside_native[cy, cx] and (cx, cy) not in allowed
                                 and math.hypot(cx - x, cy - y) <= 1.0):
-                            return False
+                            return decline("display_touches_foreign_native")
+        _diagnostic_result(diagnostics, "accepted", "no_foreign_native_contact")
         return True
 
     def _selected_connector(self, inferred):
@@ -470,7 +513,7 @@ def _curve_cells(points, shape):
 
 
 def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, original_degree=None,
-                thin_width_uncertainty=False):
+                thin_width_uncertainty=False, diagnostics=None):
     from scipy.ndimage import distance_transform_edt
     degree = _degree(mask)
     near = distance_transform_edt(~region_mask)
@@ -478,7 +521,10 @@ def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, ori
     # the terminal search and introduce a different neighbouring contour.
     collar = min(8.0, max(4.0, min(box[2] - box[0], box[3] - box[1]) * 0.45))
     ys, xs = np.nonzero((degree == 1) & (near <= collar))
+    if diagnostics is not None:
+        diagnostics["nearby_endpoints"] = diagnostics.get("nearby_endpoints", 0) + len(xs)
     if len(xs) > 64:
+        _diagnostic_count(diagnostics, "endpoint_budget")
         return (), ()
     arms = []
     for x, y in zip(xs.tolist(), ys.tolist()):
@@ -491,6 +537,7 @@ def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, ori
             (x, y), (), (), 0.0, _perimeter((x, y), box)
         ))
     if len(arms) < 2 or len(arms) > 32:
+        _diagnostic_count(diagnostics, "arm_count_out_of_range")
         return (), tuple(arms)
     arms.sort(key=lambda arm: arm.perimeter)
     axis = np.asarray(orientation, dtype=float)
@@ -503,13 +550,17 @@ def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, ori
     for i, first in enumerate(arms):
         for j in range(i + 1, len(arms)):
             cancel()
+            if diagnostics is not None:
+                diagnostics["examined_pairs"] = diagnostics.get("examined_pairs", 0) + 1
             last = arms[j]
             if not first.outward or not last.outward:
+                _diagnostic_count(diagnostics, "arm_tangent_unavailable")
                 continue
             if original_degree is not None and (
                 original_degree[first.pixel[1], first.pixel[0]] != 1
                 or original_degree[last.pixel[1], last.pixel[0]] != 1
             ):
+                _diagnostic_count(diagnostics, "not_original_native_endpoints")
                 continue
             # Non-crossing contours meet a simply connected occlusion boundary
             # in paired order. Skipping an odd number of sustained arms would
@@ -519,6 +570,7 @@ def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, ori
             if last.perimeter - first.perimeter > perimeter * 0.5:
                 between = len(arms) - (j - i) - 1
             if between % 2:
+                _diagnostic_count(diagnostics, "intervening_arm_order")
                 continue
             span = abs(float(np.dot(np.asarray(last.pixel) - first.pixel, axis)))
             if span < max(4.0, extent * 0.60):
@@ -529,13 +581,16 @@ def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, ori
                 delta = np.asarray(last.pixel, dtype=float) - first.pixel
                 length = float(np.linalg.norm(delta))
                 if original_degree is None or length < 4.0:
+                    _diagnostic_count(diagnostics, "insufficient_label_span")
                     continue
                 chord = delta / length
                 if (np.dot(first.outward, chord) < 0.50
                         or np.dot(last.outward, -chord) < 0.50):
+                    _diagnostic_count(diagnostics, "short_span_tangent_mismatch")
                     continue
             ratio = max(first.width, last.width) / min(first.width, last.width)
             if width_image is not None and ratio > 1.55:
+                _diagnostic_count(diagnostics, "width_mismatch")
                 continue
             try:
                 curve = build_confirmed_gap_curve(
@@ -543,17 +598,21 @@ def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, ori
                     config=ConfirmedGapCurveConfig(handle_ratio=0.55),
                 )
             except ConfirmedGapCurveError:
+                _diagnostic_count(diagnostics, "curve_geometry_rejected")
                 continue
             if curve.gap_length_pixels > 96.0:
+                _diagnostic_count(diagnostics, "gap_length_limit")
                 continue
             points = np.asarray(curve.points_xy)
             cells = _curve_cells(points, mask.shape)
             if len(cells) != len(points):
+                _diagnostic_count(diagnostics, "curve_outside_window")
                 continue
             # A candidate must actually bridge the detected label, not join
             # two fragments along an unrelated edge of its surrounding box.
             inside = region_mask[cells[:, 1], cells[:, 0]]
             if float(np.mean(inside)) < 0.35:
+                _diagnostic_count(diagnostics, "curve_misses_label")
                 continue
             # Outside the label all contacts are observed and must belong to
             # the exact endpoint context. A neighbouring continuous stroke
@@ -568,6 +627,7 @@ def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, ori
                         if mask[y, x] and (x, y) not in allowed and math.hypot(x - px, y - py) <= 1.0:
                             blocked = True
             if blocked:
+                _diagnostic_count(diagnostics, "curve_touches_other_native")
                 continue
             # At native resolution EDT radii 1 and sqrt(2) can describe the
             # same thin stroke at different angles. New text proposals must
@@ -587,7 +647,10 @@ def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, ori
         options.sort()
         if options and (len(options) == 1 or options[1][0] - options[0][0] > 0.15):
             counts[options[0][1]] += 1
+        elif options:
+            _diagnostic_count(diagnostics, "ambiguous_arm_vote")
     selected = tuple((arms[i], arms[j], curve) for (i, j, curve, _), count in zip(pairs, counts) if count == 2)
+    _diagnostic_count(diagnostics, "pair_not_mutually_unique", int(np.sum(counts != 2)))
     occupancy, crossing = {}, set()
     for index, (_first, _last, curve) in enumerate(selected):
         cells = set()
@@ -600,6 +663,7 @@ def _connectors(mask, region_mask, box, width_image, orientation, cancel, *, ori
                 crossing.update((index, occupancy[cell]))
             else:
                 occupancy[cell] = index
+    _diagnostic_count(diagnostics, "crossing_connector", len(crossing))
     return tuple(value for index, value in enumerate(selected) if index not in crossing), tuple(arms)
 
 
@@ -621,7 +685,7 @@ def _widths(image, shape):
     return distance_transform_edt(contrast >= threshold)
 
 
-def build_occluded_connection(graph, centerline, root, origin, regions, *, sparse, dijkstra, image=None, cancel_check=None):
+def build_occluded_connection(graph, centerline, root, origin, regions, *, sparse, dijkstra, image=None, cancel_check=None, diagnostics=None):
     """Build separate masked-native prefix/curve/suffix routes in the worker.
 
     Detector masks must be independent of prompts or desired output paths.
@@ -630,18 +694,29 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
     Both anchors must already terminate in the original centreline. Fused
     glyph/contour continuations are deliberately left to explicit review.
     """
+    if diagnostics is not None:
+        diagnostics.clear()
+        diagnostics.update(schema_version="occluded-build-diagnostics/1", rejections={})
+
+    def decline(reason):
+        _diagnostic_result(diagnostics, "rejected", reason)
+        return None
+
     def cancel():
         if cancel_check is not None and cancel_check():
+            _diagnostic_result(diagnostics, "cancelled", "cancelled")
             raise ObservedConnectionCancelled("Occlusion connection was cancelled")
     cancel()
     native = np.asarray(centerline, dtype=bool)
     if native.ndim != 2 or min(native.shape, default=0) < 1:
         raise ValueError("centerline must be a non-empty 2D array")
     if native.size > 1024 * 1024:
-        return None
+        return decline("window_budget")
     regions = tuple(regions)
+    if diagnostics is not None:
+        diagnostics["region_count"] = len(regions)
     if not regions or len(regions) > 16:
-        return None
+        return decline("no_regions" if not regions else "region_budget")
     masks = [_region_mask(region, native.shape) for region in regions]
     union = np.logical_or.reduce([value[0] for value in masks])
     cores = [_glyph_core(region, mask) for region, (mask, _box) in zip(regions, masks)]
@@ -654,7 +729,7 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
     if not (0 <= local_root[0] < native.shape[1] and 0 <= local_root[1] < native.shape[0]):
         raise ValueError("root must lie in the centerline window")
     if union[local_root[1], local_root[0]]:
-        return None
+        return decline("root_inside_uncertainty")
     outside = native & ~core_union
     cancel()
     # A native detector can place the centre of a broad printed stroke just
@@ -663,19 +738,19 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
     ys, xs = np.nonzero(outside)
     offsets = np.hypot(xs - (root_array[0] - origin_array[0]), ys - (root_array[1] - origin_array[1]))
     if not len(offsets) or float(offsets.min()) > 3.0:
-        return None
+        return decline("no_native_root_anchor")
     nearest = np.flatnonzero(offsets <= float(offsets.min()) + 0.25)
     from scipy.ndimage import label
     components, _ = label(outside, structure=np.ones((3, 3), dtype=np.uint8))
     if len(set(components[ys[nearest], xs[nearest]].tolist())) != 1:
-        return None
+        return decline("ambiguous_root_arms")
     snapped_root = root
     if float(offsets.min()) > 2.0:
         best = int(np.argmin(offsets))
         snapped_root = (int(xs[best] + origin_array[0]), int(ys[best] + origin_array[1]))
     baseline = build_observed_connection(graph, outside, snapped_root, origin, sparse=sparse, dijkstra=dijkstra, cancel_check=cancel_check)
     if baseline is None:
-        return None
+        return decline("outside_native_tree_unavailable")
     width_image = _widths(image, native.shape)
     original_degree = _degree(native)
     routes, retained = [], []
@@ -684,9 +759,20 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
         cancel()
         general_text = getattr(region, "core_mask", None) is not None
         orientation = getattr(region, "baseline_xy", getattr(region, "orientation_xy", (1.0, 0.0)))
+        region_diagnostics = ({"region_index": region_index, "bbox_xyxy": [int(v) for v in box],
+                               "general_text": general_text, "rejections": {}}
+                              if diagnostics is not None else None)
         selected, arms = _connectors(outside, region_mask, box, width_image, orientation, cancel,
                                      original_degree=original_degree,
-                                     thin_width_uncertainty=general_text)
+                                     thin_width_uncertainty=general_text,
+                                     **({"diagnostics": region_diagnostics} if diagnostics is not None else {}))
+        if diagnostics is not None:
+            region_diagnostics.update(arms=len(arms), retained_pairs=len(selected))
+            diagnostics.setdefault("regions", []).append(region_diagnostics)
+            for key in ("nearby_endpoints", "examined_pairs"):
+                diagnostics[key] = diagnostics.get(key, 0) + region_diagnostics.get(key, 0)
+            for reason, count in region_diagnostics["rejections"].items():
+                _diagnostic_count(diagnostics, reason, count)
         for first, last, curve in selected:
             # Automatic reconstruction requires actual observed terminals.
             # A glyph footprint can overlap an ordinary continuous contour;
@@ -695,15 +781,18 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
             # remain available to the explicit reviewed-gap workflow.
             if (original_degree[first.pixel[1], first.pixel[0]] != 1
                     or original_degree[last.pixel[1], last.pixel[0]] != 1):
+                _diagnostic_count(diagnostics, "selected_pair_not_original_endpoints")
                 continue
             for start, end, curve_points in ((first, last, curve.points_xy), (last, first, curve.points_xy[::-1])):
                 absolute_source = tuple(np.asarray(start.pixel, dtype=float) + origin_array)
                 prefix = [tuple(root_array)] if absolute_source == tuple(root_array) else baseline.trace(absolute_source)
                 if prefix is None:
+                    _diagnostic_count(diagnostics, "prefix_unreachable")
                     continue
                 points = ((tuple(root_array),) if tuple(prefix[0]) != tuple(root_array) else ()) + tuple(prefix) + tuple(tuple(np.asarray(p) + origin_array) for p in curve_points[1:])
                 prefix_length = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:]))
                 if prefix_length > 2 * max(native.shape):
+                    _diagnostic_count(diagnostics, "prefix_length_limit")
                     continue
                 allowed = outside.copy()
                 # An arm other than the chosen far fragment is a barrier to
@@ -717,6 +806,7 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
                 lookup.ravel()[indices] = np.arange(len(indices), dtype=np.int32)
                 target_node = int(lookup[end.pixel[1], end.pixel[0]])
                 if target_node < 0:
+                    _diagnostic_count(diagnostics, "suffix_anchor_excluded")
                     continue
                 compact = graph[indices][:, indices].tocsr()
                 cancel()
@@ -730,9 +820,9 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
                 ))
                 retained.append((start.pixel, end.pixel, curve_points, region_index))
                 if len(routes) > 16:
-                    return None
+                    return decline("route_budget")
     if not routes:
-        return None
+        return decline("no_admissible_connectors")
     union.setflags(write=False)
     outside.setflags(write=False)
     outside_degree = _degree(outside)
@@ -741,6 +831,7 @@ def build_occluded_connection(graph, centerline, root, origin, regions, *, spars
     for region, core in zip(regions, cores):
         core.setflags(write=False)
         text_cores.append(core if getattr(region, "core_mask", None) is not None else None)
+    _diagnostic_result(diagnostics, "accepted", "connectors_built", retained_routes=len(routes), retained_connectors=len(retained))
     return OccludedConnectionTree(
         tuple(root_array), tuple(origin_array), tuple(native.shape), union,
         outside, tuple(routes), tuple(retained), baseline, outside_degree, tuple(text_cores),

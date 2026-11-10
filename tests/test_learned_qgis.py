@@ -421,6 +421,38 @@ class LearnedQgsTaskTests(unittest.TestCase):
         if cls.owns_app:
             cls.application.exitQgis()
 
+    def test_livewire_diagnostics_opt_in_preserves_worker_route(self):
+        import json
+        from ai_vectorizer.core.line_evidence import LineEvidence
+        from ai_vectorizer.core.livewire import LiveWireConfig, is_livewire_available
+        from ai_vectorizer.tools.smart_trace_tool import _LiveWireTreeTask
+
+        if not is_livewire_available():
+            self.skipTest("Actual Live-Wire worker requires SciPy")
+        native = np.zeros((48, 48), dtype=bool)
+        native[20, 8:41] = True
+        image = np.full((48, 48, 3), 245, dtype=np.uint8)
+        image[native] = 25
+        routes = []
+        for enabled in (False, True):
+            task = _LiveWireTreeTask(
+                image=image, edges=native.astype(np.uint8) * 255,
+                evidence=LineEvidence(native.astype(np.float32), native),
+                guidance=None, anchor_pixel=(8, 20), incoming_direction=None,
+                strength=1.0, generation=1, config=LiveWireConfig(max_window_size=48),
+                callback=mock.Mock(), diagnostics_enabled=enabled,
+            )
+            self.assertTrue(task.run(), task.error)
+            routes.append(task.tree.trace_with_provenance((40, 20)))
+            if enabled:
+                path, provenance, decisions = task.tree.trace_with_diagnostics((40, 20))
+                self.assertEqual((path, provenance), routes[-1])
+                self.assertEqual(decisions["schema_version"], "livewire-trace-diagnostics/1")
+                self.assertIsInstance(json.loads(task.tree.diagnostics_json), dict)
+            else:
+                self.assertIsNone(task.tree.diagnostics_json)
+        self.assertEqual(routes[0], routes[1])
+
     def test_worker_reads_only_frozen_snapshots_and_publishes_on_finished(self):
         image = np.zeros((5, 7, 3), dtype=np.uint8)
         image.setflags(write=False)

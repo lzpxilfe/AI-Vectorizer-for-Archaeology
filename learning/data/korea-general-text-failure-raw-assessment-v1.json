@@ -1,0 +1,95 @@
+{
+  "schema_version": "archaeotrace-general-text-raw-stress-assessment/1",
+  "created_utc": "2026-10-18T23:02:16.980294+00:00",
+  "frozen_before_new_case_outputs": true,
+  "training_eligible": false,
+  "publication_ranking_eligible": false,
+  "human_approved": false,
+  "scope": "Six new raw-selected stress prompts from five native validation/development images in the existing21 crop index. Actual failures are determined only after the frozen runs; all selection decisions precede those outputs.",
+  "counts": {
+    "prompts": 6,
+    "native_images": 5,
+    "plausible_positive": 1,
+    "wrong_neighbor_negative": 1,
+    "ambiguous_diagnostic": 4
+  },
+  "fixtures": [
+    {
+      "fixture": "korea-general-text-failure-cases-v1.json",
+      "sha256": "0961453f7872d9c71d5885ccc34f39746fe7c93b178e51980fde3423895c439e",
+      "case_count": 5
+    },
+    {
+      "fixture": "korea-general-text-failure-extra-cases-v1.json",
+      "sha256": "5d0ae907e8125f6b0937e6f15746da6051d8e379d65d1873eb61a26e9eddca2d",
+      "case_count": 1
+    }
+  ],
+  "source_index_sha256": "b506e9508a739d11932752638eb14586e3cc4acfded296cf8e7e2a61e531e9de",
+  "raw_review_sha256": "425c90a764079791747b4bec10c7a332705432aec90bcb9ff21044f5ce08b6ee",
+  "raw_pixel_checks_sha256": "de9a45efe5e6fae1c651b41bdf60c664b14bfe76ef8031520579fd838ec7d0fd",
+  "selection_history": [
+    "Raw-screened the existing21 indexed native development windows only; no downloads or additional source pixels were required.",
+    "Broad B/Surachon/Odae crossings were not promoted to positives because multiple gray lines/glyph mergers/grid proximity did not establish endpoint identity.",
+    "A shorter O-left-stem interruption was selected as plausible after independent full-raw and pixel-profile crossreview.",
+    "Pale-background draft click offsets were corrected with raw transverse RGB profiles before freeze; earlier drafts are retained as external provenance.",
+    "Wide black-Hanja clearances remain ambiguous; no hidden curve was invented."
+  ],
+  "cases": [
+    {
+      "case_id": "kr10-native01-blue-o-left-stem-gap",
+      "sample_id": "kr-10-unseen-native-01",
+      "expected_pair": "plausible_same_contour",
+      "source_id": "kr-10",
+      "raw_source_reason": "Upper gray contour remains separately visible outside the O left stem and in its white interior. Separate lower gray contour is visible in the O interior. Short local blue-stem occlusion; exact hidden path unknown.",
+      "outputs_seen_before_freeze": false,
+      "postrun_failure_status": "not_evaluated_at_raw_freeze"
+    },
+    {
+      "case_id": "kr10-native01-blue-o-wrong-lower-neighbor",
+      "sample_id": "kr-10-unseen-native-01",
+      "expected_pair": "different_contours",
+      "source_id": "kr-10",
+      "raw_source_reason": "Same start on upper visible gray contour; target on separately visible lower parallel gray contour inside O. Deliberately wrong-neighbor click; candidate rejection does not forbid all ordinary Ink click-to-click paths.",
+      "outputs_seen_before_freeze": false,
+      "postrun_failure_status": "not_evaluated_at_raw_freeze"
+    },
+    {
+      "case_id": "kr09-native12-blue-surachon-ambiguous",
+      "sample_id": "kr-09-unseen-native-12",
+      "expected_pair": "ambiguous",
+      "source_id": "kr-09",
+      "raw_source_reason": "Multiple close gray curves enter the a/c word overprint. Local ordering suggests possible continuations, but correspondence is not uniquely established; abstention/diagnostic-only, no accuracy reference.",
+      "outputs_seen_before_freeze": false,
+      "postrun_failure_status": "not_evaluated_at_raw_freeze"
+    },
+    {
+      "case_id": "kr10-native02-black-eup-ambiguous",
+      "sample_id": "kr-10-unseen-native-02",
+      "expected_pair": "ambiguous",
+      "source_id": "kr-10",
+      "raw_source_reason": "Wide black-Hanja white clearance removes several contour continuations. Do not force nearest endpoint correspondence or invent a hidden curve; diagnostic-only ambiguity.",
+      "outputs_seen_before_freeze": false,
+      "postrun_failure_status": "not_evaluated_at_raw_freeze"
+    },
+    {
+      "case_id": "kr09-native06-black-ren-ambiguous",
+      "sample_id": "kr-09-unseen-native-06",
+      "expected_pair": "ambiguous",
+      "source_id": "kr-09",
+      "raw_source_reason": "Several gray contours disappear into a broad white clearance around the black character. The two visible fragments are intentionally not asserted to match.",
+      "outputs_seen_before_freeze": false,
+      "postrun_failure_status": "not_evaluated_at_raw_freeze"
+    },
+    {
+      "case_id": "odae-native02-blue-hwangbyong-ambiguous",
+      "sample_id": "extra-odae-san-6927-iii-text-02",
+      "expected_pair": "ambiguous",
+      "source_id": "extra-odae-san-6927-iii",
+      "raw_source_reason": "Several gray contours traverse the blue N/G overlap and approach the nearby grid line at x244; endpoint identity is ambiguous. The selected source-visible fragments are not a claimed continuation.",
+      "outputs_seen_before_freeze": false,
+      "postrun_failure_status": "not_evaluated_at_raw_freeze"
+    }
+  ],
+  "privacy": "Only existing public source-derived coordinates, hashes and agent review metadata. No workstation paths, accounts, Drive IDs or credentials."
+}

@@ -313,6 +313,7 @@ def _run_trace_scenario(
             (state, detail)
         ),
     )
+    tool.trace_diagnostics_enabled = trace_diagnostics_dir is not None
     output_layer = tool.vector_layer
     if livewire_config_overrides:
         from dataclasses import replace
@@ -453,6 +454,11 @@ def _run_trace_scenario(
                     "outside_route_available": text_connection.outside_route(cursor_pixel) is not None if text_connection is not None else False,
                     "display_accepted": text_connection.accepts_display(text_candidate) if text_candidate is not None else False,
                 }
+                if hasattr(tree, "trace_with_diagnostics"):
+                    diagnostic_route, diagnostic_provenance, decisions = tree.trace_with_diagnostics(cursor_pixel)
+                    if diagnostic_route != _route or diagnostic_provenance != route_provenance:
+                        raise SmokeFailure("Opt-in diagnostics changed the selected Live-Wire route.")
+                    route_diagnostics["decision_trace"] = decisions
                 diagnostic_path = Path(trace_diagnostics_dir)
                 diagnostic_path.mkdir(parents=True, exist_ok=True)
                 evidence = tool.cached_ink_evidence

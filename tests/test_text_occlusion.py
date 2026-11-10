@@ -1,6 +1,7 @@
 """General text uncertainty never changes native contour observations."""
 
 from dataclasses import FrozenInstanceError, replace
+import json
 
 import numpy as np
 import pytest
@@ -264,3 +265,131 @@ def test_invalid_snapshot_cannot_claim_text_authority(changes):
     region = detect_text_occlusions(_word())[0]
     with pytest.raises(ValueError):
         replace(region, **changes)
+
+
+def _assert_same_regions(first, last):
+    assert len(first) == len(last)
+    for before, after in zip(first, last):
+        for key in before.__dataclass_fields__:
+            if key in ("mask", "core_mask"):
+                np.testing.assert_array_equal(getattr(before, key), getattr(after, key))
+            else:
+                assert getattr(before, key) == getattr(after, key)
+
+
+@pytest.mark.parametrize("image", [
+    _word(), _word("blue"), _structural_letter(), _structural_letter(False),
+    np.full((96, 140), 255, dtype=np.uint8),
+])
+def test_diagnostics_are_deterministic_json_safe_and_do_not_change_proposals(image):
+    expected = detect_text_occlusions(image)
+    first, last = {"stale": "removed"}, {}
+    _assert_same_regions(expected, detect_text_occlusions(image, diagnostics=first))
+    _assert_same_regions(expected, detect_text_occlusions(image, diagnostics=last))
+    assert first == last
+    assert first["schema_version"] == "text-occlusion-diagnostics/1"
+    assert first["status"] == ("accepted" if expected else "no_proposals")
+    assert first["returned_regions"] == len(expected)
+    assert first["input"]["shape"] == list(image.shape)
+    assert first["input"]["dtype"] == "uint8"
+    assert len(first["channels"]) <= 2
+    assert len(json.dumps(first, allow_nan=False)) < 8192
+
+
+def test_diagnostics_distinguish_empty_input_and_attached_oversized_component():
+    empty = {}
+    assert detect_text_occlusions(np.full((96, 140), 255, dtype=np.uint8), diagnostics=empty) == ()
+    assert empty["channels"][0]["status"] == "no_ink"
+    assert empty["channels"][0]["ink_pixels"] == 0
+    image = _word("blue")
+    image[31, 5:35] = (10, 15, 140)
+    evidence = {}
+    assert detect_text_occlusions(image, diagnostics=evidence) == ()
+    blue, gray = evidence["channels"]
+    assert blue["component_count"] == 3
+    assert blue["candidates"] == 2
+    assert blue["rejections"]["component_size"] == 1
+    assert blue["rejections"]["group_component_count"] >= 1
+    assert gray["rejections"]["component_blue_exclusion"] == 2
+
+
+def test_diagnostics_report_aligned_and_structural_acceptance_and_missing_heading():
+    aligned, structural, missing = {}, {}, {}
+    assert len(detect_text_occlusions(_word(), diagnostics=aligned)) == 3
+    assert aligned["channels"][0]["aligned_groups"] >= 1
+    assert aligned["channels"][0]["structural_proposals"] == 0
+    assert len(detect_text_occlusions(_structural_letter(), diagnostics=structural)) == 1
+    assert structural["channels"][0]["structural_proposals"] == 1
+    assert detect_text_occlusions(_structural_letter(False), diagnostics=missing) == ()
+    assert missing["channels"][0]["rejections"]["structural_heading_missing"] == 1
+
+
+def test_diagnostics_report_crowded_channel_cap_without_unbounded_records():
+    image = np.full((512, 512), 255, dtype=np.uint8)
+    letter = _word()[30:44, 34:44]
+    for y in range(30, 480, 16):
+        for x in range(30, 480, 16):
+            image[y:y + 14, x:x + 10] = letter
+    evidence = {}
+    assert detect_text_occlusions(image, diagnostics=evidence) == ()
+    channel = evidence["channels"][0]
+    assert channel["status"] == "candidate_cap"
+    assert channel["candidates"] == 513
+    assert channel["returned_regions"] == 0
+    assert channel["rejections"]["candidate_cap"] == 1
+    assert len(json.dumps(evidence, allow_nan=False)) < 8192
+
+
+def test_diagnostics_report_connected_component_cap_before_shape_work():
+    image = np.full((512, 512), 255, dtype=np.uint8)
+    image[::4, ::4] = 0
+    evidence = {}
+    assert detect_text_occlusions(image, diagnostics=evidence) == ()
+    channel = evidence["channels"][0]
+    assert channel["status"] == "component_cap"
+    assert channel["stage"] == "components"
+    assert channel["component_count"] == 16384
+    assert channel["work_units"] == 0
+    assert channel["rejections"]["component_cap"] == 1
+    assert len(json.dumps(evidence, allow_nan=False)) < 8192
+
+
+def test_diagnostics_keep_completed_channel_when_later_channel_exceeds_budget(monkeypatch):
+    from ai_vectorizer.core import text_occlusion as detector
+
+    original = detector._detect_channel
+
+    def crowded_gray(ink, ink_class, blue, shape, cancel_check, diagnostics=None):
+        if ink_class == "gray":
+            raise detector._TextBudgetExceeded()
+        return original(ink, ink_class, blue, shape, cancel_check, diagnostics)
+
+    monkeypatch.setattr(detector, "_detect_channel", crowded_gray)
+    expected = detect_text_occlusions(_word("blue"))
+    evidence = {}
+    actual = detect_text_occlusions(_word("blue"), diagnostics=evidence)
+    _assert_same_regions(expected, actual)
+    assert len(actual) == 3
+    assert evidence["status"] == "accepted"
+    assert evidence["channels"][0]["returned_regions"] == 3
+    assert evidence["channels"][1]["status"] == "budget_exceeded"
+    assert evidence["channels"][1]["returned_regions"] == 0
+
+
+@pytest.mark.parametrize("stop_after", [1, 4])
+def test_diagnostics_preserve_cancellation_checks_and_propagation(stop_after):
+    call_counts = []
+    for evidence in (None, {}):
+        calls = []
+
+        def cancel():
+            calls.append(True)
+            return len(calls) >= stop_after
+
+        with pytest.raises(ObservedConnectionCancelled):
+            detect_text_occlusions(_word(), cancel_check=cancel, diagnostics=evidence)
+        call_counts.append(len(calls))
+        if evidence is not None:
+            assert evidence["status"] == "cancelled"
+            json.dumps(evidence, allow_nan=False)
+    assert call_counts == [stop_after, stop_after]

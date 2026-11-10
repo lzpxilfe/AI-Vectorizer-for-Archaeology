@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from functools import lru_cache
+import json
 import math
 from typing import TYPE_CHECKING, Callable, Iterable, Optional, Sequence, Tuple
 
@@ -212,6 +213,7 @@ class LiveWireTree:
     occluded_connection: Optional[OccludedConnectionTree] = None
     text_occluded_connection: Optional[OccludedConnectionTree] = None
     occlusion_reference_tree: Optional["LiveWireTree"] = None
+    diagnostics_json: Optional[str] = None
 
     @property
     def width(self) -> int:
@@ -231,26 +233,62 @@ class LiveWireTree:
 
     def trace_with_provenance(self, target: Sequence[float]):
         """Return the displayed route and whether a detected label was bridged."""
-        ordinary = self._trace_without_occlusion(target)
+        return self._trace_decision(target, None)
+
+    def trace_with_diagnostics(self, target: Sequence[float]):
+        """Return the same route with a fresh, bounded JSON-safe decision record."""
+        diagnostics = {
+            "schema_version": "livewire-trace-diagnostics/1",
+            "build": json.loads(self.diagnostics_json) if self.diagnostics_json else None,
+            "ordinary": {}, "gap_attempts": [],
+        }
+        path, provenance = self._trace_decision(target, diagnostics)
+        return path, provenance, diagnostics
+
+    def _trace_decision(self, target, diagnostics):
+        ordinary = (self._trace_without_occlusion(target, diagnostics=diagnostics["ordinary"])
+                    if diagnostics is not None else self._trace_without_occlusion(target))
+
+        def selected(path, provenance, branch, reason):
+            if diagnostics is not None:
+                diagnostics["selection"] = {"branch": branch, "reason": reason}
+            return path, provenance
+
         for connection, provenance in (
             (self.occluded_connection, "automatic-label-gap"),
             (self.text_occluded_connection, "automatic-text-gap"),
         ):
-            if (connection is None or self.strength <= 0.0 or not self.contains(target)
-                    or connection.outside_route(target) is not None):
+            attempt = None
+            if diagnostics is not None:
+                attempt = {"kind": provenance}
+                diagnostics["gap_attempts"].append(attempt)
+            skip = (
+                "connection_unavailable" if connection is None else
+                "strength_zero" if self.strength <= 0.0 else
+                "target_outside_window" if not self.contains(target) else
+                "healthy_outside_native_route" if connection.outside_route(target) is not None else None
+            )
+            if skip is not None:
+                if attempt is not None:
+                    attempt.update(status="skipped", reason=skip)
                 continue
             # A healthy visible connection outside independently detected
             # text takes priority, including at partial assistance. A broken
             # contour's old pixel shortcut may avoid the label entirely, so
             # intersecting that old shortcut is not a prerequisite.
-            candidate = connection.trace(target)
+            candidate = (
+                connection.trace(target, diagnostics=attempt.setdefault("candidate", {}))
+                if attempt is not None else connection.trace(target)
+            )
             if candidate is not None:
                 full_ordinary = (
                     ordinary if self.strength == 1.0
                     else replace(self, strength=1.0)._trace_without_occlusion(target)
                 )
                 if connection.preserves_visible_route(full_ordinary, candidate):
-                    return ordinary, "ink"
+                    if attempt is not None:
+                        attempt.update(status="preserved", reason="ordinary_retains_visible_arms")
+                    return selected(ordinary, "ink", "ordinary_preserved", "visible_arms_preserved")
                 reference = self.occlusion_reference_tree
                 if reference is not None:
                     native_route = reference._trace_without_occlusion(target)
@@ -258,20 +296,41 @@ class LiveWireTree:
                         displayed = blend_path_with_cursor(
                             native_route, self.root, target, self.strength
                         )
-                        if connection.accepts_display(displayed):
-                            return displayed, "ink"
+                        accepted = (
+                            connection.accepts_display(displayed, diagnostics=attempt.setdefault("reference_display", {}))
+                            if attempt is not None else connection.accepts_display(displayed)
+                        )
+                        if accepted:
+                            if attempt is not None:
+                                attempt.update(status="preserved", reason="ink_reference_retains_visible_arms")
+                            return selected(displayed, "ink", "ink_reference", "visible_arms_preserved")
                 displayed = blend_path_with_cursor(candidate, self.root, target, self.strength)
-                if connection.accepts_display(displayed):
-                    return displayed, provenance
-        return ordinary, "ink"
+                accepted = (
+                    connection.accepts_display(displayed, diagnostics=attempt.setdefault("display", {}))
+                    if attempt is not None else connection.accepts_display(displayed)
+                )
+                if accepted:
+                    if attempt is not None:
+                        attempt.update(status="accepted", reason="candidate_display_accepted")
+                    return selected(displayed, provenance, "numeric_gap" if provenance == "automatic-label-gap" else "text_gap", "candidate_display_accepted")
+                if attempt is not None:
+                    attempt.update(status="rejected", reason="candidate_display_rejected")
+            elif attempt is not None:
+                attempt.update(status="rejected", reason="no_target_candidate")
+        return selected(ordinary, "ink", diagnostics["ordinary"].get("branch", "ordinary") if diagnostics is not None else "ordinary", "no_gap_override")
 
-    def _trace_without_occlusion(self, target: Sequence[float]) -> list[FloatPixel]:
+    def _trace_without_occlusion(self, target: Sequence[float], *, diagnostics=None) -> list[FloatPixel]:
         """Return a strength-blended path from the root to ``target``.
 
         At 0% this is the literal root-to-cursor segment.  At 100% it is the
         complete Live-Wire route, including a small endpoint snap.  Values in
         between blend every route vertex toward that literal segment.
         """
+
+        def selected(path, branch, reason):
+            if diagnostics is not None:
+                diagnostics.update(branch=branch, reason=reason)
+            return path
 
         target_x = float(target[0])
         target_y = float(target[1])
@@ -280,7 +339,7 @@ class LiveWireTree:
             (target_x, target_y),
         ]
         if self.strength <= 0.0 or not self.contains(target):
-            return direct
+            return selected(direct, "cursor_direct", "strength_zero" if self.strength <= 0.0 else "target_outside_window")
 
         observed = None
         if self.observed_connection is not None:
@@ -288,23 +347,23 @@ class LiveWireTree:
             if observed is None and self.label_gap_connection is not None:
                 gap = self.label_gap_connection.trace(target)
                 if gap is not None:
-                    return blend_path_with_cursor(
+                    return selected(blend_path_with_cursor(
                         gap, self.root, (target_x, target_y), self.strength
-                    )
+                    ), "label_connector", "observed_route_unavailable")
             if observed is not None and self.observed_connection.gap_outward is None:
-                return blend_path_with_cursor(
+                return selected(blend_path_with_cursor(
                     observed, self.root, (target_x, target_y), self.strength
-                )
+                ), "observed_native", "native_route_without_gap_endpoints")
 
         end_index = self._select_target_index(
             target_x, target_y,
             snap_strength=1.0 if self.champion_tree is not None else None,
         )
         if end_index is None:
-            return (
+            return selected((
                 blend_path_with_cursor(observed, self.root, target, self.strength)
                 if observed is not None else direct
-            )
+            ), "observed_fallback" if observed is not None else "cursor_direct", "no_target_index")
 
         root_local_x = self.root[0] - self.origin[0]
         root_local_y = self.root[1] - self.origin[1]
@@ -316,10 +375,10 @@ class LiveWireTree:
             max_steps=2 * max(self.shape) + 2 if observed is not None else None,
         )
         if not local_indices:
-            return (
+            return selected((
                 blend_path_with_cursor(observed, self.root, target, self.strength)
                 if observed is not None else direct
-            )
+            ), "observed_fallback" if observed is not None else "cursor_direct", "no_predecessor_route")
 
         assisted = [
             (
@@ -329,10 +388,10 @@ class LiveWireTree:
             for index in local_indices
         ]
         if len(assisted) < 2:
-            return (
+            return selected((
                 blend_path_with_cursor(observed, self.root, target, self.strength)
                 if observed is not None else direct
-            )
+            ), "observed_fallback" if observed is not None else "cursor_direct", "short_pixel_route")
         if (
             observed is not None
             and (
@@ -344,9 +403,10 @@ class LiveWireTree:
                 )
             )
         ):
-            return blend_path_with_cursor(
+            return selected(blend_path_with_cursor(
                 observed, self.root, (target_x, target_y), self.strength
-            )
+            ), "observed_fallback", "pixel_detour_or_collinear_gap_rejected")
+        branch, reason = "pixel", "pixel_predecessor_route"
         if not _detour_is_reasonable(
             assisted,
             self.root,
@@ -354,8 +414,9 @@ class LiveWireTree:
             self.config,
         ):
             if self.champion_tree is None:
-                return direct
+                return selected(direct, "cursor_direct", "pixel_detour_rejected")
             assisted = self.champion_tree.trace(target)
+            branch, reason = "ink_champion", "pixel_detour_rejected"
 
         if self.champion_tree is not None and self.route_evidence is not None:
             champion = self.champion_tree.trace(target)
@@ -366,13 +427,14 @@ class LiveWireTree:
             )
             if not selection.accepted:
                 assisted = champion
+                branch, reason = "ink_champion", "route_guard_rejected"
 
-        return blend_path_with_cursor(
+        return selected(blend_path_with_cursor(
             assisted,
             self.root,
             (target_x, target_y),
             self.strength,
-        )
+        ), branch, reason)
 
     def _select_target_index(
         self, target_x: float, target_y: float, *, snap_strength=None
@@ -451,6 +513,7 @@ def build_livewire_tree(
     grid_prior: Optional[MapGridPrior] = None,
     config: LiveWireConfig = LiveWireConfig(),
     cancel_check: Optional[Callable[[], bool]] = None,
+    diagnostics: Optional[dict] = None,
 ) -> LiveWireTree:
     """Build one direction-aware shortest-path tree around ``root``.
 
@@ -458,6 +521,23 @@ def build_livewire_tree(
     checkpoint.  This keeps latency predictable and prevents the suggestion
     from roaming across an unrelated part of a dense historical map.
     """
+
+    if diagnostics is not None:
+        diagnostics.clear()
+        diagnostics.update(schema_version="livewire-build-diagnostics/1", status="building")
+        original_cancel_check = cancel_check
+
+        def checked_cancel():
+            cancelled = bool(original_cancel_check()) if original_cancel_check is not None else False
+            if cancelled:
+                diagnostics.update(status="cancelled", reason="cancelled")
+            return cancelled
+
+        cancel_check = checked_cancel
+
+    def build_status(name, status, reason, **values):
+        if diagnostics is not None:
+            diagnostics[name] = {"status": status, "reason": reason, **values}
 
     config = config.validate()
     strength = _clamp_strength(strength)
@@ -502,6 +582,8 @@ def build_livewire_tree(
 
     runtime, import_error = _get_livewire_runtime()
     if runtime is None:
+        if diagnostics is not None:
+            diagnostics.update(status="error", reason="runtime_unavailable")
         raise LiveWireUnavailable(
             "Direction-aware Live-Wire requires a working SciPy runtime; "
             f"local snapping remains available. ({import_error})"
@@ -571,6 +653,16 @@ def build_livewire_tree(
         crop_evidence is not None
         and np.any(line_confidence > np.maximum(crop_evidence[0], crop_evidence[1]))
     )
+    if diagnostics is not None:
+        diagnostics["mixing"] = {
+            "learned_present": learned_prior is not None,
+            "support_cap": float(config.learned_support_cap),
+            "avoidance_weight": float(config.learned_avoidance_cost_weight),
+            "learned_support_dominant_pixels": 0,
+            "native_skeleton_pixels": int(np.count_nonzero(crop_evidence[1])) if crop_evidence is not None else 0,
+            "native_skeleton_pixels_changed": 0,
+            "continuity_bridge": has_continuity_bridge,
+        }
     crop_avoidance_cost = None
     if learned_prior is not None and strength > 0.0:
         # Apply the optional score after the observed centreline maximum.
@@ -592,6 +684,10 @@ def build_livewire_tree(
                 crop_rgb, np.asarray(image)[y0:y1, x0:x1], ndimage
             )
             learned_support = learned_support * observed_nearby * visible_ink
+        if diagnostics is not None:
+            changed = learned_support > line_confidence
+            diagnostics["mixing"]["learned_support_dominant_pixels"] = int(np.count_nonzero(changed))
+            diagnostics["mixing"]["native_skeleton_pixels_changed"] = int(np.count_nonzero(changed & crop_evidence[1]))
         line_confidence = np.maximum(line_confidence, learned_support)
         learned_avoidance = learned_prior.avoidance_score[y0:y1, x0:x1]
         if np.any(learned_avoidance > 0.0):
@@ -642,6 +738,16 @@ def build_livewire_tree(
          and np.any(crop_guidance > 0.0))
         or (crop_avoidance_cost is not None and np.any(crop_avoidance_cost > 0.0))
     )
+    if diagnostics is not None:
+        diagnostics["mixing"]["active_avoidance"] = active_avoidance
+    connection_skip = (
+        "observed_connections_disabled" if not config.observed_connections else
+        "strength_zero" if strength <= 0.0 else
+        "no_evidence" if crop_evidence is None else
+        "active_avoidance" if active_avoidance else
+        "continuity_bridge" if has_continuity_bridge else None
+    )
+    build_status("observed", "skipped", connection_skip or "not_built")
     if (
         config.observed_connections and strength > 0.0 and crop_evidence is not None
         and not active_avoidance and not has_continuity_bridge
@@ -651,15 +757,18 @@ def build_livewire_tree(
                 graph, crop_evidence[1], (root_x, root_y), (x0, y0),
                 sparse=sparse, dijkstra=dijkstra, cancel_check=cancel_check,
             )
+            build_status("observed", "built" if observed_connection is not None else "unavailable", "native_tree" if observed_connection is not None else "no_native_root_connection")
         except ObservedConnectionCancelled as exc:
             raise LiveWireCancelled(str(exc)) from exc
         except LiveWireCancelled:
             raise
-        except (RuntimeError, MemoryError):
+        except (RuntimeError, MemoryError) as exc:
             # The complete pixel tree is already available. An optional
             # compact runtime failure must not discard that valid fallback.
             observed_connection = None
+            build_status("observed", "error", "optional_runtime_error", error_type=type(exc).__name__)
     label_gap_connection = None
+    build_status("label_connector", "skipped", "disabled" if not config.label_gap_connections else "observed_tree_unavailable")
     if config.label_gap_connections and observed_connection is not None:
         try:
             from .label_gap import build_label_gap_connectors
@@ -668,14 +777,19 @@ def build_livewire_tree(
                 graph, observed_connection, connectors,
                 sparse=sparse, dijkstra=dijkstra, cancel_check=cancel_check,
             )
+            build_status("label_connector", "built" if label_gap_connection is not None else "unavailable", "connectors_built" if label_gap_connection is not None else "no_admissible_connectors")
         except ObservedConnectionCancelled as exc:
             raise LiveWireCancelled(str(exc)) from exc
         except LiveWireCancelled:
             raise
-        except (RuntimeError, MemoryError):
+        except (RuntimeError, MemoryError) as exc:
             label_gap_connection = None
+            build_status("label_connector", "error", "optional_runtime_error", error_type=type(exc).__name__)
     occluded_connection = None
     text_occluded_connection = None
+    gap_skip = "automatic_occlusion_disabled" if not config.automatic_label_occlusion else connection_skip
+    build_status("numeric_gap", "skipped", gap_skip or "not_built")
+    build_status("text_gap", "skipped", gap_skip or "not_built")
     if (
         config.automatic_label_occlusion and config.observed_connections
         and strength > 0.0 and crop_evidence is not None
@@ -690,23 +804,32 @@ def build_livewire_tree(
                 from .label_occlusion import detect_label_occlusions
                 from .occluded_connection import build_occluded_connection
                 regions = detect_label_occlusions(raw_crop, cancel_check=cancel_check)
+                numeric_diagnostics = {} if diagnostics is not None else None
+                build_status("numeric_gap", "unavailable", "no_detected_regions", detected_regions=len(regions))
                 if regions:
                     occluded_connection = build_occluded_connection(
                         graph, crop_evidence[1], (root_x, root_y), (x0, y0), regions,
                         image=raw_crop, sparse=sparse, dijkstra=dijkstra, cancel_check=cancel_check,
+                        **({"diagnostics": numeric_diagnostics} if diagnostics is not None else {}),
                     )
+                    build_status("numeric_gap", "built" if occluded_connection is not None else "unavailable", "connectors_built" if occluded_connection is not None else "connector_rejected", detected_regions=len(regions), connection=numeric_diagnostics)
             except ObservedConnectionCancelled as exc:
                 raise LiveWireCancelled(str(exc)) from exc
             except LiveWireCancelled:
                 raise
-            except (RuntimeError, MemoryError):
+            except (RuntimeError, MemoryError) as exc:
                 occluded_connection = None
+                build_status("numeric_gap", "error", "optional_runtime_error", error_type=type(exc).__name__)
             try:
                 from .text_occlusion import detect_text_occlusions
                 from .occluded_connection import build_occluded_connection
                 # Keep the established numeric detector and its search budget
                 # independent. Extra letters cannot evict a numeric proposal.
-                text_regions = detect_text_occlusions(raw_crop, cancel_check=cancel_check)
+                text_detector_diagnostics = {} if diagnostics is not None else None
+                text_regions = detect_text_occlusions(
+                    raw_crop, cancel_check=cancel_check,
+                    **({"diagnostics": text_detector_diagnostics} if diagnostics is not None else {}),
+                )
                 text_regions = sorted(
                     text_regions,
                     key=lambda region: (
@@ -717,17 +840,25 @@ def build_livewire_tree(
                         -region.score, region.bbox_xyxy,
                     ),
                 )[:16]
+                text_diagnostics = {} if diagnostics is not None else None
+                build_status("text_gap", "unavailable", "no_detected_regions", detected_regions=len(text_regions), detector=text_detector_diagnostics)
                 if text_regions:
                     text_occluded_connection = build_occluded_connection(
                         graph, crop_evidence[1], (root_x, root_y), (x0, y0), text_regions,
                         image=raw_crop, sparse=sparse, dijkstra=dijkstra, cancel_check=cancel_check,
+                        **({"diagnostics": text_diagnostics} if diagnostics is not None else {}),
                     )
+                    build_status("text_gap", "built" if text_occluded_connection is not None else "unavailable", "connectors_built" if text_occluded_connection is not None else "connector_rejected", detected_regions=len(text_regions), detector=text_detector_diagnostics, connection=text_diagnostics)
             except ObservedConnectionCancelled as exc:
                 raise LiveWireCancelled(str(exc)) from exc
             except LiveWireCancelled:
                 raise
-            except (RuntimeError, MemoryError, ValueError):
+            except (RuntimeError, MemoryError, ValueError) as exc:
                 text_occluded_connection = None
+                build_status("text_gap", "error", "optional_runtime_error", error_type=type(exc).__name__)
+        else:
+            build_status("numeric_gap", "skipped", "unsupported_raw_image")
+            build_status("text_gap", "skipped", "unsupported_raw_image")
     champion_tree = None
     if (
         learned_prior is not None and config.learned_route_guard and strength > 0.0
@@ -745,6 +876,7 @@ def build_livewire_tree(
             cancel_check=cancel_check,
         )
     occlusion_reference_tree = None
+    build_status("ink_reference", "skipped", "no_gap_connection" if occluded_connection is None and text_occluded_connection is None else "no_active_learned_support")
     if ((occluded_connection is not None or text_occluded_connection is not None) and learned_prior is not None
             and config.learned_support_cap > 0.0 and np.any(learned_support > 0.0)):
         # A learned pixel shortcut can hide an otherwise sound Ink route
@@ -769,6 +901,9 @@ def build_livewire_tree(
                 # remain usable if this optional reference cannot be prepared.
                 occlusion_reference_tree = None
         _raise_if_cancelled(cancel_check)
+        build_status("ink_reference", "built" if occlusion_reference_tree is not None else "unavailable", "native_reference" if occlusion_reference_tree is not None else "reference_runtime_error")
+    if diagnostics is not None:
+        diagnostics["status"] = "complete"
     return LiveWireTree(
         root=(root_x, root_y),
         origin=(x0, y0),
@@ -784,6 +919,7 @@ def build_livewire_tree(
         occluded_connection=occluded_connection,
         text_occluded_connection=text_occluded_connection,
         occlusion_reference_tree=occlusion_reference_tree,
+        diagnostics_json=json.dumps(diagnostics, sort_keys=True, allow_nan=False) if diagnostics is not None else None,
     )
 
 

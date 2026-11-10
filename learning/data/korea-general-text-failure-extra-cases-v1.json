@@ -1,0 +1,227 @@
+{
+  "schema_version": "archaeotrace-label-gap-cases/1",
+  "created_utc": "2026-10-18T23:02:16.980294+00:00",
+  "dataset_id": "ams-korea-additional-letter-gap-development-v1",
+  "dataset_manifest_sha256": "311e8a5d2b5373deb8e48a84849de3db0245c3c752f22759dc6933b5cc9eb6eb",
+  "source_inventory": "korea-general-text-crop-index-v1.json",
+  "source_inventory_sha256": "b506e9508a739d11932752638eb14586e3cc4acfded296cf8e7e2a61e531e9de",
+  "frozen_before_model_outputs": true,
+  "frozen_before_model_or_route_outputs": true,
+  "predictions_seen_before_freeze": false,
+  "human_approved": false,
+  "human_approvals": 0,
+  "independent_agent_crossreview": true,
+  "publication_ranking_eligible": false,
+  "training_eligible": false,
+  "scope": "Raw-selected general-letter/Hanja stress diagnostics. Failure or preservation status is unknown at freeze; not a blind or human-approved benchmark. One intentionally ambiguous blue N/G word-overprint pair from a previously unassigned additional development map. Source family was previously raw-screened.",
+  "coordinate_semantics": "Original native512 Byte RGB XY pixel-centre indices; prompt/reference RC=row,column. Unknown rectangles xyxy top-left inclusive/bottom-right exclusive. Separate source-visible arms interpolate <=1px; hidden shape is never annotated.",
+  "source_review_artifacts": {
+    "raw_proposal_sha256": "a7118c74cea8933b74f8a405925fcf6540cf18840900dd03b0eb8b7622504aac",
+    "raw_pixel_checks_artifact": "frozen-raw-pixel-checks-v1.json",
+    "raw_pixel_checks_sha256": "de9a45efe5e6fae1c651b41bdf60c664b14bfe76ef8031520579fd838ec7d0fd",
+    "independent_crossreview_artifact": "independent-root-crossreview-v1.json",
+    "independent_crossreview_sha256": "425c90a764079791747b4bec10c7a332705432aec90bcb9ff21044f5ce08b6ee"
+  },
+  "known_limits": [
+    "All annotations are source-only agent development diagnostics, not training labels or human-approved ground truth.",
+    "Only plausible pair visible arms can be scored; ambiguous and negative pairs have no accuracy reference.",
+    "The exact geometry under text is unknown and must remain unscored.",
+    "A source-distinct wrong-neighbor negative checks gap candidate rejection, not semantic prevention of every ordinary click-to-click trace.",
+    "Local foreign controls do not cover every neighboring contour.",
+    "Earlier a/面 experiments and these map families were known; this set cannot support a blind generalization claim.",
+    "Official Calibration/Holdout pixels were not opened, trained on or modified."
+  ],
+  "cases": [
+    {
+      "id": "odae-native02-blue-hwangbyong-ambiguous",
+      "sample_id": "extra-odae-san-6927-iii-text-02",
+      "image": "images/extra-odae-san-6927-iii-text-02.png",
+      "image_sha256": "a80f357f0f5ede38c36d1ae5ca2c41e2036ec6b580d52b86e4bf9d76b1849797",
+      "source_id": "extra-odae-san-6927-iii",
+      "split": "validation",
+      "glyph_kind": "blue Latin word overprint",
+      "label": "N/G (HWANGBYONG-SAN)",
+      "expected_pair": "ambiguous",
+      "unknown_regions_xy": [
+        [
+          249,
+          115,
+          267,
+          135
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            266,
+            105
+          ],
+          [
+            266,
+            108
+          ],
+          [
+            265,
+            111
+          ],
+          [
+            264,
+            114
+          ]
+        ],
+        [
+          [
+            254,
+            136
+          ],
+          [
+            253,
+            138
+          ],
+          [
+            253,
+            141
+          ],
+          [
+            253,
+            143
+          ]
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [],
+      "raw_evidence_window_xyxy": [
+        245,
+        98,
+        276,
+        146
+      ],
+      "prompt_rc": [
+        [
+          108,
+          266
+        ],
+        [
+          141,
+          253
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            105,
+            266
+          ],
+          [
+            106.0,
+            266.0
+          ],
+          [
+            107.0,
+            266.0
+          ],
+          [
+            108.0,
+            266.0
+          ],
+          [
+            108.75,
+            265.75
+          ],
+          [
+            109.5,
+            265.5
+          ],
+          [
+            110.25,
+            265.25
+          ],
+          [
+            111.0,
+            265.0
+          ],
+          [
+            111.75,
+            264.75
+          ],
+          [
+            112.5,
+            264.5
+          ],
+          [
+            113.25,
+            264.25
+          ],
+          [
+            114.0,
+            264.0
+          ]
+        ],
+        [
+          [
+            136,
+            254
+          ],
+          [
+            136.66666666666666,
+            253.66666666666666
+          ],
+          [
+            137.33333333333334,
+            253.33333333333334
+          ],
+          [
+            138.0,
+            253.0
+          ],
+          [
+            139.0,
+            253.0
+          ],
+          [
+            140.0,
+            253.0
+          ],
+          [
+            141.0,
+            253.0
+          ],
+          [
+            142.0,
+            253.0
+          ],
+          [
+            143.0,
+            253.0
+          ]
+        ]
+      ],
+      "hidden_geometry_ground_truth": false,
+      "hidden_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "review_level": "agent_visual_inspection",
+      "human_approved": false,
+      "scoring_policy": "ambiguous pair; no accuracy reference or forced continuation",
+      "notes": "Several gray contours traverse the blue N/G overlap and approach the nearby grid line at x244; endpoint identity is ambiguous. The selected source-visible fragments are not a claimed continuation.",
+      "raw_click_pixel_rgb": [
+        [
+          266,
+          108,
+          [
+            90,
+            96,
+            92
+          ]
+        ],
+        [
+          253,
+          141,
+          [
+            167,
+            169,
+            166
+          ]
+        ]
+      ]
+    }
+  ]
+}

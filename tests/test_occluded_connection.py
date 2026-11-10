@@ -202,6 +202,85 @@ def test_blended_display_must_not_hit_foreign_visible_contour():
     assert not tree.accepts_display([(np.nan, 1), target])
 
 
+def test_opt_in_diagnostics_preserve_connectors_routes_and_foreign_contact_rejection():
+    import json
+    image, native, regions, (root, target, neighbor) = _fixture()
+    baseline = _build(image, native, regions, root)
+    sink = {}
+    tree = _build(image, native, regions, root, diagnostics=sink)
+    assert sink["status"] == "accepted"
+    assert sink["region_count"] == 1
+    assert sink["regions"][0]["region_index"] == 0
+    assert sink["regions"][0]["examined_pairs"] > 0
+    assert sink["regions"][0]["retained_pairs"] > 0
+    assert len(sink["regions"]) <= 16
+    assert tree.connectors == baseline.connectors
+    path, trace = tree.trace_with_diagnostics(target)
+    assert path == baseline.trace(target)
+    assert trace["reason"] == "unique_target_route"
+    rejected, negative = tree.trace_with_diagnostics(neighbor)
+    assert rejected is None and baseline.trace(neighbor) is None
+    assert negative["reason"] == "no_admissible_target_route"
+    assert negative["rejections"]["route_target_unreachable"] > 0
+    display = {}
+    assert tree.accepts_display(path, diagnostics=display)
+    assert display["reason"] == "no_foreign_native_contact"
+    invalid = [path[0], (72.0, 50.0), path[-1]]
+    assert not tree.accepts_display(invalid, diagnostics=display)
+    assert display["reason"] == "display_touches_foreign_native"
+    json.dumps({"build": sink, "trace": trace, "display": display}, allow_nan=False)
+    # Repeated independent queries do not replace any prepared tree state.
+    negative.clear()
+    assert tree.trace_with_diagnostics(target) == (path, trace)
+
+
+def test_build_decline_diagnostics_record_root_and_budget_constraints():
+    image, native, regions, _ = _fixture()
+    sink = {}
+    x0, y0, _, _ = regions[0].bbox_xyxy
+    ys, xs = np.nonzero(regions[0].mask)
+    root = (int(xs[0] + x0), int(ys[0] + y0))
+    assert _build(image, native, regions, root, diagnostics=sink) is None
+    assert sink["reason"] == "root_inside_uncertainty"
+    assert _build(image, native, regions, (46, 46), diagnostics=sink) is None
+    assert sink["reason"] == "no_native_root_anchor"
+    with pytest.raises(ObservedConnectionCancelled):
+        _build(image, native, regions, (40, 46), diagnostics=sink, cancel_check=lambda: True)
+    assert sink["status"] == "cancelled"
+
+
+def test_livewire_decision_record_identifies_real_numeric_gap_and_preserved_outside_route():
+    from ai_vectorizer.core.line_evidence import LineEvidence
+    from ai_vectorizer.core.livewire import LiveWireConfig, build_livewire_tree
+
+    image, native, _, (root, target, _) = _fixture()
+    config = LiveWireConfig(max_window_size=96)
+
+    def build(diagnostics=None):
+        return build_livewire_tree(
+            image, native.astype(np.uint8) * 255, root,
+            evidence=LineEvidence(center_score=native.astype(np.float32), centerline=native),
+            config=config, diagnostics=diagnostics,
+        )
+
+    # First keep the real, healthy native U outside the label.
+    tree = build({})
+    path, provenance, decision = tree.trace_with_diagnostics(target)
+    assert (path, provenance) == tree.trace_with_provenance(target)
+    assert decision["gap_attempts"][0]["reason"] == "healthy_outside_native_route"
+    # Remove only the far native U bridge: the independent numeric candidate
+    # now supplies the natural hidden span and its decision is observable.
+    native[30, 41:64] = False
+    image[30, 41:64] = 255
+    plain, recorded = build(), build({})
+    path, provenance, decision = recorded.trace_with_diagnostics(target)
+    assert (path, provenance) == plain.trace_with_provenance(target)
+    assert provenance == "automatic-label-gap"
+    assert decision["selection"]["branch"] == "numeric_gap"
+    assert decision["gap_attempts"][0]["candidate"]["reason"] == "unique_target_route"
+    assert decision["gap_attempts"][0]["display"]["reason"] == "no_foreign_native_contact"
+
+
 @pytest.mark.parametrize("rotation", [0, 1, 2, 3])
 @pytest.mark.parametrize("origin", [(0, 0), (123, 456)])
 def test_virtual_curve_cannot_own_a_nearby_foreign_stroke(rotation, origin):
@@ -288,6 +367,12 @@ def test_short_branch_on_correct_arm_blocks_neighbor_substitution():
     regions = detect_label_occlusions(image)
     tree = _build(image, native, regions, root)
     assert tree is None or tree.trace((70, 46)) is None
+    diagnostics = {}
+    recorded = _build(image, native, regions, root, diagnostics=diagnostics)
+    assert recorded is None and tree is None
+    assert diagnostics["reason"] == "no_admissible_connectors"
+    assert diagnostics["regions"][0]["rejections"]["arm_tangent_unavailable"] > 0
+    assert diagnostics["regions"][0]["rejections"]["intervening_arm_order"] > 0
     # No assertion that the noisy positive is solved: uncertainty declines.
 
 
@@ -303,6 +388,7 @@ def test_nearest_target_authority_also_holds_for_fractional_clicks():
     assert tree.trace((10.75, 5.0)) is None
     assert tree.trace((11.0, 5.0)) is None
     assert tree.trace((10.9, 5.0)) is None
+    assert tree.trace_with_diagnostics((11.0, 5.0))[1]["reason"] == "ambiguous_target_arms"
 
 
 def test_one_route_cannot_cross_two_separate_occlusions():

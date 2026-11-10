@@ -409,6 +409,7 @@ class _LiveWireTreeTask(QgsTask):
         callback,
         learned_prior=None,
         grid_prior=None,
+        diagnostics_enabled=False,
     ):
         super().__init__("ArchaeoTrace Live-Wire tree", _task_can_cancel())
         self.image = image
@@ -417,6 +418,7 @@ class _LiveWireTreeTask(QgsTask):
         self.guidance = guidance
         self.learned_prior = learned_prior
         self.grid_prior = grid_prior
+        self.diagnostics_enabled = bool(diagnostics_enabled)
         self.anchor_pixel = tuple(anchor_pixel)
         self.incoming_direction = incoming_direction
         self.strength = float(strength)
@@ -430,6 +432,7 @@ class _LiveWireTreeTask(QgsTask):
         if self.isCanceled():
             return False
         try:
+            diagnostic_options = {"diagnostics": {}} if self.diagnostics_enabled else {}
             self.tree = build_livewire_tree(
                 self.image,
                 self.edges,
@@ -442,6 +445,7 @@ class _LiveWireTreeTask(QgsTask):
                 guidance=self.guidance,
                 learned_prior=self.learned_prior,
                 grid_prior=self.grid_prior,
+                **diagnostic_options,
             )
             return not self.isCanceled()
         except LiveWireCancelled:
@@ -1059,6 +1063,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.ink_color_callback = ink_color_callback
         self._ink_color_profile = None
         self.grid_avoidance_enabled = bool(grid_avoidance_enabled)
+        # Explicit developer diagnostics only. Build records are captured in
+        # the worker; trace records are requested separately by the caller.
+        self.trace_diagnostics_enabled = False
         self.learned_engine = learned_engine
         self.learned_guide_requested = bool(learned_guide)
         self.learned_state_callback = learned_state_callback
@@ -2947,6 +2954,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             callback=self._on_livewire_tree_finished,
             learned_prior=self._learned_prior if self._learned_cache_ready() else None,
             grid_prior=self.cached_map_grid,
+            diagnostics_enabled=bool(getattr(self, "trace_diagnostics_enabled", False)),
         )
         self._livewire_task = task
         QgsApplication.taskManager().addTask(task)

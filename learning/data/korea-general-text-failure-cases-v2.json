@@ -1,0 +1,1083 @@
+{
+  "schema_version": "archaeotrace-label-gap-cases/1",
+  "created_utc": "2026-10-18T23:11:09.257656+00:00",
+  "dataset_id": "ams-korea-unrouted-general-text-diagnostics-v1",
+  "dataset_manifest_sha256": "bfedb61aff47a0314a14460198cabff0531ad730d69d076c552718d9ccd7e739",
+  "source_inventory": "korea-general-text-crop-index-v1.json",
+  "source_inventory_sha256": "b506e9508a739d11932752638eb14586e3cc4acfded296cf8e7e2a61e531e9de",
+  "frozen_before_model_outputs": false,
+  "frozen_before_model_or_route_outputs": false,
+  "predictions_seen_before_freeze": false,
+  "human_approved": false,
+  "human_approvals": 0,
+  "independent_agent_crossreview": true,
+  "publication_ranking_eligible": false,
+  "training_eligible": false,
+  "scope": "Raw-selected general-letter/Hanja stress diagnostics. Failure or preservation status is unknown at freeze; not a blind or human-approved benchmark. One plausible local blue O-stem pair, one separately visible lower-neighbor negative and three intentionally ambiguous blue/Hanja pairs from four known-validation native images.",
+  "coordinate_semantics": "Original native512 Byte RGB XY pixel-centre indices; prompt/reference RC=row,column. Unknown rectangles xyxy top-left inclusive/bottom-right exclusive. Separate source-visible arms interpolate <=1px; hidden shape is never annotated.",
+  "source_review_artifacts": {
+    "raw_proposal_sha256": "a7118c74cea8933b74f8a405925fcf6540cf18840900dd03b0eb8b7622504aac",
+    "raw_pixel_checks_artifact": "frozen-raw-pixel-checks-v1.json",
+    "raw_pixel_checks_sha256": "de9a45efe5e6fae1c651b41bdf60c664b14bfe76ef8031520579fd838ec7d0fd",
+    "independent_crossreview_artifact": "independent-root-crossreview-v1.json",
+    "independent_crossreview_sha256": "425c90a764079791747b4bec10c7a332705432aec90bcb9ff21044f5ce08b6ee"
+  },
+  "known_limits": [
+    "All annotations are source-only agent development diagnostics, not training labels or human-approved ground truth.",
+    "Only plausible pair visible arms can be scored; ambiguous and negative pairs have no accuracy reference.",
+    "The exact geometry under text is unknown and must remain unscored.",
+    "A source-distinct wrong-neighbor negative checks gap candidate rejection, not semantic prevention of every ordinary click-to-click trace.",
+    "Local foreign controls do not cover every neighboring contour.",
+    "Earlier a/面 experiments and these map families were known; this set cannot support a blind generalization claim.",
+    "Official Calibration/Holdout pixels were not opened, trained on or modified."
+  ],
+  "cases": [
+    {
+      "id": "kr10-native01-blue-o-left-stem-gap",
+      "sample_id": "kr-10-unseen-native-01",
+      "image": "images/kr-10-unseen-native-01.png",
+      "image_sha256": "1593c6af538d53b34863f6d32c1cfe470bc1a6ca191741a6aa9bec6317382f7e",
+      "source_id": "kr-10",
+      "split": "validation",
+      "glyph_kind": "blue Latin letter overprint",
+      "label": "O (CH’IL-BONG)",
+      "expected_pair": "plausible_same_contour",
+      "unknown_regions_xy": [
+        [
+          138,
+          178,
+          144,
+          184
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            134,
+            180
+          ],
+          [
+            135,
+            180
+          ],
+          [
+            136,
+            180
+          ],
+          [
+            137,
+            181
+          ]
+        ],
+        [
+          [
+            144,
+            180
+          ],
+          [
+            145,
+            180
+          ],
+          [
+            146,
+            181
+          ],
+          [
+            147,
+            181
+          ],
+          [
+            148,
+            182
+          ],
+          [
+            149,
+            182
+          ],
+          [
+            150,
+            182
+          ],
+          [
+            151,
+            182
+          ],
+          [
+            152,
+            182
+          ],
+          [
+            153,
+            181
+          ]
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [
+        [
+          [
+            144,
+            185
+          ],
+          [
+            145,
+            186
+          ],
+          [
+            146,
+            186
+          ],
+          [
+            147,
+            187
+          ],
+          [
+            148,
+            187
+          ],
+          [
+            149,
+            187
+          ],
+          [
+            150,
+            188
+          ],
+          [
+            151,
+            188
+          ]
+        ]
+      ],
+      "raw_evidence_window_xyxy": [
+        125,
+        165,
+        165,
+        197
+      ],
+      "prompt_rc": [
+        [
+          180,
+          135
+        ],
+        [
+          182,
+          151
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            180.0,
+            135.0
+          ],
+          [
+            180.0,
+            136.0
+          ],
+          [
+            180.5,
+            136.5
+          ],
+          [
+            181.0,
+            137.0
+          ]
+        ],
+        [
+          [
+            180,
+            144
+          ],
+          [
+            180.0,
+            145.0
+          ],
+          [
+            180.5,
+            145.5
+          ],
+          [
+            181.0,
+            146.0
+          ],
+          [
+            181.0,
+            147.0
+          ],
+          [
+            181.5,
+            147.5
+          ],
+          [
+            182.0,
+            148.0
+          ],
+          [
+            182.0,
+            149.0
+          ],
+          [
+            182.0,
+            150.0
+          ],
+          [
+            182.0,
+            151.0
+          ]
+        ]
+      ],
+      "hidden_geometry_ground_truth": false,
+      "hidden_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "review_level": "agent_visual_inspection",
+      "human_approved": false,
+      "scoring_policy": "visible arms only; hidden curve unknown",
+      "notes": "Upper gray contour remains separately visible outside the O left stem and in its white interior. Separate lower gray contour is visible in the O interior. Short local blue-stem occlusion; exact hidden path unknown.",
+      "raw_click_pixel_rgb": [
+        [
+          135,
+          180,
+          [
+            151,
+            157,
+            155
+          ]
+        ],
+        [
+          151,
+          182,
+          [
+            154,
+            153,
+            135
+          ]
+        ]
+      ],
+      "gap_endpoint_pair_xy": [
+        [
+          137,
+          181
+        ],
+        [
+          144,
+          180
+        ]
+      ],
+      "scored_reference_policy": "Raw-visible arms clipped at the unchanged mouse prompts; full raw control polylines remain preserved. Hidden shape unknown."
+    },
+    {
+      "id": "kr10-native01-blue-o-wrong-lower-neighbor",
+      "sample_id": "kr-10-unseen-native-01",
+      "image": "images/kr-10-unseen-native-01.png",
+      "image_sha256": "1593c6af538d53b34863f6d32c1cfe470bc1a6ca191741a6aa9bec6317382f7e",
+      "source_id": "kr-10",
+      "split": "validation",
+      "glyph_kind": "blue Latin letter overprint",
+      "label": "O (CH’IL-BONG), lower neighbor",
+      "expected_pair": "different_contours",
+      "unknown_regions_xy": [
+        [
+          138,
+          178,
+          144,
+          184
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            134,
+            180
+          ],
+          [
+            135,
+            180
+          ],
+          [
+            136,
+            180
+          ],
+          [
+            137,
+            181
+          ]
+        ],
+        [
+          [
+            144,
+            185
+          ],
+          [
+            145,
+            186
+          ],
+          [
+            146,
+            186
+          ],
+          [
+            147,
+            187
+          ],
+          [
+            148,
+            187
+          ],
+          [
+            149,
+            187
+          ],
+          [
+            150,
+            188
+          ],
+          [
+            151,
+            188
+          ]
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [
+        [
+          [
+            144,
+            180
+          ],
+          [
+            145,
+            180
+          ],
+          [
+            146,
+            181
+          ],
+          [
+            147,
+            181
+          ],
+          [
+            148,
+            182
+          ],
+          [
+            149,
+            182
+          ],
+          [
+            150,
+            182
+          ],
+          [
+            151,
+            182
+          ],
+          [
+            152,
+            182
+          ],
+          [
+            153,
+            181
+          ]
+        ]
+      ],
+      "raw_evidence_window_xyxy": [
+        125,
+        165,
+        165,
+        197
+      ],
+      "prompt_rc": [
+        [
+          180,
+          135
+        ],
+        [
+          187,
+          149
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            180,
+            134
+          ],
+          [
+            180.0,
+            135.0
+          ],
+          [
+            180.0,
+            136.0
+          ],
+          [
+            180.5,
+            136.5
+          ],
+          [
+            181.0,
+            137.0
+          ]
+        ],
+        [
+          [
+            185,
+            144
+          ],
+          [
+            185.5,
+            144.5
+          ],
+          [
+            186.0,
+            145.0
+          ],
+          [
+            186.0,
+            146.0
+          ],
+          [
+            186.5,
+            146.5
+          ],
+          [
+            187.0,
+            147.0
+          ],
+          [
+            187.0,
+            148.0
+          ],
+          [
+            187.0,
+            149.0
+          ],
+          [
+            187.5,
+            149.5
+          ],
+          [
+            188.0,
+            150.0
+          ],
+          [
+            188.0,
+            151.0
+          ]
+        ]
+      ],
+      "hidden_geometry_ground_truth": false,
+      "hidden_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "review_level": "agent_visual_inspection",
+      "human_approved": false,
+      "scoring_policy": "negative pair; no accuracy reference",
+      "notes": "Same start on upper visible gray contour; target on separately visible lower parallel gray contour inside O. Deliberately wrong-neighbor click; candidate rejection does not forbid all ordinary Ink click-to-click paths.",
+      "raw_click_pixel_rgb": [
+        [
+          135,
+          180,
+          [
+            151,
+            157,
+            155
+          ]
+        ],
+        [
+          149,
+          187,
+          [
+            177,
+            176,
+            155
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "kr09-native12-blue-surachon-ambiguous",
+      "sample_id": "kr-09-unseen-native-12",
+      "image": "images/kr-09-unseen-native-12.png",
+      "image_sha256": "0545c155de4da4082116190210174eda7f458e76ede4a92bc5bd346c3484f3ff",
+      "source_id": "kr-09",
+      "split": "validation",
+      "glyph_kind": "blue Latin word overprint",
+      "label": "Surach’on",
+      "expected_pair": "ambiguous",
+      "unknown_regions_xy": [
+        [
+          237,
+          157,
+          251,
+          170
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            230,
+            146
+          ],
+          [
+            231,
+            148
+          ],
+          [
+            233,
+            150
+          ],
+          [
+            235,
+            153
+          ],
+          [
+            237,
+            156
+          ]
+        ],
+        [
+          [
+            239,
+            173
+          ],
+          [
+            242,
+            174
+          ],
+          [
+            245,
+            174
+          ],
+          [
+            248,
+            172
+          ],
+          [
+            250,
+            171
+          ]
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [],
+      "raw_evidence_window_xyxy": [
+        216,
+        138,
+        260,
+        179
+      ],
+      "prompt_rc": [
+        [
+          150,
+          233
+        ],
+        [
+          174,
+          245
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            146,
+            230
+          ],
+          [
+            146.66666666666666,
+            230.33333333333334
+          ],
+          [
+            147.33333333333334,
+            230.66666666666666
+          ],
+          [
+            148.0,
+            231.0
+          ],
+          [
+            148.66666666666666,
+            231.66666666666666
+          ],
+          [
+            149.33333333333334,
+            232.33333333333334
+          ],
+          [
+            150.0,
+            233.0
+          ],
+          [
+            150.75,
+            233.5
+          ],
+          [
+            151.5,
+            234.0
+          ],
+          [
+            152.25,
+            234.5
+          ],
+          [
+            153.0,
+            235.0
+          ],
+          [
+            153.75,
+            235.5
+          ],
+          [
+            154.5,
+            236.0
+          ],
+          [
+            155.25,
+            236.5
+          ],
+          [
+            156.0,
+            237.0
+          ]
+        ],
+        [
+          [
+            173,
+            239
+          ],
+          [
+            173.25,
+            239.75
+          ],
+          [
+            173.5,
+            240.5
+          ],
+          [
+            173.75,
+            241.25
+          ],
+          [
+            174.0,
+            242.0
+          ],
+          [
+            174.0,
+            243.0
+          ],
+          [
+            174.0,
+            244.0
+          ],
+          [
+            174.0,
+            245.0
+          ],
+          [
+            173.5,
+            245.75
+          ],
+          [
+            173.0,
+            246.5
+          ],
+          [
+            172.5,
+            247.25
+          ],
+          [
+            172.0,
+            248.0
+          ],
+          [
+            171.66666666666666,
+            248.66666666666666
+          ],
+          [
+            171.33333333333334,
+            249.33333333333334
+          ],
+          [
+            171.0,
+            250.0
+          ]
+        ]
+      ],
+      "hidden_geometry_ground_truth": false,
+      "hidden_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "review_level": "agent_visual_inspection",
+      "human_approved": false,
+      "scoring_policy": "ambiguous pair; no accuracy reference or forced continuation",
+      "notes": "Multiple close gray curves enter the a/c word overprint. Local ordering suggests possible continuations, but correspondence is not uniquely established; abstention/diagnostic-only, no accuracy reference.",
+      "raw_click_pixel_rgb": [
+        [
+          233,
+          150,
+          [
+            119,
+            122,
+            105
+          ]
+        ],
+        [
+          245,
+          174,
+          [
+            136,
+            144,
+            123
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "kr10-native02-black-eup-ambiguous",
+      "sample_id": "kr-10-unseen-native-02",
+      "image": "images/kr-10-unseen-native-02.png",
+      "image_sha256": "238e9b103247061f337b71f094597101b0450684951fa87a8c28f62fbbab2eca",
+      "source_id": "kr-10",
+      "split": "validation",
+      "glyph_kind": "black Hanja with white print clearance",
+      "label": "邑",
+      "expected_pair": "ambiguous",
+      "unknown_regions_xy": [
+        [
+          207,
+          53,
+          242,
+          90
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            223,
+            43
+          ],
+          [
+            222,
+            46
+          ],
+          [
+            224,
+            49
+          ],
+          [
+            226,
+            51
+          ]
+        ],
+        [
+          [
+            225,
+            92
+          ],
+          [
+            225,
+            95
+          ],
+          [
+            225,
+            98
+          ],
+          [
+            225,
+            101
+          ]
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [],
+      "raw_evidence_window_xyxy": [
+        195,
+        35,
+        252,
+        108
+      ],
+      "prompt_rc": [
+        [
+          46,
+          222
+        ],
+        [
+          98,
+          225
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            43,
+            223
+          ],
+          [
+            43.75,
+            222.75
+          ],
+          [
+            44.5,
+            222.5
+          ],
+          [
+            45.25,
+            222.25
+          ],
+          [
+            46.0,
+            222.0
+          ],
+          [
+            46.75,
+            222.5
+          ],
+          [
+            47.5,
+            223.0
+          ],
+          [
+            48.25,
+            223.5
+          ],
+          [
+            49.0,
+            224.0
+          ],
+          [
+            49.666666666666664,
+            224.66666666666666
+          ],
+          [
+            50.333333333333336,
+            225.33333333333334
+          ],
+          [
+            51.0,
+            226.0
+          ]
+        ],
+        [
+          [
+            92,
+            225
+          ],
+          [
+            93.0,
+            225.0
+          ],
+          [
+            94.0,
+            225.0
+          ],
+          [
+            95.0,
+            225.0
+          ],
+          [
+            96.0,
+            225.0
+          ],
+          [
+            97.0,
+            225.0
+          ],
+          [
+            98.0,
+            225.0
+          ],
+          [
+            99.0,
+            225.0
+          ],
+          [
+            100.0,
+            225.0
+          ],
+          [
+            101.0,
+            225.0
+          ]
+        ]
+      ],
+      "hidden_geometry_ground_truth": false,
+      "hidden_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "review_level": "agent_visual_inspection",
+      "human_approved": false,
+      "scoring_policy": "ambiguous pair; no accuracy reference or forced continuation",
+      "notes": "Wide black-Hanja white clearance removes several contour continuations. Do not force nearest endpoint correspondence or invent a hidden curve; diagnostic-only ambiguity.",
+      "raw_click_pixel_rgb": [
+        [
+          222,
+          46,
+          [
+            146,
+            146,
+            134
+          ]
+        ],
+        [
+          225,
+          98,
+          [
+            135,
+            135,
+            123
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "kr09-native06-black-ren-ambiguous",
+      "sample_id": "kr-09-unseen-native-06",
+      "image": "images/kr-09-unseen-native-06.png",
+      "image_sha256": "a42415cf8603d10638b6e644740b72c59f9d68506c49aa01dfa6ceda5001ef9f",
+      "source_id": "kr-09",
+      "split": "validation",
+      "glyph_kind": "black Hanja with white print clearance",
+      "label": "壬",
+      "expected_pair": "ambiguous",
+      "unknown_regions_xy": [
+        [
+          112,
+          178,
+          148,
+          214
+        ]
+      ],
+      "visible_control_segments_xy": [
+        [
+          [
+            131,
+            172
+          ],
+          [
+            130,
+            173
+          ],
+          [
+            129,
+            175
+          ]
+        ],
+        [
+          [
+            125,
+            217
+          ],
+          [
+            126,
+            217
+          ]
+        ]
+      ],
+      "foreign_visible_control_segments_xy": [],
+      "raw_evidence_window_xyxy": [
+        96,
+        165,
+        158,
+        225
+      ],
+      "prompt_rc": [
+        [
+          172,
+          131
+        ],
+        [
+          217,
+          126
+        ]
+      ],
+      "visible_reference_segments_rc": [
+        [
+          [
+            172,
+            131
+          ],
+          [
+            172.5,
+            130.5
+          ],
+          [
+            173.0,
+            130.0
+          ],
+          [
+            173.66666666666666,
+            129.66666666666666
+          ],
+          [
+            174.33333333333334,
+            129.33333333333334
+          ],
+          [
+            175.0,
+            129.0
+          ]
+        ],
+        [
+          [
+            217,
+            125
+          ],
+          [
+            217.0,
+            126.0
+          ]
+        ]
+      ],
+      "hidden_geometry_ground_truth": false,
+      "hidden_ground_truth": false,
+      "predictions_seen_before_freeze": false,
+      "review_level": "agent_visual_inspection",
+      "human_approved": false,
+      "scoring_policy": "ambiguous pair; no accuracy reference or forced continuation",
+      "notes": "Several gray contours disappear into a broad white clearance around the black character. The two visible fragments are intentionally not asserted to match.",
+      "raw_click_pixel_rgb": [
+        [
+          131,
+          172,
+          [
+            173,
+            174,
+            166
+          ]
+        ],
+        [
+          126,
+          217,
+          [
+            130,
+            127,
+            122
+          ]
+        ]
+      ]
+    }
+  ],
+  "raw_ancestor_frozen_before_execution": true,
+  "reference_revision_before_output_review": true,
+  "new_file_created_before_execution": false,
+  "revision": {
+    "kind": "deterministic scored-visible-reference clipping only",
+    "ancestor_fixture": "korea-general-text-failure-cases-v1.json",
+    "ancestor_sha256": "0961453f7872d9c71d5885ccc34f39746fe7c93b178e51980fde3423895c439e",
+    "ancestor_raw_freeze_created_utc": "2026-10-18T23:02:16.980294+00:00",
+    "revision_created_utc": "2026-10-18T23:11:09.257656+00:00",
+    "execution_status_when_identified": "v1 QGIS execution had begun or may already have begun; no new-case output was viewed before this correction",
+    "unchanged": [
+      "case identities",
+      "expected_pair classifications",
+      "native mouse prompts",
+      "full raw visible_control_segments_xy",
+      "unknown_regions_xy",
+      "foreign controls",
+      "source/image hashes",
+      "ambiguous/negative references"
+    ],
+    "changed": [
+      "Only the plausible O case scored visible_reference_segments_rc: remove reference prefix before prompt [135,180] and suffix after prompt [151,182]."
+    ],
+    "reason": "Recall must not be penalized by visible control points outside the requested click-to-click segment. Preserve full raw controls separately.",
+    "freeze_flag_semantics": "Both top-level freeze flags describe this v2 document and are false because execution had started. Raw ancestor classifications/clicks/unknown controls were frozen before execution; reference-only clipping occurred before any output review. This v2 is a derived scoring specification, not the executed fixture.",
+    "predictions_seen_for_new_cases_before_revision": false
+  }
+}

@@ -54,6 +54,21 @@ def test_changed_source_pixels_and_unverified_pair_are_rejected(comparison, tmp_
         comparison.load_cases(path, tmp_path)
 
 
+def test_frozen_manifest_change_is_rejected_before_source_is_opened(comparison, tmp_path):
+    path, image = _cohort(tmp_path)
+    document = json.loads(path.read_text())
+    manifest_path = tmp_path / "manifest.json"
+    document["dataset_manifest_sha256"] = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    path.write_text(json.dumps(document))
+    assert comparison.load_cases(path, tmp_path)
+    manifest = json.loads(manifest_path.read_text())
+    manifest["source_revision"] = "changed metadata with same dataset id"
+    manifest_path.write_text(json.dumps(manifest))
+    image.unlink()
+    with pytest.raises(ValueError, match="dataset manifest changed"):
+        comparison.load_cases(path, tmp_path)
+
+
 @pytest.mark.parametrize("withdrawn", ["kr-10-crop-01-clear-w", "kr-10-crop-12-label-500-diagonal", "kr-10-crop-12-label-600-diagonal",
                                        "kr-09-unseen-02-vertical-index-gap", "kr10-new04-diagonal-700",
                                        "kr10-new07-bottom-800"])

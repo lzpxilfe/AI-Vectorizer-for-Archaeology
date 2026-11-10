@@ -147,7 +147,12 @@ def load_cases(fixtures, dataset, *, allow_withdrawn=False):
                  for row in json.loads(path.read_text())["withdrawn"]}
     if not allow_withdrawn and any(case["id"] in withdrawn for case in cases):
         raise ValueError("Withdrawn same-contour case: use audited controls; historical replay requires --allow-withdrawn-cases")
-    manifest = json.loads((Path(dataset) / "manifest.json").read_text())
+    manifest_path = Path(dataset) / "manifest.json"
+    manifest_bytes = manifest_path.read_bytes()
+    manifest = json.loads(manifest_bytes)
+    committed_manifest = document.get("dataset_manifest_sha256")
+    if committed_manifest is not None and hashlib.sha256(manifest_bytes).hexdigest() != committed_manifest:
+        raise ValueError("Frozen case dataset manifest changed")
     if document.get("dataset_id") != manifest.get("dataset_id"):
         raise ValueError("Cases belong to a different dataset")
     samples = {row["id"]: row for row in manifest["samples"]}
@@ -553,7 +558,8 @@ def score_and_render(result, cases, output):
                 }
             if is_gap:
                 if fixture["expected_pair"] != "plausible_same_contour":
-                    scores[label] = {"visible_f1_2px": None, "policy": "negative pair; no accuracy reference"}
+                    pair_kind = "ambiguous" if fixture["expected_pair"] == "ambiguous" else "negative"
+                    scores[label] = {"visible_f1_2px": None, "policy": pair_kind + " pair; no accuracy reference"}
                     continue
                 unknown = np.zeros(len(prediction), dtype=bool)
                 for x0, y0, x1, y1 in fixture["unknown_regions_xy"]:

@@ -1,0 +1,1480 @@
+{
+  "schema_version": "archaeotrace-general-text-failure-diagnosis/1",
+  "created_utc": "2026-10-18T23:21:08.540055+00:00",
+  "scope": "Agent-reviewed development diagnosis; no training, model/default changes or hidden geometry scoring",
+  "human_approved": false,
+  "publication_ranking_eligible": false,
+  "training_eligible": false,
+  "official_calibration_holdout_opened": false,
+  "external_evidence_root": "<task-workspace>/work/unseen-korea-text-gap/failure-evaluation-2026-10-19",
+  "archive": {
+    "filename": "ai_vectorizer-unreleased-general-text-diagnostics.zip",
+    "sha256": "8fe6814901b241dde814cfa0f84ee7b7613a577d00e646d1f00e9bb725afa4dc",
+    "source_python_files_verified": 46
+  },
+  "model_method_mapping": {
+    "ink_after": "no learned model",
+    "usgs_after": "old Korea passed through --old-model; not USGS-only",
+    "korea_after": "new general-text Korea passed through --new-model"
+  },
+  "models": {
+    "old_korea": {
+      "model_sha256": "ae5fbf01e8fb073d686f81ec4f2f23367bd66386eddbfde8b314777e02e70398",
+      "bundle_sha256": "c71496b1f5d12a004b4c606061253915c04b98145370d39d6e16528bd5e27cae"
+    },
+    "new_general_text": {
+      "model_sha256": "a1f27dfd8421c44defaaed521b5421c18e1358abcad9499ffc987dc33990e4d1",
+      "bundle_sha256": "ab979237b831a13bf2b8d5413599d7793b80e5d82c15fac6c32af5041555d164"
+    }
+  },
+  "runtime": {
+    "qgis": "3.44.8-Solothurn",
+    "onnxruntime": "1.31.0",
+    "provider": "CPUExecutionProvider",
+    "intra_threads": 1,
+    "inter_threads": 1,
+    "execution_mode": "sequential",
+    "learned_support": 0.8,
+    "avoidance": 0.0,
+    "grid_avoidance": true,
+    "automatic_label_occlusion": true,
+    "smart_recovery": false
+  },
+  "evaluation": {
+    "raw_development_windows_screened": 21,
+    "new_pairs": 6,
+    "plausible_same_contour": 1,
+    "different_contours": 1,
+    "ambiguous": 4,
+    "new_qgis_traces": 36,
+    "existing_cases": 17,
+    "existing_saved_traces_and_inputs_exactly_unchanged": 102,
+    "all_new_cases_old_new_identical": false
+  },
+  "validation": {
+    "pure_tests": 1215,
+    "pure_skipped_qgis_dependent": 160,
+    "subtests": 171,
+    "actual_qgis_runtime_tests": 178,
+    "actual_qgis_runtime_skips": 0,
+    "actual_qgis_runtime_failures": 0,
+    "actual_qgis_runtime_errors": 0,
+    "qgis_import": "passed",
+    "all_isolated_profiles_removed": true,
+    "one_undo_all_new_traces": true
+  },
+  "diagnostic_scope": {
+    "default_enabled": false,
+    "selected_region_records_max": 16,
+    "detector_channels_max": 2,
+    "target_gap_attempts_max": 2,
+    "build_snapshot": "immutable JSON string",
+    "trace_record": "fresh dictionary per diagnostic query",
+    "counters": "window aggregate unless target trace explicitly recorded; localization uses local bbox plus tree origin",
+    "normal_ui_or_persistent_logging_added": false,
+    "zero_overhead_claim": false
+  },
+  "reference_correction": {
+    "schema_version": "archaeotrace-derived-visible-rescore/1",
+    "created_utc": "2026-10-18T23:15:26.186763+00:00",
+    "execution_fixture": "korea-general-text-failure-cases-v1.json",
+    "execution_fixture_sha256": "0961453f7872d9c71d5885ccc34f39746fe7c93b178e51980fde3423895c439e",
+    "scoring_spec": "korea-general-text-failure-cases-v2.json",
+    "scoring_spec_sha256": "0f767afd0f58379de9a4b6f946529be4b9a023ba315a7cd1134eb8aa82280909",
+    "source_result": "validated/regression-new-known/result.json",
+    "source_result_sha256": "c4a342d07f9c6995eb8a206e7cb784c56d8cd8da2d7f2e9320ad24cff14f0408",
+    "scorer_source_sha256": "c0a40aa4e1f11754a12e934834fd64c3516008f92f61f8a27646821e49257975",
+    "changes": [
+      {
+        "case": "kr10-native01-blue-o-left-stem-gap",
+        "changed_fields": [
+          "scored_reference_policy",
+          "visible_reference_segments_rc"
+        ]
+      }
+    ],
+    "source_result_mutated": false,
+    "new_qgis_execution": false,
+    "timing": "post-execution / before any new-case output review; see reference-scope-pre-review-audit.json",
+    "hidden_geometry_scored": false,
+    "human_approved": false,
+    "scores_sha256": "4cc4b216bcfb634f40e33fec1a9563c536524f45e2483a2c3eb1894d78efb794"
+  },
+  "target_local_forensics": {
+    "blue_a": {
+      "case_id": "kr10-text05-blue-a-gap",
+      "sample_id": "kr-10-unseen-native-05",
+      "executed_fixture": "learning/data/korea-general-text-gap-cases-v1.json",
+      "root_xy": [
+        137,
+        258
+      ],
+      "cursor_xy": [
+        152.0,
+        287.0
+      ],
+      "unknown_regions_xy": [
+        [
+          137,
+          267,
+          143,
+          277
+        ]
+      ],
+      "boost_pixel_count": 19,
+      "boost_bbox_xyxy": [
+        148,
+        169,
+        152,
+        195
+      ],
+      "generated_bridge_pixel_count": 28,
+      "generated_bridge_bbox_xyxy": [
+        148,
+        168,
+        152,
+        196
+      ],
+      "generated_bridge_inside_target_pixels": 0,
+      "generated_bridge_min_target_pixel_center_distance_px": 72.56031973468694,
+      "boost_min_target_pixel_center_distance_px": 73.55270219373317,
+      "generated_bridge_min_saved_ordinary_polyline_distance_px": 64.53681120105021,
+      "boost_min_saved_ordinary_polyline_distance_px": 65.5133574166368,
+      "generated_bridge_within_1px_of_saved_ordinary_route": 0,
+      "actual_all_methods": {
+        "continuity_bridge": true,
+        "observed_builder": "skipped: continuity_bridge",
+        "numeric_builder": "skipped: continuity_bridge",
+        "text_builder": "skipped: continuity_bridge",
+        "text_detector_ran": false,
+        "selected_branch": "pixel"
+      },
+      "conclusion": "A root-component bridge remote from the frozen target sets the window-wide skip. These logs do not establish whether the target text detector would succeed if called."
+    },
+    "blue_o": {
+      "case_id": "kr10-native01-blue-o-left-stem-gap",
+      "sample_id": "kr-10-unseen-native-01",
+      "executed_fixture": "learning/data/korea-general-text-failure-cases-v1.json",
+      "scoring_revision_note": "Subsequent v2 clips scored visible arms to unchanged prompts; it changes none of the inputs or pipeline diagnostics used here.",
+      "root_xy": [
+        135,
+        180
+      ],
+      "cursor_xy": [
+        151.0,
+        182.0
+      ],
+      "unknown_regions_xy": [
+        [
+          138,
+          178,
+          144,
+          184
+        ]
+      ],
+      "cache_origin_xy": [
+        0,
+        20
+      ],
+      "boost_pixel_count": 0,
+      "generated_bridge_pixel_count": 0,
+      "actual_all_methods": {
+        "continuity_bridge": false,
+        "observed_builder": "built: native_tree",
+        "text_detector_ran": true,
+        "returned_text_regions": 9,
+        "connector_status": "unavailable: connector_rejected",
+        "selected_branch": "observed_fallback",
+        "ordinary_reason": "pixel_detour_or_collinear_gap_rejected"
+      },
+      "target_overlapping_region_count": 0,
+      "detected_source_native_bboxes_xyxy": [
+        [
+          127,
+          204,
+          135,
+          221
+        ],
+        [
+          114,
+          205,
+          129,
+          221
+        ],
+        [
+          142,
+          207,
+          157,
+          221
+        ],
+        [
+          157,
+          202,
+          175,
+          219
+        ],
+        [
+          99,
+          204,
+          114,
+          221
+        ],
+        [
+          93,
+          203,
+          101,
+          221
+        ],
+        [
+          139,
+          238,
+          154,
+          254
+        ],
+        [
+          149,
+          247,
+          163,
+          261
+        ],
+        [
+          159,
+          259,
+          180,
+          270
+        ]
+      ],
+      "nearest_detected_bbox_boundary_distance_px": 20.223748416156685,
+      "distance_definition": "Euclidean distance between closed continuous xyxy rectangle boundary closures; separate from the existing-blue pixel-center metric.",
+      "aggregate_connection_diagnostics_for_other_regions": {
+        "examined_pairs": 738,
+        "rejections": {
+          "arm_tangent_unavailable": 735,
+          "crossing_connector": 0,
+          "intervening_arm_order": 1,
+          "not_original_native_endpoints": 2,
+          "pair_not_mutually_unique": 0
+        },
+        "these_are_target_O_endpoint_rejections": false
+      },
+      "conclusion": "Detection runs, but no returned proposal covers the frozen O-left-stem target. Aggregate arm-tangent rejections concern the other proposed regions and must not be attributed to O."
+    },
+    "limits": [
+      "Target-region coverage, model mixing, connector admission and final route selection are distinct stages.",
+      "A skipped detector cannot be labelled a detector failure; a returned-region aggregate rejection cannot be labelled a target-specific connector failure.",
+      "No counterfactual connector or relaxed gate was tested. Changing the gate is not proven to improve target geometry.",
+      "Distances to saved ordinary paths include product smoothing; unsmoothed predecessor geometry was not present in the NPZ cache.",
+      "All selected crops are existing validation/development pixels; Calibration/Holdout remained sealed."
+    ]
+  },
+  "cases": [
+    {
+      "id": "kr10-native01-blue-o-left-stem-gap",
+      "expected_pair": "plausible_same_contour",
+      "hidden_geometry_scored": false,
+      "accuracy_reference_available": true,
+      "old_new_saved_coordinates_equal": true,
+      "ink_new_saved_coordinates_equal": true,
+      "methods": {
+        "ink": {
+          "selection": {
+            "branch": "observed_fallback",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "observed_fallback",
+            "reason": "pixel_detour_or_collinear_gap_rejected"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": false,
+            "learned_support_dominant_pixels": 0,
+            "native_skeleton_pixels": 17275,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_median_px": 5.414,
+            "visible_p95_px": 8.932,
+            "visible_precision_2px": 0.114,
+            "visible_recall_2px": 0.423,
+            "visible_f1_2px": 0.18
+          },
+          "foreign_visible_contact": {
+            "minimum_distance_px": 2.03,
+            "contact_within_1px": false,
+            "distance_method": "continuous_segments"
+          },
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              0,
+              20
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 9,
+            "recorded_region_count": 9,
+            "inspected_region_count": 9,
+            "valid_region_record_count": 9,
+            "limitations": [],
+            "overlapping_recorded_region_count": 0,
+            "bbox_overlap_pair_count": 0,
+            "minimum_bbox_distance_px": 20.223748416156685,
+            "spatial_observation": "no_recorded_proposal_overlaps_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 0.0
+        },
+        "usgs": {
+          "selection": {
+            "branch": "observed_fallback",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "observed_fallback",
+            "reason": "pixel_detour_or_collinear_gap_rejected"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": true,
+            "learned_support_dominant_pixels": 76876,
+            "native_skeleton_pixels": 17275,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_median_px": 5.414,
+            "visible_p95_px": 8.932,
+            "visible_precision_2px": 0.114,
+            "visible_recall_2px": 0.423,
+            "visible_f1_2px": 0.18
+          },
+          "foreign_visible_contact": {
+            "minimum_distance_px": 2.03,
+            "contact_within_1px": false,
+            "distance_method": "continuous_segments"
+          },
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              0,
+              20
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 9,
+            "recorded_region_count": 9,
+            "inspected_region_count": 9,
+            "valid_region_record_count": 9,
+            "limitations": [],
+            "overlapping_recorded_region_count": 0,
+            "bbox_overlap_pair_count": 0,
+            "minimum_bbox_distance_px": 20.223748416156685,
+            "spatial_observation": "no_recorded_proposal_overlaps_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 0.0
+        },
+        "korea": {
+          "selection": {
+            "branch": "observed_fallback",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "observed_fallback",
+            "reason": "pixel_detour_or_collinear_gap_rejected"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": true,
+            "learned_support_dominant_pixels": 76893,
+            "native_skeleton_pixels": 17275,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_median_px": 5.414,
+            "visible_p95_px": 8.932,
+            "visible_precision_2px": 0.114,
+            "visible_recall_2px": 0.423,
+            "visible_f1_2px": 0.18
+          },
+          "foreign_visible_contact": {
+            "minimum_distance_px": 2.03,
+            "contact_within_1px": false,
+            "distance_method": "continuous_segments"
+          },
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              0,
+              20
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 9,
+            "recorded_region_count": 9,
+            "inspected_region_count": 9,
+            "valid_region_record_count": 9,
+            "limitations": [],
+            "overlapping_recorded_region_count": 0,
+            "bbox_overlap_pair_count": 0,
+            "minimum_bbox_distance_px": 20.223748416156685,
+            "spatial_observation": "no_recorded_proposal_overlaps_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 0.0
+        }
+      }
+    },
+    {
+      "id": "kr10-native01-blue-o-wrong-lower-neighbor",
+      "expected_pair": "different_contours",
+      "hidden_geometry_scored": false,
+      "accuracy_reference_available": false,
+      "old_new_saved_coordinates_equal": true,
+      "ink_new_saved_coordinates_equal": true,
+      "methods": {
+        "ink": {
+          "selection": {
+            "branch": "pixel",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "pixel",
+            "reason": "pixel_predecessor_route"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": false,
+            "learned_support_dominant_pixels": 0,
+            "native_skeleton_pixels": 17275,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "foreign_visible_contact": {
+            "minimum_distance_px": 7.6,
+            "contact_within_1px": false,
+            "distance_method": "continuous_segments"
+          },
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              0,
+              20
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 9,
+            "recorded_region_count": 9,
+            "inspected_region_count": 9,
+            "valid_region_record_count": 9,
+            "limitations": [],
+            "overlapping_recorded_region_count": 0,
+            "bbox_overlap_pair_count": 0,
+            "minimum_bbox_distance_px": 20.223748416156685,
+            "spatial_observation": "no_recorded_proposal_overlaps_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 3.1623
+        },
+        "usgs": {
+          "selection": {
+            "branch": "pixel",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "pixel",
+            "reason": "pixel_predecessor_route"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": true,
+            "learned_support_dominant_pixels": 76876,
+            "native_skeleton_pixels": 17275,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "foreign_visible_contact": {
+            "minimum_distance_px": 7.6,
+            "contact_within_1px": false,
+            "distance_method": "continuous_segments"
+          },
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              0,
+              20
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 9,
+            "recorded_region_count": 9,
+            "inspected_region_count": 9,
+            "valid_region_record_count": 9,
+            "limitations": [],
+            "overlapping_recorded_region_count": 0,
+            "bbox_overlap_pair_count": 0,
+            "minimum_bbox_distance_px": 20.223748416156685,
+            "spatial_observation": "no_recorded_proposal_overlaps_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 3.1623
+        },
+        "korea": {
+          "selection": {
+            "branch": "pixel",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "pixel",
+            "reason": "pixel_predecessor_route"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": true,
+            "learned_support_dominant_pixels": 76893,
+            "native_skeleton_pixels": 17275,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "negative pair; no accuracy reference"
+          },
+          "foreign_visible_contact": {
+            "minimum_distance_px": 7.6,
+            "contact_within_1px": false,
+            "distance_method": "continuous_segments"
+          },
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              0,
+              20
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 9,
+            "recorded_region_count": 9,
+            "inspected_region_count": 9,
+            "valid_region_record_count": 9,
+            "limitations": [],
+            "overlapping_recorded_region_count": 0,
+            "bbox_overlap_pair_count": 0,
+            "minimum_bbox_distance_px": 20.223748416156685,
+            "spatial_observation": "no_recorded_proposal_overlaps_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 3.1623
+        }
+      }
+    },
+    {
+      "id": "kr09-native12-blue-surachon-ambiguous",
+      "expected_pair": "ambiguous",
+      "hidden_geometry_scored": false,
+      "accuracy_reference_available": false,
+      "old_new_saved_coordinates_equal": true,
+      "ink_new_saved_coordinates_equal": true,
+      "methods": {
+        "ink": {
+          "selection": {
+            "branch": "observed_fallback",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "observed_fallback",
+            "reason": "pixel_detour_or_collinear_gap_rejected"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": false,
+            "learned_support_dominant_pixels": 0,
+            "native_skeleton_pixels": 18899,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "ambiguous pair; no accuracy reference"
+          },
+          "foreign_visible_contact": null,
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              73,
+              0
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 6,
+            "recorded_region_count": 6,
+            "inspected_region_count": 6,
+            "valid_region_record_count": 6,
+            "limitations": [],
+            "overlapping_recorded_region_count": 0,
+            "bbox_overlap_pair_count": 0,
+            "minimum_bbox_distance_px": 28.071337695236398,
+            "spatial_observation": "no_recorded_proposal_overlaps_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 0.0
+        },
+        "usgs": {
+          "selection": {
+            "branch": "observed_fallback",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "observed_fallback",
+            "reason": "pixel_detour_or_collinear_gap_rejected"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": true,
+            "learned_support_dominant_pixels": 75029,
+            "native_skeleton_pixels": 18899,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "ambiguous pair; no accuracy reference"
+          },
+          "foreign_visible_contact": null,
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              73,
+              0
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 6,
+            "recorded_region_count": 6,
+            "inspected_region_count": 6,
+            "valid_region_record_count": 6,
+            "limitations": [],
+            "overlapping_recorded_region_count": 0,
+            "bbox_overlap_pair_count": 0,
+            "minimum_bbox_distance_px": 28.071337695236398,
+            "spatial_observation": "no_recorded_proposal_overlaps_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 0.0
+        },
+        "korea": {
+          "selection": {
+            "branch": "observed_fallback",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "observed_fallback",
+            "reason": "pixel_detour_or_collinear_gap_rejected"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": true,
+            "learned_support_dominant_pixels": 74767,
+            "native_skeleton_pixels": 18899,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "ambiguous pair; no accuracy reference"
+          },
+          "foreign_visible_contact": null,
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              73,
+              0
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 6,
+            "recorded_region_count": 6,
+            "inspected_region_count": 6,
+            "valid_region_record_count": 6,
+            "limitations": [],
+            "overlapping_recorded_region_count": 0,
+            "bbox_overlap_pair_count": 0,
+            "minimum_bbox_distance_px": 28.071337695236398,
+            "spatial_observation": "no_recorded_proposal_overlaps_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 0.0
+        }
+      }
+    },
+    {
+      "id": "kr10-native02-black-eup-ambiguous",
+      "expected_pair": "ambiguous",
+      "hidden_geometry_scored": false,
+      "accuracy_reference_available": false,
+      "old_new_saved_coordinates_equal": false,
+      "ink_new_saved_coordinates_equal": true,
+      "methods": {
+        "ink": {
+          "selection": {
+            "branch": "pixel",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "pixel",
+            "reason": "pixel_predecessor_route"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": false,
+            "learned_support_dominant_pixels": 0,
+            "native_skeleton_pixels": 16721,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "ambiguous pair; no accuracy reference"
+          },
+          "foreign_visible_contact": null,
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              62,
+              0
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 6,
+            "recorded_region_count": 6,
+            "inspected_region_count": 6,
+            "valid_region_record_count": 6,
+            "limitations": [],
+            "overlapping_recorded_region_count": 0,
+            "bbox_overlap_pair_count": 0,
+            "minimum_bbox_distance_px": 63.60031446463138,
+            "spatial_observation": "no_recorded_proposal_overlaps_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 0.0
+        },
+        "usgs": {
+          "selection": {
+            "branch": "pixel",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "pixel",
+            "reason": "pixel_predecessor_route"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": true,
+            "learned_support_dominant_pixels": 78168,
+            "native_skeleton_pixels": 16721,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "ambiguous pair; no accuracy reference"
+          },
+          "foreign_visible_contact": null,
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              62,
+              0
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 6,
+            "recorded_region_count": 6,
+            "inspected_region_count": 6,
+            "valid_region_record_count": 6,
+            "limitations": [],
+            "overlapping_recorded_region_count": 0,
+            "bbox_overlap_pair_count": 0,
+            "minimum_bbox_distance_px": 63.60031446463138,
+            "spatial_observation": "no_recorded_proposal_overlaps_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 0.0
+        },
+        "korea": {
+          "selection": {
+            "branch": "pixel",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "pixel",
+            "reason": "pixel_predecessor_route"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": true,
+            "learned_support_dominant_pixels": 76162,
+            "native_skeleton_pixels": 16721,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "ambiguous pair; no accuracy reference"
+          },
+          "foreign_visible_contact": null,
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              62,
+              0
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 6,
+            "recorded_region_count": 6,
+            "inspected_region_count": 6,
+            "valid_region_record_count": 6,
+            "limitations": [],
+            "overlapping_recorded_region_count": 0,
+            "bbox_overlap_pair_count": 0,
+            "minimum_bbox_distance_px": 63.60031446463138,
+            "spatial_observation": "no_recorded_proposal_overlaps_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 0.0
+        }
+      }
+    },
+    {
+      "id": "kr09-native06-black-ren-ambiguous",
+      "expected_pair": "ambiguous",
+      "hidden_geometry_scored": false,
+      "accuracy_reference_available": false,
+      "old_new_saved_coordinates_equal": false,
+      "ink_new_saved_coordinates_equal": true,
+      "methods": {
+        "ink": {
+          "selection": {
+            "branch": "pixel",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "pixel",
+            "reason": "pixel_predecessor_route"
+          },
+          "text_stage": "text_proposal_unavailable",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": false,
+            "learned_support_dominant_pixels": 0,
+            "native_skeleton_pixels": 13688,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "ambiguous pair; no accuracy reference"
+          },
+          "foreign_visible_contact": null,
+          "one_undo": true,
+          "text_localization": {
+            "status": "unavailable",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": null,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "missing_connection_region_records"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 6.0828
+        },
+        "usgs": {
+          "selection": {
+            "branch": "pixel",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "pixel",
+            "reason": "pixel_predecessor_route"
+          },
+          "text_stage": "text_proposal_unavailable",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": true,
+            "learned_support_dominant_pixels": 74408,
+            "native_skeleton_pixels": 13688,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "ambiguous pair; no accuracy reference"
+          },
+          "foreign_visible_contact": null,
+          "one_undo": true,
+          "text_localization": {
+            "status": "unavailable",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": null,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "missing_connection_region_records"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 6.0828
+        },
+        "korea": {
+          "selection": {
+            "branch": "pixel",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "pixel",
+            "reason": "pixel_predecessor_route"
+          },
+          "text_stage": "text_proposal_unavailable",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": true,
+            "learned_support_dominant_pixels": 73452,
+            "native_skeleton_pixels": 13688,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "ambiguous pair; no accuracy reference"
+          },
+          "foreign_visible_contact": null,
+          "one_undo": true,
+          "text_localization": {
+            "status": "unavailable",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": null,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "missing_connection_region_records"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 6.0828
+        }
+      }
+    },
+    {
+      "id": "odae-native02-blue-hwangbyong-ambiguous",
+      "expected_pair": "ambiguous",
+      "hidden_geometry_scored": false,
+      "accuracy_reference_available": false,
+      "old_new_saved_coordinates_equal": true,
+      "ink_new_saved_coordinates_equal": true,
+      "methods": {
+        "ink": {
+          "selection": {
+            "branch": "pixel",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "pixel",
+            "reason": "pixel_predecessor_route"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": false,
+            "learned_support_dominant_pixels": 0,
+            "native_skeleton_pixels": 12597,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "ambiguous pair; no accuracy reference"
+          },
+          "foreign_visible_contact": null,
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              106,
+              0
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 16,
+            "recorded_region_count": 16,
+            "inspected_region_count": 16,
+            "valid_region_record_count": 16,
+            "limitations": [],
+            "overlapping_recorded_region_count": 2,
+            "bbox_overlap_pair_count": 2,
+            "minimum_bbox_distance_px": 0.0,
+            "spatial_observation": "recorded_proposals_overlap_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 6.0828
+        },
+        "usgs": {
+          "selection": {
+            "branch": "pixel",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "pixel",
+            "reason": "pixel_predecessor_route"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": true,
+            "learned_support_dominant_pixels": 81723,
+            "native_skeleton_pixels": 12597,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "ambiguous pair; no accuracy reference"
+          },
+          "foreign_visible_contact": null,
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              106,
+              0
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 16,
+            "recorded_region_count": 16,
+            "inspected_region_count": 16,
+            "valid_region_record_count": 16,
+            "limitations": [],
+            "overlapping_recorded_region_count": 2,
+            "bbox_overlap_pair_count": 2,
+            "minimum_bbox_distance_px": 0.0,
+            "spatial_observation": "recorded_proposals_overlap_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 6.0828
+        },
+        "korea": {
+          "selection": {
+            "branch": "pixel",
+            "reason": "no_gap_override"
+          },
+          "ordinary": {
+            "branch": "pixel",
+            "reason": "pixel_predecessor_route"
+          },
+          "text_stage": "text_endpoint_or_curve_rejected",
+          "text_stage_scope": "Window-level builder stage; connector rejection does not establish rejection of the queried glyph endpoints",
+          "mixing": {
+            "active_avoidance": false,
+            "avoidance_weight": 0.0,
+            "continuity_bridge": false,
+            "learned_present": true,
+            "learned_support_dominant_pixels": 80888,
+            "native_skeleton_pixels": 12597,
+            "native_skeleton_pixels_changed": 0,
+            "support_cap": 0.8
+          },
+          "scores": {
+            "visible_f1_2px": null,
+            "policy": "ambiguous pair; no accuracy reference"
+          },
+          "foreign_visible_contact": null,
+          "one_undo": true,
+          "text_localization": {
+            "status": "available",
+            "scope": "Recorded connection-selected window proposals versus queried unknown rectangles; no glyph or endpoint identity is established",
+            "records_scope": "Completeness is relative to connection.region_count, not every detector proposal before selection",
+            "coordinate_policy": "Absolute native XY bounds = local bbox + route origin; positive-area overlap; touching boxes have zero distance",
+            "records_complete": true,
+            "queried_glyph_endpoint_rejection_established": false,
+            "accuracy_verdict": null,
+            "reason": "recorded_bbox_localization",
+            "origin_xy": [
+              106,
+              0
+            ],
+            "unknown_rectangle_count": 1,
+            "declared_region_count": 16,
+            "recorded_region_count": 16,
+            "inspected_region_count": 16,
+            "valid_region_record_count": 16,
+            "limitations": [],
+            "overlapping_recorded_region_count": 2,
+            "bbox_overlap_pair_count": 2,
+            "minimum_bbox_distance_px": 0.0,
+            "spatial_observation": "recorded_proposals_overlap_query"
+          },
+          "start_error_px": 0.0,
+          "end_error_px": 6.0828
+        }
+      }
+    }
+  ],
+  "source_files": [
+    {
+      "path": "learning/data/korea-general-text-failure-cases-v1.json",
+      "sha256": "0961453f7872d9c71d5885ccc34f39746fe7c93b178e51980fde3423895c439e"
+    },
+    {
+      "path": "learning/data/korea-general-text-failure-extra-cases-v1.json",
+      "sha256": "5d0ae907e8125f6b0937e6f15746da6051d8e379d65d1873eb61a26e9eddca2d"
+    },
+    {
+      "path": "learning/data/korea-general-text-failure-cases-v2.json",
+      "sha256": "0f767afd0f58379de9a4b6f946529be4b9a023ba315a7cd1134eb8aa82280909"
+    },
+    {
+      "path": "learning/data/korea-general-text-failure-raw-assessment-v1.json",
+      "sha256": "bd972365355ecbec8fd5aef9a548ef986d55cb0560a5cea91ab183e30c9d2bce"
+    },
+    {
+      "path": "ai_vectorizer/core/livewire.py",
+      "sha256": "11bcc6fe70bbefc614f606a14183dca28ffa5773bfae317dba7cd41c9eee3fca"
+    },
+    {
+      "path": "ai_vectorizer/core/occluded_connection.py",
+      "sha256": "a87be98b17250818fb0bdbad79df750ce0e6f44e7e92ae8957f2f65379259f07"
+    },
+    {
+      "path": "ai_vectorizer/core/text_occlusion.py",
+      "sha256": "828800f884f903f0c9cdc26225b5a55fb33f7032fbe137792c3bf225403c169e"
+    },
+    {
+      "path": "ai_vectorizer/tools/smart_trace_tool.py",
+      "sha256": "65be793f6a84ad77b5fc2443b960e5086f2d5ea6876d0ed074a257e3947fb497"
+    },
+    {
+      "path": "scripts/qgis_clean_profile_smoke.py",
+      "sha256": "865fc4012e2f314c5e68858a9e7ac3b497a4222f3145f8f6c20a4ad3ba4737b8"
+    },
+    {
+      "path": "scripts/qgis_grid_comparison.py",
+      "sha256": "c0a40aa4e1f11754a12e934834fd64c3516008f92f61f8a27646821e49257975"
+    },
+    {
+      "path": "scripts/summarize_gap_diagnostics.py",
+      "sha256": "585b7e9e464d75db4b460adb819fd02d236f30bb3540367cb743fa682553e6a2"
+    }
+  ],
+  "evidence_files": [
+    {
+      "path": "general-text-target-local-public-evidence.json",
+      "sha256": "a7446d2299b8853854455d2caa4da5274b1946af4ac6de8b25fe9b258e5486f5"
+    },
+    {
+      "path": "o-glyph-group-forensics.json",
+      "sha256": "5217bafc18f44267b10eceeb79ba374f0b47ad98c6f3d769176c5c53b2def904"
+    },
+    {
+      "path": "reference-scope-pre-review-audit.json",
+      "sha256": "3af71325c7af1c00e8db3624e7184e3ff3933e4223699ebcf7abf20496d24a2f"
+    },
+    {
+      "path": "v2-provenance-clarification.json",
+      "sha256": "215c55a403f81505ae4e252f313c440387853f351b141c792c3b57900634eb7d"
+    },
+    {
+      "path": "validated/existing-validation-execution.json",
+      "sha256": "5d23c1b5e1549cd1edbccce9fe129ea1134c33fddfa1bd566f0d8d2b045bd205"
+    },
+    {
+      "path": "validated/derived-visible-reference-v2/derivation.json",
+      "sha256": "2a170588e6e9df1021588685d24d948b380c817a75243b3fdc6f4d1e4020e22c"
+    },
+    {
+      "path": "validated/derived-visible-reference-v2/scores.json",
+      "sha256": "4cc4b216bcfb634f40e33fec1a9563c536524f45e2483a2c3eb1894d78efb794"
+    },
+    {
+      "path": "validated/derived-visible-reference-v2/decision-summary-localized.json",
+      "sha256": "20432aba9000852fe901b3f774d126ed0afb4ab1c6da975555f0f22d356a2599"
+    },
+    {
+      "path": "validated/qgis-runtime.log",
+      "sha256": "853d2a191322a2795341399d28aba0f09dd18e759a98765472b06440d14f0a1e"
+    },
+    {
+      "path": "final-pure-tests.log",
+      "sha256": "34834a2dde1e7fe6314f883526b44de4cbce6841e55cc53c9f772249d7a5567c"
+    },
+    {
+      "path": "package-check.log",
+      "sha256": "5622369d330b85dcc865bcefa677138d673fec5693c87f48ab8ed2ef116bf7f4"
+    },
+    {
+      "path": "cleanup-audit.json",
+      "sha256": "41268d9f2e44e61b1047fd74fc15e51e0a361394ee294f5e17803729523ae850"
+    },
+    {
+      "path": "validated/regression-blue/result.json",
+      "sha256": "a615e90fd1022208edccf61dedf1d3d262cb6307b1af35c686d72a5f80c956a8"
+    },
+    {
+      "path": "validated/regression-blue/scores.json",
+      "sha256": "f0dd3e56a477a32f2929931f5b669ed010c9dacb553dafbe3939ce32a26426b7"
+    },
+    {
+      "path": "validated/regression-blue/decision-summary-localized.json",
+      "sha256": "10cbe14308723c61515fe363cb2b8e954a3fdce98f46623b3f0d82f308b62f92"
+    },
+    {
+      "path": "validated/regression-black/result.json",
+      "sha256": "3516aee0444fd56f51d9fb53f3f445cf01876b470b2d07ccaed1dd58d0e8f6ad"
+    },
+    {
+      "path": "validated/regression-black/scores.json",
+      "sha256": "b4274467ff86e3274d3bab950ee1c0e7430d351c0d5970772933fff9047bd564"
+    },
+    {
+      "path": "validated/regression-black/decision-summary-localized.json",
+      "sha256": "6497ebc41877b8e42311dba7963ee2723630a3b068475f80a997ee5ec4838d62"
+    },
+    {
+      "path": "validated/regression-old7/result.json",
+      "sha256": "4a75228b5d359a90b7cc5a18d128f2ed893443607cb09da07de203ec61953b1b"
+    },
+    {
+      "path": "validated/regression-old7/scores.json",
+      "sha256": "18494e345541dfaab8169f5f8df0120be251ae402ddf2c7a8463857e82b47a6f"
+    },
+    {
+      "path": "validated/regression-old5/result.json",
+      "sha256": "80755ce888942d3ac4e07197e371ee3f0116d5a9765fdf88f186e7f454519732"
+    },
+    {
+      "path": "validated/regression-old5/scores.json",
+      "sha256": "4b54a7cd435fdba983d33f24b4db18e7a47222c692858731d3f8a24fc830999f"
+    },
+    {
+      "path": "validated/regression-old5/decision-summary-localized.json",
+      "sha256": "0c0c2eb8a2da38aabbad41e3dc244c32ccbcd3a40daaf23c77811c331cdfdb4f"
+    },
+    {
+      "path": "validated/regression-old300/result.json",
+      "sha256": "d5a41e14619ebd4f8287f54f9b438a47665ff2a6c4d7e7c0d17a94043c3a736e"
+    },
+    {
+      "path": "validated/regression-old300/scores.json",
+      "sha256": "3ad82a45a9a062b52e34b2f0d326f6339bde4e16ad213f61e10aaad54a2e5ca8"
+    },
+    {
+      "path": "validated/regression-old300/decision-summary-localized.json",
+      "sha256": "2e8782d8a6cb7cfbc6b791a966b3b0f2d10c8eca991e01e92930483a8d06b27c"
+    },
+    {
+      "path": "validated/regression-new-known/result.json",
+      "sha256": "c4a342d07f9c6995eb8a206e7cb784c56d8cd8da2d7f2e9320ad24cff14f0408"
+    },
+    {
+      "path": "validated/regression-new-known/scores.json",
+      "sha256": "f5bb0f644d312d4102254bb207dc2ea044c181f01ed546da754c88ea26adfb5f"
+    },
+    {
+      "path": "validated/regression-new-known/decision-summary-localized.json",
+      "sha256": "e1372364b7403a9c5b6d983d7708705ec537f6b336332f3070c9e4bf2bd39003"
+    },
+    {
+      "path": "validated/regression-new-extra/result.json",
+      "sha256": "db87c2e806efac6d29e990744e3b96051531ceec000db8a7a5a9c4b687ae196d"
+    },
+    {
+      "path": "validated/regression-new-extra/scores.json",
+      "sha256": "9b99a286aa560f2bf6f6dfff864f9dc02239bacf4dd15dca152cf4a47bdeb807"
+    },
+    {
+      "path": "validated/regression-new-extra/decision-summary-localized.json",
+      "sha256": "2f8fa1d602f98d8dac67e6988572f5b0de2b8de28e40861c84146f5670421b0a"
+    }
+  ],
+  "next_experiment_order": [
+    "Test narrow heterogeneous word-group seed with one branched component plus compact aligned non-repeating contextual components. No endpoint/contact guards relaxed.",
+    "Once the target proposal exists, remeasure original native endpoint, arm, uniqueness and display collision reasons with unchanged guards.",
+    "Separately ablate continuity-bridge target relevance while preserving the currently successful a/numeric cases.",
+    "Expand independently reviewed development positives/negatives before deciding on further augmentation/training; leave this diagnostic set and official holdout out of training."
+  ],
+  "performance_improvement_claimed": false,
+  "default_model_replaced": false,
+  "learned_assistance_default": "OFF"
+}
