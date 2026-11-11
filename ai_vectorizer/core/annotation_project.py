@@ -175,9 +175,6 @@ def create_annotation_project(crop_image_path, project_dir, sample_id,
     gpkg=session_dir/"annotations.gpkg";layers={}
     string_type=getattr(QVariant,"String",None)
     if string_type is None:string_type=QMetaType.Type.QString
-    # QGIS 4 scopes writer enums; older QGIS exposes them on the writer class.
-    file_actions=getattr(QgsVectorFileWriter,"ActionOnExistingFile",QgsVectorFileWriter)
-    writer_errors=getattr(QgsVectorFileWriter,"WriterError",QgsVectorFileWriter)
     for index,name in enumerate(("contours","other_ink","other_ink_regions","reviewed","ignore")):
         geometry="LineString" if name in ("contours","other_ink") else "Polygon"
         memory=QgsVectorLayer(geometry,name,"memory")
@@ -185,9 +182,13 @@ def create_annotation_project(crop_image_path, project_dir, sample_id,
         memory.dataProvider().addAttributes([QgsField("label_state",string_type),QgsField("sample_id",string_type)])
         memory.updateFields()
         options=QgsVectorFileWriter.SaveVectorOptions();options.driverName="GPKG";options.layerName=name
-        options.actionOnExistingFile=(file_actions.CreateOrOverwriteFile if index==0 else file_actions.CreateOrOverwriteLayer)
+        options.actionOnExistingFile=(
+            QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteFile
+            if index==0 else
+            QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteLayer
+        )
         result=QgsVectorFileWriter.writeAsVectorFormatV3(memory,str(gpkg),QgsProject.instance().transformContext(),options)
-        if result[0]!=writer_errors.NoError:raise AnnotationProjectError("could not create blank annotation layer: "+name)
+        if result[0]!=QgsVectorFileWriter.WriterError.NoError:raise AnnotationProjectError("could not create blank annotation layer: "+name)
         layer=QgsVectorLayer(str(gpkg)+"|layername="+name,name+" — "+sample_id,"ogr")
         if not layer.isValid() or not layer.startEditing():raise AnnotationProjectError("annotation edit buffer unavailable")
         layers[name]=layer

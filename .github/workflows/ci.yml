@@ -301,6 +301,19 @@ jobs:
         run: >-
           python3 scripts/qgis_import_smoke.py
           --plugin-root "$ARCHAEOTRACE_RELEASE_ROOT"
+      - name: Check the release package with the official Qt6 migration checker
+        if: matrix.qgis == '4.2.1'
+        run: |
+          qt6_deps="$(mktemp -d)"
+          cat > "$qt6_deps/requirements.txt" <<'REQUIREMENTS'
+          tokenize-rt==6.2.0 --hash=sha256:a152bf4f249c847a66497a4a95f63376ed68ac6abf092a2f7cfb29d044ecff44
+          REQUIREMENTS
+          python3 -m pip install --disable-pip-version-check --no-deps --only-binary=:all: \
+            --require-hashes --target "$qt6_deps" -r "$qt6_deps/requirements.txt"
+          export PYTHONPATH="$qt6_deps${PYTHONPATH:+:$PYTHONPATH}"
+          python3 scripts/check_qt6_compatibility.py \
+            --plugin-root "$ARCHAEOTRACE_RELEASE_ROOT/ai_vectorizer" \
+            --report "$RUNNER_TEMP/qt6-check.json"
       - name: Run QGIS runtime safety tests
         run: |
           cd "$ARCHAEOTRACE_RELEASE_ROOT"
