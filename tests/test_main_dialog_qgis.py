@@ -91,9 +91,9 @@ class MainDialogQgisTests(unittest.TestCase):
         self.project.addMapLayer(raster)
         return raster
 
-    def _output(self):
+    def _output(self, name="contours"):
         from qgis.core import QgsVectorLayer
-        output = QgsVectorLayer("LineString?crs=EPSG:3857", "contours", "memory")
+        output = QgsVectorLayer("LineString?crs=EPSG:3857", name, "memory")
         self.assertTrue(output.isValid())
         self.project.addMapLayer(output)
         return output
@@ -122,6 +122,97 @@ class MainDialogQgisTests(unittest.TestCase):
         before = self._input_state_snapshot()
         self.application.processEvents()
         return {"before_events": before, "after_events": self._input_state_snapshot()}
+
+    def _start_freehand_session(self):
+        raster = self._raster()
+        output = self._output("original contours")
+        self.dock.layer_combo.setLayer(raster)
+        self.dock.vector_combo.setLayer(output)
+        self._process_layer_events()
+        self.canvas.setLayers([raster])
+        self.canvas.setExtent(raster.extent())
+        self.dock.freehand_check.setChecked(True)
+        self.dock.trace_btn.click()
+        self.assertIsNotNone(self.dock.active_tool)
+        self.assertIs(self.canvas.mapTool(), self.dock.active_tool)
+        return raster, output, self.dock.active_tool
+
+    def test_first_auto_selection_without_layer_changed_updates_ready_state(self):
+        # QGIS 4's first row can be selected without this higher-level signal.
+        # Keep native index/model signals active to reproduce the observed state.
+        self.dock.vector_combo.layerChanged.disconnect(self.dock.on_layer_selected)
+        self.dock.layer_combo.layerChanged.disconnect(self.dock.on_raster_layer_selected)
+        output = self._output()
+        raster = self._raster()
+        self.assertEqual(self.dock.vector_combo.currentLayer().id(), output.id())
+        self.assertIsNone(self.dock.output_layer)
+        self.assertTrue(self.dock._layer_selection_timer.isActive())
+        details = self._process_layer_events()
+        self.assertEqual(self.dock.output_layer.id(), output.id(), details)
+        self.assertEqual(self.dock.layer_combo.currentLayer().id(), raster.id(), details)
+        self.assertTrue(self.dock.trace_btn.isEnabled(), details)
+        self.assertTrue(self.dock.dem_btn.isEnabled(), details)
+        self.assertIn("Ready", self.dock.status_label.text(), details)
+
+    def test_model_changes_preserve_same_tool_and_stop_it_on_output_switch(self):
+        _raster, output, tool = self._start_freehand_session()
+        deactivations = []
+        tool.deactivated.connect(lambda: deactivations.append(True))
+        replacement = self._output("replacement contours")
+        self._process_layer_events()
+        self.assertIs(self.dock.active_tool, tool)
+        self.assertTrue(self.dock.trace_btn.isChecked())
+        self.assertFalse(self.dock.dem_btn.isEnabled())
+        self.assertEqual(deactivations, [])
+        self.assertEqual(self.dock.output_layer.id(), output.id())
+        self.dock.vector_combo.layerChanged.disconnect(self.dock.on_layer_selected)
+        self.dock.vector_combo.setLayer(replacement)
+        self._process_layer_events()
+        self.assertIsNone(self.dock.active_tool)
+        self.assertFalse(self.dock.trace_btn.isChecked())
+        self.assertTrue(self.dock.dem_btn.isEnabled())
+        self.assertEqual(self.dock.output_layer.id(), replacement.id())
+        self.assertEqual(deactivations, [True])
+
+    def test_active_raster_removal_does_not_leave_a_checked_start_button(self):
+        raster, _output, tool = self._start_freehand_session()
+        deactivations = []
+        tool.deactivated.connect(lambda: deactivations.append(True))
+        self.dock.layer_combo.layerChanged.disconnect(self.dock.on_raster_layer_selected)
+        self.project.removeMapLayer(raster.id())
+        details = self._process_layer_events()
+        self.assertIsNone(self.dock.active_tool)
+        self.assertFalse(self.dock.trace_btn.isChecked(), details)
+        self.assertFalse(self.dock.trace_btn.isEnabled(), details)
+        self.assertTrue(self.dock.dem_btn.isEnabled(), details)
+        self.assertEqual(deactivations, [True])
+
+    def test_cleanup_cancels_pending_sync_and_ignores_late_layer_signals(self):
+        self.assertIs(self.dock._layer_selection_timer.parent(), self.dock)
+        self._output()
+        self.assertTrue(self.dock._layer_selection_timer.isActive())
+        self.dock.cleanup(permanent=True)
+        status = self.dock.status_label.text()
+        self.assertFalse(self.dock._layer_selection_timer.isActive())
+        raster = self._raster()
+        self.dock.on_raster_layer_selected(raster)
+        self.dock._sync_selected_layers()
+        self.application.processEvents()
+        self.assertFalse(self.dock._layer_selection_timer.isActive())
+        self.assertFalse(self.dock.trace_btn.isEnabled())
+        self.assertEqual(self.dock.status_label.text(), status)
+
+    def test_closed_dock_resynchronizes_inputs_when_reopened(self):
+        self.dock.cleanup()
+        output = self._output()
+        self._raster()
+        self.application.processEvents()
+        self.assertFalse(self.dock._layer_selection_timer.isActive())
+        self.assertIsNone(self.dock.output_layer)
+        self.window.show()
+        details = self._process_layer_events()
+        self.assertEqual(self.dock.output_layer.id(), output.id(), details)
+        self.assertTrue(self.dock.trace_btn.isEnabled(), details)
 
     def test_small_window_can_reach_start_dem_and_help_in_both_languages(self):
         self._assert_small_window_controls_reachable()

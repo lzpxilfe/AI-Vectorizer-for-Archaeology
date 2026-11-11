@@ -419,6 +419,10 @@ class AIVectorizerDock(QDockWidget):
         self._recovery_model_status = None
         self._recovery_prepare_error = ""
         self._shutting_down = False
+        self._layer_sync_suspended = False
+        self._layer_selection_timer = QTimer(self)
+        self._layer_selection_timer.setSingleShot(True)
+        self._layer_selection_timer.timeout.connect(self._sync_selected_layers)
         self._recovery_state = RECOVERY_STATE_INK
         self._recovery_detail = ""
         self._preview_store = _TemporaryPreviewStore(QgsProject.instance())
@@ -1435,6 +1439,8 @@ class AIVectorizerDock(QDockWidget):
         return transform.transformBoundingBox(extent)
 
     def cleanup(self, permanent=False):
+        self._layer_sync_suspended = True
+        self._layer_selection_timer.stop()
         if permanent:
             self._shutting_down = True
         install_task = self.recovery_install_task
@@ -1478,6 +1484,12 @@ class AIVectorizerDock(QDockWidget):
     def closeEvent(self, event):
         self.cleanup()
         super().closeEvent(event)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._shutting_down:
+            self._layer_sync_suspended = False
+            self._schedule_layer_selection_sync()
 
     def setup_ui(self):
         self.header_label = QLabel()
@@ -1772,7 +1784,13 @@ class AIVectorizerDock(QDockWidget):
         self.apply_language()
         self.on_model_changed(self.model_combo.currentIndex())
         self._refresh_recovery_availability()
-        self.on_layer_selected(self.vector_combo.currentLayer())
+        for combo in (self.layer_combo, self.vector_combo):
+            combo.currentIndexChanged.connect(self._schedule_layer_selection_sync)
+            model = combo.model()
+            for signal in (model.rowsInserted, model.rowsRemoved, model.modelReset,
+                           model.layoutChanged):
+                signal.connect(self._schedule_layer_selection_sync)
+        self._sync_selected_layers()
 
     def apply_language(self):
         current_idx = self.model_combo.currentIndex()
@@ -2173,7 +2191,22 @@ class AIVectorizerDock(QDockWidget):
                 self._tr("생성 실패: {error}", "Creation failed: {error}").format(error=error[1]),
             )
 
+    def _schedule_layer_selection_sync(self, *_args):
+        if not self._shutting_down and not self._layer_sync_suspended:
+            # QGIS 4 can auto-select the first model row without layerChanged.
+            # Read once after the index/row transition has settled, not on a
+            # polling interval or while the proxy model is changing its rows.
+            self._layer_selection_timer.start(0)
+
+    def _sync_selected_layers(self):
+        if self._shutting_down or self._layer_sync_suspended:
+            return
+        self.on_layer_selected(self.vector_combo.currentLayer())
+        self.on_raster_layer_selected(self.layer_combo.currentLayer())
+
     def on_layer_selected(self, layer):
+        if self._shutting_down or self._layer_sync_suspended:
+            return
         if self.active_tool is not None:
             active_layer = getattr(self.active_tool, "vector_layer", None)
             if self._same_layer(layer, active_layer):
@@ -2187,6 +2220,8 @@ class AIVectorizerDock(QDockWidget):
     def on_raster_layer_selected(self, layer):
         """Stop a session if its raster is removed or replaced externally."""
 
+        if self._shutting_down or self._layer_sync_suspended:
+            return
         if self.active_tool is not None:
             active_layer = getattr(self.active_tool, "raster_layer", None)
             if not self._same_layer(layer, active_layer):
