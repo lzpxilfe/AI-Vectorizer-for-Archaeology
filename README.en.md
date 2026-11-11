@@ -92,7 +92,7 @@ among 17 development diagnostics, so the existing Korea model is retained.
 Human-approved annotations remain zero; formal Calibration/Holdout evaluation is pending.
 
 - [Training/QGIS record](learning/COLAB_KOREA_TEXT_WEAK_RUN_2026-10-19.md): conditions, hashes, 17 cases and the model decision.
-- [Failure diagnosis](learning/GENERAL_TEXT_FAILURE_DIAGNOSIS_2026-10-19.md): six development pairs and opt-in logs locate the missing O word group. Detection changes and regression checks come next.
+- [Failure diagnosis](learning/GENERAL_TEXT_FAILURE_DIAGNOSIS_2026-10-19.md): six development pairs and opt-in logs locate the missing O word group. A subsequent [detector experiment](learning/WORD_GROUP_EXPERIMENT_2026-11-11.md) did not improve saved routes and was not adopted.
 - [Real-map pilot](docs/REAL_MAP_PILOT_2026-10-19.md): the Ink kernel saved three open fragments without a learned model. This is a small draft with no elevations or geographic coordinates. These detailed records are in Korean.
 
 ## 🚧 Status and limitations
@@ -101,8 +101,8 @@ Human-approved annotations remain zero; formal Calibration/Holdout evaluation is
   repository is `0.1.6` (published 2026-09-09). Current source is an **unpublished
   `0.1.7` experimental candidate**, addressing active-trace Undo, manual preview/click
   consistency, existing elevations on resume, DEM input validation and small-screen UI.
-  Learned guidance stays default OFF. See the [workflow review](docs/RELEASE_REVIEW_2026-11-12.md), [CHANGELOG](CHANGELOG.md) and
-  [candidate verification record](docs/RELEASE_READINESS_0.1.7.md).
+  Learned guidance stays default OFF. See the [CHANGELOG](CHANGELOG.md) and
+  [final candidate verification record](docs/RELEASE_REVIEW_2026-11-12.md).
 - Accuracy against human-reviewed reference lines and time savings for users are
   **still being evaluated**. Progress is recorded in
   [benchmarks](benchmarks/README.md) and [learning](learning/README.md).
