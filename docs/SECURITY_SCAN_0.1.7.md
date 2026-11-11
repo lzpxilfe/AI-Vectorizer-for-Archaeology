@@ -1,8 +1,23 @@
 # 0.1.7 security notification review
 
-12 November 2026. The earlier submission was removed by the maintainer; its
-version page now returns 404. The prepared upload ZIP remains identified by
+12 November 2026. The first submission was removed by the maintainer and its
+page returned 404 during the initial investigation. The prepared ZIP is identified by
 SHA-256 `43ce32bec77ff03565e100643f7e3850d2d90ce0d92876cdec12f8dc50dea546`.
+
+## Re-upload verified at 08:29 KST
+
+The maintainer's new submission at 08:27 KST passed all five security checks,
+with zero warnings and critical issues. The repository's Qt6 check now passes
+as well. The ZIP could be downloaded without authentication and matched the
+prepared package exactly. Approval remains pending.
+
+The repeated BLOCKED email matches the existing upstream
+[bug #486: Security scan status and email not accurate](https://github.com/qgis/QGIS-Plugins-Website/issues/486),
+filed on 2 November and still open when checked. The report describes the same
+BLOCKED email alongside a passing configured-scan badge. The current upstream
+email code still contains the reproduced mismatch below. Repeated uploads can
+therefore repeat the notification; the current submission should remain in
+place for administrator review. [Current verification](evidence/qgis-resubmission-0.1.7.json)
 
 ## Conflicting email and scan results
 
@@ -64,5 +79,6 @@ its verified Qt6 result of zero findings.
 
 예외 목록 없이 다시 검사한 아홉 항목은 공개 모델 해시 여덟 개와 소스 commit
 한 개였습니다. 목록만 삭제하면 이 항목들이 다시 검출되므로 기존 목록을 유지하고
-관리자가 검토할 수 있도록 근거를 남깁니다. 현재 이전 제출은 삭제된 상태이며
-이 조사에서 다시 업로드하거나 외부 메일·이슈를 보내지는 않았습니다.
+관리자가 검토할 수 있도록 근거를 남깁니다. 이후 사용자가 08:27에 다시 제출한
+동일 ZIP은 보안·Qt6 검사를 통과했으며 승인 대기 중입니다. 같은 알림 오류가
+상위 저장소의 열린 버그 #486에도 보고돼 있습니다.

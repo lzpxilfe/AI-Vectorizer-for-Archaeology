@@ -2,6 +2,10 @@
 
 Prepared on 12 November 2026 for manual upload.
 
+The maintainer uploaded this exact ZIP at 08:27 KST. Repository security and
+Qt6 checks passed; administrator approval remains pending.
+[Server download and scan verification](evidence/qgis-resubmission-0.1.7.json)
+
 The annotation writer now directly uses
 `QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteFile`,
 `QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteLayer` and

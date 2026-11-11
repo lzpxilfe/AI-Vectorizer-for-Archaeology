@@ -13,8 +13,8 @@ QGIS 3.22–4.99 · Experimental · GPL v2
 
 In QGIS, open `Plugins > Manage and Install Plugins`, enable experimental plugins,
 and search for ArchaeoTrace. To install a candidate ZIP, use `Install from ZIP`.
-The latest approved version remains `0.1.6`. A Qt6-checked `0.1.7` upload ZIP is
-ready; the earlier submission has been removed.
+The latest approved version remains `0.1.6`. The resubmitted `0.1.7` passed
+security and Qt6 checks and is awaiting administrator approval.
 [Upload package validation](docs/QT6_UPLOAD_0.1.7.md) ·
 [Security notification and baseline review](docs/SECURITY_SCAN_0.1.7.md)
 

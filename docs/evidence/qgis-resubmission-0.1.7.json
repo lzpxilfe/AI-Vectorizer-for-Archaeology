@@ -1,0 +1,30 @@
+{
+  "checked_at": "2026-11-11T23:29:24.200583+00:00",
+  "version": "0.1.7",
+  "uploaded_displayed_kst": "2026-11-12 08:27 GMT+9",
+  "scan_displayed_kst": "2026-11-12 08:27 GMT+9",
+  "security_checks_passed": 5,
+  "warnings": 0,
+  "critical": 0,
+  "security_label": "All checks passed (developer config files used)",
+  "qt6_passed": true,
+  "approved": false,
+  "public_download_success": true,
+  "authenticated_download": false,
+  "sha256": "43ce32bec77ff03565e100643f7e3850d2d90ce0d92876cdec12f8dc50dea546",
+  "matches_tested_desktop_zip": true,
+  "bytes": 2098053,
+  "external_mutations": 0,
+  "upstream_issue": {
+    "url": "https://github.com/qgis/QGIS-Plugins-Website/issues/486",
+    "title": "Security scan status and email not accurate",
+    "state": "open",
+    "label": "bug",
+    "created_at": "2026-11-02T06:08:40Z"
+  },
+  "evidence_sha256": {
+    "security-dom.txt": "c1e855b788e4e98c6e2894fe555cbf2b459a72a9cd4256937491ebb13849fb47",
+    "details-dom.txt": "f6307139c21cb1792e05a4a31652d1b6d51c2195e7439d58d636f6ed203ef088",
+    "verification.json": "d64dd8d588a8c8b6ec5ad83c75542313ac177874f5210fb7352430612dd91402"
+  }
+}

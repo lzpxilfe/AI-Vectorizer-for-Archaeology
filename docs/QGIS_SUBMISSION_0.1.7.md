@@ -2,10 +2,10 @@
 
 Status checked: 12 November 2026, Korea Standard Time.
 
-Update later on 12 November: the maintainer removed this submission. The version
-page now returns 404. The upload and scan results below are historical evidence,
-not a current approval status. The misleading BLOCKED notification is analysed
-in the [security review](SECURITY_SCAN_0.1.7.md).
+Update later on 12 November: the maintainer removed this submission, then
+uploaded the `43ce32…` package at 08:27 KST. That replacement passed security and
+Qt6 checks and awaits approval. The `809909…` results below are historical
+evidence. See the [current security review](SECURITY_SCAN_0.1.7.md).
 
 The later [Desktop upload ZIP](QT6_UPLOAD_0.1.7.md) uses explicit writer-enum
 namespaces. This page retains the earlier `809909…` package's submission record;
