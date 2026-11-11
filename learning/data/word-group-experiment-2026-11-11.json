@@ -1,0 +1,54 @@
+{
+  "schema_version": "archaeotrace-detector-candidate-assessment/1",
+  "candidate_zip_sha256": "3a114dad0be18cf79cec2d33c69160fbd315685d1b746fae542bc210f43001c5",
+  "baseline_zip_sha256": "ff67ba92b015211e0c49ad5a4a0758440442758943a8b8e9dee900d4857a87ae",
+  "actual_qgis_case_count": 23,
+  "paired_methods": 69,
+  "saved_route_pairs_identical": 69,
+  "all_one_undo_checks": 138,
+  "negative_cases_checked": 5,
+  "all_negative_inferred_candidates_excluded": true,
+  "model_keys": {
+    "usgs": "existing Korea",
+    "korea": "general-text"
+  },
+  "o_case": {
+    "target_proposal_missing_before": true,
+    "target_proposal_present_after": true,
+    "text_region_count_before": 9,
+    "text_region_count_after": 13,
+    "absolute_target_proposal_bbox": [
+      136,
+      173,
+      160,
+      195
+    ],
+    "local_target_region_examined_pairs": 210,
+    "local_target_region_rejections": {
+      "arm_tangent_unavailable": 207,
+      "not_original_native_endpoints": 3
+    },
+    "retained_pairs": 0,
+    "branch_before_after": "observed_fallback",
+    "visible_f1_2px_before_after": 0.18,
+    "visible_p95_px_before_after": 8.932,
+    "visible_scoring_spec": "korea-general-text-failure-cases-v2.json derived rescore; QGIS executed frozen v1",
+    "hidden_curve_scored": false
+  },
+  "decision": "deferred_not_in_product: no saved-route benefit; baseline detector restored; source/test patch retained outside repository",
+  "source_evidence": {
+    "execution": "candidate-detector-only-v1-comparison/execution.json",
+    "o_result": "candidate-detector-only-v1-comparison/new-known/result.json",
+    "o_diagnostics": "candidate-detector-only-v1-comparison/new-known/decision-summary.json",
+    "o_scores": "candidate-detector-only-v1-comparison/new-known/derived-visible-reference-v2/scores.json"
+  },
+  "protected_split_accessed": false,
+  "human_approved": false,
+  "cpu_cost_measured": false,
+  "evidence_sha256": {
+    "execution": "eb97418c4e4a58166fd009dac0fc8215057ff24c79ee4b42823a538f70a1e599",
+    "o_result": "cb8e938d6d24d15acbeea755e473200d7ce7a5595c07e933982727e3aa5b723c",
+    "o_diagnostics": "3623dd16a48296093e5e9ad542c6be89302482cbe0eab28ec39baf7d4bc44238",
+    "o_scores": "4cc4b216bcfb634f40e33fec1a9563c536524f45e2483a2c3eb1894d78efb794"
+  }
+}

@@ -6,7 +6,7 @@ name=ArchaeoTrace
 qgisMinimumVersion=3.22
 qgisMaximumVersion=4.99
 description=Local-first contour tracing for historical maps with optional AI assistance and experimental DEM reconstruction.
-version=0.1.6
+version=0.1.7
 author=lzpxilfe(balguljang2)
 email=lzpxilfe@gmail.com
 
@@ -40,12 +40,13 @@ repository=https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology
 # End of mandatory metadata
 
 # Recommended items:
-changelog=0.1.6
-    - Added multi-scale, color-aware Ink Centerline v2 while preserving the 0.1.5 Ink fallback.
-    - Added optional Smart Recovery using a verified EfficientSAM-Ti corridor challenger; default OFF.
-    - Preserved Freehand and legacy methods, exact 0%% cursor tracing, QGIS edit-buffer Undo, and fail-closed Ink fallback.
-    - Hardened cancellable model repair, stale-task handling, deterministic packaging, and QGIS 3/4 runtime tests.
-    - Staged the first rights-verified USGS benchmark sheet and six draft crops without enabling rankings.
+changelog=0.1.7
+    - Added optional local learned contour guidance, annotation tools and guarded text-gap previews.
+    - Kept the existing Korea model and default-OFF learned guidance after the general-text experiment.
+    - Fixed checkpoint Undo dispatch during an active trace so layer Undo cannot delete the existing extended feature.
+    - Synchronized the DEM spot-height field with a preselected point layer on dialog creation.
+    - Improved raster reads for NoData and alpha-encoded pixels without turning missing coverage into dark ink.
+    - Added bounded opt-in routing diagnostics and documented experiment limits; experimental release candidate.
 hasProcessingProvider=no
 # Tags are comma separated with spaces allowed
 tags=AI, vectorization, contour, historical maps, archaeology, digitizing

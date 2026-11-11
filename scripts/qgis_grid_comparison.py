@@ -14,6 +14,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import sys
 
 # QGIS executes --code in its console globals, where __file__ can refer to
@@ -122,6 +123,7 @@ def merge_archive_comparisons(before, after):
         row["traces"] = merged_traces
     after["baseline_archive"] = before["archive"]
     after["baseline_archive_sha256"] = before["archive_sha256"]
+    after["baseline_archive_metadata_version"] = before.get("archive_metadata_version")
     after["baseline_qgis_exit_code"] = before["qgis_exit_code"]
     after["baseline_isolated_profile_removed_after_run"] = before.get("isolated_profile_removed_after_run")
     after["before_config"] = before["after_config"]
@@ -345,11 +347,20 @@ def run_comparison():
         QTimer.singleShot(0, QCoreApplication.quit)
 
 
+def _metadata_version_argument(value):
+    # Keep the metadata syntax contract used by package_release.VERSION_PATTERN.
+    if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[A-Za-z0-9._-]+)?", value) is None:
+        raise argparse.ArgumentTypeError("Expected a plugin metadata version, e.g. 0.1.6")
+    return value
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--zip", dest="archive", type=Path, required=True)
     parser.add_argument("--baseline-zip", type=Path,
                         help="Compare an earlier installed product ZIP at identical real mouse inputs; automatic labels stay enabled in both")
+    parser.add_argument("--baseline-expected-version", type=_metadata_version_argument,
+                        help="Exact metadata version required only for --baseline-zip; omission uses the current expected version")
     parser.add_argument("--fixtures", type=Path, required=True)
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--old-model", type=Path, required=True)
@@ -381,6 +392,8 @@ def main():
     parser.add_argument("--route-guard", action="store_true",
                         help="Diagnostic only: prefer Ink over learned candidates (known regressions)")
     args = parser.parse_args()
+    if args.baseline_expected_version and not args.baseline_zip:
+        parser.error("--baseline-expected-version requires --baseline-zip")
     if args.compare_label_gaps and args.compare_occluded_labels:
         parser.error("Choose one path-change comparison at a time")
     if args.baseline_zip and not args.compare_occluded_labels:
@@ -405,6 +418,7 @@ def main():
     if args.baseline_zip:
         baseline_args = argparse.Namespace(**vars(args))
         baseline_args.archive = args.baseline_zip
+        baseline_args.expected_version = args.baseline_expected_version or args.expected_version
         if args.profile_root is not None:
             baseline_args.profile_root = args.profile_root / "baseline"
             args.profile_root = args.profile_root / "current"

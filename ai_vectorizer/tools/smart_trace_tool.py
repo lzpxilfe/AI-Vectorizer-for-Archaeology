@@ -18,7 +18,7 @@ from qgis.core import (
     QgsVectorLayer, QgsField, QgsFieldConstraints, QgsApplication, QgsTask,
     QgsVectorLayerUtils, QgsRectangle, Qgis
 )
-from qgis.PyQt.QtCore import Qt, QTimer
+from qgis.PyQt.QtCore import Qt, QTimer, QEvent
 try:
     from qgis.PyQt.QtCore import QVariant
 except ImportError:  # PyQt6/QGIS 4
@@ -33,6 +33,7 @@ from ..core.dependencies import get_cv2, require_cv2
 from ..core.edge_detector import EdgeDetector, InkEvidenceCancelled
 from ..core.raster_utils import (
     compute_resampled_dimensions,
+    raster_has_native_grid,
     read_raster_bands,
     read_raster_bands_with_native,
     stable_integer_band_to_uint8,
@@ -4598,6 +4599,48 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         except Exception:
             return map_point
 
+    @staticmethod
+    def _is_checkpoint_undo_key(event):
+        modifiers = _qt_flag_int(event.modifiers())
+        if event.key() == _qt_value("Key_Backspace", "Key"):
+            return modifiers == 0
+        return (
+            event.key() == _qt_value("Key_Z", "Key")
+            and modifiers in (
+                _qt_flag_int(_qt_value("ControlModifier", "KeyboardModifier")),
+                _qt_flag_int(_qt_value("MetaModifier", "KeyboardModifier")),
+            )
+        )
+
+    def _set_trace_shortcut_filter(self, enabled):
+        # QGIS' QAction shortcuts run before map-tool keyPressEvent. Claim
+        # Undo only for this active canvas trace, including its first anchor.
+        try:
+            targets = (self.canvas, self.canvas.viewport())
+        except RuntimeError:
+            return
+        for widget in targets:
+            try:
+                widget.removeEventFilter(self)
+                if enabled:
+                    widget.installEventFilter(self)
+            except RuntimeError:
+                pass  # The canvas may already be destroyed during unload.
+
+    def eventFilter(self, watched, event):
+        shortcut_override = getattr(QEvent, "ShortcutOverride", None)
+        if shortcut_override is None:
+            shortcut_override = QEvent.Type.ShortcutOverride
+        if (event.type() == shortcut_override
+                and not getattr(self, "_disposed", False)
+                and getattr(self, "_is_active", False)
+                and self.is_tracing
+                and self.canvas.mapTool() is self
+                and self._is_checkpoint_undo_key(event)):
+            event.accept()
+            return True
+        return super().eventFilter(watched, event)
+
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts for undo and save."""
 
@@ -4658,10 +4701,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 event.ignore()
             return
 
-        is_checkpoint_undo = (
-            event.key() == _qt_value("Key_Z", "Key")
-            and _has_keyboard_modifier(event.modifiers(), "ControlModifier")
-        ) or event.key() == _qt_value("Key_Backspace", "Key")
+        is_checkpoint_undo = self._is_checkpoint_undo_key(event)
         if is_checkpoint_undo:
             if self.is_tracing:
                 if self._pending_livewire_accept_point is not None:
@@ -5238,6 +5278,40 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 "Ink evidence ready.",
             )
 
+    def _raster_has_native_grid(self):
+        """Rendered WMS pixels cannot attest native source-grid evidence."""
+        return raster_has_native_grid(self.raster_layer)
+
+    def _visible_raster_read_size(self, read_extent, raster_extent, canvas_extent=None):
+        """Keep native sampling unchanged, or bound rendered input by the view.
+
+        WMS/unknown-size sources have no source resolution. Request pixels at
+        the canvas resolution, scaled by the visible intersection in raster CRS,
+        and cap both axes with the same scale factor. This is a view-dependent
+        Ink v1 input, never source-grid evidence or a native Byte model tile.
+        """
+        if self._raster_has_native_grid():
+            return compute_resampled_dimensions(
+                raster_extent.width(), raster_extent.height(),
+                self.raster_layer.width(), self.raster_layer.height(),
+                read_extent.width(), read_extent.height(),
+                self.CACHE_MAX_DIMENSION, min_dimension=1,
+            )
+        if canvas_extent is None:
+            canvas_extent = self._canvas_extent_in_raster_crs()
+        if canvas_extent is None or canvas_extent.isEmpty():
+            return 1, 1
+        try:
+            size = self.canvas.mapSettings().outputSize()
+            canvas_width, canvas_height = size.width(), size.height()
+        except (AttributeError, RuntimeError, TypeError):
+            return 1, 1
+        return compute_resampled_dimensions(
+            canvas_extent.width(), canvas_extent.height(), canvas_width, canvas_height,
+            read_extent.width(), read_extent.height(), self.CACHE_MAX_DIMENSION,
+            min_dimension=1,
+        )
+
     def _ink_evidence_extent_and_origin(self, extent, raster_ext):
         """Read complete anchored source tiles and their detector halo.
 
@@ -5253,6 +5327,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
         visible = extent.intersect(raster_ext)
         if visible.isEmpty():
+            return visible, (0, 0)
+        if not self._raster_has_native_grid():
             return visible, (0, 0)
         source_width = max(1, int(self.raster_layer.width()))
         source_height = max(1, int(self.raster_layer.height()))
@@ -5322,6 +5398,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         when its halo-expanded source window itself fits the memory boundary.
         """
 
+        if not self._raster_has_native_grid():
+            return (
+                self._visible_raster_read_size(read_extent, raster_extent), False,
+                "Rendered raster has no native source grid; using bounded view-resolution Ink.",
+            )
         source_width = max(1, int(self.raster_layer.width()))
         source_height = max(1, int(self.raster_layer.height()))
         source_pixel_width = raster_extent.width() / source_width
@@ -5417,15 +5498,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 # remains the unexpanded visible extent with the historical
                 # resampling and per-block uint8 conversion.  The wider v2
                 # source context must never leak into a fallback result.
-                fallback_width, fallback_height = compute_resampled_dimensions(
-                    raster_ext.width(),
-                    raster_ext.height(),
-                    self.raster_layer.width(),
-                    self.raster_layer.height(),
-                    visible_ext.width(),
-                    visible_ext.height(),
-                    self.CACHE_MAX_DIMENSION,
-                    min_dimension=1,
+                fallback_width, fallback_height = self._visible_raster_read_size(
+                    visible_ext, raster_ext, extent,
                 )
                 if (
                     fallback_width < self.CACHE_MIN_DIMENSION
@@ -5561,15 +5635,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
             read_ext = visible_ext
             tile_origin = (0, 0)
-            out_w, out_h = compute_resampled_dimensions(
-                raster_ext.width(),
-                raster_ext.height(),
-                self.raster_layer.width(),
-                self.raster_layer.height(),
-                read_ext.width(),
-                read_ext.height(),
-                self.CACHE_MAX_DIMENSION,
-                min_dimension=1,
+            out_w, out_h = self._visible_raster_read_size(
+                read_ext, raster_ext, extent,
             )
             if out_w < self.CACHE_MIN_DIMENSION or out_h < self.CACHE_MIN_DIMENSION:
                 self._clear_edge_cache()
@@ -6002,6 +6069,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         if getattr(self, "_disposed", False):
             return
         self._disposed = True
+        self._set_trace_shortcut_filter(False)
         self._edge_cache_timer.stop()
         self._proposal_timer.stop()
         self._cancel_ink_evidence_task()
@@ -6039,6 +6107,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
     def activate(self):
         """Called when tool is activated."""
         self._is_active = True
+        self._set_trace_shortcut_filter(True)
         self._refresh_crs_transforms()
         self._set_coordinate_crs_listeners(True)
         self._set_source_lifecycle_listeners(True)
@@ -6055,11 +6124,16 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         # Flip the activity gate before cancelling tasks so a finished()
         # callback queued in the same event-loop turn cannot republish.
         self._is_active = False
+        self._set_trace_shortcut_filter(False)
         self._edge_cache_timer.stop()
         self._proposal_timer.stop()
         self._set_extent_cache_listener(False)
         self._set_coordinate_crs_listeners(False)
         self._set_source_lifecycle_listeners(False)
+        if getattr(self, "_disposed", False):
+            # QGIS may deactivate a tool after dispose removed its canvas bands.
+            super().deactivate()
+            return
 
         self.reset_tracing()
         self._clear_edge_cache()

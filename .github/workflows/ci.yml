@@ -310,6 +310,8 @@ jobs:
           export PYTHONPATH="$GITHUB_WORKSPACE${PYTHONPATH:+:$PYTHONPATH}"
           python3 - <<'PY'
           import tests.test_qgis_runtime_safety as runtime_suite
+          import tests.test_dem_dialog_qgis as dem_suite
+          import tests.test_raster_qgis as raster_suite
           import tests.test_manual_gap_qgis as bridge_suite
           import tests.test_ink_color_qgis as color_suite
           import tests.test_learned_qgis as learned_suite
@@ -318,9 +320,11 @@ jobs:
           import tests.test_label_gap_qgis as label_gap_suite
           import tests.test_confirmed_gap_qgis as confirmed_gap_suite
           import tests.test_occluded_connection_qgis as occluded_suite
-          if not runtime_suite.HAS_QGIS or not bridge_suite.HAS_QGIS or not color_suite.HAS_QGIS or not learned_suite.HAS_QGIS or not grid_suite.HAS_QGIS or not observed_suite.HAS_QGIS or not label_gap_suite.HAS_QGIS or not confirmed_gap_suite.HAS_QGIS or not occluded_suite.HAS_QGIS:
+          if not dem_suite.HAS_QGIS or not raster_suite.HAS_QGIS or not runtime_suite.HAS_QGIS or not bridge_suite.HAS_QGIS or not color_suite.HAS_QGIS or not learned_suite.HAS_QGIS or not grid_suite.HAS_QGIS or not observed_suite.HAS_QGIS or not label_gap_suite.HAS_QGIS or not confirmed_gap_suite.HAS_QGIS or not occluded_suite.HAS_QGIS:
               raise SystemExit("QGIS bindings/API imports were skipped in the QGIS job")
           PY
+          python3 -m unittest tests.test_dem_dialog_qgis -v
+          python3 -m unittest tests.test_raster_qgis -v
           python3 -m unittest tests.test_qgis_runtime_safety -v
           python3 -m unittest tests.test_manual_gap_qgis -v
           python3 -m unittest tests.test_ink_color_qgis -v

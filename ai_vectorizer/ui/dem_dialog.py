@@ -25,6 +25,7 @@ from qgis.core import (
     QgsMapLayerProxyModel,
     QgsProject,
     QgsRasterLayer,
+    QgsRectangle,
 )
 from qgis.gui import QgsFieldComboBox, QgsMapLayerComboBox
 
@@ -135,6 +136,7 @@ class DemBuildDialog(QDialog):
         input_form.addRow(self.spot_label, self.spot_combo)
 
         self.spot_field = QgsFieldComboBox()
+        self.spot_field.setAllowEmptyFieldName(True)
         self.spot_field.setFilters(
             _proxy_filter(QgsFieldProxyModel, "Numeric", "Numeric", "FieldFilter")
         )
@@ -197,6 +199,10 @@ class DemBuildDialog(QDialog):
         self.contour_combo.layerChanged.connect(self._on_contour_changed)
         self.spot_combo.layerChanged.connect(self._on_spot_changed)
         self.pixel_size.valueChanged.connect(self._on_pixel_size_changed)
+
+        # A layer combo can already have selected a project point layer before
+        # these signals are connected. Bind its fields on first opening too.
+        self._on_spot_changed(self.spot_combo.currentLayer())
 
         self.apply_language()
 
@@ -334,8 +340,13 @@ class DemBuildDialog(QDialog):
 
     def _on_spot_changed(self, layer):
         self.spot_field.setLayer(layer)
+        # A numeric id is not an elevation. Only the known schema gets an
+        # automatic choice; other schemas require an explicit field selection.
+        self.spot_field.setField("")
         if layer is not None and layer.fields().indexOf(FIELD_ELEVATION) >= 0:
             self.spot_field.setField(FIELD_ELEVATION)
+        self.spot_field.setEnabled(layer is not None and not self.runner.is_running)
+        self._update_grid_summary()
 
     def _on_pixel_size_changed(self, _value):
         self._user_changed_pixel_size = True
@@ -343,15 +354,34 @@ class DemBuildDialog(QDialog):
 
     def _update_grid_summary(self):
         layer = self.contour_combo.currentLayer()
-        if layer is None or layer.extent().isEmpty():
+        if layer is None or not layer.isValid():
+            self.grid_summary.setText(self._tr("입력 범위 없음", "No input extent"))
+            self._grid_is_valid = False
+            self._refresh_build_enabled()
+            return
+        extent = QgsRectangle(layer.extent())
+        spot_layer = self.spot_combo.currentLayer()
+        if spot_layer is not None:
+            if spot_layer.crs() != layer.crs():
+                self.grid_summary.setText(self._tr(
+                    "등고선과 표고점의 좌표계가 같아야 합니다.",
+                    "Contour and spot-height layers must use the same CRS.",
+                ))
+                self._grid_is_valid = False
+                self._refresh_build_enabled()
+                return
+            # Match build_dem_request, including a single point whose own
+            # rectangle has zero width/height. No reprojection is implied.
+            extent.combineExtentWith(spot_layer.extent())
+        if extent.isEmpty():
             self.grid_summary.setText(self._tr("입력 범위 없음", "No input extent"))
             self._grid_is_valid = False
             self._refresh_build_enabled()
             return
         try:
             grid = estimate_grid(
-                layer.extent().width(),
-                layer.extent().height(),
+                extent.width(),
+                extent.height(),
                 self.pixel_size.value(),
             )
             self.grid_summary.setText(
@@ -466,6 +496,7 @@ class DemBuildDialog(QDialog):
             widget.setEnabled(not running)
         self.cancel_button.setEnabled(running)
         self.close_button.setEnabled(not running)
+        self.spot_field.setEnabled(not running and self.spot_combo.currentLayer() is not None)
         if not running:
             self._refresh_build_enabled()
 

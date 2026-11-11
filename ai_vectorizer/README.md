@@ -13,15 +13,15 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
 ## 🚧 Current Source Status
 
 - 공식 QGIS 저장소의 최신 공개판은 experimental `0.1.6`(2026-09-09)입니다.
-  현재 `main`은 그 이후의 학습 등고선 보조·주석 도구·문자 공백 연결을 포함한
-  `0.1.7` 작업분이며, metadata 숫자는 release 준비 때 올립니다.
-- 공식 `0.1.5` artifact와 Ink v1 fallback은 보존합니다. 현재 `0.1.6` UI와 사용법은
-  이 문서가 source of truth이며, 정확한 후보 ZIP·commit·CI 범위는 repository의
-  `docs/RELEASE_READINESS_0.1.6.md`에 기록합니다.
-- QGIS `3.22–4.99`와 Python `3.8+` source 호환성을 대상으로 합니다. 로컬 검증은
-  Python 3.8/3.10/3.12와 macOS QGIS 3.44.8에서 수행했습니다. 원격 CI의 QGIS
-  3.22.16/3.44.13/4.2.1 package import·runtime safety와 Linux/Windows 결정적 ZIP도
-  통과했습니다.
+  현재 소스와 ZIP metadata는 **미공개 `0.1.7` experimental 후보**입니다.
+  학습 등고선 보조·주석·문자 공백 기능과 추적 Undo·DEM 필드 선택·래스터 읽기 수정을
+  포함합니다. 학습 모델의 기본 OFF 설정과 기존 Korea 모델은 유지합니다.
+- 후보 ZIP·source commit·실행 검사와 남은 범위는
+  [0.1.7 검증 기록](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/docs/RELEASE_READINESS_0.1.7.md)에 있습니다.
+  기존 0.1.6 공개와 동결 후보의 기록은 그대로 보존합니다.
+- QGIS `3.22–4.99`와 Python `3.8+` source 호환성을 대상으로 합니다. 이전 버전에서
+  통과한 CI·로컬 검사는 현재 후보의 검증 결과와 구분합니다. 현재 후보의 실행 환경과
+  정확한 검사 범위는 위 검증 기록을 확인하세요.
 - 기본 UI는 `Freehand`, 다중 스케일 `Ink Centerline`, 기본 OFF의
   `Smart Recovery (Experimental)`입니다. LSD, HED, MobileSAM, SAM (ViT-B),
   Legacy Canny와 기존 model index 0–5는 접힌 Advanced 영역에 보존됩니다.
@@ -29,16 +29,18 @@ hillshade까지 만드는 QGIS 플러그인입니다. 지도와 추적 결과를
   사용하며 model 미설치·오류·취소 시 Ink 경로를 그대로 유지합니다.
 - `학습 등고선 보조 / Learned contour guide`는 Advanced의 기본 OFF 실험 기능입니다.
   로컬 ONNX 모델을 사용하며, 준비된 USGS 16개 도엽·144개 크롭은 아직 사람이 검수할
-  초안입니다. 실제 지도 학습·Holdout 평가는 완료되지 않았고, 합성 자료 검증용
-  모델은 등고선 학습 모델이나 실제 지도 정확도 근거가 아닙니다.
+  초안입니다. 별도 약한 라벨 Colab 학습과 QGIS 비교는 완료했지만 일반 글자 새 모델의
+  경로 개선은 확인되지 않았습니다. 사람 검수 정확도·공식 Holdout 평가는 남아 있습니다.
+  합성 자료 검증용 모델도 실제 지도 정확도 근거가 아닙니다.
   별도 기계 라벨 실험 모델은 `human_review_required=true`로 기록되며 사람 검수
   Calibration/Holdout 평가와 합격 모델 승격에 사용할 수 없습니다.
-- 지도와 추적 처리는 로컬에서 수행됩니다. model 다운로드는 network를 사용합니다.
+- 지도와 추적 처리는 로컬에서 수행됩니다. 선택한 WMS/WMTS 지도 읽기와 model
+  다운로드는 network를 사용합니다.
   SAM Check/Status는 유효한 local checkpoint가 있으면 size와 SHA-256을 offline
   확인하고, 파일이 없을 때만 고정 source의 availability를 조회합니다.
-- 예전에 Git의 개발용 `0.1.7`·`0.1.8` 표시가 붙은 ZIP을 직접 설치했다면 QGIS가
-  `0.1.6`을 자동 update로 보지 않을 수 있습니다. 기존 plugin을 제거한 뒤 `0.1.6` ZIP을 설치하세요.
-  profile에 저장된 검증 model은 plugin 폴더 밖에 유지됩니다.
+- 예전에 개발용 `0.1.7`·`0.1.8` 표시가 붙은 ZIP을 직접 설치했다면 자동 update로
+  현재 후보를 구분하지 못할 수 있습니다. 설치할 ZIP의 metadata·해시를 확인하고
+  필요한 경우 기존 plugin을 제거한 뒤 설치하세요. profile의 모델은 plugin 폴더 밖에 유지됩니다.
 
 ## 🎯 What You Can Do
 
@@ -224,8 +226,8 @@ Hermite preview를 만듭니다. 큰 U자는 양쪽의 부호 있는 실선 방�
 OpenCV는 검증한 4.8–4.11 범위로 제한하지만 이 제한만으로 QGIS의 공유
 NumPy ABI가 고정되지는 않습니다. 설치 전에 pip의 변경 계획을 확인하세요.
 
-QGIS 3.22/Python 3.8은 기본 ZIP 경로의 source·무의존성 계약 대상입니다. `0.1.6`
-후보는 QGIS 3.22.16/3.44.13/4.2.1에서 exact package import·runtime-safety CI를
+QGIS 3.22/Python 3.8은 기본 ZIP 경로의 source·무의존성 계약 대상입니다. `0.1.7`
+후보는 지원 QGIS matrix의 exact package import·runtime-safety CI를
 통과해야 하며 결과는 repository의 release-readiness 기록에 결속합니다. 이 검증은
 이미 게시된 공식 0.1.5 ZIP을 소급해 증명하지 않습니다. Python 3.8은 EOL이며 최신 보안
 수정이 적용된 Pillow/pytest
@@ -348,17 +350,22 @@ first use.
 
 - 비어 있지 않은 geometry, finite 숫자형 고도, 서로 다른 두 개 이상의 고도값, 비공선 vertex 3개 이상, 미터 단위 투영 CRS가 필요합니다.
 - 편집을 저장한 후 실행하세요. 임시 `Spot Heights`도 사용할 수 있지만 point geometry와 등고선과 동일한 CRS가 필요하며, 재현을 위해 파일 레이어로 저장하는 것을 권장합니다.
+- DEM 창에서 등고선 레이어의 숫자형 고도 필드를 선택합니다. 표고점을 추가하려면
+  점 레이어를 고르고 해당 레이어의 숫자형 고도 필드를 확인하세요. `None`이면 표고점은
+  선택 사항으로 제외합니다. 창을 열 때 점 레이어가 이미 선택돼 있어도 그 레이어의
+  필드 목록이 즉시 표시됩니다. 표고점의 고도와 등고선의 고도는 같은 단위를 사용하세요.
 - QGIS Processing에서 `qgis:tininterpolation`, `gdal:translate`, `native:rasterlayerstatistics`, `gdal:hillshade` 알고리즘이 사용 가능해야 합니다.
 - 출력은 기본 2,500만 셀까지 허용하고, 기존 파일은 확인 후에만 덮어씁니다.
 - TIN의 범위 밖·입력 누락 구간은 추정 한계로 남습니다. 결과는 자동 확정값이 아니라 검토할 수 있는 지형 가설입니다.
 
 ## ⌨️ Shortcuts
 
-- 트레이싱 중 `Ctrl+Z` / `Backspace`: 마지막 체크포인트로 되돌리기
+- 지도 캔버스에서 트레이싱 중 `Ctrl+Z` / `Cmd+Z` / `Backspace`: 마지막 체크포인트로
+  되돌리기. 첫 앵커에서는 그대로 멈추며 연장 중인 기존 선을 삭제하지 않습니다.
 - Ink 추적 중 `Alt`+두 번 클릭: 문자·기호·얼룩 회피 영역. `Alt+Backspace`: 마지막
   영역 제거, `Alt+Shift+Backspace`: 모든 영역 제거
 - Ink 추적 시작 후 유색 선 위에서 `C`: 선 색상 지정. `Shift+C`: 색상 해제
-- 저장 후 `Ctrl+Z`: QGIS 편집 스택에서 방금 추가·연장한 작업 되돌리기
+- 추적을 마친 뒤 `Ctrl+Z` / `Cmd+Z`: QGIS 편집 스택에서 방금 추가·연장한 작업 되돌리기
 - `Esc` / `Delete`: 현재 트레이싱 취소
 - `Enter` / 우클릭: 현재 선 저장
 
@@ -371,7 +378,11 @@ first use.
 - MobileSAM/SAM 최신 확인 또는 다운로드가 실패함
   네트워크 또는 `requests` 미설치 문제일 수 있습니다. 필요 시 수동 다운로드 경로를 사용하세요. HED 다운로드는 `requests`와 무관합니다.
 - 엣지 미리보기에 아무것도 보이지 않음
-  래스터 범위 안으로 확대하고, 다른 모델로도 비교해보세요.
+  먼저 QGIS 캔버스에서 선택한 지도 자체가 보이는지, 읽을 수 있는 축척·범위인지
+  확인하세요. WMS/WMTS의 투명·NoData 영역은 배경으로 처리하며 그 부분에는 추적할
+  선이 없습니다. 원본 픽셀 격자가 없는 서비스는 화면 크기의 기본 Ink 읽기를 사용하고
+  native-grid 학습 보조·Recovery는 사용할 수 없습니다. 서비스 인증·응답·선택 레이어
+  문제까지 이 수정으로 해결된다고 보장하지 않습니다.
 - 선택 model 기능이 안 되는 환경임
   유효한 raster와 2D line output이 있으면 추가 pip·model 없이 `Freehand`를 사용할
   수 있습니다.
@@ -380,7 +391,8 @@ first use.
   ONNX·ONNX Runtime·SciPy, north-up 3밴드 Byte RGB 지도가 필요합니다. 파일 손상,
   모델 형식 오류나 지원하지 않는 래스터에서도 기존 Ink로 추적할 수 있습니다.
 - DEM 실행 전 차단됨
-  편집·고도·비공선 vertex·투영 CRS·Processing provider를 확인하세요. 덮어쓸 출력이 QGIS에 로드되어 있다면 먼저 제거해야 합니다.
+  등고선·표고점 각각의 숫자형 고도 필드, 저장된 편집, 비공선 vertex, 미터 단위 투영
+  CRS와 Processing provider를 확인하세요. 덮어쓸 출력이 QGIS에 로드되어 있다면 먼저 제거해야 합니다.
 
 ## 🧩 Repository Note
 
@@ -391,7 +403,7 @@ first use.
 ## 🇬🇧 English Summary
 
 - ArchaeoTrace is a local-first QGIS plugin for tracing elevation contours on historical maps and building reviewable terrain hypotheses.
-- The QGIS repository published experimental `0.1.6` on 2026-09-09. This guide also describes the learned-contour, annotation and text-gap additions on `main` that are being prepared for `0.1.7`.
+- The QGIS repository published experimental `0.1.6` on 2026-09-09. Current source and metadata identify an unpublished experimental `0.1.7` candidate. Its verification record distinguishes completed tests from remaining checks.
 - Cursor movement performs only a predecessor lookup after one asynchronous tree build per accepted anchor; the green line is the exact one-click result.
 - Assist is literal from 0% (exact cursor, no model work), through coordinate blending, to 100% (the full Live-Wire route).
 - `Freehand` needs no additional pip package, external model, or OpenCV, but uses NumPy from the QGIS Python environment.
@@ -435,7 +447,8 @@ first use.
   cost is max-composed with avoid guidance and shared with Recovery. Panning
   reapplies it, while finishing/cancelling/reset clears it. Samples stay local
   and session-only; same-color text remains ambiguous and performance is unvalidated.
-- Trace additions and extensions stay in QGIS' edit buffer; one Undo reverts each operation, and `Save Layer Edits` commits it.
+- While tracing on the map canvas, Ctrl+Z/Cmd+Z or plain Backspace removes the last checkpoint, stopping at the first anchor and preserving the existing feature being extended. Once tracing is idle, normal QGIS Undo is restored. Trace additions and extensions stay in the edit buffer; `Save Layer Edits` commits them.
+- Transparent and NoData pixels are treated as background. WMS/WMTS sources without a fixed source pixel grid use a bounded viewport Ink cache; native-grid learned guidance and Recovery remain unavailable. Server authentication, responses and the user's specific project still need separate diagnosis.
 - `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
 - Smart Recovery is an experimental, default-OFF EfficientSAM-Ti corridor prior.
   It never replaces a failed run with another backend and always preserves the Ink champion.
@@ -455,10 +468,8 @@ first use.
   open evaluation contour and declare standard/hard difficulty before training.
   Attach the exported JSON to a new versioned manifest with the separate
   [learning CLI](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/learning/README.md).
-- The 144 USGS pilot crops are unreviewed drafts. Actual contour training and
-  holdout evaluation are pending; synthetic diagnostic weights establish no
-  real-map accuracy or Korean-map generalization.
-- The DEM workflow requires saved elevation contours in a projected metre CRS; its output is a reviewable hypothesis, not an archaeological ground truth.
+- The 144 USGS pilot crops remain unreviewed drafts. Separate weak-label Colab runs and QGIS comparisons completed, but general-text retraining showed no improved saved routes. Human-reviewed accuracy and formal Holdout evaluation remain pending.
+- The DEM workflow requires saved elevation contours in a projected metre CRS. Select each contour/optional spot layer's numeric elevation field and use the same elevation units. A preselected spot layer populates its fields when the dialog opens; choosing None excludes the optional points. The output is a terrain hypothesis to review.
 
 ## 📚 Citation
 

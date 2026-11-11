@@ -58,7 +58,7 @@ from qgis.PyQt.QtGui import QColor
 
 from ..core.dependencies import get_cv2_error_text, get_opencv_install_command, is_cv2_available
 from ..core.livewire import is_livewire_available
-from ..core.raster_utils import compute_resampled_dimensions, read_raster_bands
+from ..core.raster_utils import compute_resampled_dimensions, raster_has_native_grid, read_raster_bands
 from ..core.dem_pipeline import (
     layer_file_path as _layer_file_path,
     project_layers_using_path as _project_layers_using_path,
@@ -2975,16 +2975,21 @@ class AIVectorizerDock(QDockWidget):
                 QMessageBox.warning(self, self._tr("경고", "Warning"), self._tr("래스터 범위 밖입니다.", "Current view is outside raster extent."))
                 return
 
-            out_w, out_h = compute_resampled_dimensions(
-                raster_ext.width(),
-                raster_ext.height(),
-                raster.width(),
-                raster.height(),
-                read_ext.width(),
-                read_ext.height(),
-                PREVIEW_EDGE_MAX_DIMENSION,
-                min_dimension=1,
-            )
+            if raster_has_native_grid(raster):
+                out_w, out_h = compute_resampled_dimensions(
+                    raster_ext.width(), raster_ext.height(), raster.width(), raster.height(),
+                    read_ext.width(), read_ext.height(), PREVIEW_EDGE_MAX_DIMENSION,
+                    min_dimension=1,
+                )
+            else:
+                # WMS/unknown-size rasters are rendered views, not one-pixel
+                # native rasters. Use the same bounded canvas sampling as Ink.
+                size = self.iface.mapCanvas().mapSettings().outputSize()
+                out_w, out_h = compute_resampled_dimensions(
+                    extent.width(), extent.height(), size.width(), size.height(),
+                    read_ext.width(), read_ext.height(), PREVIEW_EDGE_MAX_DIMENSION,
+                    min_dimension=1,
+                )
             bands = read_raster_bands(
                 provider,
                 read_ext,

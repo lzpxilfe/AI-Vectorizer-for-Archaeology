@@ -33,6 +33,8 @@ QGIS_DATA_TYPE_TO_DTYPE = {
     "Float64": np.float64,
 }
 
+PACKED_COLOR_DATA_TYPES = {"ARGB32", "ARGB32_Premultiplied"}
+
 UNSUPPORTED_QGIS_DATA_TYPES = {
     "UnknownDataType",
     "ARGB32",
@@ -84,380 +86,348 @@ def _positive_integral_value(value):
     return int(numeric)
 
 
-def _raster_nodata_mask(block, array):
-    """Return the block's NoData pixels without importing QGIS."""
-    has_nodata_value = False
-    if hasattr(block, "hasNoDataValue"):
+def _raster_nodata_mask(block, array, source_nodata_value=None):
+    """Combine provider sentinels and the block bitmap without importing QGIS."""
+    mask = np.zeros(array.shape, dtype=bool)
+    values = [source_nodata_value]
+    block_nodata = None
+    block_nodata_present = False
+    if hasattr(block, "hasNoDataValue") and hasattr(block, "noDataValue"):
         try:
-            has_nodata_value = bool(block.hasNoDataValue())
-        except Exception:
-            has_nodata_value = False
-
-    if has_nodata_value and hasattr(block, "noDataValue"):
-        try:
-            nodata_value = block.noDataValue()
-            if np.isnan(nodata_value):
-                return np.isnan(array)
-            return array == nodata_value
-        except (TypeError, ValueError, OverflowError):
-            pass
-        # Unsupported provider NoData APIs fall back safely.
+            if block.hasNoDataValue():
+                block_nodata = block.noDataValue()
+                values.append(block_nodata)
+                block_nodata_present = True
         except Exception:  # nosec B110
             pass
-
-    has_nodata = False
-    if hasattr(block, "hasNoData"):
+    for value in values:
+        if value is None:
+            continue
         try:
-            has_nodata = bool(block.hasNoData())
-        except Exception:
-            has_nodata = False
+            mask |= np.isnan(array) if np.isnan(value) else array == value
+        except (TypeError, ValueError, OverflowError):
+            continue
+    if (block_nodata_present and type(block).__name__ == "QgsRasterBlock"
+            and type(block).__module__ == "qgis._core"):
+        # QgsRasterBlock::isNoData() uses the sentinel instead of its bitmap
+        # when hasNoDataValue() is true (qgsrasterblock.h). Vectorize the same
+        # qgsDoubleNear epsilon without crossing the SIP boundary per pixel.
+        # Other duck-typed blocks may combine both mechanisms and still take
+        # the bitmap path below; concrete QGIS bitmap-only blocks do too.
+        try:
+            with np.errstate(invalid="ignore", over="ignore"):
+                difference = array.astype(np.float64) - float(block_nodata)
+                mask |= np.isnan(array) | (np.abs(difference) <= 4 * np.finfo(np.float64).eps)
+            return mask
+        except (TypeError, ValueError, OverflowError):
+            pass
+    try:
+        has_nodata = bool(block.hasNoData()) if hasattr(block, "hasNoData") else False
+    except Exception:
+        has_nodata = False
     if not has_nodata or not hasattr(block, "isNoData"):
-        return np.zeros(array.shape, dtype=bool)
-
+        return mask
     pixel_count = int(array.size)
     try:
-        flat_mask = np.fromiter(
-            (bool(block.isNoData(index)) for index in range(pixel_count)),
-            dtype=bool,
-            count=pixel_count,
-        )
+        flat = np.fromiter((bool(block.isNoData(i)) for i in range(pixel_count)),
+                           dtype=bool, count=pixel_count)
     except TypeError:
         height, width = array.shape
         try:
-            flat_mask = np.fromiter(
-                (
-                    bool(block.isNoData(row, column))
-                    for row in range(height)
-                    for column in range(width)
-                ),
-                dtype=bool,
-                count=pixel_count,
-            )
+            flat = np.fromiter((bool(block.isNoData(y, x))
+                                for y in range(height) for x in range(width)),
+                               dtype=bool, count=pixel_count)
         except Exception:
             return None
     except Exception:
         return None
-    return flat_mask.reshape(array.shape)
+    return mask | flat.reshape(array.shape)
 
 
-def raster_block_to_uint8(block, width, height, data_type=None):
-    """Convert a QgsRasterBlock payload to a normalized uint8 array."""
+def _raster_block_array(block, width, height, data_type=None, *, packed=False):
+    """Decode only a bounded, exactly sized block; no raster interpretation."""
     width = _positive_integral_value(width)
     height = _positive_integral_value(height)
-    if width is None or height is None:
+    if width is None or height is None or width * height > MAX_RASTER_BLOCK_PIXELS:
         return None
-    pixel_count = width * height
-    if pixel_count > MAX_RASTER_BLOCK_PIXELS:
-        return None
-
+    count = width * height
     try:
-        valid = block is not None and bool(block.isValid())
-    except Exception:
-        return None
-    if not valid:
-        return None
-
-    try:
+        if block is None or not block.isValid():
+            return None
         payload = block.data()
-        payload_size = len(payload)
+        size = len(payload)
     except Exception:
         return None
-    if (
-        payload_size <= 0
-        or payload_size > MAX_RASTER_BLOCK_BYTES
-        or payload_size > pixel_count * MAX_RASTER_BYTES_PER_VALUE
-        or payload_size % pixel_count != 0
-    ):
+    if (size <= 0 or size > MAX_RASTER_BLOCK_BYTES
+            or size > count * MAX_RASTER_BYTES_PER_VALUE or size % count):
         return None
-
-    bytes_per_value = payload_size // pixel_count
     if data_type is None and hasattr(block, "dataType"):
         try:
             data_type = block.dataType()
         except Exception:
             data_type = None
-
-    dtype = _resolve_numpy_dtype(data_type, bytes_per_value)
-    if dtype is None:
-        return None
-
+    name = _data_type_name(data_type)
+    if packed:
+        if name not in PACKED_COLOR_DATA_TYPES or size != count * 4:
+            return None
+        dtype = np.uint32  # QRgb is the native-endian integer 0xAARRGGBB.
+    else:
+        dtype = _resolve_numpy_dtype(data_type, size // count)
+        if dtype is None:
+            return None
     try:
         raw = bytes(payload)
     except Exception:
         return None
-    if len(raw) != payload_size:
+    if len(raw) != size:
         return None
+    return np.frombuffer(raw, dtype=dtype, count=count).reshape(height, width)
 
-    array = np.frombuffer(raw, dtype=dtype, count=pixel_count)
-    if array.size != pixel_count:
-        return None
 
-    array = array.reshape((height, width))
-    nodata_mask = _raster_nodata_mask(block, array)
-    if nodata_mask is None:
-        return None
+def _display_array(array, nodata_mask):
+    """Normalize valid values only; missing pixels always represent white paper."""
+    valid = np.isfinite(array) & ~nodata_mask
     if array.dtype == np.uint8:
         result = array.copy()
-        if nodata_mask.any():
-            valid_values = result[~nodata_mask]
-            if valid_values.size == 0:
-                return np.zeros((height, width), dtype=np.uint8)
-            result[nodata_mask] = np.uint8(np.median(valid_values))
+        result[~valid] = 255
         return result
-
-    # Float64 avoids discarding otherwise valid high-dynamic-range provider
-    # values before normalization.
-    array = array.astype(np.float64, copy=False)
-
-    valid_mask = np.isfinite(array) & ~nodata_mask
-    if not valid_mask.any():
-        return np.zeros((height, width), dtype=np.uint8)
-
-    if not valid_mask.all():
-        fill_value = float(np.median(array[valid_mask]))
-        array = np.where(valid_mask, array, fill_value)
-
-    min_value = float(array[valid_mask].min())
-    max_value = float(array[valid_mask].max())
-    if max_value <= min_value:
-        return np.zeros((height, width), dtype=np.uint8)
-
-    midpoint = min_value / 2.0 + max_value / 2.0
-    half_range = max_value / 2.0 - min_value / 2.0
+    if not valid.any():
+        return np.full(array.shape, 255, dtype=np.uint8)
+    values = array.astype(np.float64, copy=False)
+    low, high = float(values[valid].min()), float(values[valid].max())
+    if high <= low:
+        # Preserve the legacy zero-contrast mapping for the observed values.
+        # A black float line against NaN/NoData still needs white missing
+        # pixels; whitening the entire constant-valid block would erase it.
+        return np.where(valid, 0, 255).astype(np.uint8)
+    values = np.where(valid, values, low)
+    midpoint, half_range = low / 2.0 + high / 2.0, high / 2.0 - low / 2.0
     if math.isfinite(half_range) and half_range > 0:
-        normalized = ((array - midpoint) / half_range + 1.0) * 127.5
+        normalized = ((values - midpoint) / half_range + 1.0) * 127.5
     else:
-        value_range = max_value - min_value
-        if not math.isfinite(value_range) or value_range <= 0:
-            return np.zeros((height, width), dtype=np.uint8)
-        normalized = ((array - min_value) / value_range) * 255.0
-    normalized = np.clip(normalized, 0, 255)
-    return normalized.astype(np.uint8)
+        span = high - low
+        if not math.isfinite(span) or span <= 0:
+            return np.full(array.shape, 255, dtype=np.uint8)
+        normalized = ((values - low) / span) * 255.0
+    result = np.clip(normalized, 0, 255).astype(np.uint8)
+    result[~valid] = 255
+    return result
 
 
-def raster_block_to_native_array(block, width, height, data_type=None):
-    """Return one bounded raster block without view-dependent stretching.
+def _native_array(array, nodata_mask):
+    result = array.copy()
+    if np.issubdtype(result.dtype, np.integer):
+        result[nodata_mask] = np.iinfo(result.dtype).max
+    else:
+        # Unknown float ranges cannot provide fixed white-paper DNs. Keep
+        # missing values explicit; the reader never attests these as stable Ink.
+        result[~np.isfinite(result) | nodata_mask] = np.nan
+    return np.ascontiguousarray(result)
 
-    This is an opt-in Ink v2 boundary.  The long-standing
-    :func:`raster_block_to_uint8` contract deliberately keeps its per-block
-    display stretch for legacy callers.  Integer source values retain their
-    dtype here so source-grid morphology sees identical DNs after pan/zoom.
-    Floating rasters are returned for diagnostics, but callers must not claim
-    pan-stable v2 evidence without an external, fixed source range.
+
+def raster_block_to_uint8(block, width, height, data_type=None, *, source_nodata_value=None):
+    """Return a bounded display band, with NoData/NaN composited as white paper."""
+    array = _raster_block_array(block, width, height, data_type)
+    if array is None:
+        return None
+    mask = _raster_nodata_mask(block, array, source_nodata_value)
+    return None if mask is None else _display_array(array, mask)
+
+
+def raster_block_to_native_array(block, width, height, data_type=None, *, source_nodata_value=None):
+    """Preserve native DNs; use fixed bright integer NoData and explicit float NaN.
+
+    Integer DNs retain pan-stable semantics. Floating arrays remain diagnostic
+    data only; they cannot attest a stable Ink or native Byte learning boundary.
+    Packed rendered colors use the separate display-only RGB reader.
     """
+    array = _raster_block_array(block, width, height, data_type)
+    if array is None:
+        return None
+    mask = _raster_nodata_mask(block, array, source_nodata_value)
+    return None if mask is None else _native_array(array, mask)
 
-    width = _positive_integral_value(width)
-    height = _positive_integral_value(height)
-    if width is None or height is None:
-        return None
-    pixel_count = width * height
-    if pixel_count > MAX_RASTER_BLOCK_PIXELS:
-        return None
 
-    try:
-        valid = block is not None and bool(block.isValid())
-    except Exception:
-        return None
-    if not valid:
-        return None
+def raster_block_to_rgb_uint8(block, width, height, data_type=None):
+    """Composite QGIS ARGB/ARGB-premultiplied rendered pixels over white paper.
 
-    try:
-        payload = block.data()
-        payload_size = len(payload)
-    except Exception:
-        return None
-    if (
-        payload_size <= 0
-        or payload_size > MAX_RASTER_BLOCK_BYTES
-        or payload_size > pixel_count * MAX_RASTER_BYTES_PER_VALUE
-        or payload_size % pixel_count != 0
-    ):
-        return None
-
-    bytes_per_value = payload_size // pixel_count
-    if data_type is None and hasattr(block, "dataType"):
+    This is display RGB, never proof of three native Byte source bands.
+    Opaque channels are copied exactly; alpha-zero hidden colors cannot create
+    dark ink. Premultiplied values already contain alpha and are not multiplied
+    a second time.
+    """
+    if data_type is None:
         try:
             data_type = block.dataType()
         except Exception:
-            data_type = None
-    dtype = _resolve_numpy_dtype(data_type, bytes_per_value)
-    if dtype is None:
+            return None
+    packed = _raster_block_array(block, width, height, data_type, packed=True)
+    if packed is None:
         return None
-
-    try:
-        raw = bytes(payload)
-    except Exception:
+    mask = _raster_nodata_mask(block, packed)
+    if mask is None:
         return None
-    if len(raw) != payload_size:
-        return None
-    array = np.frombuffer(raw, dtype=dtype, count=pixel_count)
-    if array.size != pixel_count:
-        return None
-    array = array.reshape((height, width))
-    nodata_mask = _raster_nodata_mask(block, array)
-    if nodata_mask is None:
-        return None
-
-    if np.issubdtype(array.dtype, np.integer):
-        result = array.copy()
-        if nodata_mask.any():
-            # A block median would reintroduce pan dependence through NoData.
-            # The dtype maximum is a fixed, conservative paper-bright value:
-            # it cannot invent a dark Ink stroke at a missing source pixel.
-            result[nodata_mask] = np.iinfo(result.dtype).max
-        return np.ascontiguousarray(result)
-
-    result = array.astype(array.dtype, copy=True)
-    valid_mask = np.isfinite(result) & ~nodata_mask
-    if not valid_mask.any():
-        return np.zeros((height, width), dtype=result.dtype)
-    if not valid_mask.all():
-        result[~valid_mask] = np.asarray(
-            np.median(result[valid_mask]),
-            dtype=result.dtype,
-        )
-    return np.ascontiguousarray(result)
+    alpha = (packed >> 24).astype(np.uint16)
+    rgb = np.empty((*packed.shape, 3), dtype=np.uint8)
+    premultiplied = _data_type_name(data_type) == "ARGB32_Premultiplied"
+    for channel, shift in enumerate((16, 8, 0)):
+        value = ((packed >> shift) & 255).astype(np.uint16)
+        if premultiplied:
+            composite = np.minimum(value + (255 - alpha), 255)
+        else:
+            composite = (value * alpha + 255 * (255 - alpha) + 127) // 255
+        rgb[..., channel] = composite.astype(np.uint8)
+    rgb[mask] = 255
+    return rgb
 
 
 def stable_integer_band_to_uint8(values):
     """Map integer source DNs to uint8 using only the dtype's fixed range."""
-
     array = np.asarray(values)
     if not np.issubdtype(array.dtype, np.integer):
         raise TypeError("stable Ink display conversion requires an integer array")
     limits = np.iinfo(array.dtype)
     if limits.max <= limits.min:
-        return np.zeros(array.shape, dtype=np.uint8)
-    normalized = (
-        (array.astype(np.float64, copy=False) - float(limits.min))
-        * (255.0 / (float(limits.max) - float(limits.min)))
-    )
-    return np.ascontiguousarray(
-        np.clip(normalized, 0.0, 255.0).astype(np.uint8)
-    )
+        return np.full(array.shape, 255, dtype=np.uint8)
+    normalized = ((array.astype(np.float64, copy=False) - float(limits.min))
+                  * (255.0 / (float(limits.max) - float(limits.min))))
+    return np.ascontiguousarray(np.clip(normalized, 0.0, 255.0).astype(np.uint8))
+
+
+def _provider_data_type(provider, band):
+    try:
+        return provider.dataType(band)
+    except Exception:
+        return None
+
+
+def _provider_source_nodata(provider, band):
+    try:
+        # Respect an explicit user decision to disable the source sentinel.
+        if hasattr(provider, "useSourceNoDataValue") and not provider.useSourceNoDataValue(band):
+            return None
+        if provider.sourceHasNoDataValue(band):
+            return provider.sourceNoDataValue(band)
+    except Exception:  # nosec B110
+        pass
+    return None
+
+
+def _provider_is_alpha(provider, band):
+    try:
+        value = provider.colorInterpretation(band)
+        name = _data_type_name(value)
+        # QGIS QgsRaster.AlphaBand is 6, including older integer enum bindings.
+        return name == "AlphaBand" or (name == "6" and int(value) == 6)
+    except Exception:
+        return False
+
+
+def _provider_block(provider, band, extent, width, height, data_type):
+    name = _data_type_name(data_type)
+    if name in UNSUPPORTED_QGIS_DATA_TYPES and name not in PACKED_COLOR_DATA_TYPES:
+        return None
+    dtype = QGIS_DATA_TYPE_TO_DTYPE.get(name)
+    size = 4 if name in PACKED_COLOR_DATA_TYPES else np.dtype(dtype).itemsize if dtype is not None else 8
+    if width * height * size > MAX_RASTER_BLOCK_BYTES:
+        return None
+    try:
+        return provider.block(band, extent, width, height)
+    except Exception:
+        return None
 
 
 def read_raster_bands_with_native(provider, extent, width, height, max_bands=3):
-    """Read legacy-display and native arrays from each provider block once.
+    """Read bounded display/native bands once; honor explicit transparency.
 
-    Returns ``(display_bands, native_bands, native_integer_stable)``.  Display
-    bands preserve :func:`read_raster_bands` semantics for the frozen Ink v1
-    fallback.  ``native_integer_stable`` is true only when every selected band
-    retained an integer source dtype suitable for pan-stable Ink v2 evidence.
+    Unmodified integer sources can attest stable native Ink DNs. Packed ARGB
+    and explicit alpha-band composites return display RGB only and stable=False;
+    they must not silently enter native Byte model or source-grid evidence paths.
+    An undeclared fourth band is never assumed to be alpha.
     """
-
-    display_bands = []
-    native_bands = []
-    width = _positive_integral_value(width)
-    height = _positive_integral_value(height)
-    requested_bands = _positive_integral_value(max_bands)
-    if width is None or height is None or requested_bands is None:
-        return display_bands, native_bands, False
-    if width * height > MAX_RASTER_BLOCK_PIXELS:
-        return display_bands, native_bands, False
+    width, height = _positive_integral_value(width), _positive_integral_value(height)
+    requested = _positive_integral_value(max_bands)
+    if width is None or height is None or requested is None or width * height > MAX_RASTER_BLOCK_PIXELS:
+        return [], [], False
     try:
-        available_bands = _positive_integral_value(provider.bandCount())
+        available = _positive_integral_value(provider.bandCount())
     except Exception:
-        return display_bands, native_bands, False
-    if available_bands is None:
-        return display_bands, native_bands, False
-
-    stable = True
-    band_limit = min(requested_bands, available_bands, 256)
-    for band_number in range(1, band_limit + 1):
-        data_type = None
-        if hasattr(provider, "dataType"):
+        return [], [], False
+    if available is None:
+        return [], [], False
+    all_bands = range(1, min(available, 256) + 1)
+    alpha_bands = [band for band in all_bands if _provider_is_alpha(provider, band)]
+    if len(alpha_bands) > 1:
+        return [], [], False
+    selected = [band for band in all_bands if band not in alpha_bands][:min(requested, 256)]
+    display, native = [], []
+    missing = np.zeros((height, width), dtype=bool)
+    for band in selected:
+        data_type = _provider_data_type(provider, band)
+        block = _provider_block(provider, band, extent, width, height, data_type)
+        if data_type is None and block is not None:
             try:
-                data_type = provider.dataType(band_number)
-            except Exception:
-                data_type = None
-        data_type_name = _data_type_name(data_type)
-        if data_type_name in UNSUPPORTED_QGIS_DATA_TYPES:
+                data_type = block.dataType()
+            except Exception:  # nosec B110
+                pass
+        if _data_type_name(data_type) in PACKED_COLOR_DATA_TYPES:
+            rgb = raster_block_to_rgb_uint8(block, width, height, data_type)
+            if rgb is None or len(selected) != 1 or alpha_bands:
+                return [], [], False
+            return [rgb[..., i].copy() for i in range(min(3, requested))], [], False
+        raw = _raster_block_array(block, width, height, data_type)
+        if raw is None:
             continue
-        known_dtype = QGIS_DATA_TYPE_TO_DTYPE.get(data_type_name)
-        bytes_per_value = (
-            np.dtype(known_dtype).itemsize
-            if known_dtype is not None
-            else MAX_RASTER_BYTES_PER_VALUE
-        )
-        if width * height * bytes_per_value > MAX_RASTER_BLOCK_BYTES:
+        nodata = _raster_nodata_mask(block, raw, _provider_source_nodata(provider, band))
+        if nodata is None:
             continue
-        # A provider-specific band failure is isolated; remaining bands can
-        # still supply a stable display/native pair.
-        try:
-            block = provider.block(band_number, extent, width, height)
-        except Exception:  # nosec B112
-            continue
-        display = raster_block_to_uint8(
-            block,
-            width,
-            height,
-            data_type=data_type,
-        )
-        if display is None:
-            continue
-        native = raster_block_to_native_array(
-            block,
-            width,
-            height,
-            data_type=data_type,
-        )
-        display_bands.append(display)
-        if native is None:
-            stable = False
-            continue
-        native_bands.append(native)
-        stable = stable and np.issubdtype(native.dtype, np.integer)
-
-    if len(native_bands) != len(display_bands):
-        stable = False
-    return display_bands, native_bands, bool(display_bands) and stable
+        missing |= nodata | ~np.isfinite(raw)
+        display.append(_display_array(raw, nodata))
+        native.append(_native_array(raw, nodata))
+    if not display:
+        return [], [], False
+    # A missing RGB pixel must not become a false colored stroke through the
+    # other valid channels. Opaque pixels without NoData remain byte-exact.
+    for shown, source in zip(display, native):
+        shown[missing] = 255
+        source[missing] = np.iinfo(source.dtype).max if np.issubdtype(source.dtype, np.integer) else np.nan
+    if alpha_bands:
+        alpha_band = alpha_bands[0]
+        dtype = _provider_data_type(provider, alpha_band)
+        block = _provider_block(provider, alpha_band, extent, width, height, dtype)
+        raw = _raster_block_array(block, width, height, dtype)
+        if raw is None or not np.issubdtype(raw.dtype, np.unsignedinteger):
+            return [], [], False
+        invalid = _raster_nodata_mask(block, raw, _provider_source_nodata(provider, alpha_band))
+        if invalid is None:
+            return [], [], False
+        alpha = np.rint(raw.astype(np.float64) * (255.0 / float(np.iinfo(raw.dtype).max))).astype(np.uint16)
+        alpha[invalid] = 0
+        display = [((shown.astype(np.uint16) * alpha + 255 * (255 - alpha) + 127) // 255).astype(np.uint8)
+                   for shown in display]
+        return display, [], False
+    stable = all(np.issubdtype(band.dtype, np.integer) for band in native)
+    return display, native, stable
 
 
 def read_raster_bands(provider, extent, width, height, max_bands=3):
-    """Read up to max_bands raster bands as uint8 arrays."""
-    bands = []
-    width = _positive_integral_value(width)
-    height = _positive_integral_value(height)
-    requested_bands = _positive_integral_value(max_bands)
-    if width is None or height is None or requested_bands is None:
-        return bands
-    if width * height > MAX_RASTER_BLOCK_PIXELS:
-        return bands
+    """Read up to max_bands display channels with white-paper transparency."""
+    return read_raster_bands_with_native(provider, extent, width, height, max_bands)[0]
+
+
+def raster_has_native_grid(raster_layer):
+    """Duck-typed source-grid check shared by tracing and edge preview reads."""
     try:
-        available_bands = _positive_integral_value(provider.bandCount())
-    except Exception:
-        return bands
-    if available_bands is None:
-        return bands
-    band_limit = min(requested_bands, available_bands, 256)
-    for band_number in range(1, band_limit + 1):
-        data_type = None
-        if hasattr(provider, "dataType"):
-            try:
-                data_type = provider.dataType(band_number)
-            except Exception:
-                data_type = None
-        data_type_name = _data_type_name(data_type)
-        if data_type_name in UNSUPPORTED_QGIS_DATA_TYPES:
-            continue
-        known_dtype = QGIS_DATA_TYPE_TO_DTYPE.get(data_type_name)
-        bytes_per_value = (
-            np.dtype(known_dtype).itemsize
-            if known_dtype is not None
-            else MAX_RASTER_BYTES_PER_VALUE
-        )
-        if width * height * bytes_per_value > MAX_RASTER_BLOCK_BYTES:
-            continue
-        try:
-            block = provider.block(band_number, extent, width, height)
-        # A failed optional band is intentionally skipped.
-        except Exception:  # nosec B112
-            continue
-        band = raster_block_to_uint8(block, width, height, data_type=data_type)
-        if band is not None:
-            bands.append(band)
-    return bands
+        provider_type = str(raster_layer.providerType()).lower()
+    except (AttributeError, RuntimeError, TypeError):
+        provider_type = ""
+    if provider_type == "wms":
+        return False
+    try:
+        dimensions = (float(raster_layer.width()), float(raster_layer.height()))
+        return all(math.isfinite(value) and value > 0 and value.is_integer() for value in dimensions)
+    except (AttributeError, RuntimeError, TypeError, ValueError, OverflowError):
+        return False
 
 
 def compute_resampled_dimensions(

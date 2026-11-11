@@ -1,0 +1,139 @@
+{
+  "schema_version": "archaeotrace-release-validation/1",
+  "candidate_version": "0.1.7",
+  "validation_date": "2026-11-11",
+  "reconciled_date": "2026-11-12",
+  "archive_sha256": "a3f4eebf07b51febf3a6f9eeddc2213764c9fda407617611f1811bfbae72ba28",
+  "archive_bytes": 2098014,
+  "archive_entries": 52,
+  "pure_python": {
+    "passed": 1246,
+    "skipped": 180,
+    "subtests_passed": 171
+  },
+  "actual_qgis": {
+    "version": "3.44.8-Solothurn",
+    "runtime_tests": 198,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "modules": [
+      "test_qgis_runtime_safety",
+      "test_manual_gap_qgis",
+      "test_ink_color_qgis",
+      "test_learned_qgis",
+      "test_map_grid_qgis",
+      "test_observed_connection_qgis",
+      "test_label_gap_qgis",
+      "test_confirmed_gap_qgis",
+      "test_occluded_connection_qgis",
+      "test_annotation_qgis",
+      "test_annotation_ui_qgis",
+      "test_dem_dialog_qgis",
+      "test_raster_qgis"
+    ],
+    "source_hashes": {
+      "test_qgis_runtime_safety": "db3b3b95e9ea0ea75785442ed2054c7ac6d033995e53c9dc4f9f7a3fba97e6d0",
+      "test_manual_gap_qgis": "af12d41d11b163a52c58a3d8d05e29bb34d0ce01a9ff0c800f7a7bac2549ccb6",
+      "test_ink_color_qgis": "822839dbe5f83588e321047b6b90cd498d8cc92069dcf2a5a372bef7db4d84a4",
+      "test_learned_qgis": "a4955d6eac48ccd2ee01d3ef4b354fceb859bb473c1af7eabfd5a6f6635dd8b9",
+      "test_map_grid_qgis": "9bc1390c97941503ac7507b960c2d7dd450f83ebbf749b2ec770c3dbe38ebc75",
+      "test_observed_connection_qgis": "f3eaecc63da8c7d66ce441d82c0b244245bd0ae7a2b470ce82625011a7517483",
+      "test_label_gap_qgis": "dc8cbdc4d25c443ce6d0fcbd3ec18ccc8fe798357bf35b4244606214f7b83caa",
+      "test_confirmed_gap_qgis": "872541cb0d561c394889760b6471a329b365d0aed17f43b81eda1d8ea82c143e",
+      "test_occluded_connection_qgis": "4e49d58eb5da7fcf896b8cce79ec34659ab63f22cbf8f03d05c626ef19628907",
+      "test_annotation_qgis": "7ebe002803ef4eb7de2d73b4e02b86ae79f921a8d54c3a639b1e22fb0bbfd09a",
+      "test_annotation_ui_qgis": "c425250791e170e3c17401824ac44f92c1856312ed84969a3e3d1f824d9007e0",
+      "test_dem_dialog_qgis": "b8817afeb99c6f48520f6d3fba59583367c62b6918f0e7a36c3ebec397f76b35",
+      "test_raster_qgis": "bd8ac2cac033cd4b594055df6d63496575ef7d313d0d2d8a4eb33c93d8883dd4"
+    },
+    "clean_profile_plugin_loader_ok": true,
+    "clean_profile_removed": true,
+    "temporary_runtime_profile_removed": true
+  },
+  "comparison": {
+    "baseline_archive_sha256": "ff67ba92b015211e0c49ad5a4a0758440442758943a8b8e9dee900d4857a87ae",
+    "cases": 23,
+    "paired_saved_routes_identical": 69,
+    "historical_baseline_reproduced": true,
+    "cohorts": [
+      {
+        "cohort": "new-known",
+        "case_count": 5,
+        "historical_baseline_reproduced": true,
+        "same_route_count": 15,
+        "route_changes": [],
+        "result_sha256": "9d229db36dfa03c5766882e95310a0a29f351479ab7d99a670219130589e4f2f",
+        "scores_sha256": "f5bb0f644d312d4102254bb207dc2ea044c181f01ed546da754c88ea26adfb5f"
+      },
+      {
+        "cohort": "new-extra",
+        "case_count": 1,
+        "historical_baseline_reproduced": true,
+        "same_route_count": 3,
+        "route_changes": [],
+        "result_sha256": "2f2bfc55083a1a35d2c526c897ce22ef3b9591c7cf18564320485624f9e591ee",
+        "scores_sha256": "9b99a286aa560f2bf6f6dfff864f9dc02239bacf4dd15dca152cf4a47bdeb807"
+      },
+      {
+        "cohort": "blue",
+        "case_count": 2,
+        "historical_baseline_reproduced": true,
+        "same_route_count": 6,
+        "route_changes": [],
+        "result_sha256": "500ffd97b7f5ee51bedda657d5ccb90f8bf8236515ef53d2818fbd488a2a2b4d",
+        "scores_sha256": "f0dd3e56a477a32f2929931f5b669ed010c9dacb553dafbe3939ce32a26426b7"
+      },
+      {
+        "cohort": "black",
+        "case_count": 2,
+        "historical_baseline_reproduced": true,
+        "same_route_count": 6,
+        "route_changes": [],
+        "result_sha256": "021dbcf505ce96a0525795cc01e3c3e5420ad7bc68bbd9052c8d6f9bb9142ff4",
+        "scores_sha256": "af4cc0699eedd62ce90adea66df38a97e73ade5cd81620d5e2cac542db0a882e"
+      },
+      {
+        "cohort": "old7",
+        "case_count": 7,
+        "historical_baseline_reproduced": true,
+        "same_route_count": 21,
+        "route_changes": [],
+        "result_sha256": "553d0d5f76ec70d98f8a5343b37a71dd2911f75a40f0653b284e2627c29af866",
+        "scores_sha256": "18494e345541dfaab8169f5f8df0120be251ae402ddf2c7a8463857e82b47a6f"
+      },
+      {
+        "cohort": "old5",
+        "case_count": 5,
+        "historical_baseline_reproduced": true,
+        "same_route_count": 15,
+        "route_changes": [],
+        "result_sha256": "02d79fd1eabb7195fd08efb0c4679d4f7ccc818cbe4c12693a869898377ceba8",
+        "scores_sha256": "b380e115fd3200a2c638940ea6cae241a7917dc90b501c800140201f446597e9"
+      },
+      {
+        "cohort": "old300",
+        "case_count": 1,
+        "historical_baseline_reproduced": true,
+        "same_route_count": 3,
+        "route_changes": [],
+        "result_sha256": "6aaaa92409883c9eff9ceed6e4ac6fda4b634d486545a659e9c439eb9253a534",
+        "scores_sha256": "af51a36ed77208d899980c9820413cbbfc302f6ad8fff8642324bd35201d0771"
+      }
+    ],
+    "temporary_model_directory_removed": true,
+    "protected_split_accessed": false
+  },
+  "limits": [
+    "Synthetic WMS-shaped provider and actual QGIS/GDAL block tests; no live user WMS server or original DEM project reproduced.",
+    "O word-group experiment deferred; routing guards and model remain unchanged.",
+    "Bitmap-only NoData uses per-pixel provider API; no general tracing-speed or accuracy improvement claimed."
+  ],
+  "evidence_sha256": {
+    "integrated-pure-tests.log": "f10f7e48aa53fba70a7561ebb50afba5d174c359c0af7c20277eeacee2a6ff58",
+    "integrated-0.1.7-runtime/execution.json": "305e99f152fe6db7124944c7c477bb8bd471a8c75799f00bee047fe5b7fd9f13",
+    "integrated-0.1.7-runtime/qgis-runtime.log": "5b4c6cd0f373ccbba665918aac9e53f7a14b149b6441033950fdc1f37bbef930",
+    "integrated-0.1.7-runtime/qgis-clean-profile.log": "efe5f7f91eedd046a48dd90fe67a5e08ead84c090e57ef4ac0db637fd6694533",
+    "integrated-0.1.7-comparison/execution.json": "ecb193082c9f01e7ce8b02b4580318a0a00340c4f50149c8e9bc8c69e31a9a2c"
+  }
+}

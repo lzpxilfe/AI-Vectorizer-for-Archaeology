@@ -319,3 +319,60 @@ def test_product_zip_comparison_rejects_missing_actual_mouse_input(comparison):
     del before["cases"][0]["traces"]["ink_before"]["input_map_xy"]
     with pytest.raises(ValueError, match="recorded real mouse inputs"):
         comparison.merge_archive_comparisons(before, after)
+
+
+@pytest.mark.parametrize("baseline_version", [None, "9.7.6"])
+def test_product_comparison_checks_each_archive_expected_version_separately(
+        comparison, tmp_path, monkeypatch, baseline_version):
+    import sys
+
+    fixture, _ = _cohort(tmp_path)
+    output = tmp_path / "comparison.json"
+    argv = ["qgis_grid_comparison", "--zip", str(tmp_path / "current.zip"),
+            "--baseline-zip", str(tmp_path / "baseline.zip"),
+            "--fixtures", str(fixture), "--dataset", str(tmp_path),
+            "--old-model", str(tmp_path / "old-model"), "--new-model", str(tmp_path / "new-model"),
+            "--learned-dependencies", str(tmp_path / "deps"), "--output", str(output),
+            "--grid-in-both", "--compare-occluded-labels"]
+    if baseline_version is not None:
+        argv += ["--baseline-expected-version", baseline_version]
+    monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.setattr(comparison.smoke, "DEFAULT_EXPECTED_VERSION", "9.8.7")
+    monkeypatch.setenv(comparison.SPEC_ENV, "original")
+    monkeypatch.setenv(comparison.SCRIPT_ENV, "original")
+    calls = []
+
+    def launch(args, *, bootstrap_script):
+        spec = json.loads(comparison.os.environ[comparison.SPEC_ENV])
+        calls.append((args.archive.name, args.expected_version, spec["single_phase"]))
+        result = _archive_comparison(spec["single_phase"])
+        result["archive_metadata_version"] = args.expected_version
+        return result
+
+    monkeypatch.setattr(comparison.smoke, "run_outer", launch)
+    monkeypatch.setattr(comparison, "score_and_render", lambda *_args: None)
+    comparison.main()
+    assert calls == [("baseline.zip", baseline_version or "9.8.7", "before"),
+                     ("current.zip", "9.8.7", "after")]
+    result = json.loads(output.read_text())
+    assert result["baseline_archive_sha256"] == "before-sha"
+    assert result["baseline_archive_metadata_version"] == (baseline_version or "9.8.7")
+    assert result["archive_metadata_version"] == "9.8.7"
+
+
+@pytest.mark.parametrize("version", ["", "v0.1.6", "0.1", "0.1.6 ", "0.1.6/path", "0.1.6\n"])
+def test_baseline_version_rejects_malformed_metadata_syntax(comparison, version):
+    import argparse
+    with pytest.raises(argparse.ArgumentTypeError):
+        comparison._metadata_version_argument(version)
+
+
+def test_baseline_version_requires_an_explicit_baseline_archive(comparison, tmp_path, monkeypatch):
+    import sys
+    monkeypatch.setattr(sys, "argv", ["qgis_grid_comparison", "--zip", "candidate.zip",
+        "--fixtures", "cases.json", "--dataset", str(tmp_path), "--old-model", "old",
+        "--new-model", "new", "--learned-dependencies", "deps", "--output", "result.json",
+        "--baseline-expected-version", "9.7.6"])
+    with pytest.raises(SystemExit) as error:
+        comparison.main()
+    assert error.value.code == 2

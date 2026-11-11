@@ -98,9 +98,11 @@ Human-approved annotations remain zero; formal Calibration/Holdout evaluation is
 ## 🚧 Status and limitations
 
 - The plugin is experimental. The latest release in the official QGIS plugin
-  repository is `0.1.6` (published 2026-09-09), and `main` is preparing `0.1.7`
-  with the learned contour guide and text-gap bridging. See the
-  [CHANGELOG](CHANGELOG.md).
+  repository is `0.1.6` (published 2026-09-09). Current source is an **unpublished
+  `0.1.7` experimental candidate**, addressing active-trace Undo, initial DEM
+  spot-field selection and transparent/NoData raster reads. Learned guidance stays
+  default OFF. See the [CHANGELOG](CHANGELOG.md) and
+  [candidate verification record](docs/RELEASE_READINESS_0.1.7.md).
 - Accuracy against human-reviewed reference lines and time savings for users are
   **still being evaluated**. Progress is recorded in
   [benchmarks](benchmarks/README.md) and [learning](learning/README.md).
@@ -112,8 +114,8 @@ Human-approved annotations remain zero; formal Calibration/Holdout evaluation is
 ## 🔒 Data and privacy
 
 Maps, traced geometry and inference results never leave your computer, and there is
-no telemetry. The network is used only when you explicitly download an AI model,
-and downloaded models are verified against a fixed size and SHA-256. See
+no telemetry. Network access reads a WMS/WMTS map you selected or downloads an
+AI model you requested. Downloaded models are verified against a fixed size and SHA-256. See
 [SECURITY](SECURITY.md) for details.
 
 ## 📚 Further reading

@@ -1739,6 +1739,102 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
         self.assertEqual(layer.fields().indexOf("elevation"), -1)
         self.assertEqual(layer.featureCount(), 0)
 
+    def test_global_undo_shortcut_cannot_delete_feature_during_extension(self):
+        from qgis.PyQt.QtWidgets import QLineEdit
+        from qgis.PyQt.QtGui import QKeySequence
+        from qgis.PyQt.QtTest import QTest
+        try:
+            from qgis.PyQt.QtGui import QAction
+        except ImportError:
+            from qgis.PyQt.QtWidgets import QAction
+        from ai_vectorizer.tools.smart_trace_tool import _qt_value
+
+        layer = QgsVectorLayer("LineString?crs=EPSG:3857", "contours", "memory")
+        tool = self._tool(layer)
+        original = QgsGeometry.fromPolylineXY([QgsPointXY(0, 0), QgsPointXY(10, 0)])
+        self.assertTrue(tool.save_geometry(original, elevation=12.0))
+        feature = next(layer.getFeatures())
+        saved = bytes(feature.geometry().asWkb())
+        undo_index = layer.undoStack().index()
+        window = QMainWindow()
+        window.setCentralWidget(self.canvas)
+        action = QAction("Layer undo", window)
+        action.setShortcut(QKeySequence("Ctrl+Z"))
+        window.addAction(action)
+        action.triggered.connect(layer.undoStack().undo)
+        try:
+            self.canvas.setMapTool(tool)
+            tool.is_tracing = True
+            tool.resume_feature_id = feature.id()
+            tool._resume_geometry_wkb = saved
+            tool.path_points = [QgsPointXY(10, 0), QgsPointXY(15, 1), QgsPointXY(20, 2)]
+            tool.checkpoints = [0, 1, 2]
+            window.resize(300, 240)
+            window.show()
+            window.activateWindow()
+            self.canvas.setFocus()
+            QgsApplication.processEvents()
+            for expected_points in (2, 1, 1):
+                QTest.keyClick(self.canvas, _qt_value("Key_Z", "Key"),
+                               _qt_value("ControlModifier", "KeyboardModifier"))
+                QgsApplication.processEvents()
+                self.assertEqual(layer.featureCount(), 1)
+                self.assertEqual(bytes(layer.getFeature(feature.id()).geometry().asWkb()), saved)
+                self.assertEqual(layer.undoStack().index(), undo_index)
+                self.assertEqual(len(tool.path_points), expected_points)
+            # Typing elsewhere keeps the widget's own Undo while a trace is active.
+            toolbar = QToolBar(window)
+            window.addToolBar(toolbar)
+            field = QLineEdit(toolbar)
+            toolbar.addWidget(field)
+            field.setText("height")
+            field.insert(" change")
+            field.setFocus()
+            QgsApplication.processEvents()
+            QTest.keyClick(field, _qt_value("Key_Z", "Key"),
+                           _qt_value("ControlModifier", "KeyboardModifier"))
+            self.assertEqual(field.text(), "height")
+            self.assertEqual(layer.featureCount(), 1)
+            self.assertEqual(len(tool.path_points), 1)
+            self.canvas.setFocus()
+            QgsApplication.processEvents()
+            # Returning to idle restores the normal QGIS shortcut.
+            tool.reset_tracing()
+            QTest.keyClick(self.canvas, _qt_value("Key_Z", "Key"),
+                           _qt_value("ControlModifier", "KeyboardModifier"))
+            QgsApplication.processEvents()
+            self.assertEqual(layer.featureCount(), 0)
+        finally:
+            self.canvas.unsetMapTool(tool)
+            tool.dispose()
+            window.takeCentralWidget()
+            window.close()
+
+    def test_trace_shortcut_filter_releases_on_deactivate_and_dispose(self):
+        from qgis.PyQt.QtCore import QEvent
+        from qgis.PyQt.QtGui import QKeyEvent
+        from ai_vectorizer.tools.smart_trace_tool import _qt_value
+        event_type = getattr(QEvent, "ShortcutOverride", None)
+        if event_type is None:
+            event_type = QEvent.Type.ShortcutOverride
+        def claimed(canvas):
+            event = QKeyEvent(event_type, _qt_value("Key_Z", "Key"),
+                              _qt_value("ControlModifier", "KeyboardModifier"))
+            event.ignore()
+            QgsApplication.sendEvent(canvas, event)
+            return event.isAccepted()
+        for lifecycle in ("deactivate", "dispose"):
+            with self.subTest(lifecycle=lifecycle):
+                layer = QgsVectorLayer("LineString?crs=EPSG:3857", "contours", "memory")
+                tool = self._tool(layer)
+                self.canvas.setMapTool(tool)
+                tool.is_tracing = True
+                self.assertTrue(claimed(self.canvas))
+                getattr(tool, lifecycle)()
+                self.assertFalse(claimed(self.canvas))
+                self.canvas.unsetMapTool(tool)
+                tool.dispose()
+
     def test_idle_ctrl_z_is_delegated_to_qgis_edit_stack(self):
         from ai_vectorizer.tools.smart_trace_tool import _qt_value
 
