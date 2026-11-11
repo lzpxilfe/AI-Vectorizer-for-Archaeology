@@ -31,6 +31,15 @@
 
 ## 검증과 산출물
 
+후속 CI에서 Linux QGIS 3.22/3.44의 영어 문구가 360px 폭을 21px 넘는 문제를
+확인했다. 긴 문구를 여러 줄로 표시하고 복구·색상 버튼을 세로로 배치했다.
+Fusion 18px 글꼴과 HED/MobileSAM/SAM 설치 필요 상태도 확인한다.
+QGIS 4의 레이어 선택 직후 준비 상태 실패는 이벤트 처리 전후의 선택값과 상태를
+분리 기록해 진단한다. 이 단계의 새 산출물은
+`ai_vectorizer-0.1.7-review-v2-2026-11-12.zip`
+(`854edccee92134d2ca1683c766c7a220a95bd45ed3c48ae309d681fb1638508c`)이며
+최종 호환성 검사는 진행 중이다. 아래 수치는 그 전 재검토 ZIP의 완료 기록이다.
+
 후속 후보는 `ai_vectorizer-0.1.7-review-2026-11-12.zip`이며 SHA-256은
 `f368c9c5c631b1cc39d030434c7a73157edaf4c8422e5a6132a8e20fb9665e8e`이다.
 metadata는 `0.1.7`, `experimental=True`를 유지한다.

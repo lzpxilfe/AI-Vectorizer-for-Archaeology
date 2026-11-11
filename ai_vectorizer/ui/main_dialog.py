@@ -657,8 +657,8 @@ class AIVectorizerDock(QDockWidget):
             return self._tr("⬇️ 모델 다운로드", "⬇️ Download Model")
         model_name = self._mode_name(idx)
         size_hint = self._sam_size_hint_mb(idx)
-        size_text_ko = f" (~{size_hint}MB)" if size_hint else ""
-        size_text_en = f" (~{size_hint}MB)" if size_hint else ""
+        size_text_ko = f"\n(~{size_hint}MB)" if size_hint else ""
+        size_text_en = f"\n(~{size_hint}MB)" if size_hint else ""
         return self._tr(
             f"⬇️ {model_name} 다운로드{size_text_ko}",
             f"⬇️ Download {model_name}{size_text_en}",
@@ -1579,7 +1579,7 @@ class AIVectorizerDock(QDockWidget):
         self.recovery_status.setWordWrap(True)
         step3_layout.addWidget(self.recovery_status)
 
-        recovery_actions = QHBoxLayout()
+        recovery_actions = QVBoxLayout()
         self.recovery_install_btn = QPushButton()
         self.recovery_install_btn.clicked.connect(self.install_recovery_model)
         self.recovery_install_btn.setVisible(False)
@@ -1595,7 +1595,7 @@ class AIVectorizerDock(QDockWidget):
         step3_layout.addLayout(recovery_actions)
         step3_layout.addWidget(self.manual_gap_bridge_btn)
 
-        ink_color_actions = QHBoxLayout()
+        ink_color_actions = QVBoxLayout()
         self.ink_color_sample_btn = QPushButton()
         self.ink_color_sample_btn.clicked.connect(self.sample_ink_color)
         self.ink_color_sample_btn.setEnabled(False)
@@ -1814,10 +1814,12 @@ class AIVectorizerDock(QDockWidget):
                 "🖋 The default Ink Centerline works without a learned model.",
             )
         )
+        # Native checkboxes do not word-wrap. Keep qualifiers visible on their
+        # own line so platform fonts do not force the dock wider than the map.
         self.smart_recovery_check.setText(
             self._tr(
-                "🛟 Smart Recovery (실험적)",
-                "🛟 Smart Recovery (Experimental)",
+                "🛟 Smart Recovery\n(실험적)",
+                "🛟 Smart Recovery\n(Experimental)",
             )
         )
         self.smart_recovery_check.setToolTip(
@@ -1827,8 +1829,8 @@ class AIVectorizerDock(QDockWidget):
             )
         )
         self.learned_guide_check.setText(self._tr(
-            "학습 등고선 보조 (실험적)",
-            "Learned guide (Experimental)",
+            "학습 등고선 보조\n(실험적)",
+            "Learned guide\n(Experimental)",
         ))
         self.learned_guide_check.setToolTip(self._tr(
             "기본은 꺼짐입니다. 검증된 로컬 모델로 Ink 경로를 보조합니다. 초록 미리보기를 확인한 뒤 채택하세요.",
@@ -1872,8 +1874,8 @@ class AIVectorizerDock(QDockWidget):
         )
         self.manual_gap_bridge_btn.setText(
             self._tr(
-                "⤴ 라벨 공백 연결 (G, 실험적)",
-                "⤴ Bridge label gap (G, Experimental)",
+                "⤴ 라벨 공백 연결 (G)\n(실험적)",
+                "⤴ Bridge label gap (G)\n(Experimental)",
             )
         )
         self.manual_gap_bridge_btn.setToolTip(
@@ -1905,11 +1907,11 @@ class AIVectorizerDock(QDockWidget):
         self.recovery_runtime_cmd.setText(RECOVERY_RUNTIME_INSTALL_COMMAND)
         self.advanced_check.setText(
             self._tr(
-                "▸ Advanced: 기존 추적 모델",
-                "▸ Advanced: legacy tracing models",
+                "▸ Advanced\n추적 방식",
+                "▸ Advanced\nTracing modes",
             )
         )
-        self.advanced_group.setTitle(self._tr("고급 모델 선택", "Advanced model selection"))
+        self.advanced_group.setTitle(self._tr("고급 설정", "Advanced settings"))
         self.model_desc_label.setText(self._tr(
             "선택한 방식에 따라 추가 모델과 실행 환경이 필요합니다.",
             "Some tracing modes require an additional model and runtime.",
@@ -2049,7 +2051,7 @@ class AIVectorizerDock(QDockWidget):
         self.help_btn.setText(self._tr("❓ 도움말", "❓ Help"))
         self.help_btn.setToolTip(self._tr("사용법과 문제해결 안내", "Usage guide and troubleshooting"))
 
-        self.auto_path_check.setText(self._tr("Auto Path (실험적)", "Auto Path (Experimental)"))
+        self.auto_path_check.setText(self._tr("Auto Path\n(실험적)", "Auto Path\n(Experimental)"))
         self.auto_path_check.setToolTip(
             self._tr(
                 "Ink/LSD/HED/Legacy Canny에서는 커서를 따라 표시되는 전체 Live-Wire 경로를 클릭 한 번으로 채택합니다. SAM은 커서를 잠시 멈춘 뒤 표시되며 같은 위치를 다시 클릭해 채택합니다.",

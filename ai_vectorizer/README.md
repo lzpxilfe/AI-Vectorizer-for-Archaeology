@@ -107,7 +107,7 @@ Ink v2에서 두 클릭 사이에 이어지는 원본 중심선 연결을 우선
 
 ### 🧠 Experimental: 학습 등고선 보조
 
-1. `Advanced: 기존 추적 모델 / Advanced: legacy tracing models`를 펼치고
+1. `Advanced / 추적 방식 (Tracing modes)`를 펼치고
    `로컬 모델 가져오기 / Import local model`을 누릅니다.
 2. `model.onnx`와 `manifest.json`이 함께 있는 로컬 폴더를 선택합니다. 파일 해시,
    모델 계약과 출력 형식을 확인한 뒤 QGIS profile의 별도 모델 cache에 복사합니다.
@@ -338,7 +338,7 @@ first use.
 2. 출력 라인 레이어를 새로 만들거나 기존 SHP·GeoPackage 선 레이어를 고릅니다.
 3. 원하는 모델을 선택합니다.
 4. 기본 Ink의 초록색 경로와 Recovery 상태를 확인합니다. 기존 LSD/HED/SAM/Canny가
-   필요하면 `Advanced: legacy tracing models`를 펼칩니다.
+   필요하면 `Advanced / 추적 방식 (Tracing modes)`를 펼칩니다.
 5. 클릭/드래그로 등고선을 추적합니다.
 6. `Enter` 또는 우클릭으로 QGIS 편집 버퍼에 추가합니다. 한 번의 Undo로 추가/연장을 되돌릴 수 있습니다.
 7. 시작점 근처를 다시 클릭하면 폐합 후 고도값을 입력할 수 있습니다.

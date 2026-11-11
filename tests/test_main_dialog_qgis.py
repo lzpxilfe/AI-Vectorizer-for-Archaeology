@@ -98,7 +98,80 @@ class MainDialogQgisTests(unittest.TestCase):
         self.project.addMapLayer(output)
         return output
 
+    def _input_state_snapshot(self):
+        def identity(layer):
+            try:
+                return layer.id() if layer is not None else None
+            except RuntimeError:
+                return "deleted layer wrapper"
+
+        def selection(combo):
+            return {"count": combo.count(), "index": combo.currentIndex(),
+                    "layer_id": identity(combo.currentLayer())}
+
+        return {"raster": selection(self.dock.layer_combo),
+                "output": selection(self.dock.vector_combo),
+                "output_layer_id": identity(self.dock.output_layer),
+                "trace_enabled": self.dock.trace_btn.isEnabled(),
+                "dem_enabled": self.dock.dem_btn.isEnabled(),
+                "status": self.dock.status_label.text()}
+
+    def _process_layer_events(self):
+        # Record both sides of one normal UI event-loop iteration. This exposes
+        # whether a QGIS version delays model selection or leaves stale UI state.
+        before = self._input_state_snapshot()
+        self.application.processEvents()
+        return {"before_events": before, "after_events": self._input_state_snapshot()}
+
     def test_small_window_can_reach_start_dem_and_help_in_both_languages(self):
+        self._assert_small_window_controls_reachable()
+
+    def test_small_window_with_larger_system_font_and_fusion_style(self):
+        from qgis.PyQt.QtGui import QFont
+        from qgis.PyQt.QtWidgets import QStyleFactory, QWidget
+        style = QStyleFactory.create("Fusion")
+        style.setParent(self.window)
+        widgets = [self.window] + self.window.findChildren(QWidget)
+        for widget in widgets:
+            widget.setStyle(style)
+        font = QFont(self.dock.font())
+        # Pixels keep this stress case independent of platform DPI. The
+        # default-font case above still runs unchanged on every QGIS image.
+        font.setPixelSize(18)
+        self.dock.setFont(font)
+        try:
+            self._assert_small_window_controls_reachable()
+        finally:
+            for widget in widgets:
+                widget.setStyle(None)
+
+    def test_optional_model_controls_fit_small_window(self):
+        from ai_vectorizer.config import MODEL_IDX_HED, MODEL_IDX_MOBILE_SAM, MODEL_IDX_SAM
+        from ai_vectorizer.core.edge_detector import EdgeDetector
+        from qgis.PyQt.QtGui import QFont
+        font = QFont(self.dock.font())
+        font.setPixelSize(18)
+        self.dock.setFont(font)
+        self.dock.auto_path_check.setChecked(True)
+        for model, reason in ((MODEL_IDX_HED, "missing_weights"),
+                              (MODEL_IDX_HED, "missing_opencv"),
+                              (MODEL_IDX_MOBILE_SAM, None), (MODEL_IDX_SAM, None)):
+            with self.subTest(model=model, reason=reason), \
+                 mock.patch.object(EdgeDetector, "get_hed_runtime_status",
+                                   return_value={"ok": False, "reason": reason}), \
+                 mock.patch.object(self.dock, "_sam_backend_available", return_value=False):
+                self.dock.model_combo.setCurrentIndex(model)
+                self.dock.on_model_changed(model)
+                if model != MODEL_IDX_HED:
+                    self.dock.init_sam_engine()
+                controls = tuple(widget for widget in (
+                    self.dock.sam_check_btn, self.dock.sam_report_btn,
+                    self.dock.sam_download_btn, self.dock.install_cmd,
+                ) if not widget.isHidden())
+                self.assertTrue(controls)
+                self._assert_small_window_controls_reachable(controls)
+
+    def _assert_small_window_controls_reachable(self, extra_controls=()):
         from ai_vectorizer.ui.main_dialog import _qt_value
         for language in ("ko", "en"):
             self.dock.current_language = language
@@ -114,7 +187,10 @@ class MainDialogQgisTests(unittest.TestCase):
                     self.assertLessEqual(self.window.height(), 700)
                     self.assertGreater(self.dock.scroll_area.verticalScrollBar().maximum(), 0)
                     self.assertEqual(self.dock.scroll_area.horizontalScrollBar().maximum(), 0)
-                    for control in (self.dock.trace_btn, self.dock.dem_btn, self.dock.help_btn):
+                    controls = (self.dock.trace_btn, self.dock.dem_btn, self.dock.help_btn)
+                    if advanced:
+                        controls += extra_controls
+                    for control in controls:
                         self.dock.scroll_area.ensureWidgetVisible(control)
                         self.application.processEvents()
                         top = control.mapTo(self.dock.scroll_area.viewport(), control.rect().topLeft())
@@ -128,17 +204,22 @@ class MainDialogQgisTests(unittest.TestCase):
         self.assertIn("Step 2", self.dock.status_label.text())
         output = self._output()
         self.dock.vector_combo.setLayer(output)
-        self.assertFalse(self.dock.trace_btn.isEnabled())
-        self.assertIn("raster map", self.dock.status_label.text())
-        self.assertTrue(self.dock.dem_btn.isEnabled())
+        details = self._process_layer_events()
+        self.assertEqual(details["after_events"]["output"]["layer_id"], output.id(), details)
+        self.assertFalse(self.dock.trace_btn.isEnabled(), details)
+        self.assertIn("raster map", self.dock.status_label.text(), details)
+        self.assertTrue(self.dock.dem_btn.isEnabled(), details)
         raster = self._raster()
         self.dock.layer_combo.setLayer(raster)
-        self.assertTrue(self.dock.trace_btn.isEnabled())
-        self.assertIn("Ready", self.dock.status_label.text())
+        details = self._process_layer_events()
+        self.assertEqual(details["after_events"]["raster"]["layer_id"], raster.id(), details)
+        self.assertTrue(self.dock.trace_btn.isEnabled(), details)
+        self.assertIn("Ready", self.dock.status_label.text(), details)
         self.project.removeMapLayer(output.id())
-        self.assertFalse(self.dock.trace_btn.isEnabled())
-        self.assertFalse(self.dock.dem_btn.isEnabled())
-        self.assertIn("output line", self.dock.status_label.text())
+        details = self._process_layer_events()
+        self.assertFalse(self.dock.trace_btn.isEnabled(), details)
+        self.assertFalse(self.dock.dem_btn.isEnabled(), details)
+        self.assertIn("output line", self.dock.status_label.text(), details)
         self.dock.current_language = "ko"
         self.dock.apply_language()
         self.assertFalse(self.dock.trace_btn.isEnabled())
@@ -149,11 +230,15 @@ class MainDialogQgisTests(unittest.TestCase):
         output = self._output()
         self.dock.vector_combo.setLayer(output)
         self.dock.layer_combo.setLayer(raster)
-        self.assertTrue(self.dock.trace_btn.isEnabled())
+        details = self._process_layer_events()
+        self.assertEqual(details["after_events"]["output"]["layer_id"], output.id(), details)
+        self.assertEqual(details["after_events"]["raster"]["layer_id"], raster.id(), details)
+        self.assertTrue(self.dock.trace_btn.isEnabled(), details)
         self.project.removeMapLayer(raster.id())
-        self.assertFalse(self.dock.trace_btn.isEnabled())
-        self.assertTrue(self.dock.dem_btn.isEnabled())
-        self.assertIn("raster map", self.dock.status_label.text())
+        details = self._process_layer_events()
+        self.assertFalse(self.dock.trace_btn.isEnabled(), details)
+        self.assertTrue(self.dock.dem_btn.isEnabled(), details)
+        self.assertIn("raster map", self.dock.status_label.text(), details)
 
     def test_controls_and_help_distinguish_finishing_from_file_save(self):
         for language, finish, save in (("en", "finish", "Save Layer Edits"),
