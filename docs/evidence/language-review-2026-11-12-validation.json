@@ -1,0 +1,140 @@
+{
+  "schema_version": "archaeotrace-language-validation/1",
+  "date": "2026-11-12",
+  "version": "0.1.7",
+  "experimental": true,
+  "source_commit": "2b986430b36bfb8808a43567976df190814aec55",
+  "archive_name": "ai_vectorizer-0.1.7-en-review-2026-11-12.zip",
+  "archive_sha256": "39c042074d4c2eb21f5dc39f12a3c1d37115028563c0a7d58e5f0e45e8f2b546",
+  "archive_bytes": 2097953,
+  "archive_entries": 53,
+  "previous_artifact_preserved": true,
+  "python_files": 46,
+  "unchanged_python_files": 43,
+  "changed_python_files": [
+    "ai_vectorizer/config.py",
+    "ai_vectorizer/ui/dem_dialog.py",
+    "ai_vectorizer/ui/main_dialog.py"
+  ],
+  "routing_and_data_read_modules_unchanged": true,
+  "both_user_guides_packaged": true,
+  "pure_python": {
+    "passed": 1246,
+    "skipped": 208,
+    "subtests_passed": 171
+  },
+  "actual_qgis": {
+    "qgis_version": "3.44.8-Solothurn",
+    "tests_run": 226,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "test_source_sha256": {
+      "test_qgis_runtime_safety": "9b00efe8dee31c61a3f04e5f560ab759bfcfaa802820f7340de06db9d8a56e31",
+      "test_manual_gap_qgis": "231f7ffdf835f7f3646c440acf7d14e54582549d77e10541966b16fce8c77f72",
+      "test_ink_color_qgis": "822839dbe5f83588e321047b6b90cd498d8cc92069dcf2a5a372bef7db4d84a4",
+      "test_learned_qgis": "a4955d6eac48ccd2ee01d3ef4b354fceb859bb473c1af7eabfd5a6f6635dd8b9",
+      "test_map_grid_qgis": "9bc1390c97941503ac7507b960c2d7dd450f83ebbf749b2ec770c3dbe38ebc75",
+      "test_observed_connection_qgis": "33ffd83925837c3a30794a2b6192ef5c5a02fd96fe4bba5228735cfeaa2251eb",
+      "test_label_gap_qgis": "dc8cbdc4d25c443ce6d0fcbd3ec18ccc8fe798357bf35b4244606214f7b83caa",
+      "test_confirmed_gap_qgis": "872541cb0d561c394889760b6471a329b365d0aed17f43b81eda1d8ea82c143e",
+      "test_occluded_connection_qgis": "4e49d58eb5da7fcf896b8cce79ec34659ab63f22cbf8f03d05c626ef19628907",
+      "test_annotation_qgis": "7ebe002803ef4eb7de2d73b4e02b86ae79f921a8d54c3a639b1e22fb0bbfd09a",
+      "test_annotation_ui_qgis": "c425250791e170e3c17401824ac44f92c1856312ed84969a3e3d1f824d9007e0",
+      "test_dem_dialog_qgis": "f6765c18076481f275aba20ffb70ffb50e744df4486da3be8fa4bd8b6979e40d",
+      "test_raster_qgis": "0a1deabff92e68046acee32a2a1c9d6ea4aad177b5ad9f0c00177940c4173afa",
+      "test_dem_pipeline_qgis": "ebb7978d19b31a38530b330ed4af56583190957027ef5a096f1c7347fd8c99a4",
+      "test_main_dialog_qgis": "9e5f8de7443fc8324ad114430a624f330dbffa0f109ce95851e9a0fb8b0817f9"
+    },
+    "modules": [
+      "test_qgis_runtime_safety",
+      "test_manual_gap_qgis",
+      "test_ink_color_qgis",
+      "test_learned_qgis",
+      "test_map_grid_qgis",
+      "test_observed_connection_qgis",
+      "test_label_gap_qgis",
+      "test_confirmed_gap_qgis",
+      "test_occluded_connection_qgis",
+      "test_annotation_qgis",
+      "test_annotation_ui_qgis",
+      "test_dem_dialog_qgis",
+      "test_raster_qgis",
+      "test_dem_pipeline_qgis",
+      "test_main_dialog_qgis"
+    ],
+    "temporary_profile_removed": true,
+    "clean_profile_scenarios": 7,
+    "all_scenarios_one_undo": true,
+    "clean_profile_removed": true
+  },
+  "ci": {
+    "url": "https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/43113650204",
+    "all_12_passed": true,
+    "jobs": [
+      {
+        "name": "Pure Python 3.11",
+        "conclusion": "success"
+      },
+      {
+        "name": "Reproducible current-source package (Linux)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Python 3.8 source compatibility (no PyPI dependencies)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Dependency audit Python 3.12",
+        "conclusion": "success"
+      },
+      {
+        "name": "Pure Python 3.12",
+        "conclusion": "success"
+      },
+      {
+        "name": "Dependency audit Python 3.11",
+        "conclusion": "success"
+      },
+      {
+        "name": "Packaged plugin security preflight",
+        "conclusion": "success"
+      },
+      {
+        "name": "Learned contour CPU contract (Python 3.12)",
+        "conclusion": "success"
+      },
+      {
+        "name": "QGIS 3.44.13 import smoke",
+        "conclusion": "success"
+      },
+      {
+        "name": "Reproducible current-source package (Windows)",
+        "conclusion": "success"
+      },
+      {
+        "name": "QGIS 4.2.1 import smoke",
+        "conclusion": "success"
+      },
+      {
+        "name": "QGIS 3.22.16 import smoke",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "new_map_accuracy_or_performance_claim": false,
+  "previous_map_comparison_record": "release-review-2026-11-12-validation.json",
+  "official_release_published": false,
+  "evidence_sha256": {
+    "pure_log": "f73edcb5d50575df43ea6ac8595830242cf1f6cbeaf10d269205df4698c19e34",
+    "runtime_execution": "f6572c26c78a072d74d3a28703bb3e5b17423a8edeb66597f2ceab4f57b6acfe",
+    "runtime_log": "c322e8b3b611d3bf808e5063c6e159dc709f2e69f472d194154ea679da80fe2a",
+    "package_verification": "4fe2dd08f68b56ed3ede5c2807895c940281cd70b4e547f85f293462f7c22d44",
+    "ci_json": "322c674ec77324c4c60a74e32823caae1168d82f3c7c6009e91c94cfa9caf092",
+    "ci_log": "40ee0a178047e9e9963eb343a28e04fec0066ff3f341f61c22b65c0309bb1554"
+  },
+  "guide_sha256": {
+    "README.md": "948653ed5f4f9705061810a35e067b80de0fb92e0dc55623950b694a3714f9ad",
+    "README.en.md": "8bd086e231a23fa6cd6ab9e6727abb03f6b4c073e2aa15ac96b6328c6145701c"
+  }
+}

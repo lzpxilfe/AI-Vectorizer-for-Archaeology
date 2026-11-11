@@ -28,8 +28,16 @@ The language candidate is validated separately from the preceding v3 ZIP.
 - QGIS 3.44.8: 226 tests passed, no failures, errors or skips; the isolated
   plugin loader also passed all seven scenarios.
 - Both guides are present in the ZIP, and the package matches the source.
-- Remote CI: pending for this language candidate. The prior artifact's CI is
-  not used as its result.
+- Remote CI: all 12 jobs passed for commit
+  `2b986430b36bfb8808a43567976df190814aec55`, including QGIS 3.22.16, 3.44.13
+  and 4.2.1, security/dependency checks and identical Linux/Windows packages.
+  [CI run](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/43113650204)
+- Size: 2,097,953 bytes, 53 files. The routing and raster/data-read modules are
+  byte-identical to the preceding reviewed build. No new map accuracy or speed
+  result is claimed for these language changes.
+
+The [validation record](evidence/language-review-2026-11-12-validation.json)
+binds the archive, source, guides, test logs and CI. Previous ZIPs remain unchanged.
 
 ## 한국어
 
@@ -40,3 +48,6 @@ The language candidate is validated separately from the preceding v3 ZIP.
 영어 사용 설명서를 설치 ZIP에 넣고 영어 검토 기록을 추가했습니다. UI와 README의
 장식용 이모지와 과장된 표현을 줄였으며 제목·시작 버튼은 QGIS 테마를 따릅니다.
 추적 알고리즘, 고도 처리, 모델과 학습 데이터는 이번 작업에서 바꾸지 않았습니다.
+
+영어 설명서를 포함한 새 ZIP으로 실제 QGIS 226개 검사와 원격 CI 12개 작업을
+통과했습니다. 이전 후보 ZIP은 그대로 보존합니다.
