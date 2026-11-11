@@ -146,5 +146,70 @@
     "errors": 0,
     "skipped": 0,
     "reason": "Exercise the supported NumPy fallback when SciPy is absent, instead of requiring optional SciPy in QGIS 3.22. Product ZIP bytes unchanged."
+  },
+  "remote_ci": {
+    "headSha": "552973e36f7847c843f00f33a550ee0c850ec3c5",
+    "status": "completed",
+    "conclusion": "success",
+    "url": "https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/43050237514",
+    "jobs": [
+      {
+        "name": "Reproducible current-source package (Linux)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Pure Python 3.12",
+        "conclusion": "success"
+      },
+      {
+        "name": "Packaged plugin security preflight",
+        "conclusion": "success"
+      },
+      {
+        "name": "Python 3.8 source compatibility (no PyPI dependencies)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Pure Python 3.11",
+        "conclusion": "success"
+      },
+      {
+        "name": "Dependency audit Python 3.12",
+        "conclusion": "success"
+      },
+      {
+        "name": "Learned contour CPU contract (Python 3.12)",
+        "conclusion": "success"
+      },
+      {
+        "name": "Dependency audit Python 3.11",
+        "conclusion": "success"
+      },
+      {
+        "name": "Reproducible current-source package (Windows)",
+        "conclusion": "success"
+      },
+      {
+        "name": "QGIS 3.44.13 import smoke",
+        "conclusion": "success"
+      },
+      {
+        "name": "QGIS 4.2.1 import smoke",
+        "conclusion": "success"
+      },
+      {
+        "name": "QGIS 3.22.16 import smoke",
+        "conclusion": "success"
+      }
+    ],
+    "built_package_sha256": "a3f4eebf07b51febf3a6f9eeddc2213764c9fda407617611f1811bfbae72ba28",
+    "verified_build_jobs": [
+      "QGIS 3.22.16 import smoke",
+      "QGIS 3.44.13 import smoke",
+      "QGIS 4.2.1 import smoke",
+      "Reproducible current-source package (Linux)",
+      "Reproducible current-source package (Windows)"
+    ],
+    "log_sha256": "f031a3898a8a36dbab1734c34a499a4ccabc9daad84dc258656b617231bbf2cc"
   }
 }
