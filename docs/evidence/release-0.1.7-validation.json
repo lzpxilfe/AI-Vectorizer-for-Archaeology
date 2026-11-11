@@ -135,5 +135,16 @@
     "integrated-0.1.7-runtime/qgis-runtime.log": "5b4c6cd0f373ccbba665918aac9e53f7a14b149b6441033950fdc1f37bbef930",
     "integrated-0.1.7-runtime/qgis-clean-profile.log": "efe5f7f91eedd046a48dd90fe67a5e08ead84c090e57ef4ac0db637fd6694533",
     "integrated-0.1.7-comparison/execution.json": "ecb193082c9f01e7ce8b02b4580318a0a00340c4f50149c8e9bc8c69e31a9a2c"
+  },
+  "source_commit": "31518442891d41ae153039d53dabba26c289d0be",
+  "followup_test_validation": {
+    "date": "2026-11-12",
+    "module": "tests.test_raster_qgis",
+    "sha256": "0a1deabff92e68046acee32a2a1c9d6ea4aad177b5ad9f0c00177940c4173afa",
+    "tests_run": 9,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "reason": "Exercise the supported NumPy fallback when SciPy is absent, instead of requiring optional SciPy in QGIS 3.22. Product ZIP bytes unchanged."
   }
 }

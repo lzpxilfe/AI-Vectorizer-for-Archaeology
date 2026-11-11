@@ -36,7 +36,7 @@
 | 항목 | 최종 후보 기록 |
 | --- | --- |
 | 파일명 | `ai_vectorizer-0.1.7.zip` |
-| Source commit | 최종 커밋 후 기록 예정 |
+| Source commit | `31518442891d41ae153039d53dabba26c289d0be` |
 | ZIP SHA-256 | a3f4eebf07b51febf3a6f9eeddc2213764c9fda407617611f1811bfbae72ba28 |
 | 크기 / entries | 2,098,014 bytes / 52 |
 | metadata | `0.1.7`, QGIS `3.22–4.99`, `experimental=True` |
@@ -61,6 +61,13 @@ Git에는 source·builder·해시를 보존하고 ZIP은 별도 전달한다. `0
 | 기존 추적·저장·Undo 회귀 | 기존 17+개발 6건, 세 방법 69쌍 저장 좌표 동일; 기존 입력·Undo 보존 |
 | 결정적 ZIP / source 일치 / metadata | 생성·check 통과, 실제 plugin-loader 0.1.7 로드·격리 profile 제거 |
 | 원격 CI | 최종 커밋 실행 대기 |
+
+## CI compatibility follow-up
+
+첫 원격 검사에서 QGIS 3.22의 선택적 SciPy 부재를 테스트가 잘못 실패로 처리했다.
+11-12에 테스트를 수정해 SciPy가 있으면 Live-Wire를, 없으면 기본 NumPy 경로를
+검사한다. 기본 경로는 모든 호스트에서 강제로 한 번 더 검사하며 테스트 전체를
+skip하지 않는다. 수정한 실제 QGIS 9개 검사는 통과했다. 제품 ZIP 바이트는 동일하다.
 
 ## NoData read cost
 

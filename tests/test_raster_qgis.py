@@ -190,12 +190,11 @@ class RasterBoundaryQgisTests(unittest.TestCase):
         canvas.deleteLater()
         self.app.processEvents()
 
-    def test_zero_size_rendered_provider_builds_cache_and_livewire_path(self):
+    def test_zero_size_rendered_provider_builds_cache_and_supported_trace(self):
         import numpy as np
         from qgis.core import QgsPointXY
         from ai_vectorizer.core.livewire import is_livewire_available
 
-        self.assertTrue(is_livewire_available(), "Actual QGIS regression needs SciPy")
         for source_size, provider_type in ((0, "wms"), (256, "wms"), (0, "synthetic")):
             with self.subTest(source_size=source_size, provider_type=provider_type):
                 canvas, tool, provider, dispatcher, layer = self._rendered_tool(source_size, provider_type)
@@ -220,13 +219,27 @@ class RasterBoundaryQgisTests(unittest.TestCase):
                         tool.start_point = QgsPointXY(anchor)
                         tool.path_points = [QgsPointXY(anchor)]
                         tool.checkpoints = [0]
-                        self.assertTrue(tool._request_livewire_tree(force=True))
-                        self.assertIsNotNone(tool._livewire_tree)
-                        route = tool._livewire_tree.trace(target)
-                        self.assertIsNotNone(route)
-                        self.assertGreater(len(route), 2)
-                        self.assertTrue(np.isfinite(route).all())
-                        self.assertLessEqual(float(np.abs(np.asarray(route)[:, 1] - height // 2).max()), 5.)
+                        if is_livewire_available():
+                            self.assertTrue(tool._request_livewire_tree(force=True))
+                            self.assertIsNotNone(tool._livewire_tree)
+                            route = tool._livewire_tree.trace(target)
+                            self.assertIsNotNone(route)
+                            self.assertGreater(len(route), 2)
+                            self.assertTrue(np.isfinite(route).all())
+                            self.assertLessEqual(float(np.abs(np.asarray(route)[:, 1] - height // 2).max()), 5.)
+                        # SciPy is optional in the shipped ZIP (including the
+                        # QGIS 3.22 image). Exercise that supported path on every
+                        # host instead of skipping all raster checks without it.
+                        tool._livewire_tree = None
+                        point = tool.pixel_to_map(target[0], target[1] + 2)
+                        with mock.patch("ai_vectorizer.tools.smart_trace_tool.is_livewire_available", return_value=False):
+                            self.assertFalse(tool._request_livewire_tree(force=True))
+                            self.assertFalse(tool._defer_click_until_livewire_ready(point))
+                            tool._present_livewire_cursor_preview(point, schedule_recovery=False)
+                        self.assertTrue(tool.preview_path)
+                        self.assertTrue(all(np.isfinite([p.x(), p.y()]).all() for p in tool.preview_path))
+                        last_pixel = tool.map_to_pixel(tool.preview_path[-1])
+                        self.assertLessEqual(abs(last_pixel[1] - height // 2), 5)
                         self.assertEqual(layer.featureCount(), 0)
                 finally:
                     self._close_rendered_tool(canvas, tool)
