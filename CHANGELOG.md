@@ -31,6 +31,8 @@
   선 확정 / `Save Layer Edits`의 구분을 명확히 합니다.
 - QGIS 4에서 레이어가 선택되어 있어도 준비 상태가 갱신되지 않아 시작할 수 없던
   경우를 보완합니다. 큰 시스템 글꼴과 고급 모델 설치 화면의 폭도 검사합니다.
+- 주석 GeoPackage 생성에 QGIS의 scoped writer enum을 사용하고 이전 QGIS의
+  enum 표기도 지원합니다. 공식 저장소의 Qt6 검사에서 지적한 세 곳을 수정했습니다.
 
 검증 범위와 후속 후보 identity는
 [사용 흐름 재검토 기록](docs/RELEASE_REVIEW_2026-11-12.md)에 기록합니다.
