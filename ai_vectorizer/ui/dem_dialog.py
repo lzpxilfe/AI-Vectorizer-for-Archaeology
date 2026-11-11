@@ -213,7 +213,7 @@ class DemBuildDialog(QDialog):
     @staticmethod
     def _path_row(callback):
         line_edit = QLineEdit()
-        browse = QPushButton("📂")
+        browse = QPushButton("…")
         browse.setFixedWidth(36)
         browse.clicked.connect(callback)
         row = QHBoxLayout()
@@ -251,7 +251,11 @@ class DemBuildDialog(QDialog):
         self.output_group.setTitle(self._tr("3. 출력", "3. Outputs"))
         self.dem_path_label.setText("DEM GeoTIFF:")
         self.hillshade_path_label.setText("Hillshade GeoTIFF:")
-        self.build_button.setText(self._tr("⏵ DEM 생성", "⏵ Build DEM"))
+        self.dem_browse.setToolTip(self._tr("DEM 저장 위치 선택", "Choose DEM output file"))
+        self.hillshade_browse.setToolTip(self._tr("Hillshade 저장 위치 선택", "Choose hillshade output file"))
+        self.dem_browse.setAccessibleName(self.dem_browse.toolTip())
+        self.hillshade_browse.setAccessibleName(self.hillshade_browse.toolTip())
+        self.build_button.setText(self._tr("DEM 생성", "Build DEM"))
         self.cancel_button.setText(self._tr("취소", "Cancel"))
         self.close_button.setText(self._tr("닫기", "Close"))
         if not self.runner.is_running:

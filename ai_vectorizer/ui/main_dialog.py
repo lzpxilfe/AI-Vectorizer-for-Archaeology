@@ -445,11 +445,13 @@ class AIVectorizerDock(QDockWidget):
     def _load_language(self):
         settings = QSettings()
         value = settings.value(SETTINGS_LANG_KEY, None)
-        if value is None:
-            locale = str(settings.value("locale/userLocale", "ko"))
-            return LANG_EN if locale.lower().startswith("en") else LANG_KO
-        lang = str(value)
-        return lang if lang in (LANG_KO, LANG_EN) else LANG_KO
+        if value in (LANG_KO, LANG_EN):
+            return value
+        # QGIS resolves its locale override and the system locale. A stale
+        # locale/userLocale setting must not override the running application.
+        # English is the fallback for locales we do not translate yet.
+        locale = str(QgsApplication.locale()).lower().replace("-", "_")
+        return LANG_KO if locale.split("_", 1)[0] == LANG_KO else LANG_EN
 
     def _save_language(self):
         QSettings().setValue(SETTINGS_LANG_KEY, self.current_language)
@@ -498,11 +500,11 @@ class AIVectorizerDock(QDockWidget):
 
     def _set_trace_button_idle(self):
         self.trace_btn.setChecked(False)
-        self.trace_btn.setText(self._tr("🖊️ 트레이싱 시작", "🖊️ Start Tracing"))
+        self.trace_btn.setText(self._tr("트레이싱 시작", "Start Tracing"))
         self.trace_btn.setStyleSheet(TRACE_BUTTON_IDLE_STYLE)
 
     def _set_trace_button_active(self):
-        self.trace_btn.setText(self._tr("⏹️ 중지", "⏹️ Stop"))
+        self.trace_btn.setText(self._tr("중지", "Stop"))
         self.trace_btn.setStyleSheet(TRACE_BUTTON_ACTIVE_STYLE)
 
     def _set_ready_state(self, prompt=False):
@@ -526,12 +528,12 @@ class AIVectorizerDock(QDockWidget):
                 )
             self._set_status_label(text)
             return
-        text = self._tr("✅ 준비 완료! 트레이싱을 시작하세요", "✅ Ready! Start tracing") if prompt else self._tr("✅ 준비 완료", "✅ Ready")
+        text = self._tr("✅ 준비 완료. 트레이싱을 시작하세요", "✅ Ready to start tracing") if prompt else self._tr("✅ 준비 완료", "✅ Ready")
         self._set_status_label(text, "ready" if prompt else "neutral")
 
     def _set_tracing_state(self, mode_name):
         self._set_status_label(
-            self._tr("🖊️ [{mode}] 등고선을 클릭하세요", "🖊️ [{mode}] Click on contours").format(mode=mode_name),
+            self._tr("[{mode}] 등고선을 클릭하세요", "[{mode}] Click on contours").format(mode=mode_name),
             "neutral",
         )
         self._set_trace_button_active()
@@ -656,16 +658,16 @@ class AIVectorizerDock(QDockWidget):
     def _download_button_text(self, model_idx=None):
         idx = self.model_combo.currentIndex() if model_idx is None else model_idx
         if idx == MODEL_IDX_HED:
-            return self._tr("📥 HED 다운로드", "📥 Download HED")
+            return self._tr("HED 다운로드", "Download HED")
         if idx not in SAM_MODEL_INDICES:
-            return self._tr("⬇️ 모델 다운로드", "⬇️ Download Model")
+            return self._tr("모델 다운로드", "Download Model")
         model_name = self._mode_name(idx)
         size_hint = self._sam_size_hint_mb(idx)
         size_text_ko = f"\n(~{size_hint}MB)" if size_hint else ""
         size_text_en = f"\n(~{size_hint}MB)" if size_hint else ""
         return self._tr(
-            f"⬇️ {model_name} 다운로드{size_text_ko}",
-            f"⬇️ Download {model_name}{size_text_en}",
+            f"{model_name} 다운로드{size_text_ko}",
+            f"Download {model_name}{size_text_en}",
         )
 
     @staticmethod
@@ -956,13 +958,13 @@ class AIVectorizerDock(QDockWidget):
         )
         self.recovery_install_btn.setText(
             self._tr(
-                "🧰 Repair Recovery Model",
-                "🧰 Repair Recovery Model",
+                "손상 모델 복구",
+                "Repair Recovery Model",
             )
             if corrupt
             else self._tr(
-                "⬇️ Install Recovery Model",
-                "⬇️ Install Recovery Model",
+                "복구 모델 설치",
+                "Install Recovery Model",
             )
         )
         self.recovery_install_btn.setVisible(not status.ready and not unsafe)
@@ -1183,6 +1185,11 @@ class AIVectorizerDock(QDockWidget):
 
     def _on_learned_state_changed(self, state, detail=""):
         self._learned_ui_state = (state, detail)
+        # Keep locally authored messages in both languages so changing the
+        # selector also updates a status shown before that change. Runtime
+        # exception details remain verbatim strings.
+        if isinstance(detail, tuple):
+            detail = self._tr(*detail)
         labels = {
             "off": self._tr("학습 보조: 꺼짐", "Learned guide: off"),
             "waiting": self._tr("학습 보조: 지도 준비 대기", "Learned guide: waiting for map"),
@@ -1237,13 +1244,15 @@ class AIVectorizerDock(QDockWidget):
         self.learned_import_btn.setEnabled(self.active_tool is None)
         if not succeeded or engine is None:
             self.learned_engine = None
-            self._on_learned_state_changed("fallback", str(error or "Model preparation cancelled"))
+            self._on_learned_state_changed(
+                "fallback", str(error) if error else ("모델 준비를 취소했습니다", "Model preparation cancelled"),
+            )
             return
         self.learned_engine = engine
         self._learned_bundle_path = task.bundle_path
         QSettings().setValue("ArchaeoTrace/learnedBundle", task.bundle_path)
         diagnostic = engine.manifest["provenance"].get("synthetic_diagnostic", False)
-        self._on_learned_state_changed("ready" if self.learned_guide_check.isChecked() else "off", self._tr(
+        self._on_learned_state_changed("ready" if self.learned_guide_check.isChecked() else "off", (
             "합성 자료 검증용 모델", "Synthetic diagnostic model",
         ) if diagnostic else "")
 
@@ -1283,7 +1292,7 @@ class AIVectorizerDock(QDockWidget):
         elif self._learned_bundle_path:
             self._prepare_learned_model(self._learned_bundle_path)
         else:
-            self._on_learned_state_changed("fallback", self._tr(
+            self._on_learned_state_changed("fallback", (
                 "검증 매니페스트와 ONNX가 있는 모델 폴더를 가져오세요.",
                 "Import a local bundle containing its verification manifest and ONNX model.",
             ))
@@ -1495,8 +1504,7 @@ class AIVectorizerDock(QDockWidget):
         self.header_label = QLabel()
         self.header_label.setWordWrap(True)
         self.header_label.setStyleSheet(
-            "font-size: 14px; font-weight: bold; padding: 5px; "
-            "background: #2c3e50; color: white; border-radius: 3px;"
+            "font-weight: bold; padding: 4px;"
         )
         self.layout.addWidget(self.header_label)
 
@@ -1535,7 +1543,7 @@ class AIVectorizerDock(QDockWidget):
 
         path_layout = QHBoxLayout()
         self.shp_path = QLineEdit()
-        self.browse_btn = QPushButton("📂")
+        self.browse_btn = QPushButton("…")
         self.browse_btn.setFixedWidth(30)
         self.browse_btn.clicked.connect(self.browse_shp)
         path_layout.addWidget(self.shp_path)
@@ -1803,47 +1811,48 @@ class AIVectorizerDock(QDockWidget):
         self.setWindowTitle(PLUGIN_NAME)
         self.header_label.setText(
             self._tr(
-                f"🏛️ {PLUGIN_NAME} - 고지도 등고선 벡터화",
-                f"🏛️ {PLUGIN_NAME} - Historical Map Contour Vectorization",
+                f"{PLUGIN_NAME} - 고지도 등고선 벡터화",
+                f"{PLUGIN_NAME} - Historical map contour tracing",
             )
         )
         self.lang_label.setText(self._tr("언어:", "Language:"))
 
-        self.step1_group.setTitle(self._tr("1️⃣ 입력 지도", "1️⃣ Input Map"))
+        self.step1_group.setTitle(self._tr("1. 입력 지도", "1. Input Map"))
         self.step1_group.setToolTip(self._tr("벡터화할 래스터 지도를 선택하세요", "Select a raster map to vectorize"))
-        self.step1_desc.setText(self._tr("💡 등고선이 있는 스캔 지도 선택", "💡 Select a scanned map with contours"))
+        self.step1_desc.setText(self._tr("등고선이 있는 스캔 지도 선택", "Select a scanned map with contours"))
         self.layer_combo.setToolTip(self._tr("QGIS에 로드된 래스터 레이어 중 선택", "Choose from raster layers loaded in QGIS"))
 
-        self.step2_group.setTitle(self._tr("2️⃣ 출력 파일", "2️⃣ Output File"))
+        self.step2_group.setTitle(self._tr("2. 출력 파일", "2. Output File"))
         self.step2_group.setToolTip(self._tr("등고선을 저장할 Shapefile 생성 또는 선택", "Create or select a Shapefile for output"))
-        self.step2_desc.setText(self._tr("💡 새 SHP 생성 또는 기존 레이어 선택", "💡 Create a new SHP or select an existing line layer"))
+        self.step2_desc.setText(self._tr("새 SHP 생성 또는 기존 레이어 선택", "Create a new SHP or select an existing line layer"))
         self.shp_path.setPlaceholderText(self._tr("저장할 SHP 파일 경로...", "Output SHP file path..."))
         self.browse_btn.setToolTip(self._tr("파일 위치 찾기", "Browse file location"))
-        self.create_shp_btn.setText(self._tr("📁 새 SHP 생성", "📁 Create New SHP"))
+        self.browse_btn.setAccessibleName(self._tr("출력 파일 선택", "Choose output file"))
+        self.create_shp_btn.setText(self._tr("새 SHP 생성", "Create New SHP"))
         self.create_shp_btn.setToolTip(self._tr("지정한 경로에 새 Shapefile을 생성합니다", "Create a new Shapefile at the selected path"))
         self.existing_layer_label.setText(self._tr("또는 기존 라인 레이어:", "Or existing line layer:"))
         self.vector_combo.setToolTip(self._tr("이미 있는 라인 레이어에 추가", "Append to an existing line layer"))
 
-        self.step3_group.setTitle(self._tr("3️⃣ 트레이싱 설정", "3️⃣ Tracing Options"))
+        self.step3_group.setTitle(self._tr("3. 트레이싱 설정", "3. Tracing Options"))
         self.step3_group.setToolTip(self._tr("Ink 중심선과 선택적 복구 설정", "Ink centerline and optional recovery settings"))
         self.primary_mode_label.setText(
             self._tr(
-                "🖋 기본 Ink Centerline은 별도 학습 모델 없이 동작합니다.",
-                "🖋 The default Ink Centerline works without a learned model.",
+                "기본 Ink Centerline은 별도 학습 모델 없이 동작합니다.",
+                "The default Ink Centerline works without a learned model.",
             )
         )
         # Native checkboxes do not word-wrap. Keep qualifiers visible on their
         # own line so platform fonts do not force the dock wider than the map.
         self.smart_recovery_check.setText(
             self._tr(
-                "🛟 Smart Recovery\n(실험적)",
-                "🛟 Smart Recovery\n(Experimental)",
+                "Smart Recovery\n(실험적)",
+                "Smart Recovery\n(Experimental)",
             )
         )
         self.smart_recovery_check.setToolTip(
             self._tr(
-                "기본은 꺼짐입니다. Ink 증거가 약한 현재 구간만 로컬 EfficientSAM으로 재검토합니다. 모델 결과가 안전하게 개선될 때만 초록 미리보기를 바꿉니다.",
-                "Off by default. Re-check only weak current Ink segments with local EfficientSAM. The green preview changes only when the challenger is a safe improvement.",
+                "기본은 꺼짐입니다. 추적하기 어려운 구간을 로컬 EfficientSAM 모델로 다시 검토합니다. 제안 경로가 검사 조건을 통과하면 초록 미리보기에 표시합니다. 확정하기 전에 확인하세요.",
+                "Off by default. Uses a local EfficientSAM model to review difficult segments. A proposed path appears in the green preview after passing validation checks. Review it before accepting.",
             )
         )
         self.learned_guide_check.setText(self._tr(
@@ -1868,8 +1877,8 @@ class AIVectorizerDock(QDockWidget):
         self._on_learned_state_changed(*self._learned_ui_state)
         self.recovery_install_btn.setText(
             self._tr(
-                "⬇️ Install Recovery Model",
-                "⬇️ Install Recovery Model",
+                "복구 모델 설치",
+                "Install Recovery Model",
             )
         )
         self.recovery_install_btn.setToolTip(
@@ -1880,7 +1889,7 @@ class AIVectorizerDock(QDockWidget):
         )
         self.recovery_retry_btn.setText(
             self._tr(
-                "↻ Retry current segment",
+                "↻ 현재 구간 다시 시도",
                 "↻ Retry current segment",
             )
         )
@@ -1892,8 +1901,8 @@ class AIVectorizerDock(QDockWidget):
         )
         self.manual_gap_bridge_btn.setText(
             self._tr(
-                "⤴ 라벨 공백 연결 (G)\n(실험적)",
-                "⤴ Bridge label gap (G)\n(Experimental)",
+                "라벨 공백 연결 (G)\n(실험적)",
+                "Bridge label gap (G)\n(Experimental)",
             )
         )
         self.manual_gap_bridge_btn.setToolTip(
@@ -1918,8 +1927,8 @@ class AIVectorizerDock(QDockWidget):
         )
         self.recovery_runtime_guide.setText(
             self._tr(
-                "📦 Recovery Runtime 설치 (자동 실행되지 않음, 복사 가능):",
-                "📦 Install Recovery Runtime (never run automatically; copy this):",
+                "복구 실행 환경 설치 명령 (직접 실행):",
+                "Recovery runtime install command (run manually):",
             )
         )
         self.recovery_runtime_cmd.setText(RECOVERY_RUNTIME_INSTALL_COMMAND)
@@ -1947,7 +1956,7 @@ class AIVectorizerDock(QDockWidget):
                     "• Legacy Canny: 기존 경계 검출 호환 모드"
                 ),
                 (
-                    "Tracing-mode roles:\n"
+                    "Tracing modes:\n"
                     "• Ink Centerline: multi-scale dark/coloured line evidence + direction-aware Live-Wire\n"
                     "• LSD: Live-Wire over line-segment evidence\n"
                     f"• HED: learned edge map (~{self._hed_size_hint_mb()}MB)\n"
@@ -1968,14 +1977,14 @@ class AIVectorizerDock(QDockWidget):
                 "Legacy Canny: compatibility edge detector",
             )
         )
-        self.sam_check_btn.setText(self._tr("🔎 선택 SAM 모델 검증", "🔎 Verify Selected SAM Model"))
+        self.sam_check_btn.setText(self._tr("선택 SAM 모델 검증", "Verify Selected SAM Model"))
         self.sam_check_btn.setToolTip(
             self._tr(
                 "현재 선택된 SAM 계열 모델을 고정된 크기와 SHA-256 정체성으로 검증합니다",
                 "Verify the selected SAM-family model against its pinned size and SHA-256 identity",
             )
         )
-        self.sam_report_btn.setText(self._tr("📄 SAM 상태 리포트", "📄 SAM Status Report"))
+        self.sam_report_btn.setText(self._tr("SAM 상태 리포트", "SAM Status Report"))
         self.sam_report_btn.setToolTip(
             self._tr(
                 "선택 모델의 고정된 파일 정체성을 검증한 뒤\nSAM 환경/버전/모델 상태를 JSON으로 저장하고 클립보드에 복사합니다",
@@ -1983,15 +1992,15 @@ class AIVectorizerDock(QDockWidget):
             )
         )
         self.sam_download_btn.setToolTip(self._tr("인터넷 연결 필요. 최초 1회만 다운로드", "Internet required. Download once on first use"))
-        self.install_guide.setText(self._tr("📦 선택 모델 설치 (복사 가능):", "📦 Selected Model Install (copy this):"))
+        self.install_guide.setText(self._tr("선택 모델 설치 (복사 가능):", "Model install command (copy to run):"))
         self.install_cmd.setText(self._install_command_for_model())
-        self.freehand_check.setText(self._tr("✏️ 프리핸드 (보조 없음)", "✏️ Freehand (No Assist)"))
-        self.freehand_check.setToolTip(self._tr("체크: 경로 보조 없이 순수 마우스 추적", "Checked: pure mouse tracing without path assistance"))
+        self.freehand_check.setText(self._tr("프리핸드 (보조 없음)", "Freehand (No Assist)"))
+        self.freehand_check.setToolTip(self._tr("체크: 경로 보조 없이 순수 마우스 추적", "Checked: follow the cursor without path assistance"))
         self.edge_strength_label.setText(self._tr("추적 보조 강도:", "Tracing Assist:"))
         self.freedom_slider.setToolTip(
             self._tr(
                 "0%: 커서 그대로\n1~99%: 커서 경로와 Live-Wire를 실제 비율로 혼합\n100%: 방향 인식 경로 전체 적용\nSAM은 Auto Path에서만 사용",
-                "0%: exact cursor\n1-99%: literal geometry blend between cursor and Live-Wire\n100%: full direction-aware route\nSAM is used only in Auto Path",
+                "0%: exact cursor\n1-99%: blend the cursor path with Live-Wire\n100%: full direction-aware route\nSAM is used only in Auto Path",
             )
         )
         if self.trace_btn.isChecked():
@@ -2000,7 +2009,7 @@ class AIVectorizerDock(QDockWidget):
             self._set_trace_button_idle()
         self.trace_btn.setToolTip(self._tr("클릭하여 트레이싱 시작", "Click to start tracing"))
 
-        self.step4_group.setTitle(self._tr("4️⃣ 지형 복원", "4️⃣ Terrain Reconstruction"))
+        self.step4_group.setTitle(self._tr("4. 지형 복원", "4. Terrain Reconstruction"))
         self.step4_group.setToolTip(
             self._tr(
                 "고도값을 가진 등고선에서 DEM과 hillshade를 생성합니다",
@@ -2009,11 +2018,11 @@ class AIVectorizerDock(QDockWidget):
         )
         self.step4_desc.setText(
             self._tr(
-                "💡 투영 좌표계(m)의 등고선과 고도 필드가 필요합니다",
-                "💡 Requires contours with elevations in a projected CRS (metres)",
+                "투영 좌표계(m)의 등고선과 고도 필드가 필요합니다",
+                "Requires contours with elevations in a projected CRS (metres)",
             )
         )
-        self.dem_btn.setText(self._tr("⛰️ DEM 생성…", "⛰️ Build DEM…"))
+        self.dem_btn.setText(self._tr("DEM 생성…", "Build DEM…"))
         self.dem_btn.setToolTip(
             self._tr(
                 "선형 TIN DEM과 GDAL hillshade 생성 대화상자 열기",
@@ -2021,9 +2030,9 @@ class AIVectorizerDock(QDockWidget):
             )
         )
 
-        self.status_box.setTitle(self._tr("📋 상태", "📋 Status"))
+        self.status_box.setTitle(self._tr("상태", "Status"))
         self.status_label.setToolTip(self._tr("현재 트레이싱 상태를 표시합니다", "Shows current tracing state"))
-        self.controls_title_label.setText(self._tr("📖 사용법:", "📖 Controls:"))
+        self.controls_title_label.setText(self._tr("사용법:", "Controls:"))
         self.controls_label.setText(
             self._tr(
                 "• 드래그: 선 그리기 / 클릭: 체크포인트\n"
@@ -2057,16 +2066,16 @@ class AIVectorizerDock(QDockWidget):
             )
         )
 
-        self.debug_box.setTitle(self._tr("🔧 디버그 및 도움말", "🔧 Debug & Help"))
+        self.debug_box.setTitle(self._tr("미리보기 및 도움말", "Preview and Help"))
         self.debug_box.setToolTip(self._tr("문제 해결을 위한 도구들", "Tools for troubleshooting"))
-        self.preview_edge_btn.setText(self._tr("👁️ 추적 미리보기", "👁️ Trace Preview"))
+        self.preview_edge_btn.setText(self._tr("추적 미리보기", "Trace Preview"))
         self.preview_edge_btn.setToolTip(
             self._tr(
                 "Ink/LSD/HED/Legacy Canny 모드에서는 감지된 중심선·엣지를\n임시 래스터 레이어로 표시합니다.\nSAM 모드에서는 지도에서 대화형 초록색 미리보기를 사용합니다.",
                 "Ink/LSD/HED/Legacy Canny modes show detected line evidence\nas a temporary raster layer.\nSAM modes use the interactive green preview on the map.",
             )
         )
-        self.help_btn.setText(self._tr("❓ 도움말", "❓ Help"))
+        self.help_btn.setText(self._tr("도움말", "Help"))
         self.help_btn.setToolTip(self._tr("사용법과 문제해결 안내", "Usage guide and troubleshooting"))
 
         self.auto_path_check.setText(self._tr("Auto Path\n(실험적)", "Auto Path\n(Experimental)"))
@@ -2081,8 +2090,8 @@ class AIVectorizerDock(QDockWidget):
         if self.trace_btn.isChecked():
             self._set_status_label(
                 self._tr(
-                    "🖊️ [{mode}] 등고선을 클릭하세요",
-                    "🖊️ [{mode}] Click on contours",
+                    "[{mode}] 등고선을 클릭하세요",
+                    "[{mode}] Click on contours",
                 ).format(
                     mode=self._mode_name(self.model_combo.currentIndex()),
                 )
@@ -2396,7 +2405,7 @@ class AIVectorizerDock(QDockWidget):
                 )
             )
             if needs_cv2 and not is_cv2_available():
-                self._show_opencv_warning(self._tr("AI 트레이싱", "AI tracing"))
+                self._show_opencv_warning(self._tr("선택한 추적 방식", "The selected tracing mode"))
                 self.trace_btn.setChecked(False)
                 return
 
@@ -2438,7 +2447,7 @@ class AIVectorizerDock(QDockWidget):
             try:
                 if self.learned_prepare_task is not None:
                     self._cancel_learned_prepare()
-                    self._on_learned_state_changed("fallback", self._tr(
+                    self._on_learned_state_changed("fallback", (
                         "모델 준비를 취소하고 이번 추적은 Ink로 시작합니다.",
                         "Model preparation cancelled; this trace starts with Ink.",
                     ))
@@ -2492,7 +2501,7 @@ class AIVectorizerDock(QDockWidget):
             self._set_trace_configuration_enabled(False)
 
             if not freehand and edge_weight <= 0.0:
-                mode_name = self._tr("정확한 커서 (AI 0%)", "Exact Cursor (AI 0%)")
+                mode_name = self._tr("정확한 커서 (보조 0%)", "Exact cursor (0% assist)")
             elif freehand:
                 mode_name = self._tr("프리핸드", "Freehand")
             elif smart_recovery and recovery_engine is not None:
@@ -2502,8 +2511,8 @@ class AIVectorizerDock(QDockWidget):
                 )
             elif self._is_sam_model(model_idx) and not use_sam:
                 mode_name = self._tr(
-                    "사람 주도 보조 (Ink Centerline)",
-                    "Human-led Assist (Ink Centerline)",
+                    "Ink Centerline 보조",
+                    "Ink Centerline assist",
                 )
             else:
                 mode_name = self._sam_display_name(model_idx) if use_sam else self._mode_name(model_idx)
@@ -2598,7 +2607,7 @@ class AIVectorizerDock(QDockWidget):
                 self.sam_status.setToolTip(get_cv2_error_text())
                 self._set_model_aux_visibility(show_install=True)
                 self._set_install_hint(
-                    self._tr("📦 OpenCV 설치 (복사 가능):", "📦 Install OpenCV (copy this):"),
+                    self._tr("OpenCV 설치 (복사 가능):", "Install OpenCV (copy this):"),
                     get_opencv_install_command(),
                 )
         elif index == MODEL_IDX_HED:
@@ -2638,7 +2647,7 @@ class AIVectorizerDock(QDockWidget):
                 )
                 self._set_model_aux_visibility(show_install=True)
                 self._set_install_hint(
-                    self._tr("📦 OpenCV 설치 (복사 가능):", "📦 Install OpenCV (copy this):"),
+                    self._tr("OpenCV 설치 (복사 가능):", "Install OpenCV (copy this):"),
                     get_opencv_install_command(),
                 )
             elif status.get("reason") in ("missing_prototxt", "missing_weights"):
@@ -2702,7 +2711,7 @@ class AIVectorizerDock(QDockWidget):
                 self.sam_status.setToolTip(get_cv2_error_text())
                 self._set_model_aux_visibility(show_check=True, show_report=True, show_download=True, show_install=True)
                 self._set_install_hint(
-                    self._tr("📦 OpenCV 설치 (복사 가능):", "📦 Install OpenCV (copy this):"),
+                    self._tr("OpenCV 설치 (복사 가능):", "Install OpenCV (copy this):"),
                     get_opencv_install_command(),
                 )
         else:
@@ -2741,8 +2750,8 @@ class AIVectorizerDock(QDockWidget):
                     self,
                     self._tr("완료", "Done"),
                     self._tr(
-                        "{name} 다운로드 완료!",
-                        "{name} download complete!",
+                        "{name} 다운로드 완료",
+                        "{name} downloaded.",
                     ).format(name=self._sam_display_name(model_idx)),
                 )
                 self.init_sam_engine()
@@ -2775,7 +2784,7 @@ class AIVectorizerDock(QDockWidget):
         self._get_or_create_sam_engine(model_idx)
 
         self.sam_check_btn.setEnabled(False)
-        self._set_sam_status(self._tr("🔎 고정 모델 검증 중...", "🔎 Verifying pinned model..."))
+        self._set_sam_status(self._tr("고정 모델 검증 중...", "Verifying pinned model..."))
         self.iface.mainWindow().repaint()
 
         info = self.sam_engine.check_weights_update()
@@ -2821,8 +2830,8 @@ class AIVectorizerDock(QDockWidget):
             )
             self.sam_download_btn.setText(
                 self._tr(
-                    f"⬇️ {self._sam_display_name(model_idx)} 다시 다운로드",
-                    f"⬇️ Re-download {self._sam_display_name(model_idx)}",
+                    f"{self._sam_display_name(model_idx)} 다시 다운로드",
+                    f"Re-download {self._sam_display_name(model_idx)}",
                 )
             )
             if show_message:
@@ -2848,8 +2857,8 @@ class AIVectorizerDock(QDockWidget):
             )
             self.sam_download_btn.setText(
                 self._tr(
-                    f"⬇️ {self._sam_display_name(model_idx)} 재다운로드",
-                    f"⬇️ Re-download {self._sam_display_name(model_idx)}",
+                    f"{self._sam_display_name(model_idx)} 재다운로드",
+                    f"Re-download {self._sam_display_name(model_idx)}",
                 )
             )
             return
@@ -2862,8 +2871,8 @@ class AIVectorizerDock(QDockWidget):
         )
         self.sam_download_btn.setText(
             self._tr(
-                f"⬇️ {self._sam_display_name(model_idx)} 재다운로드",
-                f"⬇️ Re-download {self._sam_display_name(model_idx)}",
+                f"{self._sam_display_name(model_idx)} 재다운로드",
+                f"Re-download {self._sam_display_name(model_idx)}",
             )
         )
 
@@ -2876,7 +2885,7 @@ class AIVectorizerDock(QDockWidget):
             return None
 
     def export_sam_report(self):
-        self._set_sam_status(self._tr("📄 SAM 리포트 생성 중...", "📄 Building SAM report..."))
+        self._set_sam_status(self._tr("SAM 리포트 생성 중...", "Building SAM report..."))
         self.iface.mainWindow().repaint()
 
         report = {
@@ -2992,7 +3001,7 @@ class AIVectorizerDock(QDockWidget):
             QMessageBox.information(
                 self,
                 self._tr("완료", "Done"),
-                self._tr("HED 모델 다운로드 및 검증 완료!", "HED model download and validation complete!"),
+                self._tr("HED 모델 다운로드 및 검증 완료", "HED model downloaded and verified."),
             )
             self.check_hed_status()
         except Exception as e:
@@ -3135,29 +3144,29 @@ class AIVectorizerDock(QDockWidget):
     def _help_text(self):
         if self.current_language == LANG_EN:
             return f"""
-<h2>🏛️ {PLUGIN_NAME} Guide</h2>
-<h3>📋 Basic Workflow</h3>
+<h2>{PLUGIN_NAME} Guide</h2>
+<h3>Basic Workflow</h3>
 <ol>
 <li><b>Select Raster Map</b> - choose a scanned map with contour lines.</li>
 <li><b>Create SHP Output</b> - create a new line SHP or pick an existing line layer.</li>
-<li><b>Choose Tracing Mode</b> - start with Ink Centerline; enable Smart Recovery only when wanted. LSD/HED/MobileSAM/SAM/Legacy Canny remain under Advanced.</li>
-<li><b>Start Tracing</b> - click along contours and save the result.</li>
+<li><b>Choose Tracing Mode</b> - start with Ink Centerline. Optional models are available under Advanced; Smart Recovery is off by default.</li>
+<li><b>Start Tracing</b> - trace a contour, finish the line, then use QGIS Save Layer Edits.</li>
 </ol>
 
-<h3>🤖 Tracing Modes</h3>
+<h3>Tracing Modes</h3>
 <table border='1' cellpadding='5'>
 <tr><th>Mode</th><th>Role</th><th>Requirements</th></tr>
-<tr><td>🖋 Ink Centerline</td><td>Multi-scale dark/coloured line evidence with bounded Live-Wire</td><td>QGIS NumPy; SciPy/scikit-image optional; no model or OpenCV</td></tr>
-<tr><td>🛟 Smart Recovery</td><td>EfficientSAM corridor challenger only on uncertain Ink segments; default OFF and Ink-preserving on failure</td><td>ONNX Runtime + explicitly installed, fixed-hash ~39.4 MiB split model</td></tr>
-<tr><td>📐 LSD</td><td>Live-Wire over line-segment evidence</td><td>OpenCV + SciPy</td></tr>
-<tr><td>🧠 HED</td><td>Learned edge-map assistance</td><td>OpenCV 4.8–4.11 + ~{self._hed_size_hint_mb()}MB model</td></tr>
-<tr><td>🎯 MobileSAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + mobile_sam + ~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB weights</td></tr>
-<tr><td>🧩 SAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + segment_anything + ~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB checkpoint</td></tr>
-<tr><td>🔧 Legacy Canny</td><td>Compatibility gradient-edge mode</td><td>NumPy; OpenCV optional</td></tr>
+<tr><td>Ink Centerline</td><td>Follows dark or colored lines with Live-Wire path assistance</td><td>QGIS NumPy; SciPy/scikit-image optional; no model or OpenCV</td></tr>
+<tr><td>Smart Recovery</td><td>Reviews difficult Ink segments with a local EfficientSAM model. Off by default; keeps the Ink path if recovery fails.</td><td>ONNX Runtime and a verified ~39.4 MiB model installed by the user</td></tr>
+<tr><td>LSD</td><td>Live-Wire over line-segment evidence</td><td>OpenCV + SciPy</td></tr>
+<tr><td>HED</td><td>Learned edge-map assistance</td><td>OpenCV 4.8–4.11 + ~{self._hed_size_hint_mb()}MB model</td></tr>
+<tr><td>MobileSAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + mobile_sam + ~{self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB weights</td></tr>
+<tr><td>SAM</td><td>Prompt mask plus edge/A*</td><td>OpenCV + PyTorch + segment_anything + ~{self._sam_size_hint_mb(MODEL_IDX_SAM)}MB checkpoint</td></tr>
+<tr><td>Legacy Canny</td><td>Compatibility gradient-edge mode</td><td>NumPy; OpenCV optional</td></tr>
 </table>
-<p>Accuracy rankings are intentionally omitted until the historical-map benchmark dataset is complete.</p>
+<p>Review each proposed path against the original map before accepting it.</p>
 
-<h3>🖱️ Controls</h3>
+<h3>Controls</h3>
 <ul>
 <li><b>Left Click</b>: place/confirm points while tracing.</li>
 <li><b>Right Click / Enter</b>: finish the current line. Use <b>QGIS Save Layer Edits</b> to write changes to the file.</li>
@@ -3168,11 +3177,11 @@ class AIVectorizerDock(QDockWidget):
 <li><b>Click near start point</b>: close loop and enter elevation.</li>
 </ul>
 
-<h3>💡 Tips</h3>
+<h3>Tips</h3>
 <ul>
 <li>Zoom in until contour lines are clearly visible for better snapping.</li>
-<li>The assist slider is literal: 0% is the exact cursor, intermediate values blend geometry, and 100% uses the full Live-Wire route.</li>
-<li>An orange Ink avoid region is a soft local cost hint, never a hard wall or uploaded map data. Smart Recovery uses the same hint when it evaluates its corridor challenger.</li>
+<li>The assist slider controls the path: 0% follows the cursor exactly, intermediate values blend it with Live-Wire, and 100% uses the full Live-Wire route.</li>
+<li>Orange avoid regions discourage paths through text or noise, but a path can still cross them. Smart Recovery uses these same regions. Processing stays on your computer.</li>
 <li>The green line is the exact path that one click will accept. Auto Path is required only for SAM proposals.</li>
 <li>Smart Recovery reports Ink, Recovering, Enhanced, or Ink fallback. It never auto-downloads its model.</li>
 <li>If SAM/HED is unavailable, start with Ink Centerline.</li>
@@ -3180,7 +3189,7 @@ class AIVectorizerDock(QDockWidget):
 <li><b>SAM Status Report</b> performs the same integrity check before creating a shareable JSON report; internet is used only when the model is missing.</li>
 </ul>
 
-<h3>⚠️ Troubleshooting</h3>
+<h3>Troubleshooting</h3>
 <ul>
 <li><b>No raster selected</b>: choose a raster layer in Step 1.</li>
 <li><b>Model download failed</b>: check internet connection and retry.</li>
@@ -3188,29 +3197,29 @@ class AIVectorizerDock(QDockWidget):
 </ul>
 """
         return f"""
-<h2>🏛️ {PLUGIN_NAME} 사용 가이드</h2>
-<h3>📋 기본 워크플로우</h3>
+<h2>{PLUGIN_NAME} 사용 가이드</h2>
+<h3>기본 워크플로우</h3>
 <ol>
 <li><b>래스터 지도 선택</b> - 등고선이 있는 스캔 지도를 선택합니다.</li>
 <li><b>SHP 출력 설정</b> - 새 라인 SHP를 만들거나 기존 라인 레이어를 선택합니다.</li>
-<li><b>추적 방식 선택</b> - 기본 Ink Centerline으로 시작하고 필요할 때만 Smart Recovery를 켭니다. LSD/HED/MobileSAM/SAM/Legacy Canny는 Advanced에 보존됩니다.</li>
+<li><b>추적 방식 선택</b> - 기본 Ink Centerline으로 시작합니다. 선택 모델은 고급 설정에서 사용할 수 있으며 Smart Recovery는 기본으로 꺼져 있습니다.</li>
 <li><b>트레이싱 시작</b> - 등고선을 따라 추적한 뒤 선을 확정하고 레이어 편집을 저장합니다.</li>
 </ol>
 
-<h3>🤖 추적 방식</h3>
+<h3>추적 방식</h3>
 <table border='1' cellpadding='5'>
 <tr><th>방식</th><th>역할</th><th>필요 항목</th></tr>
-<tr><td>🖋 Ink Centerline</td><td>다중 스케일 검은색·유색 선 증거와 제한된 Live-Wire</td><td>QGIS NumPy, SciPy/scikit-image 선택, model·OpenCV 불필요</td></tr>
-<tr><td>🛟 Smart Recovery</td><td>불확실한 Ink 구간에만 EfficientSAM corridor challenger 사용, 기본 OFF·실패 시 Ink 보존</td><td>ONNX Runtime과 명시적으로 설치한 고정-hash 약 39.4 MiB split model</td></tr>
-<tr><td>📐 LSD</td><td>선분 지도를 이용한 Live-Wire</td><td>OpenCV + SciPy</td></tr>
-<tr><td>🧠 HED</td><td>학습된 엣지 지도 보조</td><td>OpenCV 4.8–4.11 및 약 {self._hed_size_hint_mb()}MB 모델</td></tr>
-<tr><td>🎯 MobileSAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + mobile_sam 및 약 {self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB 가중치</td></tr>
-<tr><td>🧩 SAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + segment_anything 및 약 {self._sam_size_hint_mb(MODEL_IDX_SAM)}MB 체크포인트</td></tr>
-<tr><td>🔧 Legacy Canny</td><td>기존 그래디언트 경계 검출 호환 모드</td><td>NumPy, OpenCV 선택</td></tr>
+<tr><td>Ink Centerline</td><td>검은색·유색 선을 따라 Live-Wire로 경로 보조</td><td>QGIS NumPy, SciPy/scikit-image 선택, 모델·OpenCV 불필요</td></tr>
+<tr><td>Smart Recovery</td><td>추적하기 어려운 구간을 로컬 EfficientSAM 모델로 재검토. 기본 꺼짐이며 복구 실패 시 Ink 경로 유지.</td><td>ONNX Runtime과 사용자가 설치한 약 39.4 MiB 검증 모델</td></tr>
+<tr><td>LSD</td><td>선분 지도를 이용한 Live-Wire</td><td>OpenCV + SciPy</td></tr>
+<tr><td>HED</td><td>학습된 엣지 지도 보조</td><td>OpenCV 4.8–4.11 및 약 {self._hed_size_hint_mb()}MB 모델</td></tr>
+<tr><td>MobileSAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + mobile_sam 및 약 {self._sam_size_hint_mb(MODEL_IDX_MOBILE_SAM)}MB 가중치</td></tr>
+<tr><td>SAM</td><td>프롬프트 마스크와 edge/A*</td><td>OpenCV + PyTorch + segment_anything 및 약 {self._sam_size_hint_mb(MODEL_IDX_SAM)}MB 체크포인트</td></tr>
+<tr><td>Legacy Canny</td><td>기존 그래디언트 경계 검출 호환 모드</td><td>NumPy, OpenCV 선택</td></tr>
 </table>
-<p>실제 고지도 benchmark 데이터셋이 완성되기 전까지 정확도 순위는 표시하지 않습니다.</p>
+<p>제안 경로를 확정하기 전에 원본 지도와 비교해 확인하세요.</p>
 
-<h3>🖱️ 조작법</h3>
+<h3>조작법</h3>
 <ul>
 <li><b>좌클릭</b>: 점 배치/확정</li>
 <li><b>우클릭 / Enter</b>: 현재 선 확정. 파일에 보관하려면 <b>QGIS 레이어 편집 저장</b>을 사용하세요.</li>
@@ -3221,19 +3230,19 @@ class AIVectorizerDock(QDockWidget):
 <li><b>시작점 근처 클릭</b>: 닫힌 루프 생성 후 해발값 입력</li>
 </ul>
 
-<h3>💡 팁</h3>
+<h3>팁</h3>
 <ul>
 <li>등고선이 명확히 보일 정도로 확대하면 스냅 품질이 좋아집니다.</li>
 <li>추적 보조 슬라이더는 실제 비율입니다. 0%는 정확한 커서, 중간값은 경로 혼합, 100%는 Live-Wire 전체 경로입니다.</li>
-<li>주황색 Ink 회피 영역은 hard wall이나 업로드 데이터가 아닌 local soft cost이며, Smart Recovery도 corridor challenger를 평가할 때 같은 힌트를 사용합니다.</li>
+<li>주황색 회피 영역은 문자나 잡음을 지나는 경로를 줄이지만 통과를 완전히 막지는 않습니다. Smart Recovery도 같은 영역을 참고하며 처리는 사용자 컴퓨터에서 이루어집니다.</li>
 <li>초록색 선이 클릭 한 번으로 채택될 정확한 경로입니다. Auto Path는 SAM 제안에만 필요합니다.</li>
-<li>Smart Recovery는 Ink, Recovering, Enhanced, Ink fallback 상태를 표시하며 model을 자동 download하지 않습니다.</li>
+<li>Smart Recovery는 Ink, Recovering, Enhanced, Ink fallback 상태를 표시하며 모델을 자동으로 다운로드하지 않습니다.</li>
 <li>SAM/HED가 준비되지 않았다면 Ink Centerline부터 시작하세요.</li>
 <li><b>선택 SAM 모델 검증</b> 버튼으로 로컬 파일이 고정된 크기와 SHA-256 정체성에 맞는지 확인하세요.</li>
 <li><b>SAM 상태 리포트</b>는 같은 무결성 검증 후 공유용 JSON을 생성하며, 모델이 없을 때만 인터넷을 사용합니다.</li>
 </ul>
 
-<h3>⚠️ 문제 해결</h3>
+<h3>문제 해결</h3>
 <ul>
 <li><b>래스터 선택 안 됨</b>: 1단계에서 래스터 레이어를 선택하세요.</li>
 <li><b>모델 다운로드 실패</b>: 인터넷 연결 확인 후 다시 시도하세요.</li>

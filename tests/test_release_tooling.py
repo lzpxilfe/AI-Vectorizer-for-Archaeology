@@ -162,6 +162,7 @@ class DependencyDeclarationTests(unittest.TestCase):
             "README.md",
             "README.en.md",
             "ai_vectorizer/README.md",
+            "ai_vectorizer/README.en.md",
             "ROADMAP.md",
             "docs/FEATURES_AND_ARCHITECTURE.md",
             "docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md",
@@ -199,6 +200,11 @@ class DependencyDeclarationTests(unittest.TestCase):
                 package_release.file_hash(current_source_zip),
                 package_release.bytes_hash(package_release.build_release_zip_bytes()),
             )
+            with zipfile.ZipFile(current_source_zip) as archive:
+                self.assertEqual(
+                    archive.read("ai_vectorizer/README.en.md"),
+                    (ROOT / "ai_vectorizer/README.en.md").read_bytes(),
+                )
 
         historical_evidence = (
             ROOT / "docs" / "RELEASE_READINESS_0.1.5.md"
@@ -222,6 +228,7 @@ class DependencyDeclarationTests(unittest.TestCase):
             ROOT / "CONTRIBUTING.md",
             ROOT / "SECURITY.md",
             ROOT / "ai_vectorizer" / "README.md",
+            ROOT / "ai_vectorizer" / "README.en.md",
             ROOT / "benchmarks" / "README.md",
         ) + tuple(sorted((ROOT / "docs").glob("*.md")))
         commercial_terms = ("bunting labs", "/pricing", "가격", "adoption gate")

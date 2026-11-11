@@ -31,6 +31,7 @@ TOP_LEVEL_ITEMS = (
     "metadata.txt",
     ".secrets.baseline",
     "README.md",
+    "README.en.md",
     "LICENSE",
     "icon.png",
     "core",

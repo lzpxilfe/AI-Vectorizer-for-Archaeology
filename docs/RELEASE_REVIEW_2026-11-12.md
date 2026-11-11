@@ -1,5 +1,7 @@
 # 0.1.7 사용자 흐름·코드 재검토
 
+[English](RELEASE_REVIEW_2026-11-12.en.md) · [언어·UI 후속 검토](LANGUAGE_REVIEW_2026-11-12.md)
+
 2026-11-12 · 미공개 experimental 후보
 
 지도 읽기 → 추적 → 이어 그리기 → 고도 입력 → DEM → 저장 흐름을 검토하고

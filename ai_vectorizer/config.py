@@ -57,33 +57,33 @@ MODE_NAME_BY_MODEL = {
 
 MODEL_MENU_LABELS = {
     MODEL_IDX_INK: {
-        "ko": "🖋 Ink Centerline (기본)",
-        "en": "🖋 Ink Centerline (Default)",
+        "ko": "Ink Centerline (기본)",
+        "en": "Ink Centerline (Default)",
     },
     MODEL_IDX_LSD: {
-        "ko": "📐 LSD (직선·격자 특화)",
-        "en": "📐 LSD (Straight-line specialist)",
+        "ko": "LSD (직선·격자 특화)",
+        "en": "LSD (Straight lines and grids)",
     },
     MODEL_IDX_HED: {
-        "ko": "🧠 HED (실험적 엣지 지도)",
-        "en": "🧠 HED (Experimental edge map)",
+        "ko": "HED (실험적 엣지 지도)",
+        "en": "HED (Experimental edge map)",
     },
     MODEL_IDX_MOBILE_SAM: {
-        "ko": "🎯 MobileSAM (프롬프트 마스크)",
-        "en": "🎯 MobileSAM (Prompt mask)",
+        "ko": "MobileSAM (프롬프트 마스크)",
+        "en": "MobileSAM (Prompt mask)",
     },
     MODEL_IDX_SAM: {
-        "ko": "🧩 SAM ViT-B (프롬프트 마스크)",
-        "en": "🧩 SAM ViT-B (Prompt mask)",
+        "ko": "SAM ViT-B (프롬프트 마스크)",
+        "en": "SAM ViT-B (Prompt mask)",
     },
     MODEL_IDX_LEGACY_CANNY: {
-        "ko": "🔧 Legacy Canny (호환용)",
-        "en": "🔧 Legacy Canny (Compatibility)",
+        "ko": "Legacy Canny (호환용)",
+        "en": "Legacy Canny (Compatibility)",
     },
 }
 
-TRACE_BUTTON_IDLE_STYLE = "font-weight: bold; padding: 8px; background: #27ae60; color: white;"
-TRACE_BUTTON_ACTIVE_STYLE = "font-weight: bold; padding: 8px; background: #e74c3c; color: white;"
+TRACE_BUTTON_IDLE_STYLE = "font-weight: bold; padding: 8px;"
+TRACE_BUTTON_ACTIVE_STYLE = "font-weight: bold; padding: 8px;"
 STATUS_STYLE_READY = "color: green; font-weight: bold;"
 STATUS_STYLE_NEUTRAL = ""
 STATUS_STYLE_INFO = "color: green; font-size: 10px;"

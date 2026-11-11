@@ -33,11 +33,21 @@ class MainDialogQgisTests(unittest.TestCase):
     def setUp(self):
         from qgis.core import QgsProject
         from qgis.gui import QgsMapCanvas
+        from qgis.PyQt.QtCore import QSettings
         from qgis.PyQt.QtWidgets import QMainWindow
+        from ai_vectorizer.config import SETTINGS_LANG_KEY
         from ai_vectorizer.core.edge_detector import EdgeDetector
         from ai_vectorizer.ui.main_dialog import AIVectorizerDock, _qt_value
 
         self.temp = tempfile.TemporaryDirectory()
+        ini_format = getattr(QSettings, "IniFormat", None)
+        if ini_format is None:
+            ini_format = QSettings.Format.IniFormat
+        self.settings = QSettings(str(Path(self.temp.name) / "settings.ini"), ini_format)
+        self.settings.setValue(SETTINGS_LANG_KEY, "en")
+        settings_patch = mock.patch("ai_vectorizer.ui.main_dialog.QSettings", return_value=self.settings)
+        settings_patch.start()
+        self.addCleanup(settings_patch.stop)
         self.project = QgsProject.instance()
         self.project.clear()
         self.window = QMainWindow()
@@ -64,6 +74,15 @@ class MainDialogQgisTests(unittest.TestCase):
         self.dock = AIVectorizerDock(self.iface, self.window)
         self.dock.current_language = "en"
         self.dock.apply_language()
+        self.window.addDockWidget(_qt_value("LeftDockWidgetArea", "DockWidgetArea"), self.dock)
+
+    def _reopen_dock(self):
+        from ai_vectorizer.ui.main_dialog import AIVectorizerDock, _qt_value
+        self.dock.cleanup(permanent=True)
+        self.window.removeDockWidget(self.dock)
+        self.dock.deleteLater()
+        self.application.processEvents()
+        self.dock = AIVectorizerDock(self.iface, self.window)
         self.window.addDockWidget(_qt_value("LeftDockWidgetArea", "DockWidgetArea"), self.dock)
 
     def tearDown(self):
@@ -341,6 +360,87 @@ class MainDialogQgisTests(unittest.TestCase):
                 self.assertIn(save, self.dock.controls_label.text())
                 self.assertIn(save, self.dock._help_text())
                 self.assertNotIn("AI", self.dock.edge_strength_label.text())
+
+    def test_first_run_uses_qgis_locale_and_english_for_other_locales(self):
+        from qgis.core import QgsApplication
+        from ai_vectorizer.config import SETTINGS_LANG_KEY
+        for locale, expected in (("ko", "ko"), ("ko_KR", "ko"), ("en_GB", "en"),
+                                 ("de_DE", "en"), ("fr", "en"), ("", "en")):
+            with self.subTest(locale=locale), mock.patch.object(QgsApplication, "locale", return_value=locale):
+                self.settings.remove(SETTINGS_LANG_KEY)
+                # QGIS may retain a userLocale while its override is disabled.
+                self.settings.setValue("locale/userLocale", "ko_KR")
+                self.settings.setValue("locale/overrideFlag", False)
+                self._reopen_dock()
+                self.assertEqual(self.dock.current_language, expected)
+                self.assertEqual(self.dock.lang_combo.currentData(), expected)
+                self.assertFalse(self.settings.contains(SETTINGS_LANG_KEY))
+
+    def test_language_choice_persists_across_reopening_and_overrides_locale(self):
+        from qgis.core import QgsApplication
+        from ai_vectorizer.config import SETTINGS_LANG_KEY
+        for chosen, locale in (("ko", "en_US"), ("en", "ko_KR")):
+            with self.subTest(chosen=chosen):
+                self.dock.lang_combo.setCurrentIndex(self.dock.lang_combo.findData(chosen))
+                self.assertEqual(self.dock.current_language, chosen)
+                self.assertEqual(self.settings.value(SETTINGS_LANG_KEY), chosen)
+                self.settings.sync()
+                with mock.patch.object(QgsApplication, "locale", return_value=locale):
+                    self._reopen_dock()
+                self.assertEqual(self.dock.current_language, chosen)
+                self.assertEqual(self.dock.lang_combo.currentData(), chosen)
+
+    def test_invalid_saved_language_uses_current_qgis_locale(self):
+        from qgis.core import QgsApplication
+        from ai_vectorizer.config import SETTINGS_LANG_KEY
+        self.settings.setValue(SETTINGS_LANG_KEY, "unsupported")
+        with mock.patch.object(QgsApplication, "locale", return_value="en_US"):
+            self._reopen_dock()
+        self.assertEqual(self.dock.lang_combo.currentData(), "en")
+
+    def test_english_controls_help_and_model_menus_have_no_korean_text(self):
+        from qgis.PyQt.QtWidgets import QWidget
+        self.dock.lang_combo.setCurrentIndex(self.dock.lang_combo.findData("ko"))
+        self.dock.lang_combo.setCurrentIndex(self.dock.lang_combo.findData("en"))
+        for name, widget in vars(self.dock).items():
+            if not isinstance(widget, QWidget) or widget is self.dock.lang_combo:
+                continue
+            for accessor in ("text", "title", "toolTip", "placeholderText", "accessibleName"):
+                read = getattr(widget, accessor, None)
+                if callable(read):
+                    with self.subTest(widget=name, property=accessor):
+                        self.assertNotRegex(str(read()), "[가-힣]")
+        self.assertNotRegex(self.dock._help_text(), "[가-힣]")
+        for index in range(self.dock.model_combo.count()):
+            self.assertNotRegex(self.dock.model_combo.itemText(index), "[가-힣]")
+        self.assertFalse(self.dock.smart_recovery_check.isChecked())
+        self.assertFalse(self.dock.learned_guide_check.isChecked())
+        self.assertIn("EfficientSAM", self.dock.smart_recovery_check.toolTip())
+
+    def test_language_switch_updates_open_dem_dialog_and_preserves_output_paths(self):
+        self._output()
+        self._process_layer_events()
+        self.dock.open_dem_dialog()
+        dem = self.dock.dem_dialog
+        self.assertIsNotNone(dem)
+        output_path = str(Path(self.temp.name) / "chosen_terrain.tif")
+        dem.dem_path.setText(output_path)
+        for language, label in (("ko", "DEM 생성"), ("en", "Build DEM")):
+            self.dock.lang_combo.setCurrentIndex(self.dock.lang_combo.findData(language))
+            self.assertEqual(dem.language, language)
+            self.assertEqual(dem.build_button.text(), label)
+            self.assertEqual(dem.dem_path.text(), output_path)
+        self.assertEqual(dem.dem_browse.accessibleName(), "Choose DEM output file")
+
+    def test_language_switch_retranslates_existing_local_model_guidance(self):
+        self.dock.lang_combo.setCurrentIndex(self.dock.lang_combo.findData("ko"))
+        self.dock.learned_guide_check.setChecked(True)
+        self.assertIn("모델 폴더를 가져오세요", self.dock.learned_status.text())
+        self.dock.lang_combo.setCurrentIndex(self.dock.lang_combo.findData("en"))
+        self.assertIn("Import a local bundle", self.dock.learned_status.text())
+        self.assertNotRegex(self.dock.learned_status.text(), "[가-힣]")
+        self.dock.lang_combo.setCurrentIndex(self.dock.lang_combo.findData("ko"))
+        self.assertIn("모델 폴더를 가져오세요", self.dock.learned_status.text())
 
 
 if __name__ == "__main__":
