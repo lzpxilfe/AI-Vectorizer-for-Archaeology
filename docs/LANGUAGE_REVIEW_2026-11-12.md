@@ -2,6 +2,10 @@
 
 2026-11-12 · Unpublished 0.1.7 candidate
 
+The later [QGIS submission](QGIS_SUBMISSION_0.1.7.md) includes this work and a
+scoped-enum compatibility fix. This document retains the language candidate's
+original archive and test evidence.
+
 ArchaeoTrace now starts in Korean for a Korean QGIS locale and English for other
 locales. A language chosen in the panel remains in effect on subsequent launches.
 Switching languages also updates locally authored model status messages and an

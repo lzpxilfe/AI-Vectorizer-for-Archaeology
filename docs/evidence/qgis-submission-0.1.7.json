@@ -1,0 +1,159 @@
+{
+  "version": "0.1.7",
+  "status": "submitted_awaiting_repository_review",
+  "recorded_at": "2026-11-11T23:03:23.541578+00:00",
+  "source_commit": "217ed92a08af19cc8092c88d10b3644db635e09b",
+  "package": {
+    "name": "ai_vectorizer-0.1.7.zip",
+    "sha256": "80990953cc69fd519b906d70138751d139f65c9d1553fdc671aeef739e87e722",
+    "size_bytes": 2098182,
+    "entries": 53,
+    "source_python_files_verified": 46
+  },
+  "repository": {
+    "plugin_id": 4694,
+    "version_url": "https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.7/",
+    "approved": false,
+    "latest_approved_version": "0.1.6",
+    "experimental": true,
+    "initial_upload_displayed_kst": "2026-11-12 07:49 GMT+9",
+    "final_download": {
+      "url": "https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.7/download/",
+      "sha256": "80990953cc69fd519b906d70138751d139f65c9d1553fdc671aeef739e87e722",
+      "bytes": 2098182,
+      "verified_at": "2026-11-11T22:58:28.509864+00:00",
+      "authenticated": false
+    }
+  },
+  "verification": {
+    "pytest_summary": "1246 passed, 208 skipped, 171 subtests passed in 13.20s",
+    "runtime": {
+      "qgis_version": "3.44.8-Solothurn",
+      "tests_run": 226,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "clean_profile": {
+      "ok": true,
+      "qgis_exit_code": 0,
+      "profile_removed": true,
+      "scenario_count": 7,
+      "scenario_names": [
+        "ink-v2-explicit-color-sample",
+        "freehand",
+        "exact-cursor-0-percent-missing-recovery",
+        "ink-v2-smart-recovery-off",
+        "ink-v2-rapid-click",
+        "ink-v2-click-during-cache",
+        "ink-v2-enhanced-wysiwyg"
+      ],
+      "warnings": []
+    },
+    "ci": {
+      "url": "https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/runs/43115647182",
+      "source_commit": "217ed92a08af19cc8092c88d10b3644db635e09b",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "Learned contour CPU contract (Python 3.12)",
+          "conclusion": "success"
+        },
+        {
+          "name": "Reproducible current-source package (Linux)",
+          "conclusion": "success"
+        },
+        {
+          "name": "Python 3.8 source compatibility (no PyPI dependencies)",
+          "conclusion": "success"
+        },
+        {
+          "name": "Dependency audit Python 3.11",
+          "conclusion": "success"
+        },
+        {
+          "name": "Pure Python 3.11",
+          "conclusion": "success"
+        },
+        {
+          "name": "Dependency audit Python 3.12",
+          "conclusion": "success"
+        },
+        {
+          "name": "Packaged plugin security preflight",
+          "conclusion": "success"
+        },
+        {
+          "name": "Pure Python 3.12",
+          "conclusion": "success"
+        },
+        {
+          "name": "Reproducible current-source package (Windows)",
+          "conclusion": "success"
+        },
+        {
+          "name": "QGIS 4.2.1 import smoke",
+          "conclusion": "success"
+        },
+        {
+          "name": "QGIS 3.22.16 import smoke",
+          "conclusion": "success"
+        },
+        {
+          "name": "QGIS 3.44.13 import smoke",
+          "conclusion": "success"
+        }
+      ]
+    }
+  },
+  "security_scan": {
+    "checked_displayed_kst": "2026-11-12 07:57 GMT+9",
+    "result": "all_checks_passed_configured",
+    "checks_passed": 5,
+    "warnings": 0,
+    "critical": 0,
+    "total_issues": 0,
+    "configured_upload_rules": 127,
+    "upload_rules_disabled": 0,
+    "config_files": [
+      ".secrets.baseline"
+    ],
+    "baseline_public_model_sha256_records": 8,
+    "baseline_public_source_commit_records": 1,
+    "baseline_changed": false
+  },
+  "qt6_check": {
+    "result": "stale_first_upload_result",
+    "checked_displayed_kst": "2026-11-12 07:49 GMT+9",
+    "reported_issues": 3,
+    "old_source_lines": [
+      185,
+      187
+    ],
+    "final_source_uses_scoped_enums": true,
+    "final_repository_qt6_rescan_confirmed": false,
+    "owner_rerun_ui_available": false,
+    "repository_side_refresh_required": true,
+    "public_website_source_commit": "06a2e650bef2a7d3971ff37fa9f327f3adf829f9",
+    "deployed_website_source_commit_verified": false,
+    "source_urls": [
+      "https://github.com/qgis/QGIS-Plugins-Website/blob/06a2e650bef2a7d3971ff37fa9f327f3adf829f9/qgis-app/plugins/signals.py#L10-L31",
+      "https://github.com/qgis/QGIS-Plugins-Website/blob/06a2e650bef2a7d3971ff37fa9f327f3adf829f9/qgis-app/plugins/views.py#L2143-L2154"
+    ]
+  },
+  "historical_candidates_preserved": true,
+  "release_date_recorded": false,
+  "github_release_or_tag_created": false,
+  "evidence_sha256": {
+    "verification-final.json": "eae625c7ab1b981c610be9e28d821a27fb27dbd9931bea1e875c6b00a52e9f26",
+    "pytest-final.log": "715a6df902b5a0737792cd694ef4014bdd0d3b81815aac5c9477c2648fa3874b",
+    "runtime-final/execution.json": "885d2ebc545ab659c89d60d4f546635de821d966b82275b6a2f0339f5b3f9406",
+    "runtime-final/qgis-runtime.log": "b6bf65908c10119dfd2450b826e59e85f84dec4e333da5ce590e2539eb9d43f9",
+    "runtime-final/qgis-clean-profile.log": "02c729bea2fbb640156a72fc4a9d0139f4c270577a5992716f0881a45ccc476b",
+    "ci-final.json": "d3be86c7243dd0f330f7c5cadc6fe5d143cf653c777bd02b9bc6705d4dcc9fe5",
+    "ci-final.log": "d42a31fe9262b46615c454568537fc247af504d3d26f068bd19afa77351ba3f1",
+    "download-verification.json": "380d1cca49e24d3166ddad1b8a2b87694fdb0a9d1d5c370e50b909b5260c72ba",
+    "security-final-dom.txt": "7b562ecc347382564014f2ba8b25eb020bf52dcaaefb37e338cc258bbc23d467",
+    "qgis-security-final.jpg": "7d84a4ea206c333d4d3022d08d28dc7e3e7311152c72741e6472412ef5698989"
+  }
+}

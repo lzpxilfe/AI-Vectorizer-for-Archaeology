@@ -13,7 +13,10 @@ QGIS 3.22–4.99 · Experimental · GPL v2
 
 In QGIS, open `Plugins > Manage and Install Plugins`, enable experimental plugins,
 and search for ArchaeoTrace. To install a candidate ZIP, use `Install from ZIP`.
-The published version is `0.1.6`; current source is an unpublished `0.1.7` candidate.
+Experimental `0.1.7` has been submitted to the QGIS plugin repository and is
+awaiting approval. The latest approved version remains `0.1.6`.
+[Submission status](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.7/) ·
+[Final package and validation](docs/QGIS_SUBMISSION_0.1.7.md)
 
 Use `Language` at the top of the panel to choose `English` or `한국어`.
 On first use, the plugin follows the QGIS language: Korean for Korean locales,
