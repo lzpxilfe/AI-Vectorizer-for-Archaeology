@@ -88,6 +88,10 @@ Windows에서는 `.venv\Scripts\python.exe`를 사용하세요. 선택 SAM backe
    실제 dock·지도 canvas·GeoPackage 편집과 JSON 내보내기를 확인합니다.
    PyTorch 학습·재개·ONNX export는 별도의
    Python 3.12 환경에서 `requirements-learning.txt`를 사용하며 QGIS Python에 설치하지 않습니다.
+   QGIS 4 CI에서는 `scripts/check_qt6_compatibility.py`로 실제 배포 ZIP에 공식
+   Qt6 migration checker를 dry-run합니다. 검사기와 보조 패키지의 버전·해시를
+   고정하고, 기존 세 enum 오류를 검출하는 대조 사례 후 제품의 오류 0건을 요구합니다.
+   종료 코드만으로 성공을 판단하지 않으며 Qt5 또는 QGIS 없는 부분 검사를 거부합니다.
    새 feature, 기존 contour 연장, 한 번의 Undo, layer removal, unload와 실제
    TIN→GeoTIFF→hillshade를 변경 범위에 맞게 확인합니다.
 

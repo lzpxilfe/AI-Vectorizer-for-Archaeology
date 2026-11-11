@@ -2,6 +2,10 @@
 
 Status checked: 12 November 2026, Korea Standard Time.
 
+The later [Desktop upload ZIP](QT6_UPLOAD_0.1.7.md) uses explicit writer-enum
+namespaces. This page retains the earlier `809909…` package's submission record;
+the Desktop package has its own identity and validation evidence.
+
 Experimental 0.1.7 has been uploaded to the
 [QGIS plugin repository](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.7/).
 The version remains **unapproved** and the latest approved version is 0.1.6.
