@@ -349,7 +349,8 @@ class ObservedConnectionQgisTests(unittest.TestCase):
                         target = QgsPointXY(self._target())
                         self.tool.toMapCoordinates = lambda _pos: target
                         event = SimpleNamespace(
-                            pos=lambda: QPointF(*self.TARGET), buttons=lambda: 0,
+                            pos=lambda: QPointF(*self.TARGET),
+                            buttons=lambda: _qt_value("NoButton", "MouseButton"),
                             button=lambda: _qt_value("LeftButton", "MouseButton"),
                             modifiers=lambda: _qt_value(modifier, "KeyboardModifier"),
                         )
@@ -393,7 +394,8 @@ class ObservedConnectionQgisTests(unittest.TestCase):
         proposal = SimpleNamespace(cancel=mock.Mock())
         self.tool._proposal_task = proposal
         self.tool.canvasMoveEvent(SimpleNamespace(
-            pos=lambda: QPointF(*self.TARGET), buttons=lambda: 0,
+            pos=lambda: QPointF(*self.TARGET),
+            buttons=lambda: _qt_value("NoButton", "MouseButton"),
             modifiers=lambda: _qt_value("ShiftModifier", "KeyboardModifier"),
         ))
         task.cancel.assert_called_once()
