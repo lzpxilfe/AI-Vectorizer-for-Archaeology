@@ -28,6 +28,7 @@ from qgis.PyQt.QtWidgets import (
     QMessageBox,
     QInputDialog,
     QApplication,
+    QScrollArea,
 )
 from qgis.core import (
     QgsProject,
@@ -427,7 +428,10 @@ class AIVectorizerDock(QDockWidget):
         main_widget = QWidget()
         self.layout = QVBoxLayout()
         main_widget.setLayout(self.layout)
-        self.setWidget(main_widget)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setWidget(main_widget)
+        self.setWidget(self.scroll_area)
 
         self.setup_ui()
 
@@ -498,6 +502,26 @@ class AIVectorizerDock(QDockWidget):
         self.trace_btn.setStyleSheet(TRACE_BUTTON_ACTIVE_STYLE)
 
     def _set_ready_state(self, prompt=False):
+        raster = self.layer_combo.currentLayer()
+        output = self.vector_combo.currentLayer()
+        has_raster = raster is not None and raster.isValid()
+        has_output = output is not None and output.isValid()
+        self.trace_btn.setEnabled(has_raster and has_output)
+        if not has_raster or not has_output:
+            if not has_raster and not has_output:
+                text = self._tr(
+                    "1단계에서 지도를, 2단계에서 출력 선 레이어를 선택하세요.",
+                    "Choose a map in Step 1 and an output line layer in Step 2.",
+                )
+            elif not has_raster:
+                text = self._tr("1단계에서 래스터 지도를 선택하세요.", "Choose a raster map in Step 1.")
+            else:
+                text = self._tr(
+                    "2단계에서 출력 선 레이어를 만들거나 선택하세요.",
+                    "Create or select an output line layer in Step 2.",
+                )
+            self._set_status_label(text)
+            return
         text = self._tr("✅ 준비 완료! 트레이싱을 시작하세요", "✅ Ready! Start tracing") if prompt else self._tr("✅ 준비 완료", "✅ Ready")
         self._set_status_label(text, "ready" if prompt else "neutral")
 
@@ -1457,6 +1481,7 @@ class AIVectorizerDock(QDockWidget):
 
     def setup_ui(self):
         self.header_label = QLabel()
+        self.header_label.setWordWrap(True)
         self.header_label.setStyleSheet(
             "font-size: 14px; font-weight: bold; padding: 5px; "
             "background: #2c3e50; color: white; border-radius: 3px;"
@@ -1479,6 +1504,7 @@ class AIVectorizerDock(QDockWidget):
         self.step1_group = QGroupBox()
         step1_layout = QVBoxLayout()
         self.step1_desc = QLabel()
+        self.step1_desc.setWordWrap(True)
         self.step1_desc.setStyleSheet("color: gray; font-size: 10px;")
         step1_layout.addWidget(self.step1_desc)
         self.layer_combo = QgsMapLayerComboBox()
@@ -1491,6 +1517,7 @@ class AIVectorizerDock(QDockWidget):
         self.step2_group = QGroupBox()
         step2_layout = QVBoxLayout()
         self.step2_desc = QLabel()
+        self.step2_desc.setWordWrap(True)
         self.step2_desc.setStyleSheet("color: gray; font-size: 10px;")
         step2_layout.addWidget(self.step2_desc)
 
@@ -1605,18 +1632,25 @@ class AIVectorizerDock(QDockWidget):
         self.advanced_group = QGroupBox()
         advanced_layout = QVBoxLayout()
         self.model_desc_label = QLabel()
+        self.model_desc_label.setWordWrap(True)
         self.model_desc_label.setStyleSheet("color: gray; font-size: 10px;")
         advanced_layout.addWidget(self.model_desc_label)
 
-        model_layout = QHBoxLayout()
+        model_layout = QVBoxLayout()
         self.model_label = QLabel()
         model_layout.addWidget(self.model_label)
         self.model_combo = QComboBox()
+        combo_policy = getattr(QComboBox, "AdjustToMinimumContentsLengthWithIcon", None)
+        if combo_policy is None:
+            combo_policy = QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        self.model_combo.setSizeAdjustPolicy(combo_policy)
+        self.model_combo.setMinimumContentsLength(12)
         self.model_combo.currentIndexChanged.connect(self.on_model_changed)
         model_layout.addWidget(self.model_combo)
         advanced_layout.addLayout(model_layout)
 
         self.sam_status = QLabel("")
+        self.sam_status.setWordWrap(True)
         self.sam_status.setStyleSheet("font-size: 10px;")
         advanced_layout.addWidget(self.sam_status)
 
@@ -1636,6 +1670,7 @@ class AIVectorizerDock(QDockWidget):
         advanced_layout.addWidget(self.sam_download_btn)
 
         self.install_guide = QLabel()
+        self.install_guide.setWordWrap(True)
         self.install_guide.setStyleSheet("color: #e67e22; font-size: 9px;")
         self.install_guide.setVisible(False)
         advanced_layout.addWidget(self.install_guide)
@@ -1661,7 +1696,7 @@ class AIVectorizerDock(QDockWidget):
         self.learned_import_btn = QPushButton()
         self.learned_import_btn.clicked.connect(self.import_learned_model)
         advanced_layout.addWidget(self.learned_import_btn)
-        annotation_actions = QHBoxLayout()
+        annotation_actions = QVBoxLayout()
         self.annotation_open_btn = QPushButton()
         self.annotation_open_btn.clicked.connect(self.open_annotation_project)
         annotation_actions.addWidget(self.annotation_open_btn)
@@ -1712,6 +1747,7 @@ class AIVectorizerDock(QDockWidget):
         self.controls_title_label.setStyleSheet("font-weight: bold; color: #333; margin-top: 5px;")
         status_layout.addWidget(self.controls_title_label)
         self.controls_label = QLabel()
+        self.controls_label.setWordWrap(True)
         self.controls_label.setStyleSheet(
             "color: #555; font-size: 9px; background: #f8f9fa; "
             "padding: 8px; border-radius: 4px; line-height: 1.4;"
@@ -1774,29 +1810,29 @@ class AIVectorizerDock(QDockWidget):
         self.step3_group.setToolTip(self._tr("Ink 중심선과 선택적 복구 설정", "Ink centerline and optional recovery settings"))
         self.primary_mode_label.setText(
             self._tr(
-                "🖋 기본은 Ink Centerline입니다. 모델 없이 항상 먼저 실행됩니다.",
-                "🖋 Ink Centerline is the default and always runs first without a model.",
+                "🖋 기본 Ink Centerline은 별도 학습 모델 없이 동작합니다.",
+                "🖋 The default Ink Centerline works without a learned model.",
             )
         )
         self.smart_recovery_check.setText(
             self._tr(
-                "🛟 Smart Recovery (실험적, 기본 꺼짐)",
-                "🛟 Smart Recovery (Experimental, default OFF)",
+                "🛟 Smart Recovery (실험적)",
+                "🛟 Smart Recovery (Experimental)",
             )
         )
         self.smart_recovery_check.setToolTip(
             self._tr(
-                "Ink 증거가 약한 현재 구간만 로컬 EfficientSAM으로 재검토합니다. 모델 결과가 안전하게 개선될 때만 초록 미리보기를 바꿉니다.",
-                "Re-check only weak current Ink segments with local EfficientSAM. The green preview changes only when the challenger is a safe improvement.",
+                "기본은 꺼짐입니다. Ink 증거가 약한 현재 구간만 로컬 EfficientSAM으로 재검토합니다. 모델 결과가 안전하게 개선될 때만 초록 미리보기를 바꿉니다.",
+                "Off by default. Re-check only weak current Ink segments with local EfficientSAM. The green preview changes only when the challenger is a safe improvement.",
             )
         )
         self.learned_guide_check.setText(self._tr(
-            "학습 등고선 보조 (실험적, 기본 꺼짐)",
-            "Learned contour guide (Experimental, default OFF)",
+            "학습 등고선 보조 (실험적)",
+            "Learned guide (Experimental)",
         ))
         self.learned_guide_check.setToolTip(self._tr(
-            "검증된 로컬 모델로 Ink 경로를 보조합니다. 초록 미리보기를 확인한 뒤 채택하세요.",
-            "Guide Ink paths with a verified local model. Review the green preview before accepting.",
+            "기본은 꺼짐입니다. 검증된 로컬 모델로 Ink 경로를 보조합니다. 초록 미리보기를 확인한 뒤 채택하세요.",
+            "Off by default. Guide Ink paths with a verified local model. Review the green preview before accepting.",
         ))
         self.learned_import_btn.setText(self._tr("로컬 모델 가져오기", "Import local model"))
         self.learned_import_btn.setToolTip(self._tr(
@@ -1874,8 +1910,11 @@ class AIVectorizerDock(QDockWidget):
             )
         )
         self.advanced_group.setTitle(self._tr("고급 모델 선택", "Advanced model selection"))
-        self.model_desc_label.setText(self._tr("기존 모델 인덱스 0–5 호환 영역", "Compatibility area preserving legacy model indices 0–5"))
-        self.model_label.setText(self._tr("AI 모델:", "AI Model:"))
+        self.model_desc_label.setText(self._tr(
+            "선택한 방식에 따라 추가 모델과 실행 환경이 필요합니다.",
+            "Some tracing modes require an additional model and runtime.",
+        ))
+        self.model_label.setText(self._tr("추적 방식:", "Tracing mode:"))
         self.model_label.setToolTip(
             self._tr(
                 (
@@ -1926,9 +1965,9 @@ class AIVectorizerDock(QDockWidget):
         self.sam_download_btn.setToolTip(self._tr("인터넷 연결 필요. 최초 1회만 다운로드", "Internet required. Download once on first use"))
         self.install_guide.setText(self._tr("📦 선택 모델 설치 (복사 가능):", "📦 Selected Model Install (copy this):"))
         self.install_cmd.setText(self._install_command_for_model())
-        self.freehand_check.setText(self._tr("✏️ 프리핸드 (AI 비활성)", "✏️ Freehand (AI Off)"))
-        self.freehand_check.setToolTip(self._tr("체크: AI 없이 순수 마우스 추적", "Checked: pure mouse tracing without AI"))
-        self.edge_strength_label.setText(self._tr("AI 개입 강도:", "AI Assist Strength:"))
+        self.freehand_check.setText(self._tr("✏️ 프리핸드 (보조 없음)", "✏️ Freehand (No Assist)"))
+        self.freehand_check.setToolTip(self._tr("체크: 경로 보조 없이 순수 마우스 추적", "Checked: pure mouse tracing without path assistance"))
+        self.edge_strength_label.setText(self._tr("추적 보조 강도:", "Tracing Assist:"))
         self.freedom_slider.setToolTip(
             self._tr(
                 "0%: 커서 그대로\n1~99%: 커서 경로와 Live-Wire를 실제 비율로 혼합\n100%: 방향 인식 경로 전체 적용\nSAM은 Auto Path에서만 사용",
@@ -1970,27 +2009,31 @@ class AIVectorizerDock(QDockWidget):
                 "• 드래그: 선 그리기 / 클릭: 체크포인트\n"
                 "• 그리는 중 Ctrl+Z: 마지막 체크포인트로 되돌리기\n"
                 "• Ink: Alt+클릭 두 번: 문자/잡음 회피 영역 · Alt+Backspace: 마지막 제거\n"
-                "• 저장 후 Ctrl+Z: QGIS 편집 작업 되돌리기\n"
+                "• 선 확정 후 Ctrl+Z: QGIS 편집 작업 되돌리기\n"
                 "• Esc: 현재 그리기 취소 / Del: 전체 취소\n"
-                "• 시작점 클릭: 폴리곤 닫기 → 해발값\n"
-                "• 우클릭/Enter: 저장",
+                "• 시작점 클릭: 선 닫기 → 해발값\n"
+                "• 우클릭/Enter: 선 확정\n"
+                "• 파일 저장: QGIS의 레이어 편집 저장",
                 "• Drag: draw line / Click: checkpoint\n"
                 "• While tracing Ctrl+Z: undo to last checkpoint\n"
                 "• Ink: Alt+click two corners: avoid text/noise · Alt+Backspace: remove last\n"
-                "• After save Ctrl+Z: undo the QGIS edit command\n"
+                "• After finishing Ctrl+Z: undo the QGIS edit command\n"
                 "• Esc: cancel current trace / Del: cancel all\n"
-                "• Click start point: close polygon -> elevation\n"
-                "• Right click / Enter: save",
+                "• Click start point: close line -> elevation\n"
+                "• Right click / Enter: finish line\n"
+                "• Save to file: QGIS Save Layer Edits",
             )
         )
         self.controls_label.setToolTip(
             self._tr(
                 "클릭으로 체크포인트 저장\n"
                 "Ink에서는 Alt+클릭 두 번으로 문자/잡음 회피 영역을 표시할 수 있습니다\n"
-                "그리는 중에는 체크포인트, 저장 후에는 QGIS 작업을 Ctrl+Z로 되돌립니다",
+                "그리는 중에는 체크포인트, 선 확정 후에는 QGIS 작업을 Ctrl+Z로 되돌립니다.\n"
+                "파일에 보관하려면 QGIS의 레이어 편집 저장을 사용하세요.",
                 "Click to place checkpoints\n"
                 "In Ink, Alt+click two corners to mark a text/noise avoid region\n"
-                "Ctrl+Z undoes a checkpoint while tracing and the QGIS edit after saving",
+                "Ctrl+Z undoes a checkpoint while tracing and the QGIS edit after finishing.\n"
+                "Use QGIS Save Layer Edits to write the changes to the file.",
             )
         )
 
@@ -2006,7 +2049,7 @@ class AIVectorizerDock(QDockWidget):
         self.help_btn.setText(self._tr("❓ 도움말", "❓ Help"))
         self.help_btn.setToolTip(self._tr("사용법과 문제해결 안내", "Usage guide and troubleshooting"))
 
-        self.auto_path_check.setText("AI Proposal / Auto Path (Experimental)")
+        self.auto_path_check.setText(self._tr("Auto Path (실험적)", "Auto Path (Experimental)"))
         self.auto_path_check.setToolTip(
             self._tr(
                 "Ink/LSD/HED/Legacy Canny에서는 커서를 따라 표시되는 전체 Live-Wire 경로를 클릭 한 번으로 채택합니다. SAM은 커서를 잠시 멈춘 뒤 표시되며 같은 위치를 다시 클릭해 채택합니다.",
@@ -2015,9 +2058,7 @@ class AIVectorizerDock(QDockWidget):
         )
         self.sam_download_btn.setText(self._download_button_text())
 
-        if not self.trace_btn.isEnabled():
-            self._set_status_label(self._tr("SHP 파일을 먼저 생성하세요", "Create or select an SHP layer first"))
-        elif self.trace_btn.isChecked():
+        if self.trace_btn.isChecked():
             self._set_status_label(
                 self._tr(
                     "🖊️ [{mode}] 등고선을 클릭하세요",
@@ -2137,24 +2178,21 @@ class AIVectorizerDock(QDockWidget):
                 return
             self.iface.mapCanvas().unsetMapTool(self.active_tool)
         self.output_layer = layer
-        self.trace_btn.setEnabled(bool(layer))
         self._update_dem_button_for_tracing(self.trace_btn.isChecked())
-        if layer:
-            self.enable_tracing()
-        elif not self.trace_btn.isChecked():
-            self._set_status_label(self._tr("SHP 파일을 먼저 생성하세요", "Create or select an SHP layer first"))
+        if not self.trace_btn.isChecked():
+            self._set_ready_state(prompt=True)
 
     def on_raster_layer_selected(self, layer):
         """Stop a session if its raster is removed or replaced externally."""
 
-        if self.active_tool is None:
-            return
-        active_layer = getattr(self.active_tool, "raster_layer", None)
-        if not self._same_layer(layer, active_layer):
-            self.iface.mapCanvas().unsetMapTool(self.active_tool)
+        if self.active_tool is not None:
+            active_layer = getattr(self.active_tool, "raster_layer", None)
+            if not self._same_layer(layer, active_layer):
+                self.iface.mapCanvas().unsetMapTool(self.active_tool)
+        if hasattr(self, "trace_btn") and not self.trace_btn.isChecked():
+            self._set_ready_state(prompt=True)
 
     def enable_tracing(self):
-        self.trace_btn.setEnabled(True)
         self._update_dem_button_for_tracing(self.trace_btn.isChecked())
         self._set_ready_state(prompt=True)
 
@@ -3085,9 +3123,9 @@ class AIVectorizerDock(QDockWidget):
 <h3>🖱️ Controls</h3>
 <ul>
 <li><b>Left Click</b>: place/confirm points while tracing.</li>
-<li><b>Right Click / Enter</b>: save current line.</li>
+<li><b>Right Click / Enter</b>: finish the current line. Use <b>QGIS Save Layer Edits</b> to write changes to the file.</li>
 <li><b>Esc / Delete</b>: cancel current trace.</li>
-<li><b>Ctrl+Z</b>: undo a checkpoint while tracing; after save, undo the complete QGIS edit command.</li>
+<li><b>Ctrl+Z</b>: undo a checkpoint while tracing; after finishing a line, undo the complete QGIS edit command.</li>
 <li><b>Ink Alt+click twice</b>: mark a text/noise avoid rectangle. <b>Alt+Backspace</b> removes the latest; <b>Alt+Shift+Backspace</b> clears all.</li>
 <li><b>Ink C</b>: sample a colored line under the cursor; <b>Shift+C</b> clears it. Applies only to this trace, with Byte RGB evidence and SciPy. A soft guide, so review every green preview.</li>
 <li><b>Click near start point</b>: close loop and enter elevation.</li>
@@ -3119,7 +3157,7 @@ class AIVectorizerDock(QDockWidget):
 <li><b>래스터 지도 선택</b> - 등고선이 있는 스캔 지도를 선택합니다.</li>
 <li><b>SHP 출력 설정</b> - 새 라인 SHP를 만들거나 기존 라인 레이어를 선택합니다.</li>
 <li><b>추적 방식 선택</b> - 기본 Ink Centerline으로 시작하고 필요할 때만 Smart Recovery를 켭니다. LSD/HED/MobileSAM/SAM/Legacy Canny는 Advanced에 보존됩니다.</li>
-<li><b>트레이싱 시작</b> - 등고선을 따라 클릭하며 추적한 뒤 저장합니다.</li>
+<li><b>트레이싱 시작</b> - 등고선을 따라 추적한 뒤 선을 확정하고 레이어 편집을 저장합니다.</li>
 </ol>
 
 <h3>🤖 추적 방식</h3>
@@ -3138,9 +3176,9 @@ class AIVectorizerDock(QDockWidget):
 <h3>🖱️ 조작법</h3>
 <ul>
 <li><b>좌클릭</b>: 점 배치/확정</li>
-<li><b>우클릭 / Enter</b>: 현재 선 저장</li>
+<li><b>우클릭 / Enter</b>: 현재 선 확정. 파일에 보관하려면 <b>QGIS 레이어 편집 저장</b>을 사용하세요.</li>
 <li><b>Esc / Delete</b>: 현재 그리기 취소</li>
-<li><b>Ctrl+Z</b>: 그리는 중에는 체크포인트, 저장 후에는 전체 QGIS 편집 명령 되돌리기</li>
+<li><b>Ctrl+Z</b>: 그리는 중에는 체크포인트, 선 확정 후에는 전체 QGIS 편집 명령 되돌리기</li>
 <li><b>Ink에서 Alt+두 번 클릭</b>: 문자·잡음 회피 사각형 표시. <b>Alt+Backspace</b>는 마지막, <b>Alt+Shift+Backspace</b>는 모두 제거</li>
 <li><b>Ink C</b>: 커서 아래 유색 선을 지정. <b>Shift+C</b>로 해제. Byte RGB 지도와 SciPy가 필요하며 현재 추적에서만 사용합니다. 초록 경로를 계속 검수하세요.</li>
 <li><b>시작점 근처 클릭</b>: 닫힌 루프 생성 후 해발값 입력</li>
@@ -3149,7 +3187,7 @@ class AIVectorizerDock(QDockWidget):
 <h3>💡 팁</h3>
 <ul>
 <li>등고선이 명확히 보일 정도로 확대하면 스냅 품질이 좋아집니다.</li>
-<li>AI 개입 슬라이더는 실제 비율입니다. 0%는 정확한 커서, 중간값은 경로 혼합, 100%는 Live-Wire 전체 경로입니다.</li>
+<li>추적 보조 슬라이더는 실제 비율입니다. 0%는 정확한 커서, 중간값은 경로 혼합, 100%는 Live-Wire 전체 경로입니다.</li>
 <li>주황색 Ink 회피 영역은 hard wall이나 업로드 데이터가 아닌 local soft cost이며, Smart Recovery도 corridor challenger를 평가할 때 같은 힌트를 사용합니다.</li>
 <li>초록색 선이 클릭 한 번으로 채택될 정확한 경로입니다. Auto Path는 SAM 제안에만 필요합니다.</li>
 <li>Smart Recovery는 Ink, Recovering, Enhanced, Ink fallback 상태를 표시하며 model을 자동 download하지 않습니다.</li>

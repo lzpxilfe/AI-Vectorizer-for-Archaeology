@@ -99,9 +99,9 @@ Human-approved annotations remain zero; formal Calibration/Holdout evaluation is
 
 - The plugin is experimental. The latest release in the official QGIS plugin
   repository is `0.1.6` (published 2026-09-09). Current source is an **unpublished
-  `0.1.7` experimental candidate**, addressing active-trace Undo, initial DEM
-  spot-field selection and transparent/NoData raster reads. Learned guidance stays
-  default OFF. See the [CHANGELOG](CHANGELOG.md) and
+  `0.1.7` experimental candidate**, addressing active-trace Undo, manual preview/click
+  consistency, existing elevations on resume, DEM input validation and small-screen UI.
+  Learned guidance stays default OFF. See the [workflow review](docs/RELEASE_REVIEW_2026-11-12.md), [CHANGELOG](CHANGELOG.md) and
   [candidate verification record](docs/RELEASE_READINESS_0.1.7.md).
 - Accuracy against human-reviewed reference lines and time savings for users are
   **still being evaluated**. Progress is recorded in

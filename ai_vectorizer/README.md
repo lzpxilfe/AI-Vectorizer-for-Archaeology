@@ -335,7 +335,7 @@ first use.
 ## 🗺️ Quick Workflow
 
 1. 래스터 지도를 선택합니다.
-2. 출력 라인 레이어를 새로 만들거나 기존 SHP를 고릅니다.
+2. 출력 라인 레이어를 새로 만들거나 기존 SHP·GeoPackage 선 레이어를 고릅니다.
 3. 원하는 모델을 선택합니다.
 4. 기본 Ink의 초록색 경로와 Recovery 상태를 확인합니다. 기존 LSD/HED/SAM/Canny가
    필요하면 `Advanced: legacy tracing models`를 펼칩니다.
@@ -348,12 +348,14 @@ first use.
 
 `elevation` 등고선 + 선택적 표고점 → QGIS 선형 TIN 보간 → GeoTIFF DEM → GDAL hillshade
 
-- 비어 있지 않은 geometry, finite 숫자형 고도, 서로 다른 두 개 이상의 고도값, 비공선 vertex 3개 이상, 미터 단위 투영 CRS가 필요합니다.
+- 비어 있지 않은 geometry와 finite XY 좌표·숫자형 고도, 서로 다른 두 개 이상의 고도값, 비공선 vertex 3개 이상, 미터 단위 투영 CRS가 필요합니다.
 - 편집을 저장한 후 실행하세요. 임시 `Spot Heights`도 사용할 수 있지만 point geometry와 등고선과 동일한 CRS가 필요하며, 재현을 위해 파일 레이어로 저장하는 것을 권장합니다.
 - DEM 창에서 등고선 레이어의 숫자형 고도 필드를 선택합니다. 표고점을 추가하려면
   점 레이어를 고르고 해당 레이어의 숫자형 고도 필드를 확인하세요. `None`이면 표고점은
   선택 사항으로 제외합니다. 창을 열 때 점 레이어가 이미 선택돼 있어도 그 레이어의
-  필드 목록이 즉시 표시됩니다. 표고점의 고도와 등고선의 고도는 같은 단위를 사용하세요.
+  필드 목록이 즉시 표시됩니다. 등고선·표고점 모두 `elevation`만 자동 선택하고,
+  `height_m` 등 다른 이름은 직접 고릅니다. `id`가 고도로 선택되지 않았는지 확인하세요.
+  표고점의 고도와 등고선의 고도는 같은 단위를 사용하세요.
 - QGIS Processing에서 `qgis:tininterpolation`, `gdal:translate`, `native:rasterlayerstatistics`, `gdal:hillshade` 알고리즘이 사용 가능해야 합니다.
 - 출력은 기본 2,500만 셀까지 허용하고, 기존 파일은 확인 후에만 덮어씁니다.
 - TIN의 범위 밖·입력 누락 구간은 추정 한계로 남습니다. 결과는 자동 확정값이 아니라 검토할 수 있는 지형 가설입니다.
@@ -367,7 +369,9 @@ first use.
 - Ink 추적 시작 후 유색 선 위에서 `C`: 선 색상 지정. `Shift+C`: 색상 해제
 - 추적을 마친 뒤 `Ctrl+Z` / `Cmd+Z`: QGIS 편집 스택에서 방금 추가·연장한 작업 되돌리기
 - `Esc` / `Delete`: 현재 트레이싱 취소
-- `Enter` / 우클릭: 현재 선 저장
+- `Shift` / `Ctrl`을 누른 클릭: 커서 위치까지 수동 직선 채택
+- `Enter` / 우클릭: 현재 선을 편집 버퍼에 확정. 파일 저장은 `Save Layer Edits`
+- 기존 등고선을 이어 그린 뒤 고도 입력창에서는 기존 고도를 유지하거나 수정합니다.
 
 ## 🧯 Troubleshooting
 
@@ -447,6 +451,7 @@ first use.
   cost is max-composed with avoid guidance and shared with Recovery. Panning
   reapplies it, while finishing/cancelling/reset clears it. Samples stay local
   and session-only; same-color text remains ambiguous and performance is unvalidated.
+- Shift/Ctrl-click accepts a literal straight segment to the cursor. Resuming a contour prefills its existing elevation; Enter/right-click finishes it in the edit buffer, and `Save Layer Edits` writes it to disk.
 - While tracing on the map canvas, Ctrl+Z/Cmd+Z or plain Backspace removes the last checkpoint, stopping at the first anchor and preserving the existing feature being extended. Once tracing is idle, normal QGIS Undo is restored. Trace additions and extensions stay in the edit buffer; `Save Layer Edits` commits them.
 - Transparent and NoData pixels are treated as background. WMS/WMTS sources without a fixed source pixel grid use a bounded viewport Ink cache; native-grid learned guidance and Recovery remain unavailable. Server authentication, responses and the user's specific project still need separate diagnosis.
 - `MobileSAM` and `SAM` also require `PyTorch` plus their backend packages and model weights.
@@ -469,7 +474,7 @@ first use.
   Attach the exported JSON to a new versioned manifest with the separate
   [learning CLI](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/learning/README.md).
 - The 144 USGS pilot crops remain unreviewed drafts. Separate weak-label Colab runs and QGIS comparisons completed, but general-text retraining showed no improved saved routes. Human-reviewed accuracy and formal Holdout evaluation remain pending.
-- The DEM workflow requires saved elevation contours in a projected metre CRS. Select each contour/optional spot layer's numeric elevation field and use the same elevation units. A preselected spot layer populates its fields when the dialog opens; choosing None excludes the optional points. The output is a terrain hypothesis to review.
+- The DEM workflow requires saved elevation contours in a projected metre CRS. Select each contour/optional spot layer's numeric elevation field and use the same elevation units. Only `elevation` is selected automatically; choose custom fields such as `height_m` explicitly. Nonfinite XY coordinates are rejected before interpolation. A preselected spot layer populates its fields when the dialog opens; choosing None excludes the optional points. The output is a terrain hypothesis to review.
 
 ## 📚 Citation
 

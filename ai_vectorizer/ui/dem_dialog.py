@@ -117,10 +117,12 @@ class DemBuildDialog(QDialog):
         self.contour_combo.setFilters(
             _proxy_filter(QgsMapLayerProxyModel, "LineLayer", "LineLayer", "LayerFilter")
         )
+        self.contour_combo.setAllowEmptyLayer(True)
         self.contour_label = QLabel()
         input_form.addRow(self.contour_label, self.contour_combo)
 
         self.contour_field = QgsFieldComboBox()
+        self.contour_field.setAllowEmptyFieldName(True)
         self.contour_field.setFilters(
             _proxy_filter(QgsFieldProxyModel, "Numeric", "Numeric", "FieldFilter")
         )
@@ -198,6 +200,8 @@ class DemBuildDialog(QDialog):
 
         self.contour_combo.layerChanged.connect(self._on_contour_changed)
         self.spot_combo.layerChanged.connect(self._on_spot_changed)
+        self.contour_field.fieldChanged.connect(self._refresh_build_enabled)
+        self.spot_field.fieldChanged.connect(self._refresh_build_enabled)
         self.pixel_size.valueChanged.connect(self._on_pixel_size_changed)
 
         # A layer combo can already have selected a project point layer before
@@ -231,6 +235,12 @@ class DemBuildDialog(QDialog):
         self.input_group.setTitle(self._tr("1. 고도 데이터", "1. Elevation data"))
         self.contour_label.setText(self._tr("등고선 레이어:", "Contour layer:"))
         self.contour_field_label.setText(self._tr("고도 필드:", "Elevation field:"))
+        elevation_hint = self._tr(
+            "실제 고도값을 가진 숫자 필드를 선택하세요. ID는 고도값이 아닙니다.",
+            "Choose the numeric field containing elevations. An ID is not an elevation.",
+        )
+        self.contour_field.setToolTip(elevation_hint)
+        self.spot_field.setToolTip(elevation_hint)
         self.spot_label.setText(
             self._tr("표고점 레이어 (선택):", "Spot-height layer (optional):")
         )
@@ -264,11 +274,14 @@ class DemBuildDialog(QDialog):
 
         contour_id = contour_layer.id() if contour_layer is not None else None
         changed = contour_id != self._last_contour_id
+        selected_field = self.contour_field.currentField() if not changed else None
+        if changed:
+            self._user_changed_pixel_size = False
         self._last_contour_id = contour_id
+        self.contour_combo.blockSignals(True)
         self.contour_combo.setLayer(contour_layer)
-        self.contour_field.setLayer(contour_layer)
-        if contour_layer is not None and contour_layer.fields().indexOf(FIELD_ELEVATION) >= 0:
-            self.contour_field.setField(FIELD_ELEVATION)
+        self.contour_combo.blockSignals(False)
+        self._bind_contour_field(contour_layer, selected_field)
 
         if contour_layer is not None and (changed or not self._user_changed_pixel_size):
             suggestion = self._suggest_pixel_size(contour_layer, raster_layer)
@@ -321,10 +334,18 @@ class DemBuildDialog(QDialog):
         safe_stem = "".join(char if char.isalnum() or char in "-_" else "_" for char in stem)
         return str(folder / f"{safe_stem}_dem.tif")
 
-    def _on_contour_changed(self, layer):
+    def _bind_contour_field(self, layer, selected_field=None):
         self.contour_field.setLayer(layer)
-        if layer is not None and layer.fields().indexOf(FIELD_ELEVATION) >= 0:
+        # Never turn an arbitrary first numeric field (often an ID) into height.
+        # Reopening the same input preserves an explicit choice, including empty.
+        self.contour_field.setField("")
+        if selected_field is not None:
+            self.contour_field.setField(selected_field)
+        elif layer is not None and layer.fields().indexOf(FIELD_ELEVATION) >= 0:
             self.contour_field.setField(FIELD_ELEVATION)
+
+    def _on_contour_changed(self, layer):
+        self._bind_contour_field(layer)
         self._last_contour_id = layer.id() if layer is not None else None
         self._user_changed_pixel_size = False
         if layer is not None:
@@ -398,8 +419,11 @@ class DemBuildDialog(QDialog):
 
     def _refresh_build_enabled(self):
         if hasattr(self, "build_button"):
+            has_fields = bool(self.contour_field.currentField()) and (
+                self.spot_combo.currentLayer() is None or bool(self.spot_field.currentField())
+            )
             self.build_button.setEnabled(
-                self._grid_is_valid and not self.runner.is_running
+                self._grid_is_valid and has_fields and not self.runner.is_running
             )
 
     def _browse_dem(self):

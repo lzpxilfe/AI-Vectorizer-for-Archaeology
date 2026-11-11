@@ -178,8 +178,13 @@ class ManualGapQgisTests(unittest.TestCase):
         self.assertFalse(self.tool._manual_gap_bridge_preview_matches(self.target))
 
     def test_modifier_clicks_do_not_accept_bridge(self):
+        original = list(self.tool.path_points)
         for modifier_name in ("AltModifier", "ShiftModifier", "ControlModifier"):
             with self.subTest(modifier=modifier_name):
+                self.tool.path_points = list(original)
+                self.tool.checkpoints = [0, 1]
+                self.tool.last_map_point = original[-1]
+                self.tool.last_input_point = original[-1]
                 bridge = self._preview()
                 confirmed = self._coordinates(self.tool.path_points)
                 self.tool._defer_click_until_livewire_ready = mock.Mock(return_value=True)
@@ -190,6 +195,10 @@ class ManualGapQgisTests(unittest.TestCase):
                 self.assertNotEqual(
                     self._coordinates(self.tool.path_points), confirmed + bridge
                 )
+                expected = confirmed
+                if modifier_name != "AltModifier":
+                    expected += self._coordinates([self.target])
+                self.assertEqual(self._coordinates(self.tool.path_points), expected)
 
     def test_stale_cache_anchor_or_mutated_preview_cannot_be_confirmed(self):
         for mutation in ("cache", "anchor", "preview"):

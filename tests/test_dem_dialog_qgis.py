@@ -112,6 +112,59 @@ class DemDialogQgisTests(unittest.TestCase):
         self.assertIn(spots.id() + "::~::0::~::2::~::0", request.interpolation_data)
         self.assertEqual(request.spot_stats.unique_values, (130.0,))
 
+    def test_custom_contour_height_requires_choice_and_preserves_it_on_reopen(self):
+        self.contours = self._layer(
+            "LineString", "survey contours", [("id", "Int"), ("height_m", "Double")],
+            [("LINESTRING(0 0,100 0)", [1, 100.0]),
+             ("LINESTRING(0 100,100 100)", [2, 120.0])],
+        )
+        dialog = self._dialog()
+        self.assertEqual(dialog.contour_field.currentField(), "")
+        self.assertFalse(dialog.build_button.isEnabled())
+        with self.assertRaisesRegex(self.InputError, "Elevation field"):
+            self.build_request(self.contours, dialog.contour_field.currentField(), 10.0,
+                               str(Path(self.temp.name) / "survey.tif"))
+        dialog.contour_field.setField("height_m")
+        self.assertTrue(dialog.build_button.isEnabled())
+        request = self.build_request(self.contours, dialog.contour_field.currentField(), 10.0,
+                                     str(Path(self.temp.name) / "survey.tif"))
+        self.assertEqual(request.contour_stats.unique_values, (100.0, 120.0))
+        dialog.set_inputs(self.contours)
+        self.assertEqual(dialog.contour_field.currentField(), "height_m")
+        dialog.contour_field.setField("")
+        dialog.set_inputs(self.contours)
+        self.assertEqual(dialog.contour_field.currentField(), "")
+        self.assertFalse(dialog.build_button.isEnabled())
+
+    def test_switching_contour_layer_does_not_inherit_numeric_id_or_height(self):
+        dialog = self._dialog()
+        self.assertEqual(dialog.contour_field.currentField(), "elevation")
+        self.assertTrue(dialog.build_button.isEnabled())
+        custom = self._layer(
+            "LineString", "external", [("id", "Int"), ("height_m", "Double")],
+            [("LINESTRING(0 0,100 0)", [1, 100.0]),
+             ("LINESTRING(0 100,100 100)", [2, 120.0])],
+        )
+        dialog.contour_combo.setLayer(custom)
+        self.assertEqual(dialog.contour_field.currentField(), "")
+        self.assertFalse(dialog.build_button.isEnabled())
+        dialog.contour_field.setField("height_m")
+        dialog.set_inputs(self.contours)
+        self.assertEqual(dialog.contour_field.currentField(), "elevation")
+        dialog.set_inputs(custom)
+        self.assertEqual(dialog.contour_field.currentField(), "")
+        self.assertFalse(dialog.build_button.isEnabled())
+
+    def test_nonnumeric_named_elevation_does_not_fall_back_to_id(self):
+        self.contours = self._layer(
+            "LineString", "text heights", [("id", "Int"), ("elevation", "String")],
+            [("LINESTRING(0 0,100 0)", [1, "100m"]),
+             ("LINESTRING(0 100,100 100)", [2, "120m"])],
+        )
+        dialog = self._dialog()
+        self.assertEqual(dialog.contour_field.currentField(), "")
+        self.assertFalse(dialog.build_button.isEnabled())
+
     def test_no_points_is_optional_and_field_stays_empty(self):
         dialog = self._dialog()
         self.assertIsNone(dialog.spot_combo.currentLayer())
@@ -127,9 +180,11 @@ class DemDialogQgisTests(unittest.TestCase):
         dialog = self._dialog()
         self.assertEqual(dialog.spot_combo.currentLayer(), spots)
         self.assertEqual(dialog.spot_field.currentField(), "")
+        self.assertFalse(dialog.build_button.isEnabled())
         with self.assertRaisesRegex(self.InputError, "Select a numeric spot-height"):
             self._request(spots, dialog.spot_field.currentField())
         dialog.spot_field.setField("height_m")
+        self.assertTrue(dialog.build_button.isEnabled())
         self.assertEqual(self._request(spots, dialog.spot_field.currentField()).spot_stats.maximum, 130.0)
         dialog.set_inputs(self.contours)
         self.assertEqual(dialog.spot_field.currentField(), "height_m")

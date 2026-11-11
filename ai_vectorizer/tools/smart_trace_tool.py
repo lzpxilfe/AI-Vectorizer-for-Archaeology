@@ -11,6 +11,7 @@ Key concept:
 import numpy as np
 import math
 from dataclasses import replace
+from decimal import Decimal
 from qgis.gui import QgsMapToolEmitPoint, QgsRubberBand
 from qgis.core import (
     QgsWkbTypes, QgsProject, QgsPointXY, QgsGeometry,
@@ -3128,6 +3129,22 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._livewire_request_point = None
         self._request_livewire_tree(force=True)
 
+    def _present_manual_cursor_preview(self, point):
+        """Keep explicit Shift/Ctrl input authoritative over assisted work."""
+
+        if (
+            self._recovery_task is not None
+            or self._recovery_request is not None
+            or self._recovery_preview_identity is not None
+        ):
+            self._invalidate_recovery("Manual input replaced the assisted preview.")
+        # A prepared tree may remain useful after the modifier is released,
+        # but its completion must not redraw an earlier assisted target.
+        self._livewire_request_point = None
+        self._clear_preview()
+        self.preview_path = [QgsPointXY(point)]
+        self._render_preview()
+
     def _on_livewire_tree_finished(self, task, succeeded, tree, error):
         """Publish a current tree and redraw the latest cursor proposal."""
         if self._livewire_task is not task:
@@ -4092,6 +4109,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         event_modifiers = _qt_flag_int(
             event.modifiers() if hasattr(event, "modifiers") else 0
         )
+        manual_override = (
+            _has_keyboard_modifier(event_modifiers, "ShiftModifier")
+            or _has_keyboard_modifier(event_modifiers, "ControlModifier")
+        )
 
         accept_manual_bridge = False
         if self.__dict__.get("_manual_gap_bridge_preview_target") is not None:
@@ -4171,6 +4192,12 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 )
                 return
 
+            if manual_override:
+                # Recompute from the click itself, including clicks with no
+                # intervening mouse move. Never replace the literal preview
+                # with a ready/pending Ink or SAM route during acceptance.
+                self._present_manual_cursor_preview(point)
+
             # Preserve the existing double-click spot-height gesture before
             # Auto Path's two-click proposal acceptance can intercept it.
             near_start = self.is_near_start(point)
@@ -4192,7 +4219,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             # closing click is displayed when ready and deliberately requires
             # one more click so an elevation dialog never appears later from
             # an asynchronous callback.
-            if not accept_manual_bridge and self._defer_click_until_livewire_ready(
+            if not manual_override and not accept_manual_bridge and self._defer_click_until_livewire_ready(
                 point,
                 auto_accept=not near_start,
             ):
@@ -4215,7 +4242,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
             auto_path_accepted = False
             closing_auto_path = None
-            if self.auto_path and self.use_sam:
+            if self.auto_path and self.use_sam and not manual_override:
                 # A visible complete proposal is accepted by clicking its
                 # target. If the route is not ready yet, this click only
                 # displays it and the next click becomes the acceptance.
@@ -4243,6 +4270,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 # already shown under the cursor.
                 if (
                     not self.use_sam
+                    and not manual_override
                     and not accept_visible_enhanced
                     and self._livewire_tree_is_ready()
                 ):
@@ -4252,7 +4280,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                         request_tree=False,
                         schedule_recovery=False,
                     )
-                if self.auto_path and self.use_sam:
+                if self.auto_path and self.use_sam and not manual_override:
                     closing_path = closing_auto_path or [self.start_point]
                 elif self.preview_path:
                     closing_path = list(self.preview_path)
@@ -4280,6 +4308,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 # can never commit a stale cursor preview.
                 if (
                     not accept_visible_enhanced
+                    and not manual_override
                     and self._livewire_tree_is_ready()
                 ):
                     self._present_livewire_cursor_preview(
@@ -4354,7 +4383,11 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 self._redraw_manual_avoidance_band()
             return
 
-        if self.__dict__.get("_manual_gap_bridge_preview_target") is not None:
+        is_manual_mode = (
+            _has_keyboard_modifier(event.modifiers(), "ShiftModifier")
+            or _has_keyboard_modifier(event.modifiers(), "ControlModifier")
+        )
+        if not is_manual_mode and self.__dict__.get("_manual_gap_bridge_preview_target") is not None:
             # Keep the explicit proposal visible while moving between the
             # canvas and dock. Hover is never confirmation or cancellation.
             if self._manual_gap_bridge_preview_is_current():
@@ -4367,10 +4400,6 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             return
 
         # MODE CHECK: Dragging vs Hovering
-        is_manual_mode = (
-            _has_keyboard_modifier(event.modifiers(), "ShiftModifier")
-            or _has_keyboard_modifier(event.modifiers(), "ControlModifier")
-        )
         interaction_mode = resolve_interaction_mode(
             freehand=self.freehand,
             auto_path=self.auto_path,
@@ -4380,6 +4409,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         is_dragging = bool(
             event.buttons() & _qt_value("LeftButton", "MouseButton")
         )
+
+        if is_manual_mode:
+            self._present_manual_cursor_preview(current_point)
+            if not is_dragging:
+                self.last_input_point = current_point
+                self.last_preview_pos = event.pos()
+                return
 
         # Preview motion and committed drag sampling are separate concerns.
         # The old Auto Path branch throttled the visible green cursor line to
@@ -5939,14 +5975,28 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         """Show dialog to input elevation value."""
         from qgis.PyQt.QtWidgets import QInputDialog
 
+        default = self.ELEVATION_DEFAULT
+        if self.resume_feature_id is not None and self.vector_layer is not None:
+            try:
+                feature = self.vector_layer.getFeature(self.resume_feature_id)
+                index = self.vector_layer.fields().indexOf(FIELD_ELEVATION)
+                if feature.isValid() and index >= 0:
+                    existing = float(feature[index])
+                    if math.isfinite(existing):
+                        default = existing
+            except (TypeError, ValueError, OverflowError, RuntimeError):
+                pass
+        # Extending a contour must not silently round a previously stored
+        # elevation or clamp it to the new-contour dialog's default range.
+        decimals = max(self.ELEVATION_DECIMALS, -Decimal(str(default)).as_tuple().exponent)
         value, ok = QInputDialog.getDouble(
             None,
             self._tr("등고선 해발값", "Contour Elevation"),
             self._tr("해발고도 (m):", "Elevation (m):"),
-            self.ELEVATION_DEFAULT,
-            self.ELEVATION_MIN,
-            self.ELEVATION_MAX,
-            self.ELEVATION_DECIMALS,
+            default,
+            min(self.ELEVATION_MIN, default),
+            max(self.ELEVATION_MAX, default),
+            decimals,
         )
 
         if ok:

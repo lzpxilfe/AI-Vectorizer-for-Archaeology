@@ -202,7 +202,17 @@ def inspect_elevation_layer(layer, field_name: str) -> ElevationStats:
             invalid_geometry_count += 1
             continue
         try:
-            vertices = sum(1 for _point in geometry.vertices())
+            vertices = 0
+            for point in geometry.vertices():
+                # TIN may consume the valid prefix of a line containing NaN
+                # coordinates instead of rejecting the feature. Reject the
+                # whole geometry before it can silently change the terrain.
+                # Z/M are deliberately ignored: elevations use the selected
+                # numeric attribute, while interpolation positions use XY.
+                if not math.isfinite(point.x()) or not math.isfinite(point.y()):
+                    vertices = 0
+                    break
+                vertices += 1
         except Exception:
             vertices = 0
         if vertices == 0:
@@ -254,7 +264,8 @@ def _validate_layer(layer, expected_geometry, label: str) -> None:
 def _validate_stats(stats: ElevationStats, label: str, minimum_vertices: int) -> None:
     if stats.invalid_geometry_count:
         raise DemInputError(
-            f"{label.capitalize()} layer contains {stats.invalid_geometry_count} empty geometries."
+            f"{label.capitalize()} layer contains {stats.invalid_geometry_count} "
+            "empty or invalid geometries; all XY coordinates must be finite."
         )
     if stats.invalid_elevation_count:
         raise DemInputError(

@@ -64,6 +64,9 @@ Windows에서는 `.venv\Scripts\python.exe`를 사용하세요. 선택 SAM backe
 
    결정적 ZIP을 새 임시 경로에 풀고 실제 QGIS Python으로
    `scripts/qgis_import_smoke.py`와 `tests/test_qgis_runtime_safety.py`를 실행합니다.
+   dock 준비 상태·배치 변경은 `tests/test_main_dialog_qgis.py`, DEM 필드·입력 변경은
+   `tests/test_dem_dialog_qgis.py`와 `tests/test_dem_pipeline_qgis.py`도 실제 QGIS에서
+   실행합니다. 새 QGIS suite는 CI의 명시 실행 목록에도 추가합니다.
    수동 라벨 공백 preview 변경은 `tests/test_manual_gap_qgis.py`도 실제 QGIS Python으로
    실행합니다. 선 색상 지정·guidance 변경은 `tests/test_ink_color_qgis.py`를 실제
    QGIS Python으로 실행합니다. 격자 회피·캐시 변경은 `tests/test_map_grid_qgis.py`도

@@ -89,8 +89,9 @@ ArchaeoTrace는 그 중간을 택합니다. 프로그램이 선을 따라갈 경
 ## 🚧 현재 상태와 한계
 
 - 실험 단계 플러그인입니다. 공식 QGIS 저장소의 최신판은 `0.1.6`(2026-09-09 공개)이고,
-  현재 소스는 **미공개 `0.1.7` experimental 후보**입니다. 추적 중 Undo, DEM 표고점
-  필드 초기 선택, 투명·NoData 래스터 읽기를 보완합니다. 학습 보조는 기본 OFF입니다.
+  현재 소스는 **미공개 `0.1.7` experimental 후보**입니다. 추적 중 Undo, 수동 클릭과
+  미리보기 일치, 연장 시 기존 고도 유지, DEM 입력 검증과 작은 화면 UI를 보완합니다.
+  학습 보조는 기본 OFF입니다. [사용 흐름 재검토](docs/RELEASE_REVIEW_2026-11-12.md)도 기록합니다.
   [변경 내역](CHANGELOG.md)과 [후보 검증 기록](docs/RELEASE_READINESS_0.1.7.md)을 확인하세요.
 - 사람이 검수한 정답 기준의 정확도 평가와 작업 시간 단축 효과는 **아직 검증 중**입니다.
   진행 상황은 [benchmarks](benchmarks/README.md)와 [learning](learning/README.md)에

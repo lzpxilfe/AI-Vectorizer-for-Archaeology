@@ -1646,6 +1646,69 @@ class QgisRuntimeSafetyTests(unittest.TestCase):
                 self.assertEqual(tool.path_points, confirmed)
                 tool.dispose()
 
+    def test_resume_elevation_dialog_preserves_existing_value_and_explicit_changes(self):
+        from qgis.PyQt.QtWidgets import QInputDialog
+
+        for existing, replacement in ((125.0, None), (125.25, None), (-1500.125, None), (125.0, 140.0)):
+            with self.subTest(existing=existing, replacement=replacement):
+                layer = QgsVectorLayer(
+                    "LineString?crs=EPSG:3857&field=elevation:double", "contours", "memory",
+                )
+                tool = self._tool(layer)
+                original = QgsGeometry.fromWkt("LINESTRING(0 0, 10 0)")
+                self.assertTrue(tool.save_geometry(original, elevation=existing))
+                feature = next(layer.getFeatures())
+                tool.resume_feature_id = feature.id()
+                tool._resume_geometry_wkb = bytes(feature.geometry().asWkb())
+                tool.path_points = [QgsPointXY(10, 0), QgsPointXY(20, 0)]
+
+                def accept_dialog(_parent, _title, _label, value, minimum, maximum, decimals):
+                    # Exercise Qt's real rounding/range behavior as well as
+                    # the default passed to the modal static helper.
+                    dialog = QInputDialog()
+                    dialog.setDoubleDecimals(decimals)
+                    dialog.setDoubleRange(minimum, maximum)
+                    dialog.setDoubleValue(value if replacement is None else replacement)
+                    return dialog.doubleValue(), True
+
+                with mock.patch.object(QInputDialog, "getDouble", side_effect=accept_dialog):
+                    elevation = tool.ask_elevation()
+                expected = existing if replacement is None else replacement
+                self.assertEqual(elevation, expected)
+                self.assertTrue(tool.save_to_layer(elevation=elevation))
+                updated = layer.getFeature(feature.id())
+                self.assertEqual(updated["elevation"], expected)
+                self.assertEqual(updated.geometry().asPolyline()[-1], QgsPointXY(20, 0))
+                layer.undoStack().undo()
+                restored = layer.getFeature(feature.id())
+                self.assertEqual(restored["elevation"], existing)
+                self.assertEqual(bytes(restored.geometry().asWkb()), bytes(original.asWkb()))
+                tool.dispose()
+
+    def test_resume_elevation_dialog_missing_or_nonfinite_values_use_new_contour_default(self):
+        from qgis.PyQt.QtWidgets import QInputDialog
+
+        for existing in (None, float("nan"), float("inf"), "missing", "deleted"):
+            with self.subTest(existing=existing):
+                uri = "LineString?crs=EPSG:3857"
+                if existing != "missing":
+                    uri += "&field=elevation:double"
+                layer = QgsVectorLayer(uri, "contours", "memory")
+                feature = QgsFeature(layer.fields())
+                feature.setGeometry(QgsGeometry.fromWkt("LINESTRING(0 0, 10 0)"))
+                if isinstance(existing, float):
+                    feature["elevation"] = existing
+                ok, added = layer.dataProvider().addFeatures([feature])
+                self.assertTrue(ok)
+                tool = self._tool(layer)
+                tool.resume_feature_id = added[0].id()
+                if existing == "deleted":
+                    layer.deleteFeature(tool.resume_feature_id)
+                with mock.patch.object(QInputDialog, "getDouble", return_value=(0.0, True)) as dialog:
+                    self.assertEqual(tool.ask_elevation(), 0.0)
+                self.assertEqual(dialog.call_args.args[3], tool.ELEVATION_DEFAULT)
+                tool.dispose()
+
     def test_pixel_centres_round_trip_without_half_pixel_offset(self):
         layer = QgsVectorLayer("LineString?crs=EPSG:3857", "contours", "memory")
         tool = self._tool(layer)

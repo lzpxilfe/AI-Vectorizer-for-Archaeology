@@ -41,6 +41,8 @@ repository=https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology
 
 # Recommended items:
 changelog=0.1.7
+    - Matched Shift/Ctrl manual preview and accepted geometry; retained existing elevations when resuming contours.
+    - Required explicit custom elevation fields, rejected nonfinite DEM coordinates, and made the dock scrollable on small screens.
     - Added optional local learned contour guidance, annotation tools and guarded text-gap previews.
     - Kept the existing Korea model and default-OFF learned guidance after the general-text experiment.
     - Fixed checkpoint Undo dispatch during an active trace so layer Undo cannot delete the existing extended feature.

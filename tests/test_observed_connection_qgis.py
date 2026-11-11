@@ -329,6 +329,111 @@ class ObservedConnectionQgisTests(unittest.TestCase):
         self.layer.undoStack().undo()
         self.assertEqual(self.layer.featureCount(), 0)
 
+    def test_manual_modifier_click_preserves_literal_preview_with_ready_or_pending_routes(self):
+        from ai_vectorizer.tools.smart_trace_tool import _qt_value
+
+        for modifier in ("ShiftModifier", "ControlModifier"):
+            for route_state in ("ready", "pending", "sam_auto"):
+                for hover in (False, True):
+                    with self.subTest(modifier=modifier, route=route_state, hover=hover):
+                        self.tool.reset_tracing()
+                        self.tool.use_sam = route_state == "sam_auto"
+                        self.tool.auto_path = route_state == "sam_auto"
+                        self.dispatcher.immediate = route_state == "ready"
+                        self._start(dispatch=route_state != "sam_auto")
+                        old_task = self.tool._livewire_task
+                        if old_task is not None:
+                            # Complete the worker before the manual click but
+                            # delay its main-thread callback until afterwards.
+                            self.assertTrue(old_task.run(), old_task.error)
+                        target = QgsPointXY(self._target())
+                        self.tool.toMapCoordinates = lambda _pos: target
+                        event = SimpleNamespace(
+                            pos=lambda: QPointF(*self.TARGET), buttons=lambda: 0,
+                            button=lambda: _qt_value("LeftButton", "MouseButton"),
+                            modifiers=lambda: _qt_value(modifier, "KeyboardModifier"),
+                        )
+                        # No-hover clicks must also replace a stale curved
+                        # proposal, rather than committing its old vertices.
+                        self.tool.preview_path = [self.tool.pixel_to_map(110, 160), target]
+                        if hover:
+                            self.tool.canvasMoveEvent(event)
+                            self.assertEqual(self._pixels(self.tool.preview_path), [self.TARGET])
+                        self.tool.canvasPressEvent(event)
+                        expected = [self.ROOT, self.TARGET]
+                        self.assertEqual(self._pixels(self.tool.path_points), expected)
+                        self.assertIsNone(self.tool._pending_livewire_accept_point)
+                        if old_task is not None:
+                            old_task.finished(True)
+                            self.assertEqual(self._pixels(self.tool.path_points), expected)
+                            self.assertEqual(self.tool.preview_path, [])
+                        self.assertTrue(self.tool.save_to_layer(elevation=125.0))
+                        saved = next(self.layer.getFeatures())
+                        self.assertEqual(self._pixels(saved.geometry().asPolyline()), expected)
+                        self.layer.undoStack().undo()
+                        self.assertEqual(self.layer.featureCount(), 0)
+
+    def test_manual_hover_rejects_late_recovery_and_sam_proposals(self):
+        from ai_vectorizer.tools.smart_trace_tool import _qt_value
+
+        self._start()
+        target = QgsPointXY(self._target())
+        self.tool.toMapCoordinates = lambda _pos: target
+        self.tool.smart_recovery_enabled = True
+        self.tool.smart_recovery_requested = True
+        identity = ("old assisted target",)
+        self.tool._recovery_preview_identity = identity
+        task = SimpleNamespace(
+            request_generation=self.tool._recovery_generation,
+            cache_generation=self.tool._cache_generation,
+            preview_identity=identity, encoding=None, cancel=mock.Mock(),
+        )
+        self.tool._recovery_task = task
+        self.tool._recovery_request = {"target_map": target}
+        proposal = SimpleNamespace(cancel=mock.Mock())
+        self.tool._proposal_task = proposal
+        self.tool.canvasMoveEvent(SimpleNamespace(
+            pos=lambda: QPointF(*self.TARGET), buttons=lambda: 0,
+            modifiers=lambda: _qt_value("ShiftModifier", "KeyboardModifier"),
+        ))
+        task.cancel.assert_called_once()
+        proposal.cancel.assert_called_once()
+        self.tool._on_recovery_preview_finished(
+            task, True, SimpleNamespace(reached_target=True),
+            [self.ROOT, (110, 160), self.TARGET],
+            SimpleNamespace(accepted=True), None,
+        )
+        self.tool._on_background_a_star_finished(
+            proposal, True, SimpleNamespace(reached_target=True), None,
+        )
+        self.assertEqual(self._pixels(self.tool.preview_path), [self.TARGET])
+        self.assertEqual(self._pixels(self.tool.path_points), [self.ROOT])
+
+    def test_manual_modifier_closing_click_saves_literal_closure(self):
+        from ai_vectorizer.tools.smart_trace_tool import _qt_value
+
+        for sam in (False, True):
+            with self.subTest(sam_auto=sam):
+                self.tool.reset_tracing()
+                self.tool.use_sam = sam
+                self.tool.auto_path = sam
+                self._start(dispatch=False)
+                accepted = [self.ROOT, (80, 160), (140, 160)]
+                self.tool.path_points = [self.tool.pixel_to_map(*p) for p in accepted]
+                self.tool.preview_path = [self.tool.pixel_to_map(240, 240)]
+                self.tool.toMapCoordinates = lambda _pos: self.tool.pixel_to_map(*self.ROOT)
+                with mock.patch.object(self.tool, "ask_elevation", return_value=125.0):
+                    self.tool.canvasPressEvent(SimpleNamespace(
+                        pos=lambda: QPointF(*self.ROOT),
+                        button=lambda: _qt_value("LeftButton", "MouseButton"),
+                        modifiers=lambda: _qt_value("ControlModifier", "KeyboardModifier"),
+                    ))
+                saved = next(self.layer.getFeatures())
+                self.assertEqual(self._pixels(saved.geometry().asPolyline()), accepted + [self.ROOT])
+                self.assertFalse(self.tool.is_tracing)
+                self.layer.undoStack().undo()
+                self.assertEqual(self.layer.featureCount(), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
