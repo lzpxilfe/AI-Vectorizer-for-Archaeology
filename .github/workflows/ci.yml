@@ -304,6 +304,10 @@ jobs:
       - name: Check the release package with the official Qt6 migration checker
         if: matrix.qgis == '4.2.1'
         run: |
+          # The checker also introspects QtQuickWidgets, which the runtime-only
+          # QGIS image does not include. Install its distro-matched bindings.
+          apt-get update
+          apt-get install -y --no-install-recommends python3-pyqt6.qtquick
           qt6_deps="$(mktemp -d)"
           cat > "$qt6_deps/requirements.txt" <<'REQUIREMENTS'
           tokenize-rt==6.2.0 --hash=sha256:a152bf4f249c847a66497a4a95f63376ed68ac6abf092a2f7cfb29d044ecff44
