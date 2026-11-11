@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import hashlib
 import io
 import json
 import os
@@ -310,6 +311,13 @@ class ReleasePackagingTests(unittest.TestCase):
                 self.assertTrue(
                     any(marker in source_line for marker in reviewed_markers),
                     f"Unreviewed secret-baseline entry: {relative_path}:{line_number}",
+                )
+                identities = re.findall(r'["\']([0-9a-f]{40}|[0-9a-f]{64})["\']', source_line)
+                self.assertEqual(len(identities), 1, source_line)
+                self.assertEqual(
+                    hashlib.sha1(identities[0].encode("ascii")).hexdigest(),
+                    finding["hashed_secret"],
+                    f"Baseline fingerprint does not match {relative_path}:{line_number}",
                 )
 
     def test_frozen_015_hash_matches_release_readiness_record(self):

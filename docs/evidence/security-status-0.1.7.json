@@ -1,0 +1,149 @@
+{
+  "reviewed_at": "2026-11-11T23:25:55.761783+00:00",
+  "version": "0.1.7",
+  "current_submission_status": "removed_by_maintainer",
+  "maintainer_confirmed_deletion": true,
+  "page_observed": "404",
+  "uploaded_during_this_review": false,
+  "external_messages_sent": 0,
+  "public_source_commit": "06a2e650bef2a7d3971ff37fa9f327f3adf829f9",
+  "deployed_source_commit_verified": false,
+  "historical_database_state_verified": false,
+  "mail_defect_reproduced": true,
+  "reproduction_cases": [
+    {
+      "status": "validated",
+      "critical_count": 0,
+      "email_says_blocked": false,
+      "email_says_no_details": false
+    },
+    {
+      "status": "validated_with_config",
+      "critical_count": 0,
+      "email_says_blocked": true,
+      "email_says_no_details": true
+    },
+    {
+      "status": "blocked",
+      "critical_count": 0,
+      "email_says_blocked": true,
+      "email_says_no_details": true
+    }
+  ],
+  "baseline_audit": {
+    "checked_at": "2026-11-11T23:24:15.056615+00:00",
+    "artifact_sha256": "43ce32bec77ff03565e100643f7e3850d2d90ce0d92876cdec12f8dc50dea546",
+    "artifact_origin": "reproduced byte-identical from current source; original Desktop file absent at audit time",
+    "scanner_version": "detect-secrets 1.5.0",
+    "source_modified": false,
+    "detectors_disabled": [],
+    "baseline_used": false,
+    "raw_default_scan_findings": 9,
+    "site_default_command_findings": 9,
+    "initial_offline_safety_scan_same_findings": true,
+    "findings": [
+      {
+        "file": "ai_vectorizer/core/edge_detector.py",
+        "line": 146,
+        "detector": "Hex High Entropy String",
+        "classification": "model_artifact_sha256",
+        "symbol": "HED_PROTOTXT_SHA256",
+        "public_source_url": "https://raw.githubusercontent.com/s9xie/hed/912632b986acc6dd6cc33b95603b2f279d7bd9f2/examples/hed/deploy.prototxt",
+        "baseline_fingerprint_matches": true
+      },
+      {
+        "file": "ai_vectorizer/core/edge_detector.py",
+        "line": 148,
+        "detector": "Hex High Entropy String",
+        "classification": "model_artifact_sha256",
+        "symbol": "HED_CAFFEMODEL_SHA256",
+        "public_source_url": "https://vcl.ucsd.edu/hed/hed_pretrained_bsds.caffemodel",
+        "baseline_fingerprint_matches": true
+      },
+      {
+        "file": "ai_vectorizer/core/efficientsam_spec.py",
+        "line": 155,
+        "detector": "Hex High Entropy String",
+        "classification": "public_source_commit",
+        "symbol": "EFFICIENTSAM_SOURCE_COMMIT",
+        "public_source_url": "https://github.com/yformer/EfficientSAM/tree/d525f622e6f640acf5a0fc37c7ca1f243da5bde0",
+        "baseline_fingerprint_matches": true
+      },
+      {
+        "file": "ai_vectorizer/core/efficientsam_spec.py",
+        "line": 165,
+        "detector": "Hex High Entropy String",
+        "classification": "model_artifact_sha256",
+        "symbol": "EFFICIENTSAM_TI_ENCODER.sha256",
+        "public_source_url": "https://raw.githubusercontent.com/yformer/EfficientSAM/d525f622e6f640acf5a0fc37c7ca1f243da5bde0/weights/efficient_sam_vitt_encoder.onnx",
+        "baseline_fingerprint_matches": true
+      },
+      {
+        "file": "ai_vectorizer/core/efficientsam_spec.py",
+        "line": 173,
+        "detector": "Hex High Entropy String",
+        "classification": "model_artifact_sha256",
+        "symbol": "EFFICIENTSAM_TI_DECODER.sha256",
+        "public_source_url": "https://raw.githubusercontent.com/yformer/EfficientSAM/d525f622e6f640acf5a0fc37c7ca1f243da5bde0/weights/efficient_sam_vitt_decoder.onnx",
+        "baseline_fingerprint_matches": true
+      },
+      {
+        "file": "ai_vectorizer/core/sam_engine.py",
+        "line": 61,
+        "detector": "Hex High Entropy String",
+        "classification": "model_artifact_sha256",
+        "symbol": "MobileSAM weights_sha256",
+        "public_source_url": "https://raw.githubusercontent.com/ChaoningZhang/MobileSAM/f706ad9c4eb7f219c00d9050e46328518ffb65d2/weights/mobile_sam.pt",
+        "baseline_fingerprint_matches": true
+      },
+      {
+        "file": "ai_vectorizer/core/sam_engine.py",
+        "line": 75,
+        "detector": "Hex High Entropy String",
+        "classification": "model_artifact_sha256",
+        "symbol": "SAM vit_b weights_sha256",
+        "public_source_url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
+        "baseline_fingerprint_matches": true
+      },
+      {
+        "file": "ai_vectorizer/core/sam_engine.py",
+        "line": 82,
+        "detector": "Hex High Entropy String",
+        "classification": "model_artifact_sha256",
+        "symbol": "SAM vit_l weights_sha256",
+        "public_source_url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
+        "baseline_fingerprint_matches": true
+      },
+      {
+        "file": "ai_vectorizer/core/sam_engine.py",
+        "line": 89,
+        "detector": "Hex High Entropy String",
+        "classification": "model_artifact_sha256",
+        "symbol": "SAM vit_h weights_sha256",
+        "public_source_url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
+        "baseline_fingerprint_matches": true
+      }
+    ],
+    "summary": {
+      "public_model_artifact_sha256": 8,
+      "public_source_commit": 1,
+      "other_findings": 0
+    },
+    "interpretation": "Removing only .secrets.baseline causes nine potential-secret findings under the official command. The site marks Secrets Detection critical whenever any finding exists. Each finding maps to a public integrity constant, not an authentication credential. Keeping the reviewed baseline and administrator review is preferable to removal, obfuscation, or disabled rules.",
+    "website_source_url": "https://github.com/qgis/QGIS-Plugins-Website/blob/06a2e650bef2a7d3971ff37fa9f327f3adf829f9/qgis-app/plugins/security_scanner.py#L244-L338",
+    "limitations": "This verifies detector findings and code usage/reference identities; it is not an independent re-download of every multi-gigabyte model or an exhaustive software vulnerability assessment."
+  },
+  "product_files_changed": false,
+  "baseline_changed": false,
+  "detectors_disabled": [],
+  "evidence_sha256": {
+    "upstream-run-security-scan.py": "891d74cf98ae5210764728244bc31719267c8972131e79d310f58ab929e493e0",
+    "upstream-is-available.txt": "16476580b38e1cbf2abdee2cc9cf15ba33cc9d35227d160ecfdf801f0727cacc",
+    "reproduce-email.py": "bed3c96f581a67d3d7b4474397173c6e513536ca8c434edba27ab5a637a7d0c0",
+    "email-reproduction.json": "5eca9c5aedf1af160d9cc2f83a9bba5cd298c6178c8147c3b72958b5597bfaaf",
+    "mail-status-evidence.json": "b25d0209a53f21160ac9cb663d61093b4e50df5e11c9dad60f377b8ea704f8e7",
+    "baseline-findings-audit.json": "6640fc738be5c0b49d6b5aeae4fa3cb5c74878e9fcbcf705184faefa656df2fc",
+    "no-baseline-default.json": "1740e268a50fc7d279148a40801a89cde84496f1fa4e66b5dc6cb3e910aa4b6c",
+    "no-baseline-qgis-command.json": "319f49d5e3a4d0792a4f5c568e6f165bbd9d1b6604749ced179c3224785458dd"
+  }
+}

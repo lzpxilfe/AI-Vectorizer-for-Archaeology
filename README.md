@@ -12,10 +12,10 @@ QGIS 3.22–4.99 · 실험판 · GPL v2
 
 QGIS의 `플러그인 > 플러그인 관리 및 설치`에서 실험적 플러그인 표시를 켜고
 ArchaeoTrace를 검색합니다. 후보 ZIP은 `ZIP에서 설치`로 설치할 수 있습니다.
-`0.1.7` 실험판을 QGIS 저장소에 제출했으며 관리자 승인 대기 중입니다.
-현재 승인된 최신 버전은 `0.1.6`입니다.
-[제출 상태](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.7/) ·
-[최종 ZIP과 검증 기록](docs/QGIS_SUBMISSION_0.1.7.md)
+현재 승인된 최신 버전은 `0.1.6`입니다. `0.1.7`은 Qt6 검사를 마친 업로드용
+ZIP을 준비한 상태이며, 앞서 제출한 버전은 삭제했습니다.
+[업로드용 ZIP 검증](docs/QT6_UPLOAD_0.1.7.md) ·
+[보안 알림과 예외 목록 검토](docs/SECURITY_SCAN_0.1.7.md)
 
 패널 상단의 `언어 / Language`에서 `한국어` 또는 `English`를 선택합니다.
 처음에는 QGIS 언어를 따르며, 한국어 외의 언어에서는 영어를 사용합니다.
