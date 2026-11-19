@@ -13,6 +13,7 @@
   <a href="https://plugins.qgis.org/plugins/ai_vectorizer/"><img alt="QGIS Plugin Repo" src="https://img.shields.io/badge/QGIS_Plugin-ArchaeoTrace-589632?logo=qgis&logoColor=white"></a>
   <img alt="QGIS 3.22–4.99 (Qt5/Qt6)" src="https://img.shields.io/badge/QGIS-3.22%20--%204.99%20(Qt5%2FQt6)-3c8c3c.svg">
   <a href="https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://doi.org/10.5281/zenodo.24364756"><img alt="Zenodo DOI" src="https://zenodo.org/badge/DOI/10.5281/zenodo.24364756.svg"></a>
   <img alt="Local First" src="https://img.shields.io/badge/processing-local--first-2f855a.svg">
   <img alt="Experimental" src="https://img.shields.io/badge/status-experimental-f28c28.svg">
   <img alt="License GPLv2" src="https://img.shields.io/badge/license-GPLv2-d64541.svg">
@@ -136,14 +137,17 @@ ArchaeoTrace는 "AI가 완벽하게 복원한다"는 과장을 배제하고, **�
 연구·교육·문화유산·지형 분석에서 ArchaeoTrace를 사용했다면 [`CITATION.cff`](CITATION.cff)([`.zenodo.json`](.zenodo.json) 연동) 또는 아래 BibTeX로 인용해 주세요.
 
 - 저자: Jinseo Hwang ([ORCID: 0009-0000-8228-4083](https://orcid.org/0009-0000-8228-4083))
+- Zenodo DOI: [10.5281/zenodo.24364756](https://doi.org/10.5281/zenodo.24364756) (전체 버전) · [10.5281/zenodo.24364757](https://doi.org/10.5281/zenodo.24364757) (`v0.1.7`)
 
 ```bibtex
 @software{ArchaeoTrace_Hwang_2026,
-  author  = {Hwang, Jinseo},
-  title   = {ArchaeoTrace: Local-First AI-Assisted Contour Tracing and Historical Terrain Reconstruction for QGIS},
-  year    = {2026},
-  version = {0.1.7},
-  url     = {https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology}
+  author    = {Hwang, Jinseo},
+  title     = {ArchaeoTrace: Local-First AI-Assisted Contour Tracing and Historical Terrain Reconstruction for QGIS},
+  year      = {2026},
+  publisher = {Zenodo},
+  version   = {0.1.7},
+  doi       = {10.5281/zenodo.24364757},
+  url       = {https://doi.org/10.5281/zenodo.24364757}
 }
 ```
 
