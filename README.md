@@ -28,8 +28,11 @@
   <a href="#학술-근거-및-인용">학술 근거·인용</a>
 </p>
 
-> **Featured in Geoawesome** (2026-10-24) — Sebastian Walczak, [*"Digitising Historical Maps: Testing AI-Assisted Contour Tracing in QGIS"*](https://geoawesome.com/digitising-historical-maps-testing-ai-assisted-contour-tracing-in-qgis/)  
-> 폴란드 모래 채굴지를 대상으로 1929–39년 WIG 지도와 1960–80년대 지형도의 등고선을 디지타이징하고, 복원한 과거 지형을 현재 LiDAR DEM과 비교한 외부 실전 리뷰에서 소개되었습니다. *(특정 사례의 외부 사용 후기이며, 플러그인의 일반 정확도 평가와는 구분합니다.)*
+<p align="center">
+  <img src="docs/images/archaeotrace-demo.gif" alt="ArchaeoTrace live contour tracing and label-gap bridging demo in QGIS" width="92%">
+  <br>
+  <sub>QGIS에서 직접 실행한 <strong>ArchaeoTrace</strong> 데모 — 기본 <code>Ink Centerline v2</code> + <code>Live-Wire</code>(추가 pip 없음)로 소수의 클릭만으로 구 지형도 등고선(<code>5740</code>)을 추적하고, <code>G</code> 키로 표고 숫자(<code>5750</code>) 끊김 구간을 부드럽게 연결해 저장하는 과정 (USGS HTMC 퍼블릭 도메인 원도)</sub>
+</p>
 
 ---
 

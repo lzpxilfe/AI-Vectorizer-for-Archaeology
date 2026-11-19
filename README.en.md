@@ -28,8 +28,11 @@
   <a href="#references-and-citation">References &amp; Citation</a>
 </p>
 
-> **Featured in Geoawesome** (Oct 24, 2026) — Sebastian Walczak, [*"Digitising Historical Maps: Testing AI-Assisted Contour Tracing in QGIS"*](https://geoawesome.com/digitising-historical-maps-testing-ai-assisted-contour-tracing-in-qgis/)  
-> Independently applied to a century-scale landscape-change study digitising 1929–39 WIG sheets and 1960s–80s topographic maps of a Polish sand-mining area and comparing the reconstructed historical terrain against a modern LiDAR DEM. *(An external account of a specific workflow, distinct from a general accuracy evaluation.)*
+<p align="center">
+  <img src="docs/images/archaeotrace-demo.gif" alt="ArchaeoTrace live contour tracing and label-gap bridging demo in QGIS" width="92%">
+  <br>
+  <sub>Live <strong>ArchaeoTrace</strong> session recorded in QGIS — tracing a sinuous historical contour (<code>5740</code>) in a handful of clicks with default <code>Ink Centerline v2</code> + <code>Live-Wire</code> (zero extra pip packages) and bridging the printed <code>5750</code> label gap with <code>G</code> (public-domain USGS HTMC map crop).</sub>
+</p>
 
 ---
 
