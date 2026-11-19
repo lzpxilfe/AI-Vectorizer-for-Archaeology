@@ -1,19 +1,33 @@
 cff-version: 1.2.0
-message: "If you use this repository in research, teaching, or applied work, please cite it using the metadata below."
+message: "If you use this software in research, teaching, or applied GIS work, please cite it using the metadata below."
 type: software
-title: "ArchaeoTrace: local-first contour tracing and terrain reconstruction for historical maps"
+title: "ArchaeoTrace: Local-First AI-Assisted Contour Tracing and Historical Terrain Reconstruction for QGIS"
 version: 0.1.7
 authors:
   - family-names: Hwang
     given-names: Jinseo
+    orcid: "https://orcid.org/0009-0000-8228-4083"
 repository-code: "https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology"
 url: "https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology"
+license: GPL-2.0-only
 abstract: >
-  A QGIS plugin for human-reviewed tracing of elevation contours on historical
-  maps and experimental DEM and hillshade reconstruction from saved elevations.
+  ArchaeoTrace is a local-first, open-source QGIS plugin (QGIS 3.22–4.99) for
+  human-reviewed vectorization of elevation contours from scanned historical
+  topographic maps and experimental linear-TIN DEM and hillshade reconstruction.
+  Designed for archaeology, historical GIS, geomorphology, and landscape change
+  studies, it pairs multi-scale Ink Centerline extraction, bounded direction-aware
+  Live-Wire, cubic Hermite gap bridging, and chromatic/avoidance guidance with
+  optional fail-closed local ONNX models while keeping all archival map data on
+  the user's machine.
 keywords:
+  - qgis
+  - qgis-plugin
+  - historical-maps
+  - contour-tracing
+  - vectorization
   - archaeology
-  - digital archaeology
-  - research software
-  - gis
-  - spatial analysis
+  - digital-archaeology
+  - historical-gis
+  - geomorphology
+  - dem-reconstruction
+  - research-software

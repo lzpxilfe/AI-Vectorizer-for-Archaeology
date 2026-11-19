@@ -1,0 +1,43 @@
+{
+  "title": "ArchaeoTrace: Local-First AI-Assisted Contour Tracing and Historical Terrain Reconstruction for QGIS",
+  "upload_type": "software",
+  "description": "Open-source, local-first QGIS plugin (QGIS 3.22–4.99, Qt5/Qt6) for human-reviewed vectorization of elevation contours from scanned historical topographic maps and experimental linear-TIN DEM/hillshade reconstruction. Combines multi-scale Ink Centerline v2 (9/15/31px) with bounded direction-aware Live-Wire, literal 0–100% cursor-to-path blending, cubic Hermite gap bridging, ink-colour and avoid-region guidance, optional fail-closed EfficientSAM-Ti Smart Recovery and ResNet-18 dual-head U-Net learned contour guidance (ONNX Runtime), advanced/legacy backends (LSD, HED, MobileSAM, SAM ViT-B, Canny), and a bilingual Korean/English interface without uploading archival map data to external inference servers.",
+  "creators": [
+    {
+      "name": "Hwang, Jinseo",
+      "orcid": "0009-0000-8228-4083"
+    }
+  ],
+  "license": "GPL-2.0-only",
+  "access_right": "open",
+  "keywords": [
+    "QGIS",
+    "QGIS plugin",
+    "historical maps",
+    "contour tracing",
+    "vectorization",
+    "digitization",
+    "archaeology",
+    "digital archaeology",
+    "historical GIS",
+    "geomorphology",
+    "landscape change",
+    "DEM reconstruction",
+    "Live-Wire",
+    "EfficientSAM",
+    "local-first AI",
+    "research software"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://plugins.qgis.org/plugins/ai_vectorizer/",
+      "relation": "isDocumentedBy",
+      "scheme": "url"
+    }
+  ]
+}
