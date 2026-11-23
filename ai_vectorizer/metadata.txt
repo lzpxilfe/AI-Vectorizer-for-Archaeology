@@ -6,7 +6,7 @@ name=ArchaeoTrace
 qgisMinimumVersion=3.22
 qgisMaximumVersion=4.99
 description=Local-first contour tracing for historical maps with optional AI assistance and experimental DEM reconstruction.
-version=0.1.7
+version=0.1.8
 author=lzpxilfe(balguljang2)
 email=lzpxilfe@gmail.com
 
@@ -40,7 +40,11 @@ repository=https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology
 # End of mandatory metadata
 
 # Recommended items:
-changelog=0.1.7
+changelog=0.1.8
+    - Listed DEM input checks before a build: missing elevation fields, a spot-height CRS that differs from the contours, unsaved edits and temporary layers.
+    - Offered to save pending contour and spot-height edits instead of rejecting the build; declining leaves the edits unchanged.
+    - Experimental release candidate.
+    0.1.7
     - Matched Shift/Ctrl manual preview and accepted geometry; retained existing elevations when resuming contours.
     - Required explicit custom elevation fields, rejected nonfinite DEM coordinates, and made the dock scrollable on small screens.
     - Synchronized initial layer selections on QGIS 4 and fitted advanced controls to larger system fonts.

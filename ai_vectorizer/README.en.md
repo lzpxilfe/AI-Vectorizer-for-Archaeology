@@ -6,10 +6,11 @@ ArchaeoTrace is a QGIS plugin for tracing contours from scanned maps and buildin
 a DEM and hillshade from their elevations. It proposes a green path for you to
 check and accept. Maps, geometry and model inference are processed locally.
 
-This guide accompanies the unpublished `0.1.7` experimental candidate. Its
-metadata targets QGIS `3.22–4.99` and Python `3.8+` source compatibility; optional
-packages have their own Python requirements. See the
-[release review](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/docs/LANGUAGE_REVIEW_2026-11-12.md)
+This guide accompanies the `0.1.8` experimental release candidate; the latest
+approved QGIS repository version is `0.1.7`. Its metadata targets QGIS
+`3.22–4.99` and Python `3.8+` source compatibility; optional packages have their
+own Python requirements. See the
+[release record](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/docs/RELEASE_READINESS_0.1.8.md)
 for the exact artifact and tested environments. Experimental features still need
 human review; the plugin has no established accuracy or time-saving guarantee.
 
@@ -121,22 +122,29 @@ inference for you to review, not a recovered ground-truth line.
 
 ## Build a DEM and hillshade
 
-1. Save edits to your contour layer and any spot-height layer.
-2. Open **Terrain Reconstruction > Build DEM…** and choose the contour layer.
-3. Select its numeric elevation field. Only a field named `elevation` is selected
+1. Open **Terrain Reconstruction > Build DEM…** and choose the contour layer.
+2. Select its numeric elevation field. Only a field named `elevation` is selected
    automatically. Choose custom fields such as `height_m` explicitly and check
    that an identifier such as `id` has not been selected as height.
-4. If needed, choose a spot-height point layer and its numeric elevation field.
+3. If needed, choose a spot-height point layer and its numeric elevation field.
    **None** excludes spot heights. Contours and points must use the same CRS and
    elevation units.
+4. Read the **Input checks** list under the layer fields. It names each layer
+   with a missing elevation field, a spot-height CRS that differs from the
+   contours, unsaved edits, or a temporary layer that is lost when QGIS closes.
 5. Check the cell size and output paths, then build the GeoTIFF DEM and hillshade.
-   Existing output files require confirmation before replacement.
+   Existing output files require confirmation before replacement. If a contour or
+   spot-height layer has unsaved edits, **Build DEM** asks whether to save them
+   first. Saving keeps the layer in edit mode; declining stops without changing
+   the edits.
 
 Inputs need a projected CRS in metres, nonempty geometry, finite XY coordinates
 and numeric elevations. The combined inputs must contain at least two distinct
-elevations and three non-collinear vertices. Invalid coordinates are rejected
-before interpolation. Temporary spot layers are supported, but saving them to a
-file makes the work reproducible.
+elevations and three non-collinear vertices. These values are checked when the
+build starts, and invalid coordinates are rejected before interpolation.
+Temporary layers, including the plugin's **Spot Heights** layer, are supported,
+but saving them to a file (right-click the layer > **Make Permanent**) makes the
+work reproducible.
 
 The workflow uses QGIS linear TIN interpolation and GDAL hillshade. QGIS
 Processing must provide `qgis:tininterpolation`, `gdal:translate`,
@@ -261,7 +269,7 @@ formal Calibration/Holdout evaluation remain pending. Details are in the
 | SAM verification or download fails | Check network access and `requests` in QGIS Python. Use **SAM Status Report** for diagnostics. HED downloads do not depend on `requests`. |
 | A learned model is inactive | Check the bundle, runtime and supported raster format. A status of **using Ink** means the ordinary Ink path is still available. |
 | A completed line is missing from the file | Finishing the trace is separate from **Save Layer Edits**. Check the layer's pending edits. |
-| DEM creation is refused | Save edits; check the numeric fields, finite coordinates, metre CRS, required height variation and QGIS Processing algorithms. |
+| DEM creation is refused | Read the **Input checks** list; save edits; check the numeric fields, finite coordinates, metre CRS, required height variation and QGIS Processing algorithms. |
 
 For a bug report, include the OS, QGIS/Python/plugin versions, steps to reproduce
 and expected versus actual behaviour. Use a small redistributable example;
