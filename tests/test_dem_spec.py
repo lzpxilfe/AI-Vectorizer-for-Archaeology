@@ -20,6 +20,12 @@ from ai_vectorizer.core.dem_spec import (
     paths_refer_to_same_file,
     publish_output_files,
     suggest_pixel_size,
+    TERRAIN_ROLE_CONTOUR,
+    TERRAIN_ROLE_SPOT,
+    TerrainInputFacts,
+    terrain_input_checks,
+    terrain_input_message,
+    terrain_input_summary,
 )
 
 
@@ -471,6 +477,120 @@ class DemSpecificationTests(unittest.TestCase):
             self.assertEqual(final.read_bytes(), b"previous output")
             self.assertEqual(late_sidecar.read_bytes(), b"unexpected sidecar")
             self.assertFalse((folder_path / "final.tif.msk").exists())
+
+
+class TerrainInputCheckTests(unittest.TestCase):
+    def _facts(self, role=TERRAIN_ROLE_SPOT, name="Spot Heights", **overrides):
+        values = dict(field_selected=True)
+        values.update(overrides)
+        return TerrainInputFacts(role=role, name=name, **values)
+
+    def test_ready_saved_inputs_have_no_checks(self):
+        checks = terrain_input_checks(
+            (self._facts(TERRAIN_ROLE_CONTOUR, "contours"), self._facts())
+        )
+        self.assertEqual(checks, ())
+        self.assertIn("nothing to fix now", terrain_input_summary(checks, "en"))
+        self.assertIn("지금 고칠 문제는 없습니다", terrain_input_summary(checks, "ko"))
+
+    def test_blocking_checks_come_before_saveable_edits_and_advisories(self):
+        checks = terrain_input_checks(
+            (
+                self._facts(
+                    TERRAIN_ROLE_CONTOUR, "contours",
+                    has_unsaved_edits=True, is_temporary=True,
+                ),
+                self._facts(
+                    field_selected=False, crs_matches_contours=False,
+                    has_unsaved_edits=True, is_temporary=True,
+                ),
+            )
+        )
+        self.assertEqual(
+            [(check.code, check.role) for check in checks],
+            [
+                ("field_missing", TERRAIN_ROLE_SPOT),
+                ("crs_mismatch", TERRAIN_ROLE_SPOT),
+                ("unsaved_edits", TERRAIN_ROLE_CONTOUR),
+                ("unsaved_edits", TERRAIN_ROLE_SPOT),
+                ("temporary_layer", TERRAIN_ROLE_CONTOUR),
+                ("temporary_layer", TERRAIN_ROLE_SPOT),
+            ],
+        )
+        self.assertEqual(
+            [check.blocking for check in checks],
+            [True, True, False, False, False, False],
+        )
+
+    def test_crs_mismatch_applies_only_to_spot_heights(self):
+        checks = terrain_input_checks(
+            (self._facts(TERRAIN_ROLE_CONTOUR, "contours", crs_matches_contours=False),)
+        )
+        self.assertEqual(checks, ())
+
+    def test_messages_name_the_layers_and_explain_the_fix_in_both_languages(self):
+        self.assertEqual(
+            terrain_input_message("unsaved_edits", ["Spot Heights"], language="en"),
+            "Unsaved edits: Spot Heights. Build DEM will offer to save them first.",
+        )
+        self.assertIn(
+            "먼저 저장할지 묻습니다",
+            terrain_input_message("unsaved_edits", ["Spot Heights"], language="ko"),
+        )
+        for language in ("en", "ko"):
+            self.assertIn(
+                "Make Permanent",
+                terrain_input_message("temporary_layer", ["a", "b"], language=language),
+            )
+        self.assertIn(
+            "pts: choose the spot-height elevation field",
+            terrain_input_message("field_missing", ["pts"], TERRAIN_ROLE_SPOT, "en"),
+        )
+        self.assertIn(
+            "lines: choose the contour elevation field",
+            terrain_input_message("field_missing", ["lines"], TERRAIN_ROLE_CONTOUR, "en"),
+        )
+        self.assertIn("same CRS", terrain_input_message("crs_mismatch", ["pts"], language="en"))
+        with self.assertRaises(ValueError):
+            terrain_input_message("unknown", ["pts"], language="en")
+
+    def test_summary_merges_same_kind_checks_into_one_line(self):
+        checks = terrain_input_checks(
+            (
+                self._facts(
+                    TERRAIN_ROLE_CONTOUR, "contours",
+                    has_unsaved_edits=True, is_temporary=True,
+                ),
+                self._facts(has_unsaved_edits=True, is_temporary=True),
+            )
+        )
+        self.assertEqual(
+            terrain_input_summary(checks, "en").splitlines(),
+            [
+                "Input checks:",
+                "- Unsaved edits: contours, Spot Heights. "
+                "Build DEM will offer to save them first.",
+                "- Temporary layers, lost when QGIS closes: contours, Spot Heights. "
+                "To keep the inputs reproducible, save them to files "
+                "(right-click the layer > Make Permanent).",
+            ],
+        )
+
+    def test_missing_fields_keep_contour_and_spot_wording_apart(self):
+        checks = terrain_input_checks(
+            (
+                self._facts(TERRAIN_ROLE_CONTOUR, "contours", field_selected=False),
+                self._facts(field_selected=False),
+            )
+        )
+        summary = terrain_input_summary(checks, "en").splitlines()
+        self.assertEqual(
+            summary[1:],
+            [
+                "- contours: choose the contour elevation field.",
+                "- Spot Heights: choose the spot-height elevation field.",
+            ],
+        )
 
 
 if __name__ == "__main__":

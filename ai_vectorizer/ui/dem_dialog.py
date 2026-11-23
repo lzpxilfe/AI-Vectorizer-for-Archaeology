@@ -37,10 +37,15 @@ from ..core.dem_pipeline import (
     loaded_project_paths,
 )
 from ..core.dem_spec import (
+    TERRAIN_ROLE_CONTOUR,
+    TERRAIN_ROLE_SPOT,
     DemSpecificationError,
+    TerrainInputFacts,
     default_hillshade_path,
     estimate_grid,
     suggest_pixel_size,
+    terrain_input_checks,
+    terrain_input_summary,
 )
 
 
@@ -111,7 +116,9 @@ class DemBuildDialog(QDialog):
         root.addWidget(self.intro_label)
 
         input_group = QGroupBox()
-        input_form = QFormLayout(input_group)
+        input_layout = QVBoxLayout(input_group)
+        input_form = QFormLayout()
+        input_layout.addLayout(input_form)
 
         self.contour_combo = QgsMapLayerComboBox()
         self.contour_combo.setFilters(
@@ -144,6 +151,14 @@ class DemBuildDialog(QDialog):
         )
         self.spot_field_label = QLabel()
         input_form.addRow(self.spot_field_label, self.spot_field)
+
+        # Cheap per-layer checks shown before a build; values and geometries
+        # are still validated completely by build_dem_request.
+        self.preflight_label = QLabel()
+        self.preflight_label.setWordWrap(True)
+        self.preflight_label.setTextFormat(_qt_value("PlainText", "TextFormat"))
+        # Outside the form layout, a wrapped label gets its full height.
+        input_layout.addWidget(self.preflight_label)
         root.addWidget(input_group)
         self.input_group = input_group
 
@@ -258,6 +273,7 @@ class DemBuildDialog(QDialog):
         self.build_button.setText(self._tr("DEM 생성", "Build DEM"))
         self.cancel_button.setText(self._tr("취소", "Cancel"))
         self.close_button.setText(self._tr("닫기", "Close"))
+        self._refresh_preflight()
         if not self.runner.is_running:
             self.status_label.setText(
                 self._tr(
@@ -429,6 +445,125 @@ class DemBuildDialog(QDialog):
             self.build_button.setEnabled(
                 self._grid_is_valid and has_fields and not self.runner.is_running
             )
+        self._refresh_preflight()
+
+    def _input_facts(self):
+        """Read the cheap per-layer facts behind the input checklist."""
+
+        contour = self.contour_combo.currentLayer()
+        spot = self.spot_combo.currentLayer()
+        facts = []
+        for role, layer, field in (
+            (TERRAIN_ROLE_CONTOUR, contour, self.contour_field),
+            (TERRAIN_ROLE_SPOT, spot, self.spot_field),
+        ):
+            if layer is None or not layer.isValid():
+                continue
+            facts.append(
+                TerrainInputFacts(
+                    role=role,
+                    name=layer.name(),
+                    field_selected=bool(field.currentField()),
+                    has_unsaved_edits=bool(layer.isModified()),
+                    is_temporary=layer.providerType() == "memory",
+                    crs_matches_contours=(
+                        role != TERRAIN_ROLE_SPOT
+                        or contour is None
+                        or layer.crs() == contour.crs()
+                    ),
+                )
+            )
+        return facts
+
+    def _refresh_preflight(self):
+        if not hasattr(self, "preflight_label"):
+            return
+        facts = self._input_facts()
+        if not facts:
+            self.preflight_label.setText("")
+        else:
+            self.preflight_label.setText(
+                terrain_input_summary(terrain_input_checks(facts), self.language)
+            )
+        self._fit_to_contents()
+
+    def _fit_to_contents(self):
+        """Give the wrapped checklist its full height at the current width.
+
+        A top-level dialog does not apply height-for-width on its own, so a
+        longer checklist would otherwise squeeze the form rows.
+        """
+
+        layout = self.layout()
+        if layout is None or not self.isVisible():
+            return
+        layout.activate()
+        needed = layout.totalHeightForWidth(self.width())
+        if needed <= 0:
+            return
+        self.setMinimumHeight(needed)
+        if self.height() < needed:
+            self.resize(self.width(), needed)
+
+    def _layers_with_unsaved_edits(self):
+        layers = []
+        seen = set()
+        for layer in (self.contour_combo.currentLayer(), self.spot_combo.currentLayer()):
+            if layer is None or not layer.isValid() or layer.id() in seen:
+                continue
+            seen.add(layer.id())
+            if layer.isModified():
+                layers.append(layer)
+        return layers
+
+    def _save_pending_edits(self):
+        """Offer to save edits that would otherwise block the DEM build.
+
+        Returns True when no unsaved edits remain. Layers stay in edit mode so
+        an active tracing session can continue after the save.
+        """
+
+        layers = self._layers_with_unsaved_edits()
+        if not layers:
+            return True
+        answer = QMessageBox.question(
+            self,
+            self._tr("저장하지 않은 편집", "Unsaved Edits"),
+            self._tr(
+                "DEM은 저장된 피처만 사용합니다. 다음 레이어의 편집을 지금 저장할까요?\n{names}",
+                "The DEM uses saved features only. Save the edits on these layers now?\n{names}",
+            ).format(names="\n".join(layer.name() for layer in layers)),
+            _message_box_button("Yes") | _message_box_button("No"),
+            _message_box_button("No"),
+        )
+        if answer != _message_box_button("Yes"):
+            self.status_label.setText(
+                self._tr(
+                    "편집을 저장하거나 되돌린 뒤 다시 실행하세요.",
+                    "Save or roll back the edits, then build again.",
+                )
+            )
+            return False
+        for layer in layers:
+            # stopEditing=False (QGIS 3.18+) keeps the layer editable.
+            if not layer.commitChanges(False):
+                QMessageBox.warning(
+                    self,
+                    self._tr("저장 실패", "Save Failed"),
+                    self._tr(
+                        "{name} 레이어의 편집을 저장하지 못했습니다:\n{errors}",
+                        "Could not save the edits on {name}:\n{errors}",
+                    ).format(name=layer.name(), errors="\n".join(layer.commitErrors())),
+                )
+                self._update_grid_summary()
+                return False
+        self._update_grid_summary()
+        return True
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # Edit state can change in QGIS while the dialog is hidden.
+        self._refresh_preflight()
 
     def _browse_dem(self):
         path, _selected_filter = QFileDialog.getSaveFileName(
@@ -452,6 +587,8 @@ class DemBuildDialog(QDialog):
             self.hillshade_path.setText(path)
 
     def _start_build(self):
+        if not self._save_pending_edits():
+            return
         try:
             request = build_dem_request(
                 contour_layer=self.contour_combo.currentLayer(),

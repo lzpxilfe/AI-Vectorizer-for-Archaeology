@@ -237,6 +237,82 @@ class DemDialogQgisTests(unittest.TestCase):
         self.assertEqual(next(spots.getFeatures())[2], 150.0)
         spots.rollBack()
 
+    def _edited_spots(self, value=150.0):
+        spots = self._spots()
+        spots.startEditing()
+        identity = next(spots.getFeatures()).id()
+        spots.changeAttributeValue(identity, 2, value)
+        return spots
+
+    def _answer(self, name):
+        import ai_vectorizer.ui.dem_dialog as dem_dialog_module
+        return dem_dialog_module._message_box_button(name)
+
+    def _start_build_with(self, dialog, answer):
+        from unittest import mock
+        import ai_vectorizer.ui.dem_dialog as dem_dialog_module
+        dialog.dem_path.setText(str(Path(self.temp.name) / "saved.tif"))
+        dialog.hillshade_path.setText(str(Path(self.temp.name) / "saved_hillshade.tif"))
+        started = []
+        with mock.patch.object(
+            dem_dialog_module.QMessageBox, "question", return_value=self._answer(answer),
+        ) as question, mock.patch.object(dialog.runner, "start", side_effect=started.append):
+            dialog._start_build()
+        return question, started
+
+    def test_checklist_names_unsaved_and_temporary_spot_inputs(self):
+        self._edited_spots()
+        dialog = self._dialog()
+        text = dialog.preflight_label.text()
+        self.assertIn("Unsaved edits: spots.", text)
+        self.assertIn("Temporary layers, lost when QGIS closes: contours, spots.", text)
+        self.assertTrue(dialog.build_button.isEnabled())
+        dialog.spot_combo.currentLayer().rollBack()
+
+    def test_checklist_reports_crs_mismatch_and_missing_spot_field(self):
+        self._spots(crs="EPSG:4326", wkt="POINT(127 36)")
+        dialog = self._dialog()
+        self.assertIn("spots: must use the same CRS", dialog.preflight_label.text())
+        dialog.spot_field.setField("")
+        self.assertIn(
+            "spots: choose the spot-height elevation field", dialog.preflight_label.text()
+        )
+
+    def test_build_saves_pending_point_edits_after_confirmation(self):
+        spots = self._edited_spots(150.0)
+        dialog = self._dialog()
+        question, started = self._start_build_with(dialog, "Yes")
+        self.assertEqual(question.call_count, 1)
+        self.assertIn("spots", question.call_args[0][2])
+        self.assertFalse(spots.isModified())
+        self.assertTrue(spots.isEditable())
+        self.assertEqual(next(spots.getFeatures())[2], 150.0)
+        self.assertEqual(len(started), 1)
+        self.assertEqual(started[0].spot_stats.unique_values, (150.0,))
+        self.assertNotIn("Unsaved edits", dialog.preflight_label.text())
+        dialog._set_running(False)
+        spots.rollBack()
+
+    def test_declining_the_save_keeps_edits_and_does_not_build(self):
+        spots = self._edited_spots(150.0)
+        dialog = self._dialog()
+        question, started = self._start_build_with(dialog, "No")
+        self.assertEqual(question.call_count, 1)
+        self.assertTrue(spots.isModified())
+        self.assertEqual(started, [])
+        self.assertIn("Save or roll back", dialog.status_label.text())
+        spots.rollBack()
+
+    def test_saved_inputs_build_without_asking(self):
+        self._spots()
+        dialog = self._dialog()
+        self.assertIn("Temporary layers", dialog.preflight_label.text())
+        self.assertNotIn("Unsaved edits", dialog.preflight_label.text())
+        question, started = self._start_build_with(dialog, "No")
+        self.assertEqual(question.call_count, 0)
+        self.assertEqual(len(started), 1)
+        dialog._set_running(False)
+
     def test_point_and_multipoint_run_real_tin_translate_and_hillshade(self):
         import qgis
         from ai_vectorizer.core.dem_pipeline import DemPipelineRunner

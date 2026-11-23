@@ -4,6 +4,19 @@
 `ai_vectorizer/metadata.txt`이며, 실제 공개일은 QGIS plugin 저장소나 GitHub Release에
 같은 artifact를 게시한 날에만 기록합니다.
 
+## Unreleased
+
+### DEM inputs
+
+- DEM 창에 입력 점검 목록을 표시합니다. 고도 필드 미선택, 등고선과 다른 표고점
+  좌표계, 저장하지 않은 편집, QGIS를 닫으면 사라지는 임시 레이어를 레이어 이름과
+  함께 알려 줍니다. 고도값과 도형은 지금처럼 DEM 생성 때 전부 검사합니다.
+- 등고선이나 표고점 레이어에 저장하지 않은 편집이 있으면 `DEM 생성`에서 바로
+  거부하지 않고 저장할지 묻습니다. 저장하면 편집 모드를 유지한 채 생성을 이어가고,
+  거절하면 편집을 그대로 둔 채 멈춥니다.
+- 표고점 레이어를 추가하면 DEM 생성이 어려웠다는 Sebastian Walczak의 제보
+  ([#4](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/issues/4))를 반영했습니다.
+
 ## 0.1.7 — experimental QGIS release (2026-11-11)
 
 QGIS 저장소에 게시·승인된 `0.1.7` ZIP(SHA-256 `43ce32…`)에는 이 절의 사용 흐름

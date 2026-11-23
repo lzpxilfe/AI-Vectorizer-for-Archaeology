@@ -147,6 +147,153 @@ def default_hillshade_path(dem_path: str) -> str:
     return str(normalized.with_name(f"{normalized.stem}_hillshade.tif"))
 
 
+TERRAIN_ROLE_CONTOUR = "contour"
+TERRAIN_ROLE_SPOT = "spot"
+
+CHECK_FIELD_MISSING = "field_missing"
+CHECK_CRS_MISMATCH = "crs_mismatch"
+CHECK_UNSAVED_EDITS = "unsaved_edits"
+CHECK_TEMPORARY_LAYER = "temporary_layer"
+
+
+@dataclass(frozen=True)
+class TerrainInputFacts:
+    """Facts the DEM dialog reads cheaply from one selected input layer.
+
+    Feature values and geometries are not inspected here; ``build_dem_request``
+    still validates them completely when a build starts.
+    """
+
+    role: str
+    name: str
+    field_selected: bool
+    has_unsaved_edits: bool = False
+    is_temporary: bool = False
+    crs_matches_contours: bool = True
+
+
+@dataclass(frozen=True)
+class TerrainInputCheck:
+    """One problem or advisory shown before a DEM build."""
+
+    code: str
+    role: str
+    name: str
+    blocking: bool
+
+
+# Blocking problems are listed before the edits the build can save and the
+# purely advisory temporary-layer note.
+_CHECK_ORDER = (
+    CHECK_FIELD_MISSING,
+    CHECK_CRS_MISMATCH,
+    CHECK_UNSAVED_EDITS,
+    CHECK_TEMPORARY_LAYER,
+)
+
+
+def terrain_input_checks(inputs) -> tuple[TerrainInputCheck, ...]:
+    """Return the problems and advisories for the selected terrain inputs.
+
+    ``field_missing`` and ``crs_mismatch`` block the build. Unsaved edits do not
+    block it because the dialog offers to save them first, and a temporary layer
+    is only an advisory about reproducibility.
+    """
+
+    found = []
+    for facts in inputs:
+        if not facts.field_selected:
+            found.append(
+                TerrainInputCheck(CHECK_FIELD_MISSING, facts.role, facts.name, True)
+            )
+        if facts.role == TERRAIN_ROLE_SPOT and not facts.crs_matches_contours:
+            found.append(
+                TerrainInputCheck(CHECK_CRS_MISMATCH, facts.role, facts.name, True)
+            )
+        if facts.has_unsaved_edits:
+            found.append(
+                TerrainInputCheck(CHECK_UNSAVED_EDITS, facts.role, facts.name, False)
+            )
+        if facts.is_temporary:
+            found.append(
+                TerrainInputCheck(CHECK_TEMPORARY_LAYER, facts.role, facts.name, False)
+            )
+    rank = {code: index for index, code in enumerate(_CHECK_ORDER)}
+    return tuple(sorted(found, key=lambda check: rank[check.code]))
+
+
+def terrain_input_message(code: str, names, role: str = "", language: str = "ko") -> str:
+    """Return one checklist sentence for the layers that share a check.
+
+    ``role`` distinguishes the contour and spot-height wording of
+    ``field_missing``; other checks ignore it.
+    """
+
+    english = language == "en"
+    joined = ", ".join(str(name) for name in names)
+    if code == CHECK_FIELD_MISSING:
+        if role == TERRAIN_ROLE_SPOT:
+            return (
+                f"{joined}: choose the spot-height elevation field."
+                if english
+                else f"{joined}: 표고점 고도 필드를 선택하세요."
+            )
+        return (
+            f"{joined}: choose the contour elevation field."
+            if english
+            else f"{joined}: 등고선 고도 필드를 선택하세요."
+        )
+    if code == CHECK_CRS_MISMATCH:
+        return (
+            f"{joined}: must use the same CRS as the contour layer."
+            if english
+            else f"{joined}: 등고선 레이어와 좌표계(CRS)가 같아야 합니다."
+        )
+    if code == CHECK_UNSAVED_EDITS:
+        return (
+            f"Unsaved edits: {joined}. Build DEM will offer to save them first."
+            if english
+            else f"저장하지 않은 편집: {joined}. DEM 생성을 누르면 먼저 저장할지 묻습니다."
+        )
+    if code == CHECK_TEMPORARY_LAYER:
+        return (
+            f"Temporary layers, lost when QGIS closes: {joined}. To keep the inputs "
+            "reproducible, save them to files (right-click the layer > Make Permanent)."
+            if english
+            else f"QGIS를 닫으면 사라지는 임시 레이어: {joined}. 입력을 재현할 수 있도록 "
+            "파일로 저장하세요(레이어 오른쪽 클릭 > Make Permanent)."
+        )
+    raise ValueError(f"Unknown terrain input check: {code}")
+
+
+def terrain_input_summary(checks, language: str = "ko") -> str:
+    """Return the plain-text checklist shown in the DEM dialog.
+
+    Checks of the same kind are merged into one line that names every layer,
+    in the order given by ``terrain_input_checks``.
+    """
+
+    english = language == "en"
+    if not checks:
+        return (
+            "Input checks: nothing to fix now. Elevation values and geometries "
+            "are checked when the DEM is built."
+            if english
+            else "입력 점검: 지금 고칠 문제는 없습니다. 고도값과 도형은 DEM 생성 때 검사합니다."
+        )
+    groups = {}
+    for check in checks:
+        role = check.role if check.code == CHECK_FIELD_MISSING else ""
+        groups.setdefault((check.code, role), []).append(check.name)
+    heading = "Input checks:" if english else "입력 점검:"
+    lines = [heading]
+    lines.extend(
+        f"- {terrain_input_message(code, names, role, language)}"
+        for (code, role), names in groups.items()
+    )
+    return "\n".join(lines)
+
+
 def interpolation_entry(
     layer_reference: str,
     value_source: int,
