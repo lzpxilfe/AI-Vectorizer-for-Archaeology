@@ -98,7 +98,7 @@ ArchaeoTrace는 AI 마스크나 에지맵을 그대로 정답으로 저장하지
 ### 1. 설치 및 언어 선택
 
 - **QGIS 공식 플러그인 저장소**: `플러그인 > 플러그인 관리 및 설치`에서 **실험적 플러그인 표시**를 켜고 `ArchaeoTrace`를 검색해 설치합니다. 후보 ZIP은 `ZIP에서 설치`로 설치할 수 있습니다.
-- **릴리스 현황**: 현재 QGIS 저장소 승인 최신판은 [`0.1.6`](https://plugins.qgis.org/plugins/ai_vectorizer/)입니다. 다시 제출한 **`0.1.7`** 은 공식 보안 검사(치명적 문제 0 · 경고 0)와 공식 Qt6 검사(경고 0)를 모두 통과해 관리자 승인 대기 중입니다([업로드 ZIP 검증](docs/QT6_UPLOAD_0.1.7.md) · [보안 알림 검토](docs/SECURITY_SCAN_0.1.7.md)).
+- **릴리스 현황**: 현재 [QGIS 저장소](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.7/) 승인 최신판은 **`0.1.7`**(experimental)입니다. 게시된 ZIP은 검증한 패키지(SHA-256 `43ce32…`)와 같으며, 공식 보안 검사(치명적 문제 0 · 경고 0)와 공식 Qt6 검사(경고 0)를 모두 통과했습니다([업로드 ZIP 검증](docs/QT6_UPLOAD_0.1.7.md) · [보안 알림 검토](docs/SECURITY_SCAN_0.1.7.md)).
 - **한국어 / English 즉시 전환**: 패널 상단 `언어 / Language`에서 선택할 수 있습니다. 최초 실행 시 QGIS 언어를 따르며(한국어 외 환경은 영어), 선택한 언어는 다음 실행에도 유지됩니다.
 - **의존성 안내**: 기본 `Freehand`와 `Ink Centerline`은 추가 패키지 없이 바로 동작합니다. 선택 모델 설치 명령과 SHA-256 해시는 ZIP에 동봉된 [한국어 사용 설명서](ai_vectorizer/README.md) 및 [English user guide](ai_vectorizer/README.en.md)에 정리되어 있습니다.
 

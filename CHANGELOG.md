@@ -4,13 +4,13 @@
 `ai_vectorizer/metadata.txt`이며, 실제 공개일은 QGIS plugin 저장소나 GitHub Release에
 같은 artifact를 게시한 날에만 기록합니다.
 
-## Unreleased
+## 0.1.7 — experimental QGIS release (2026-11-11)
 
-아래 변경은 동결된 첫 `0.1.7` 후보 이후의 사용자 흐름 재검토분입니다.
-아래 `0.1.7` 항목과 함께 업로드용 ZIP에 포함했습니다.
-다시 제출한 0.1.7은 보안·Qt6 검사를 통과하고 승인 대기 중입니다.
-승인된 최신 버전은 `0.1.6`입니다.
+QGIS 저장소에 게시·승인된 `0.1.7` ZIP(SHA-256 `43ce32…`)에는 이 절의 사용 흐름
+재검토분과 아래 첫 `0.1.7` 후보 항목이 함께 들어 있습니다. 날짜는 QGIS 저장소의
+업로드 시각(UTC) 기준입니다.
 [제출·검증 기록](docs/QGIS_SUBMISSION_0.1.7.md)에 최종 ZIP을 구분합니다.
+사용자 제보와 후속 개선은 [#3](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/issues/3)·[#4](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/issues/4)에서 추적합니다.
 
 ### Language and presentation
 
@@ -41,7 +41,7 @@
 검증 범위와 후속 후보 identity는
 [사용 흐름 재검토 기록](docs/RELEASE_REVIEW_2026-11-12.md)에 기록합니다.
 
-## 0.1.7 — experimental release candidate
+## 0.1.7 — first release candidate (included in the release above)
 
 ### Fixed
 

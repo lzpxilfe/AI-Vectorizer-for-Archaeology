@@ -2,6 +2,11 @@
 
 Status checked: 12 November 2026, Korea Standard Time.
 
+Update on 23 November 2026: the `43ce32…` package is approved and published as
+the latest version. The ZIP downloaded from the repository matches SHA-256
+`43ce32bec77ff03565e100643f7e3850d2d90ce0d92876cdec12f8dc50dea546`. The
+statements below that call 0.1.7 unapproved are historical.
+
 Update later on 12 November: the maintainer removed this submission, then
 uploaded the `43ce32…` package at 08:27 KST. That replacement passed security and
 Qt6 checks and awaits approval. The `809909…` results below are historical

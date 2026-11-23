@@ -98,7 +98,7 @@ Only segments explicitly accepted by the user enter the QGIS edit buffer, and wr
 ### 1. Installation and Language
 
 - **QGIS Plugin Repository**: Open `Plugins > Manage and Install Plugins`, enable **Show also experimental plugins**, and search for `ArchaeoTrace`. Candidate ZIPs can be installed via `Install from ZIP`.
-- **Release status**: The latest approved repository version is [`0.1.6`](https://plugins.qgis.org/plugins/ai_vectorizer/). The resubmitted **`0.1.7`** package passed all five repository security checks (0 critical, 0 warnings) and the official Qt6 check (0 warnings), and is awaiting administrator approval ([Upload package validation](docs/QT6_UPLOAD_0.1.7.md) · [Security scan & baseline review](docs/SECURITY_SCAN_0.1.7.md)).
+- **Release status**: **`0.1.7`** is the latest approved version in the [QGIS plugin repository](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.7/) (experimental). The published ZIP matches the validated package (SHA-256 `43ce32…`), which passed all five repository security checks (0 critical, 0 warnings) and the official Qt6 check (0 warnings) ([Upload package validation](docs/QT6_UPLOAD_0.1.7.md) · [Security scan & baseline review](docs/SECURITY_SCAN_0.1.7.md)).
 - **Built-in English / Korean switching**: Use `Language` at the top of the dock panel. On first launch the plugin follows the QGIS locale (Korean for Korean locales, English otherwise) and remembers your choice.
 - **Zero extra pip to begin**: `Freehand` and default `Ink Centerline` run out of the box. Optional model install commands, pinned hashes, and troubleshooting live in the packaged [English user guide](ai_vectorizer/README.en.md) and [Korean guide](ai_vectorizer/README.md).
 

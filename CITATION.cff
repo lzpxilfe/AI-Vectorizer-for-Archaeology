@@ -3,6 +3,7 @@ message: "If you use this software in research, teaching, or applied GIS work, p
 type: software
 title: "ArchaeoTrace: Local-First AI-Assisted Contour Tracing and Historical Terrain Reconstruction for QGIS"
 version: 0.1.7
+date-released: 2026-11-11
 doi: "10.5281/zenodo.24364757"
 identifiers:
   - type: doi
