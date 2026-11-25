@@ -145,7 +145,7 @@ class DependencyDeclarationTests(unittest.TestCase):
         # A version published to the QGIS plugin repository records its date in
         # the changelog heading and CITATION.cff; an unpublished candidate has
         # neither.
-        published_dates = {"0.1.6": "2026-09-09", "0.1.7": "2026-11-11"}
+        published_dates = {"0.1.6": "2026-09-09", "0.1.7": "2026-11-11", "0.1.8": "2026-11-23"}
         if version in published_dates:
             release_date = published_dates[version]
             self.assertIn(

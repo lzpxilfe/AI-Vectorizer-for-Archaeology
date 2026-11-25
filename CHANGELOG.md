@@ -4,10 +4,11 @@
 `ai_vectorizer/metadata.txt`이며, 실제 공개일은 QGIS plugin 저장소나 GitHub Release에
 같은 artifact를 게시한 날에만 기록합니다.
 
-## 0.1.8 — experimental release candidate
+## 0.1.8 — experimental QGIS release (2026-11-23)
 
-QGIS 저장소의 승인 최신판 `0.1.7` 다음 패치 후보입니다. 업로드할 ZIP과 검증
-기록은 [릴리스 기록](docs/RELEASE_READINESS_0.1.8.md)에 결속합니다.
+QGIS 저장소에 게시·승인된 `0.1.8` ZIP(SHA-256 `3ecc7fa8…`)은 동결 후보와 같은
+bytes입니다. 날짜는 QGIS 저장소의 업로드 시각(UTC) 기준이며, ZIP과 검증·게시 기록은
+[릴리스 기록](docs/RELEASE_READINESS_0.1.8.md)에 결속합니다.
 
 ### DEM inputs
 

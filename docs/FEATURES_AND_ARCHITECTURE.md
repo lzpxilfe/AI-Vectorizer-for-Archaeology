@@ -1,7 +1,6 @@
 # ArchaeoTrace features and architecture
 
-이 문서는 ArchaeoTrace의 공개판 experimental `0.1.7`(2026-11-11)과 현재 `main`의
-`0.1.8` 공개 후보에 들어 있는
+이 문서는 ArchaeoTrace의 공개판 experimental `0.1.8`(2026-11-23)과 현재 `main`에 들어 있는
 기능, 각 기능이 구현된 방식,
 현재 안전 경계와 아직 구현되지 않은 계획을 한곳에 정리합니다. ArchaeoTrace는
 고지도 등고선을 사용자가 검수하며 벡터화하고, 고도 의미를 부여한 뒤 검토 가능한
@@ -22,7 +21,7 @@ download와 repository-local `d292…` 사전 후보는
 | Smart Recovery | 실험적·기본 OFF | 검증된 EfficientSAM-Ti를 Ink 저신뢰 구간의 corridor prior로만 사용하고 실패 시 Ink 유지 |
 | QGIS 편집 통합 | 구현 | 새 피처, 기존 피처 연장, 고도 필드·값 변경을 편집 버퍼와 한 번의 Undo로 관리 |
 | 표고 데이터 | 구현 | 등고선 숫자 고도와 선택적 Spot Heights 저장 |
-| 지형 산출 | 실험적 구현 | 저장된 입력으로 선형 TIN DEM과 GDAL hillshade 생성; `0.1.8` 후보는 생성 전 입력 점검 목록과 저장하지 않은 편집의 저장 안내를 표시 |
+| 지형 산출 | 실험적 구현 | 저장된 입력으로 선형 TIN DEM과 GDAL hillshade 생성; `0.1.8`부터 생성 전 입력 점검 목록과 저장하지 않은 편집의 저장 안내를 표시 |
 | 모델 무결성 | 구현 | 고정 URL·크기·SHA-256 검증, 임시 파일, 원자 게시, 실패 시 복원 |
 | 재현 benchmark | 개발자용 구현 | 4개 독립 method ID, worker v1/v2 호환, 공개 8×6 dataset 계약과 최종 centerline 지표 |
 | 공개 역사 지도 dataset | 미완성 gate | USGS 1개 도엽·6개 draft crop staged; 나머지 7개 도엽·독립 검수 전에는 ranking 불가 |

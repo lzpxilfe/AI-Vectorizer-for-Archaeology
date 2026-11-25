@@ -98,7 +98,7 @@ ArchaeoTrace는 AI 마스크나 에지맵을 그대로 정답으로 저장하지
 ### 1. 설치 및 언어 선택
 
 - **QGIS 공식 플러그인 저장소**: `플러그인 > 플러그인 관리 및 설치`에서 **실험적 플러그인 표시**를 켜고 `ArchaeoTrace`를 검색해 설치합니다. 후보 ZIP은 `ZIP에서 설치`로 설치할 수 있습니다.
-- **릴리스 현황**: 현재 [QGIS 저장소](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.7/) 승인 최신판은 **`0.1.7`**(experimental)입니다. 게시된 ZIP은 검증한 패키지(SHA-256 `43ce32…`)와 같으며, 공식 보안 검사(치명적 문제 0 · 경고 0)와 공식 Qt6 검사(경고 0)를 모두 통과했습니다([업로드 ZIP 검증](docs/QT6_UPLOAD_0.1.7.md) · [보안 알림 검토](docs/SECURITY_SCAN_0.1.7.md)). 다음 공개 후보 **`0.1.8`**(DEM 입력 점검·편집 저장 안내)은 업로드 전 검증을 마쳤습니다([릴리스 기록](docs/RELEASE_READINESS_0.1.8.md)).
+- **릴리스 현황**: 현재 [QGIS 저장소](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.8/) 승인 최신판은 **`0.1.8`**(experimental, 2026-11-23)입니다. 게시된 ZIP은 검증한 패키지(SHA-256 `3ecc7fa8…`)와 같으며, 저장소 보안 검사를 모두 통과했습니다(Pass Rate 100%, `Validated (configured)`). DEM 입력 점검과 저장하지 않은 편집의 저장 안내를 더했습니다([릴리스 기록](docs/RELEASE_READINESS_0.1.8.md)). 이전 공개판 `0.1.7`의 검증은 [업로드 ZIP 검증](docs/QT6_UPLOAD_0.1.7.md) · [보안 알림 검토](docs/SECURITY_SCAN_0.1.7.md)에 있습니다.
 - **한국어 / English 즉시 전환**: 패널 상단 `언어 / Language`에서 선택할 수 있습니다. 최초 실행 시 QGIS 언어를 따르며(한국어 외 환경은 영어), 선택한 언어는 다음 실행에도 유지됩니다.
 - **의존성 안내**: 기본 `Freehand`와 `Ink Centerline`은 추가 패키지 없이 바로 동작합니다. 선택 모델 설치 명령과 SHA-256 해시는 ZIP에 동봉된 [한국어 사용 설명서](ai_vectorizer/README.md) 및 [English user guide](ai_vectorizer/README.en.md)에 정리되어 있습니다.
 
@@ -117,7 +117,7 @@ ArchaeoTrace는 AI 마스크나 에지맵을 그대로 정답으로 저장하지
 ArchaeoTrace는 "AI가 완벽하게 복원한다"는 과장을 배제하고, **실제 통과한 검증과 아직 확인되지 않은 한계를 투명하게 공개**합니다.
 
 - **소프트웨어·QGIS 호환 검증 (`0.1.7`)**: Pure Python **1,246건 통과**(subtest 171건), 실제 **QGIS 3.44.8 226건 통과**(실패·오류·건너뜀 0건), 공식 Qt6 검사(QGIS 4.2.1 / Qt 6.9.2) 46개 파일 **경고 0건**, 원격 CI **12개 작업 통과**(QGIS 3.22.16 · 3.44.13 · 4.2.1 실컨테이너 및 Linux/Windows 바이트 동일 ZIP). 세부 수정과 검토 범위는 [0.1.7 검토 기록](docs/RELEASE_REVIEW_2026-11-12.md)에 있습니다.
-- **`0.1.8` 후보 검증**: Pure Python **1,252건 통과**, 실제 **QGIS 3.34.4 231건 통과**(15개 모듈, 실패·오류 0건), QGIS 저장소의 보안 검사 다섯 가지를 같은 명령으로 재현해 치명적·경고 0건, 원격 CI 12개 작업 통과. 세부 내용은 [0.1.8 릴리스 기록](docs/RELEASE_READINESS_0.1.8.md)에 있습니다.
+- **`0.1.8` 검증**: Pure Python **1,252건 통과**, 실제 **QGIS 3.34.4 231건 통과**(15개 모듈, 실패·오류 0건), QGIS 저장소의 보안 검사 다섯 가지를 같은 명령으로 재현해 치명적·경고 0건, 원격 CI 12개 작업 통과. 세부 내용은 [0.1.8 릴리스 기록](docs/RELEASE_READINESS_0.1.8.md)에 있습니다.
 - **학습 모델 실험의 투명한 보고**: Colab 3-seed 학습, ONNX 검증, 동일 조건 QGIS 비교를 마쳤으나 일반 글자용 새 모델은 17개 진단 중 양성 13건의 저장 경로를 개선하지 못해 **기존 Korea 모델과 기본 OFF 정책을 유지**했습니다. 후속 단어 그룹 검출 보완도 개선이 없어 채택하지 않았습니다.
   - [학습 및 모델 비교](learning/COLAB_KOREA_TEXT_WEAK_RUN_2026-10-19.md) · [일반 글자 실패 진단](learning/GENERAL_TEXT_FAILURE_DIAGNOSIS_2026-10-19.md) · [후속 검출 실험](learning/WORD_GROUP_EXPERIMENT_2026-11-11.md) · [실제 지도 시범](docs/REAL_MAP_PILOT_2026-10-19.md)
 - **학술적 한계**: 사람이 검수한 정답 기준의 정확도와 작업 시간 단축은 아직 정량 검증하지 않았습니다. 생성된 선형 TIN DEM은 입력 등고선 품질에 민감하므로 **확정된 고고학적 정답이 아니라 원본 지도와 대조해 검토할 지형 가설**로 사용하세요. 자동 위상 검사와 불확실성 레이어는 향후 과제입니다.
@@ -161,7 +161,7 @@ ArchaeoTrace는 "AI가 완벽하게 복원한다"는 과장을 배제하고, **�
 | [`ai_vectorizer/README.md`](ai_vectorizer/README.md) · [`README.en.md`](ai_vectorizer/README.en.md) | ZIP 동봉 한·영 사용 설명서(선택 모델 설치, 해시, 단축키, 문제 해결) |
 | [`REFERENCES.md`](REFERENCES.md) | 구현 알고리즘·딥러닝 모델·지형 보간의 검증된 1차 논문 및 DOI |
 | [`docs/FEATURES_AND_ARCHITECTURE.md`](docs/FEATURES_AND_ARCHITECTURE.md) | 구현·실험·미구현 경계, 안전 설계, 모듈 구조 |
-| [`docs/RELEASE_READINESS_0.1.8.md`](docs/RELEASE_READINESS_0.1.8.md) | `0.1.8` 공개 후보 ZIP 정보, 업로드 전 검증과 업로드 절차 |
+| [`docs/RELEASE_READINESS_0.1.8.md`](docs/RELEASE_READINESS_0.1.8.md) | `0.1.8` 공개 ZIP 정보, 업로드 전 검증과 QGIS 게시 기록 |
 | [`docs/QT6_UPLOAD_0.1.7.md`](docs/QT6_UPLOAD_0.1.7.md) · [`docs/SECURITY_SCAN_0.1.7.md`](docs/SECURITY_SCAN_0.1.7.md) | `0.1.7` Qt6 업로드 패키지 검증, 공식 보안 스캔 및 예외 목록 감사 |
 | [`docs/RELEASE_REVIEW_2026-11-12.md`](docs/RELEASE_REVIEW_2026-11-12.md) | `0.1.7` 설치 후보 검증 및 사용자 흐름 수정 기록 |
 | [`benchmarks/README.md`](benchmarks/README.md) · [`learning/README.md`](learning/README.md) | 재현 벤치마크 하네스 및 Colab 학습·실험 기록 |

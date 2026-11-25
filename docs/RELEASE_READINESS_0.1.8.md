@@ -1,16 +1,17 @@
-# ArchaeoTrace 0.1.8 experimental release candidate
+# ArchaeoTrace 0.1.8 experimental release
 
-후보 준비·로컬 검사: 2026-11-23
+후보 준비·로컬 검사: 2026-11-23 · QGIS 업로드: 2026-11-23 · 승인 확인: 2026-11-25
 
-공식 QGIS 최신 공개판 `0.1.7`(2026-11-11)에서 패치 버전을 올린 **미공개 experimental
-후보**다. 이 문서는 업로드할 ZIP과 검증을 결속하는 기록이며 QGIS 게시 승인을 뜻하지
-않는다. 기존 공개 기록은 [0.1.7 제출 기록](QGIS_SUBMISSION_0.1.7.md)에 보존한다.
+공식 QGIS 공개판 `0.1.7`(2026-11-11)에서 패치 버전을 올린 experimental 공개판이다.
+이 문서는 업로드한 ZIP과 검증, QGIS 게시를 결속하는 기록이다. 이전 공개 기록은
+[0.1.7 제출 기록](QGIS_SUBMISSION_0.1.7.md)에 보존한다.
 
 ## Decision
 
 - 버전: plugin metadata와 citation을 `0.1.8`로 맞추고 `experimental=True`를 유지한다.
-- 공개 상태: 이 후보의 QGIS 업로드·GitHub tag·GitHub Release는 아직 없다.
-  `CITATION.cff`에는 공개일을 넣지 않으며, Zenodo 버전 DOI가 생기기 전까지 concept DOI를 쓴다.
+- 공개 상태: QGIS 저장소에 게시·승인되었다(아래 QGIS publication). `CITATION.cff`의
+  공개일은 QGIS 업로드일 `2026-11-23`(UTC)이다. GitHub Release `v0.1.8`로 Zenodo 버전
+  DOI를 만들며, 그 전까지는 concept DOI를 쓴다.
 - 정확도·속도: 사람 검수 Holdout 및 사용자 작업 시간 개선을 주장하지 않는다.
 
 ## Candidate scope
@@ -75,7 +76,20 @@ detect-secrets의 9건은 공개 모델 파일의 SHA-256 무결성 값 8개와 
 source commit 1개다. 이번 변경으로 새로 생긴 항목은 없다. Flake8 지적은 0.1.7과 같은
 수이며 이번 변경으로 늘지 않았다.
 
-## Upload steps
+## QGIS publication
+
+| 항목 | 기록 |
+| --- | --- |
+| 업로드 | 2026-11-23 06:38 UTC (KST 15:38), 버전 페이지 `version/0.1.8/` |
+| 보안 검사 | `All checks passed (developer config files used)`, Pass Rate 100%, `Validated (configured)`; 감지된 설정 파일은 `.secrets.baseline` 하나 |
+| 알림 메일 | 같은 시각 `BLOCKED`·`Critical issues found: No details available.` 메일 수신. 검사 결과와 맞지 않는 사이트 알림 버그([QGIS-Plugins-Website#486](https://github.com/qgis/QGIS-Plugins-Website/issues/486), 2026-11-23 확인 기준 미해결)이며 다시 업로드하지 않았다 |
+| 승인 | 2026-11-25 확인, `Approved: yes`, experimental |
+| 게시 ZIP 대조 | 저장소에서 내려받은 ZIP SHA-256 `3ecc7fa813da24b6f2a6e227dbf33a87b243ccae2414f628f11f3f0ca0d674fe`, 위 동결 후보와 같음 |
+
+`.secrets.baseline`의 9개 항목은 공개 모델 무결성 해시 8개와 EfficientSAM source commit
+1개이며, [0.1.7 보안 알림 검토](SECURITY_SCAN_0.1.7.md)에 항목별로 기록했다.
+
+## Upload steps (as performed)
 
 1. 위 SHA-256과 같은 `ai_vectorizer-0.1.8.zip`을 QGIS plugin 저장소의 ArchaeoTrace
    페이지에서 새 버전으로 업로드한다.
@@ -85,4 +99,5 @@ source commit 1개다. 이번 변경으로 새로 생긴 항목은 없다. Flake
    알림 버그([QGIS-Plugins-Website#486](https://github.com/qgis/QGIS-Plugins-Website/issues/486))이며
    [0.1.7 보안 알림 검토](SECURITY_SCAN_0.1.7.md)에 원인을 기록했다.
 4. 승인 후 같은 변경에서 공개일을 `CITATION.cff`, `CHANGELOG.md` 제목과 이 기록에 넣고,
-   GitHub Release `v0.1.8`로 Zenodo 버전 DOI를 만든 뒤 #4를 닫는다.
+   GitHub Release `v0.1.8`로 Zenodo 버전 DOI를 만든 뒤 #4를 닫는다. 이 단계는
+   2026-11-25에 진행했다.
