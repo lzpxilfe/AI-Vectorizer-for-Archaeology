@@ -10,8 +10,10 @@
 
 - 버전: plugin metadata와 citation을 `0.1.8`로 맞추고 `experimental=True`를 유지한다.
 - 공개 상태: QGIS 저장소에 게시·승인되었다(아래 QGIS publication). `CITATION.cff`의
-  공개일은 QGIS 업로드일 `2026-11-23`(UTC)이다. GitHub Release `v0.1.8`로 Zenodo 버전
-  DOI를 만들며, 그 전까지는 concept DOI를 쓴다.
+  공개일은 QGIS 업로드일 `2026-11-23`(UTC)이다. GitHub Release
+  [`v0.1.8`](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/releases/tag/v0.1.8)
+  (2026-11-25, tag `3b12e16`, 같은 ZIP 첨부)로 Zenodo 버전 DOI
+  [`10.5281/zenodo.24526806`](https://doi.org/10.5281/zenodo.24526806)이 발급되었다.
 - 정확도·속도: 사람 검수 Holdout 및 사용자 작업 시간 개선을 주장하지 않는다.
 
 ## Candidate scope

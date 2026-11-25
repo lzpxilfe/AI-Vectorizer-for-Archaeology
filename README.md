@@ -138,7 +138,7 @@ ArchaeoTrace는 "AI가 완벽하게 복원한다"는 과장을 배제하고, **�
 연구·교육·문화유산·지형 분석에서 ArchaeoTrace를 사용했다면 [`CITATION.cff`](CITATION.cff)([`.zenodo.json`](.zenodo.json) 연동) 또는 아래 BibTeX로 인용해 주세요.
 
 - 저자: Jinseo Hwang ([ORCID: 0009-0000-8228-4083](https://orcid.org/0009-0000-8228-4083))
-- Zenodo DOI: [10.5281/zenodo.24364756](https://doi.org/10.5281/zenodo.24364756) (전체 버전) · [10.5281/zenodo.24364757](https://doi.org/10.5281/zenodo.24364757) (`v0.1.7`)
+- Zenodo DOI: [10.5281/zenodo.24364756](https://doi.org/10.5281/zenodo.24364756) (전체 버전) · [10.5281/zenodo.24526806](https://doi.org/10.5281/zenodo.24526806) (`v0.1.8`)
 
 ```bibtex
 @software{ArchaeoTrace_Hwang_2026,
@@ -146,9 +146,9 @@ ArchaeoTrace는 "AI가 완벽하게 복원한다"는 과장을 배제하고, **�
   title     = {ArchaeoTrace: Local-First AI-Assisted Contour Tracing and Historical Terrain Reconstruction for QGIS},
   year      = {2026},
   publisher = {Zenodo},
-  version   = {0.1.7},
-  doi       = {10.5281/zenodo.24364757},
-  url       = {https://doi.org/10.5281/zenodo.24364757}
+  version   = {0.1.8},
+  doi       = {10.5281/zenodo.24526806},
+  url       = {https://doi.org/10.5281/zenodo.24526806}
 }
 ```
 

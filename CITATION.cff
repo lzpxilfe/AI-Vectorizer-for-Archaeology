@@ -4,14 +4,17 @@ type: software
 title: "ArchaeoTrace: Local-First AI-Assisted Contour Tracing and Historical Terrain Reconstruction for QGIS"
 version: 0.1.8
 date-released: 2026-11-23
-doi: "10.5281/zenodo.24364756"
+doi: "10.5281/zenodo.24526806"
 identifiers:
   - type: doi
     value: "10.5281/zenodo.24364756"
     description: "Zenodo concept DOI (resolves to the latest archived version)"
   - type: doi
+    value: "10.5281/zenodo.24526806"
+    description: "Zenodo version DOI for v0.1.8"
+  - type: doi
     value: "10.5281/zenodo.24364757"
-    description: "Zenodo version DOI for v0.1.7, the latest archived release"
+    description: "Zenodo version DOI for v0.1.7"
 authors:
   - family-names: Hwang
     given-names: Jinseo

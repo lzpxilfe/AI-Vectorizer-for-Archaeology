@@ -138,7 +138,7 @@ All implemented morphological, shortest-path, cubic Hermite, deep-learning, and 
 If you use ArchaeoTrace in academic research, teaching, heritage documentation, or historical GIS work, please cite [`CITATION.cff`](CITATION.cff) (indexed via [`.zenodo.json`](.zenodo.json)) or the BibTeX entry below:
 
 - Author: Jinseo Hwang ([ORCID: 0009-0000-8228-4083](https://orcid.org/0009-0000-8228-4083))
-- Zenodo DOI: [10.5281/zenodo.24364756](https://doi.org/10.5281/zenodo.24364756) (all versions) · [10.5281/zenodo.24364757](https://doi.org/10.5281/zenodo.24364757) (`v0.1.7`)
+- Zenodo DOI: [10.5281/zenodo.24364756](https://doi.org/10.5281/zenodo.24364756) (all versions) · [10.5281/zenodo.24526806](https://doi.org/10.5281/zenodo.24526806) (`v0.1.8`)
 
 ```bibtex
 @software{ArchaeoTrace_Hwang_2026,
@@ -146,9 +146,9 @@ If you use ArchaeoTrace in academic research, teaching, heritage documentation, 
   title     = {ArchaeoTrace: Local-First AI-Assisted Contour Tracing and Historical Terrain Reconstruction for QGIS},
   year      = {2026},
   publisher = {Zenodo},
-  version   = {0.1.7},
-  doi       = {10.5281/zenodo.24364757},
-  url       = {https://doi.org/10.5281/zenodo.24364757}
+  version   = {0.1.8},
+  doi       = {10.5281/zenodo.24526806},
+  url       = {https://doi.org/10.5281/zenodo.24526806}
 }
 ```
 
