@@ -11,56 +11,148 @@
       "closed": false,
       "points": [
         [
-          213.0,
-          232.0
+          211.2,
+          239.7
         ],
         [
-          207.0,
-          236.5
+          208.6,
+          241.3
         ],
         [
-          203.0,
-          243.0
+          205.8,
+          242.5
         ],
         [
-          201.5,
-          249.5
+          203.3,
+          244.3
         ],
         [
-          201.0,
-          256.5
+          201.6,
+          246.8
         ],
         [
-          200.5,
-          263.5
+          200.9,
+          249.8
         ],
         [
-          199.5,
-          270.5
+          200.3,
+          252.8
         ],
         [
-          196.5,
-          276.5
+          200.0,
+          255.9
         ],
         [
-          193.0,
-          282.0
+          200.0,
+          259.0
         ],
         [
-          190.5,
-          289.0
+          200.0,
+          262.0
         ],
         [
-          188.5,
-          300.5
+          199.9,
+          265.1
+        ],
+        [
+          199.3,
+          268.1
+        ],
+        [
+          197.7,
+          270.6
+        ],
+        [
+          194.9,
+          271.8
+        ],
+        [
+          192.4,
+          273.7
+        ],
+        [
+          190.3,
+          275.9
+        ],
+        [
+          187.8,
+          277.7
+        ],
+        [
+          185.1,
+          279.2
+        ],
+        [
+          182.3,
+          280.4
+        ],
+        [
+          179.3,
+          281.1
+        ],
+        [
+          176.3,
+          281.9
+        ],
+        [
+          173.4,
+          282.8
+        ],
+        [
+          170.6,
+          284.0
+        ],
+        [
+          168.3,
+          286.1
+        ],
+        [
+          166.9,
+          288.7
+        ],
+        [
+          166.1,
+          291.7
+        ],
+        [
+          166.0,
+          294.8
+        ],
+        [
+          165.6,
+          297.8
+        ],
+        [
+          165.1,
+          300.9
+        ],
+        [
+          165.0,
+          303.9
+        ],
+        [
+          164.6,
+          307.0
+        ],
+        [
+          163.8,
+          310.0
+        ],
+        [
+          162.6,
+          312.8
+        ],
+        [
+          160.7,
+          315.2
         ]
       ]
     }
   ],
   "metadata": {
     "annotation_status": "draft_unreviewed",
-    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
-    "target_description": "a contour running under the right-hand stroke of the red overprinted character 山 of 春香山 (Sahyang-san)",
+    "authoring_method": "draft: waypoints picked by eye on enlarged views of the immutable source crop, joined by a minimum-cost path over a colour mask of the target ink (black grid, black text and red overprint excluded), smoothed and resampled every 3 px; stretches hidden under labels are straight joins; rebuild with drafting/draft_references.py and drafting/waypoints.json; no ArchaeoTrace tracing code was run",
+    "target_description": "a contour running under the right-hand and bottom strokes of the red overprinted character 山 of 春香山 (Sahyang-san)",
     "publication_use": "forbidden until independent review and adjudication"
   }
 }

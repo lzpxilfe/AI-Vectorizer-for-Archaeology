@@ -487,29 +487,29 @@
           "prompt": {
             "schema_version": "archaeotrace-trace-prompt/2",
             "start_xy": [
-              82.0,
-              281.0
+              82.8,
+              281.1
             ],
             "end_xy": [
-              280.0,
-              275.0
+              279.0,
+              268.8
             ],
             "previous_xy": [
-              67,
-              280
+              69,
+              276
             ],
             "positive_xy": [],
             "negative_xy": []
           },
           "ordered_reference": "references/cal-03-crop-01.json",
-          "ordered_reference_sha256": "47b011ffb33c5a606751dc544deba0ec5166ad3ebf4b63375d4417ea18df97e3",
+          "ordered_reference_sha256": "32977ab858b6aa99ad8a51104b440e11cd50a79e822b7491f89413cffe1079bf",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": "Draft of the 100 m index contour where it breaks around its '100' label beside PUYONG-SAN; independent review and adjudication are pending."
+          "notes": "Draft of the 100 m index contour where it runs through its '100' label south of PUYONG-SAN; independent review and adjudication are pending."
         },
         {
           "id": "cal-03-crop-02",
@@ -530,29 +530,29 @@
           "prompt": {
             "schema_version": "archaeotrace-trace-prompt/2",
             "start_xy": [
-              238.0,
-              400.0
+              325.8,
+              224.0
             ],
             "end_xy": [
-              333.0,
-              428.0
+              411.2,
+              372.4
             ],
             "previous_xy": [
-              247,
-              388
+              311,
+              223
             ],
             "positive_xy": [],
             "negative_xy": []
           },
           "ordered_reference": "references/cal-03-crop-02.json",
-          "ordered_reference_sha256": "5290decd527eab76ae327ae7beebfd2417169ae451a3e82ac54c97be2c88af37",
+          "ordered_reference_sha256": "190e1035468daf04d288b8409f87c49bd4d130e7500a982c9b727f1c366fc4a2",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": "Draft of one thick index contour among closely spaced parallel contours on the Kuksa-bong slope; independent review and adjudication are pending."
+          "notes": "Draft of one thick index contour among closely spaced parallel contours on the Kuksa-bong slope, passing under the 'Sunhwagung' label; independent review and adjudication are pending."
         },
         {
           "id": "cal-03-crop-03",
@@ -573,29 +573,29 @@
           "prompt": {
             "schema_version": "archaeotrace-trace-prompt/2",
             "start_xy": [
-              268.0,
-              88.0
+              183.6,
+              242.2
             ],
             "end_xy": [
-              154.0,
-              292.0
+              280.2,
+              73.4
             ],
             "previous_xy": [
-              276,
-              75
+              186,
+              257
             ],
             "positive_xy": [],
             "negative_xy": []
           },
           "ordered_reference": "references/cal-03-crop-03.json",
-          "ordered_reference_sha256": "69654b25b67f67270a2936e23bd9dc09233db5c9b60b270dc642bf0c67178a73",
+          "ordered_reference_sha256": "80bf90d19e030475191fe119d62c382fe8bdbc42e060b46e11fe55f50a4e0a8f",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": "Draft of centreline of the main street running diagonally through the red built-up overprint of Uijongbu, whose red ink hides parts of its edges; independent review and adjudication are pending."
+          "notes": "Draft of the south-east casing line of the double-line main street running diagonally through the red built-up overprint of Uijongbu; red fill abuts the line and the parallel north-west casing runs about 5 px away; independent review and adjudication are pending."
         },
         {
           "id": "cal-03-crop-04",
@@ -616,29 +616,29 @@
           "prompt": {
             "schema_version": "archaeotrace-trace-prompt/2",
             "start_xy": [
-              10.0,
-              230.5
+              46.8,
+              233.0
             ],
             "end_xy": [
-              142.0,
-              211.5
+              138.4,
+              146.8
             ],
             "previous_xy": [
-              0,
-              230
+              32,
+              233
             ],
             "positive_xy": [],
             "negative_xy": []
           },
           "ordered_reference": "references/cal-03-crop-04.json",
-          "ordered_reference_sha256": "866ff3dbf53b730ee65814d74be97a3a35ce43224ff6b61cd66caa9a0df839a3",
+          "ordered_reference_sha256": "3e24fa119cf8968d627f55787ee93c2600abe3438bd9c14765ef59714a4198c5",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": "Draft of a brown contour running 1-3 px above a black UTM grid line before rising away from it; the grid line itself is the distractor; independent review and adjudication are pending."
+          "notes": "Draft of a brown contour running 2-3 px above a black UTM grid line before turning up the slope; the grid line itself is the distractor; independent review and adjudication are pending."
         },
         {
           "id": "cal-03-crop-05",
@@ -659,29 +659,29 @@
           "prompt": {
             "schema_version": "archaeotrace-trace-prompt/2",
             "start_xy": [
-              399.0,
+              378.8,
               262.0
             ],
             "end_xy": [
-              501.0,
-              246.0
+              484.3,
+              271.2
             ],
             "previous_xy": [
-              389,
-              273
+              364,
+              262
             ],
             "positive_xy": [],
             "negative_xy": []
           },
           "ordered_reference": "references/cal-03-crop-05.json",
-          "ordered_reference_sha256": "c2e382e9e8c7c67d332628a41155a512ae7da9f1a38edc2ce623ab026b8045bb",
+          "ordered_reference_sha256": "760a6a2a8d5d60412155328f687dccf2eb1acd1d9167633c066a41fa813c8ef9",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": "Draft of one isolated brown contour along the edge of open ground; independent review and adjudication are pending."
+          "notes": "Draft of one isolated brown contour looping across open ground east of Yanghyon-ni; independent review and adjudication are pending."
         },
         {
           "id": "cal-03-crop-06",
@@ -702,22 +702,22 @@
           "prompt": {
             "schema_version": "archaeotrace-trace-prompt/2",
             "start_xy": [
-              176.0,
-              1.0
+              172.6,
+              2.8
             ],
             "end_xy": [
-              211.5,
-              500.0
+              212.0,
+              505.2
             ],
             "previous_xy": [
-              184,
+              182,
               0
             ],
             "positive_xy": [],
             "negative_xy": []
           },
           "ordered_reference": "references/cal-03-crop-06.json",
-          "ordered_reference_sha256": "96a4850ad12b0dcfbda198b9d6a293bc1383ad193901969b407c462cec613d30",
+          "ordered_reference_sha256": "4531205dae1663b8c59c4e005d5948a7064e2a3e81ac4b28b621af66fcc64c57",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
@@ -771,29 +771,29 @@
           "prompt": {
             "schema_version": "archaeotrace-trace-prompt/2",
             "start_xy": [
-              97.0,
-              325.0
+              189.0,
+              300.8
             ],
             "end_xy": [
-              134.5,
-              440.5
+              116.8,
+              352.8
             ],
             "previous_xy": [
-              84,
-              318
+              189,
+              286
             ],
             "positive_xy": [],
             "negative_xy": []
           },
           "ordered_reference": "references/cal-04-crop-01.json",
-          "ordered_reference_sha256": "423b0a7033d0e4c598ead87f85d86d7e60573b67c2a5098b20e4db0b3c17c063",
+          "ordered_reference_sha256": "6e1d667828feb32a7157cced2339bd2aff1c388e8fdea8830a44a1d4b77943a1",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": "Draft of a pale, intermittently printed contour crossing the cleared ground near Naedokchae; independent review and adjudication are pending."
+          "notes": "Draft of a pale, thinly printed U-shaped contour in the cleared ground below the '506' spot height near Naedokchae, crossed by a dashed trail; independent review and adjudication are pending."
         },
         {
           "id": "cal-04-crop-02",
@@ -814,29 +814,29 @@
           "prompt": {
             "schema_version": "archaeotrace-trace-prompt/2",
             "start_xy": [
-              0.0,
-              17.0
+              1.8,
+              18.4
             ],
             "end_xy": [
-              496.0,
-              155.0
+              509.2,
+              152.4
             ],
             "previous_xy": [
               0,
-              8
+              9
             ],
             "positive_xy": [],
             "negative_xy": []
           },
           "ordered_reference": "references/cal-04-crop-02.json",
-          "ordered_reference_sha256": "105d0f5f98a209839c885c9e9513346b944e86ff40c0582ed24c579bc7d8cac4",
+          "ordered_reference_sha256": "7f010d14d60a8de4a824cb4e0fb64298cc14b076bf7f43d1788c9bfa1d0a5af9",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": "Draft of a thin blue stream along the valley floor, crossing brown contours, a road and a trail; independent review and adjudication are pending."
+          "notes": "Draft of a thin blue stream along the valley floor, through a stream junction and across brown contours, a road and a trail; independent review and adjudication are pending."
         },
         {
           "id": "cal-04-crop-03",
@@ -857,29 +857,29 @@
           "prompt": {
             "schema_version": "archaeotrace-trace-prompt/2",
             "start_xy": [
-              332.5,
-              144.0
+              213.8,
+              220.4
             ],
             "end_xy": [
-              316.5,
-              242.0
+              313.7,
+              245.4
             ],
             "previous_xy": [
-              333,
-              129
+              199,
+              218
             ],
             "positive_xy": [],
             "negative_xy": []
           },
           "ordered_reference": "references/cal-04-crop-03.json",
-          "ordered_reference_sha256": "3f7b65626c6625b4de1790a9d621da35073957adf9154d7c436911c073a44e96",
+          "ordered_reference_sha256": "aee58ec924bf66ecf7a7c941fefc182a4de2461faee25b10817f45707f2f1e8e",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": "Draft of a contour that passes under its rotated '300' label near Kakhul-bong; independent review and adjudication are pending."
+          "notes": "Draft of the 300 m index contour south of Kakhul-bong, which passes under its rotated '300' label; independent review and adjudication are pending."
         },
         {
           "id": "cal-04-crop-04",
@@ -900,29 +900,29 @@
           "prompt": {
             "schema_version": "archaeotrace-trace-prompt/2",
             "start_xy": [
-              194.0,
-              222.0
+              203.9,
+              163.8
             ],
             "end_xy": [
-              245.5,
-              330.0
+              246.5,
+              331.2
             ],
             "previous_xy": [
-              194,
-              207
+              209,
+              150
             ],
             "positive_xy": [],
             "negative_xy": []
           },
           "ordered_reference": "references/cal-04-crop-04.json",
-          "ordered_reference_sha256": "643cfe8d7b30c921dab7e683635228b8dc145f412f1de3a713cd2f1a6effab17",
+          "ordered_reference_sha256": "d487f6bd1e69fbcdf8250a07503dcd19f6ed90b627231f87f9dc360a54b658a2",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": "Draft of one contour among tightly spaced parallels on the steep slope east of Sannae-dong; independent review and adjudication are pending."
+          "notes": "Draft of one thick index contour among tightly spaced thin contours east of Sannae-dong, crossing a horizontal grid line; independent review and adjudication are pending."
         },
         {
           "id": "cal-04-crop-05",
@@ -943,29 +943,29 @@
           "prompt": {
             "schema_version": "archaeotrace-trace-prompt/2",
             "start_xy": [
-              213.0,
-              232.0
+              211.2,
+              239.7
             ],
             "end_xy": [
-              188.5,
-              300.5
+              160.7,
+              315.2
             ],
             "previous_xy": [
-              225,
-              223
+              224,
+              232
             ],
             "positive_xy": [],
             "negative_xy": []
           },
           "ordered_reference": "references/cal-04-crop-05.json",
-          "ordered_reference_sha256": "12e344ee4105b839adfb8628983913cfb07c533d8a5ae427260fd48333fa597b",
+          "ordered_reference_sha256": "6530439b137bd0b441a74aaf9bdd4e5c5fe037a8cffb30e954f8cbc85c1dd0d7",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": "Draft of a contour running under the right-hand stroke of the red overprinted character 山 of 春香山 (Sahyang-san); independent review and adjudication are pending."
+          "notes": "Draft of a contour running under the right-hand and bottom strokes of the red overprinted character 山 of 春香山 (Sahyang-san); independent review and adjudication are pending."
         },
         {
           "id": "cal-04-crop-06",
@@ -986,22 +986,22 @@
           "prompt": {
             "schema_version": "archaeotrace-trace-prompt/2",
             "start_xy": [
-              338.0,
-              166.0
+              336.5,
+              148.0
             ],
             "end_xy": [
-              330.0,
-              318.0
+              332.9,
+              310.0
             ],
             "previous_xy": [
-              340,
-              151
+              336,
+              133
             ],
             "positive_xy": [],
             "negative_xy": []
           },
           "ordered_reference": "references/cal-04-crop-06.json",
-          "ordered_reference_sha256": "d22aabf014478d51ea40d69b14bcd4781f0ed1ad24111a888f3c29b55a862fb6",
+          "ordered_reference_sha256": "50276fec56288fbced83713427335abd7beb14ac9d46d8d36d5ac9bc8f1109bb",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",

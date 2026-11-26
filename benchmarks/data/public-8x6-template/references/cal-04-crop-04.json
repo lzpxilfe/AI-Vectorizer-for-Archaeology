@@ -11,84 +11,288 @@
       "closed": false,
       "points": [
         [
-          194.0,
-          222.0
+          203.9,
+          163.8
         ],
         [
-          194.0,
-          234.0
+          202.8,
+          166.6
         ],
         [
-          194.5,
-          244.0
+          201.2,
+          169.2
         ],
         [
-          199.0,
-          252.0
+          199.4,
+          171.6
         ],
         [
-          205.0,
-          259.0
+          197.6,
+          174.0
+        ],
+        [
+          195.7,
+          176.4
+        ],
+        [
+          193.8,
+          178.8
+        ],
+        [
+          191.8,
+          181.1
+        ],
+        [
+          189.8,
+          183.3
+        ],
+        [
+          187.8,
+          185.6
+        ],
+        [
+          186.5,
+          188.3
+        ],
+        [
+          185.7,
+          191.2
+        ],
+        [
+          184.8,
+          194.1
+        ],
+        [
+          184.1,
+          197.1
+        ],
+        [
+          184.0,
+          200.1
+        ],
+        [
+          184.0,
+          203.1
+        ],
+        [
+          184.0,
+          206.1
+        ],
+        [
+          184.1,
+          209.2
+        ],
+        [
+          184.6,
+          212.2
+        ],
+        [
+          185.0,
+          215.2
+        ],
+        [
+          185.4,
+          218.2
+        ],
+        [
+          185.9,
+          221.1
+        ],
+        [
+          186.0,
+          224.2
+        ],
+        [
+          186.0,
+          227.2
+        ],
+        [
+          186.0,
+          230.2
+        ],
+        [
+          186.2,
+          233.2
+        ],
+        [
+          186.2,
+          236.3
+        ],
+        [
+          186.5,
+          239.3
+        ],
+        [
+          186.9,
+          242.3
+        ],
+        [
+          187.1,
+          245.3
+        ],
+        [
+          187.7,
+          248.3
+        ],
+        [
+          188.0,
+          251.3
+        ],
+        [
+          188.7,
+          254.2
+        ],
+        [
+          190.2,
+          256.8
+        ],
+        [
+          192.2,
+          259.1
+        ],
+        [
+          194.7,
+          260.9
+        ],
+        [
+          197.4,
+          262.1
+        ],
+        [
+          200.4,
+          262.8
+        ],
+        [
+          203.4,
+          263.0
+        ],
+        [
+          206.4,
+          263.0
+        ],
+        [
+          209.4,
+          263.5
+        ],
+        [
+          211.7,
+          265.4
+        ],
+        [
+          212.9,
+          268.1
+        ],
+        [
+          212.9,
+          271.2
+        ],
+        [
+          212.4,
+          274.1
         ],
         [
           212.0,
-          264.0
+          277.1
         ],
         [
-          213.5,
-          270.0
+          212.0,
+          280.2
         ],
         [
-          212.5,
-          276.0
+          212.0,
+          283.2
         ],
         [
-          213.0,
-          282.0
+          212.4,
+          286.2
         ],
         [
-          213.0,
-          288.0
+          213.7,
+          288.9
         ],
         [
-          217.0,
-          294.0
+          215.5,
+          291.3
         ],
         [
-          225.0,
-          297.5
+          217.7,
+          293.4
         ],
         [
-          233.5,
-          300.0
+          220.4,
+          294.9
         ],
         [
-          238.0,
-          306.0
+          223.2,
+          296.0
         ],
         [
-          239.5,
-          312.0
+          226.1,
+          296.9
         ],
         [
-          241.5,
-          318.0
+          229.0,
+          297.6
         ],
         [
-          243.5,
-          324.0
+          231.7,
+          299.0
         ],
         [
-          245.5,
-          330.0
+          233.9,
+          301.0
+        ],
+        [
+          236.1,
+          303.1
+        ],
+        [
+          237.9,
+          305.5
+        ],
+        [
+          238.9,
+          308.4
+        ],
+        [
+          239.4,
+          311.4
+        ],
+        [
+          240.5,
+          314.2
+        ],
+        [
+          241.7,
+          316.9
+        ],
+        [
+          242.6,
+          319.8
+        ],
+        [
+          243.2,
+          322.8
+        ],
+        [
+          244.0,
+          325.7
+        ],
+        [
+          245.1,
+          328.5
+        ],
+        [
+          246.5,
+          331.2
         ]
       ]
     }
   ],
   "metadata": {
     "annotation_status": "draft_unreviewed",
-    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
-    "target_description": "one contour among tightly spaced parallels on the steep slope east of Sannae-dong",
+    "authoring_method": "draft: waypoints picked by eye on enlarged views of the immutable source crop, joined by a minimum-cost path over a colour mask of the target ink (black grid, black text and red overprint excluded), smoothed and resampled every 3 px; stretches hidden under labels are straight joins; rebuild with drafting/draft_references.py and drafting/waypoints.json; no ArchaeoTrace tracing code was run",
+    "target_description": "one thick index contour among tightly spaced thin contours east of Sannae-dong, crossing a horizontal grid line",
     "publication_use": "forbidden until independent review and adjudication"
   }
 }

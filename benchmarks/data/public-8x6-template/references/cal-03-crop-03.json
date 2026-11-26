@@ -7,60 +7,280 @@
   },
   "paths": [
     {
-      "id": "draft-street-under-overprint",
+      "id": "draft-street-casing-under-overprint",
       "closed": false,
       "points": [
         [
-          268.0,
-          88.0
+          183.6,
+          242.2
         ],
         [
-          255.0,
-          110.0
+          183.2,
+          239.2
         ],
         [
-          243.0,
-          130.0
+          183.8,
+          236.2
         ],
         [
-          231.0,
-          150.0
+          184.6,
+          233.3
         ],
         [
-          219.0,
-          171.0
+          186.2,
+          230.7
+        ],
+        [
+          187.8,
+          228.2
+        ],
+        [
+          189.2,
+          225.5
+        ],
+        [
+          190.9,
+          222.9
+        ],
+        [
+          192.5,
+          220.4
+        ],
+        [
+          194.1,
+          217.8
+        ],
+        [
+          195.7,
+          215.2
+        ],
+        [
+          197.3,
+          212.6
+        ],
+        [
+          198.9,
+          210.0
+        ],
+        [
+          200.4,
+          207.4
+        ],
+        [
+          202.0,
+          204.8
+        ],
+        [
+          203.8,
+          202.3
+        ],
+        [
+          205.4,
+          199.8
         ],
         [
           207.0,
-          192.0
+          197.2
         ],
         [
-          195.0,
-          213.0
+          208.3,
+          194.4
         ],
         [
-          183.0,
-          234.0
+          209.7,
+          191.7
         ],
         [
-          172.0,
-          255.0
+          211.3,
+          189.2
         ],
         [
-          162.0,
-          274.0
+          212.7,
+          186.5
         ],
         [
-          154.0,
-          292.0
+          214.2,
+          183.8
+        ],
+        [
+          215.9,
+          181.3
+        ],
+        [
+          217.5,
+          178.7
+        ],
+        [
+          218.7,
+          176.0
+        ],
+        [
+          220.0,
+          173.2
+        ],
+        [
+          221.5,
+          170.6
+        ],
+        [
+          223.2,
+          168.1
+        ],
+        [
+          225.1,
+          165.7
+        ],
+        [
+          226.8,
+          163.2
+        ],
+        [
+          228.1,
+          160.4
+        ],
+        [
+          229.6,
+          157.8
+        ],
+        [
+          231.3,
+          155.3
+        ],
+        [
+          233.0,
+          152.7
+        ],
+        [
+          234.5,
+          150.1
+        ],
+        [
+          236.0,
+          147.5
+        ],
+        [
+          237.4,
+          144.8
+        ],
+        [
+          238.9,
+          142.2
+        ],
+        [
+          240.7,
+          139.7
+        ],
+        [
+          242.5,
+          137.2
+        ],
+        [
+          244.1,
+          134.6
+        ],
+        [
+          245.4,
+          131.9
+        ],
+        [
+          246.9,
+          129.2
+        ],
+        [
+          248.3,
+          126.6
+        ],
+        [
+          250.0,
+          124.0
+        ],
+        [
+          251.7,
+          121.5
+        ],
+        [
+          253.4,
+          119.0
+        ],
+        [
+          255.0,
+          116.4
+        ],
+        [
+          256.7,
+          113.9
+        ],
+        [
+          258.2,
+          111.2
+        ],
+        [
+          259.7,
+          108.6
+        ],
+        [
+          261.5,
+          106.2
+        ],
+        [
+          263.2,
+          103.7
+        ],
+        [
+          264.9,
+          101.1
+        ],
+        [
+          266.5,
+          98.5
+        ],
+        [
+          268.1,
+          95.9
+        ],
+        [
+          269.7,
+          93.4
+        ],
+        [
+          271.1,
+          90.7
+        ],
+        [
+          271.2,
+          87.7
+        ],
+        [
+          270.6,
+          84.7
+        ],
+        [
+          271.6,
+          81.9
+        ],
+        [
+          273.5,
+          79.5
+        ],
+        [
+          275.6,
+          77.4
+        ],
+        [
+          277.8,
+          75.3
+        ],
+        [
+          280.2,
+          73.4
         ]
       ]
     }
   ],
   "metadata": {
     "annotation_status": "draft_unreviewed",
-    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
-    "target_description": "centreline of the main street running diagonally through the red built-up overprint of Uijongbu, whose red ink hides parts of its edges",
+    "authoring_method": "draft: waypoints picked by eye on enlarged views of the immutable source crop, joined by a minimum-cost path over a colour mask of the target ink (black grid, black text and red overprint excluded), smoothed and resampled every 3 px; stretches hidden under labels are straight joins; rebuild with drafting/draft_references.py and drafting/waypoints.json; no ArchaeoTrace tracing code was run",
+    "target_description": "the south-east casing line of the double-line main street running diagonally through the red built-up overprint of Uijongbu; red fill abuts the line and the parallel north-west casing runs about 5 px away",
     "publication_use": "forbidden until independent review and adjudication"
   }
 }

@@ -419,9 +419,15 @@ records and ordered-reference drafts hash-bound in the plan:
   The rights snapshot records the original's size, MD5 and SHA-256 and the
   window rectangle, so the window can be rebuilt from the repository file.
 
-The Korean drafts were drawn by hand from the crops, with an ink-colour
-highlight and per-row ink measurements used only as reading aids; no
-ArchaeoTrace tracing code was run. All reference drafts deliberately remain
+The Korean drafts start from waypoints picked by eye on enlarged views of
+each crop. [`drafting/draft_references.py`](data/public-8x6-template/drafting/draft_references.py)
+joins them with a minimum-cost path over a colour mask of the target ink
+(black grid, black text and red overprint excluded), so each line sits on the
+printed ink; stretches hidden under labels are straight joins, and the
+waypoints are kept in `drafting/waypoints.json`. No ArchaeoTrace tracing code
+was run. Because the joins are minimum-cost paths, the drafts share an
+assumption with Live-Wire style tracers, which is one more reason they need
+independent review before any ranking. All reference drafts deliberately remain
 `unreviewed`/`pending`, and the other five source slots are unresolved
 ([#6](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/issues/6)).
 The whole plan therefore still reports `materialized=false` and

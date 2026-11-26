@@ -11,83 +11,231 @@
       "closed": false,
       "points": [
         [
-          338.0,
+          336.5,
+          148.0
+        ],
+        [
+          336.5,
+          151.0
+        ],
+        [
+          336.4,
+          154.0
+        ],
+        [
+          336.6,
+          157.0
+        ],
+        [
+          337.0,
+          160.0
+        ],
+        [
+          337.1,
+          163.0
+        ],
+        [
+          337.4,
           166.0
         ],
         [
-          336.0,
+          337.6,
+          169.0
+        ],
+        [
+          337.3,
+          172.0
+        ],
+        [
+          337.1,
+          175.0
+        ],
+        [
+          337.7,
           178.0
         ],
         [
+          338.1,
+          181.0
+        ],
+        [
+          337.6,
+          184.0
+        ],
+        [
           337.0,
+          187.0
+        ],
+        [
+          337.1,
           190.0
         ],
         [
-          338.0,
-          206.0
+          337.7,
+          193.0
         ],
         [
-          336.0,
+          338.0,
+          196.0
+        ],
+        [
+          338.2,
+          199.0
+        ],
+        [
+          338.5,
+          202.0
+        ],
+        [
+          338.6,
+          205.0
+        ],
+        [
+          338.5,
+          208.0
+        ],
+        [
+          338.1,
+          211.0
+        ],
+        [
+          337.1,
           214.0
         ],
         [
-          336.0,
-          222.0
+          336.3,
+          217.0
+        ],
+        [
+          336.3,
+          220.0
+        ],
+        [
+          336.6,
+          223.0
         ],
         [
           337.0,
-          230.0
+          226.0
+        ],
+        [
+          337.3,
+          229.0
+        ],
+        [
+          337.3,
+          232.0
         ],
         [
           337.0,
+          235.0
+        ],
+        [
+          336.8,
           238.0
         ],
         [
+          336.6,
+          241.0
+        ],
+        [
+          336.4,
+          244.0
+        ],
+        [
           336.0,
-          246.0
+          247.0
         ],
         [
-          338.0,
-          254.0
+          335.4,
+          250.0
         ],
         [
-          339.0,
+          334.7,
+          253.0
+        ],
+        [
+          334.7,
+          256.0
+        ],
+        [
+          335.8,
+          259.0
+        ],
+        [
+          337.0,
           262.0
         ],
         [
-          336.0,
-          270.0
+          337.3,
+          265.0
+        ],
+        [
+          336.7,
+          268.0
+        ],
+        [
+          336.2,
+          271.0
         ],
         [
           336.0,
-          278.0
+          274.0
         ],
         [
-          338.0,
+          336.2,
+          277.0
+        ],
+        [
+          336.6,
+          280.0
+        ],
+        [
+          336.9,
+          283.0
+        ],
+        [
+          337.1,
           286.0
         ],
         [
-          338.0,
-          294.0
+          337.2,
+          289.0
         ],
         [
-          336.0,
-          302.0
+          337.1,
+          292.0
         ],
         [
-          332.0,
+          336.9,
+          295.0
+        ],
+        [
+          336.5,
+          298.0
+        ],
+        [
+          335.7,
+          301.0
+        ],
+        [
+          334.8,
+          304.0
+        ],
+        [
+          333.7,
+          307.0
+        ],
+        [
+          332.9,
           310.0
-        ],
-        [
-          330.0,
-          318.0
         ]
       ]
     }
   ],
   "metadata": {
     "annotation_status": "draft_unreviewed",
-    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
+    "authoring_method": "draft: waypoints picked by eye on enlarged views of the immutable source crop, joined by a minimum-cost path over a colour mask of the target ink (black grid, black text and red overprint excluded), smoothed and resampled every 3 px; stretches hidden under labels are straight joins; rebuild with drafting/draft_references.py and drafting/waypoints.json; no ArchaeoTrace tracing code was run",
     "target_description": "a contour running 3-6 px left of a vertical black grid line and touching it in places",
     "publication_use": "forbidden until independent review and adjudication"
   }

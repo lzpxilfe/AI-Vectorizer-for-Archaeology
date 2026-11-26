@@ -290,7 +290,10 @@ calibration 도엽 `cal-01`(USGS HTMC East Denver 1890)과 `cal-03`·`cal-04`(�
 한국 도엽은 원본 TIFF가 커서 6개 crop을 담은 무손실 PNG 창을 저장하고, 원본 해시와
 창 좌표를 권리 snapshot에 기록합니다. `benchmarks.public_assets`는
 PNG가 선언 좌표의 원본 픽셀과 정확히 같은지 검증하며, 중심선은 별도 검수와
-adjudication이 끝날 때까지 명시적으로 draft로 남습니다.
+adjudication이 끝날 때까지 명시적으로 draft로 남습니다. 한국 도엽 초안은 확대
+화면에서 눈으로 고른 경유점을 목표 잉크 색 마스크 위 최소비용 경로로 이은 것이며
+(`drafting/draft_references.py`, ArchaeoTrace 추적 코드 미사용), 최소비용 경로라는
+점에서 Live-Wire 계열과 가정을 공유하므로 독립 검수가 더욱 필요합니다.
 
 ## Source map
 

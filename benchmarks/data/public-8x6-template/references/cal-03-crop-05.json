@@ -11,60 +11,268 @@
       "closed": false,
       "points": [
         [
-          399.0,
+          378.8,
           262.0
         ],
         [
-          407.0,
-          253.0
+          381.8,
+          262.1
         ],
         [
-          417.0,
-          244.0
+          384.6,
+          263.2
         ],
         [
-          430.0,
-          239.0
+          387.0,
+          265.1
         ],
         [
-          447.0,
-          237.0
+          389.2,
+          267.1
         ],
         [
-          459.0,
-          230.0
+          391.6,
+          269.0
         ],
         [
-          472.0,
-          220.0
+          394.5,
+          269.3
         ],
         [
-          480.0,
-          218.0
+          397.1,
+          267.7
+        ],
+        [
+          399.3,
+          265.6
+        ],
+        [
+          401.3,
+          263.4
+        ],
+        [
+          403.2,
+          261.0
+        ],
+        [
+          405.1,
+          258.6
+        ],
+        [
+          406.8,
+          256.1
+        ],
+        [
+          408.6,
+          253.6
+        ],
+        [
+          410.6,
+          251.4
+        ],
+        [
+          412.8,
+          249.2
+        ],
+        [
+          414.9,
+          247.1
+        ],
+        [
+          417.1,
+          245.0
+        ],
+        [
+          419.4,
+          243.0
+        ],
+        [
+          421.9,
+          241.3
+        ],
+        [
+          424.6,
+          240.0
+        ],
+        [
+          427.4,
+          238.9
+        ],
+        [
+          430.4,
+          238.2
+        ],
+        [
+          433.4,
+          238.0
+        ],
+        [
+          436.5,
+          238.0
+        ],
+        [
+          439.5,
+          238.0
+        ],
+        [
+          442.5,
+          237.8
+        ],
+        [
+          445.4,
+          236.8
+        ],
+        [
+          448.3,
+          236.1
+        ],
+        [
+          451.3,
+          235.8
+        ],
+        [
+          454.1,
+          234.6
+        ],
+        [
+          456.6,
+          232.9
+        ],
+        [
+          459.1,
+          231.1
+        ],
+        [
+          461.5,
+          229.2
+        ],
+        [
+          463.7,
+          227.2
+        ],
+        [
+          465.8,
+          225.0
+        ],
+        [
+          467.9,
+          222.8
+        ],
+        [
+          470.4,
+          221.1
+        ],
+        [
+          473.1,
+          219.8
+        ],
+        [
+          476.0,
+          218.7
+        ],
+        [
+          478.9,
+          218.1
+        ],
+        [
+          482.0,
+          218.1
+        ],
+        [
+          484.9,
+          218.8
+        ],
+        [
+          487.3,
+          220.6
         ],
         [
           489.0,
-          222.0
+          223.1
+        ],
+        [
+          490.3,
+          225.9
+        ],
+        [
+          491.9,
+          228.4
         ],
         [
           494.0,
-          228.0
+          230.6
         ],
         [
-          499.0,
-          235.0
+          496.3,
+          232.5
         ],
         [
-          501.0,
-          246.0
+          498.5,
+          234.6
+        ],
+        [
+          500.4,
+          237.0
+        ],
+        [
+          501.6,
+          239.8
+        ],
+        [
+          501.5,
+          242.8
+        ],
+        [
+          500.3,
+          245.5
+        ],
+        [
+          498.9,
+          248.2
+        ],
+        [
+          497.4,
+          250.9
+        ],
+        [
+          495.6,
+          253.3
+        ],
+        [
+          493.7,
+          255.7
+        ],
+        [
+          491.8,
+          258.1
+        ],
+        [
+          490.1,
+          260.6
+        ],
+        [
+          488.6,
+          263.2
+        ],
+        [
+          487.1,
+          265.9
+        ],
+        [
+          485.6,
+          268.5
+        ],
+        [
+          484.3,
+          271.2
         ]
       ]
     }
   ],
   "metadata": {
     "annotation_status": "draft_unreviewed",
-    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
-    "target_description": "one isolated brown contour along the edge of open ground",
+    "authoring_method": "draft: waypoints picked by eye on enlarged views of the immutable source crop, joined by a minimum-cost path over a colour mask of the target ink (black grid, black text and red overprint excluded), smoothed and resampled every 3 px; stretches hidden under labels are straight joins; rebuild with drafting/draft_references.py and drafting/waypoints.json; no ArchaeoTrace tracing code was run",
+    "target_description": "one isolated brown contour looping across open ground east of Yanghyon-ni",
     "publication_use": "forbidden until independent review and adjudication"
   }
 }

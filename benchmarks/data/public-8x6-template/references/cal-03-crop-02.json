@@ -11,88 +11,328 @@
       "closed": false,
       "points": [
         [
-          238.0,
-          400.0
+          325.8,
+          224.0
         ],
         [
-          234.0,
-          405.0
+          328.8,
+          224.3
         ],
         [
-          234.0,
-          410.0
+          331.5,
+          225.7
         ],
         [
-          238.0,
-          414.0
+          333.8,
+          227.6
         ],
         [
-          245.0,
-          416.0
+          335.6,
+          230.0
         ],
         [
-          252.0,
-          414.0
+          336.0,
+          233.0
         ],
         [
-          259.0,
-          410.0
+          336.4,
+          236.0
         ],
         [
-          266.0,
-          408.0
+          337.0,
+          238.9
         ],
         [
-          275.0,
-          407.0
+          337.7,
+          241.9
         ],
         [
-          285.0,
-          406.0
+          339.0,
+          244.6
         ],
         [
-          295.0,
-          405.0
+          340.7,
+          247.1
         ],
         [
-          304.0,
-          403.0
+          342.7,
+          249.4
         ],
         [
-          312.0,
-          401.0
+          345.0,
+          251.3
         ],
         [
-          320.0,
-          401.0
+          347.7,
+          252.6
         ],
         [
-          326.0,
-          403.0
+          350.7,
+          253.0
         ],
         [
-          330.0,
-          408.0
+          353.7,
+          253.1
         ],
         [
-          332.0,
-          414.0
+          356.7,
+          253.8
         ],
         [
-          333.0,
-          421.0
+          359.2,
+          255.5
         ],
         [
-          333.0,
-          428.0
+          361.3,
+          257.6
+        ],
+        [
+          363.0,
+          260.1
+        ],
+        [
+          364.4,
+          262.8
+        ],
+        [
+          366.3,
+          265.1
+        ],
+        [
+          368.6,
+          267.1
+        ],
+        [
+          371.3,
+          268.4
+        ],
+        [
+          374.2,
+          269.2
+        ],
+        [
+          377.2,
+          269.8
+        ],
+        [
+          380.2,
+          270.0
+        ],
+        [
+          383.2,
+          270.2
+        ],
+        [
+          386.0,
+          271.4
+        ],
+        [
+          388.3,
+          273.3
+        ],
+        [
+          390.1,
+          275.7
+        ],
+        [
+          390.8,
+          278.6
+        ],
+        [
+          390.9,
+          281.6
+        ],
+        [
+          390.4,
+          284.6
+        ],
+        [
+          389.7,
+          287.6
+        ],
+        [
+          388.9,
+          290.5
+        ],
+        [
+          387.9,
+          293.3
+        ],
+        [
+          386.2,
+          295.8
+        ],
+        [
+          384.0,
+          297.9
+        ],
+        [
+          381.7,
+          299.8
+        ],
+        [
+          379.1,
+          301.4
+        ],
+        [
+          376.5,
+          302.8
+        ],
+        [
+          373.9,
+          304.4
+        ],
+        [
+          371.6,
+          306.3
+        ],
+        [
+          369.6,
+          308.6
+        ],
+        [
+          367.8,
+          311.0
+        ],
+        [
+          365.9,
+          313.4
+        ],
+        [
+          364.1,
+          315.8
+        ],
+        [
+          362.6,
+          318.4
+        ],
+        [
+          362.1,
+          321.4
+        ],
+        [
+          362.8,
+          324.3
+        ],
+        [
+          363.8,
+          327.2
+        ],
+        [
+          364.8,
+          330.0
+        ],
+        [
+          366.3,
+          332.6
+        ],
+        [
+          368.1,
+          335.0
+        ],
+        [
+          370.1,
+          337.3
+        ],
+        [
+          371.7,
+          339.9
+        ],
+        [
+          372.5,
+          342.8
+        ],
+        [
+          372.9,
+          345.8
+        ],
+        [
+          373.0,
+          348.8
+        ],
+        [
+          373.4,
+          351.8
+        ],
+        [
+          373.9,
+          354.8
+        ],
+        [
+          374.0,
+          357.8
+        ],
+        [
+          374.4,
+          360.8
+        ],
+        [
+          375.0,
+          363.8
+        ],
+        [
+          375.8,
+          366.6
+        ],
+        [
+          377.4,
+          369.2
+        ],
+        [
+          379.5,
+          371.4
+        ],
+        [
+          381.9,
+          373.2
+        ],
+        [
+          384.7,
+          374.4
+        ],
+        [
+          387.5,
+          375.5
+        ],
+        [
+          390.5,
+          376.0
+        ],
+        [
+          393.5,
+          376.0
+        ],
+        [
+          396.5,
+          375.8
+        ],
+        [
+          399.5,
+          375.2
+        ],
+        [
+          402.4,
+          374.5
+        ],
+        [
+          405.3,
+          373.8
+        ],
+        [
+          408.3,
+          373.1
+        ],
+        [
+          411.2,
+          372.4
         ]
       ]
     }
   ],
   "metadata": {
     "annotation_status": "draft_unreviewed",
-    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
-    "target_description": "one thick index contour among closely spaced parallel contours on the Kuksa-bong slope",
+    "authoring_method": "draft: waypoints picked by eye on enlarged views of the immutable source crop, joined by a minimum-cost path over a colour mask of the target ink (black grid, black text and red overprint excluded), smoothed and resampled every 3 px; stretches hidden under labels are straight joins; rebuild with drafting/draft_references.py and drafting/waypoints.json; no ArchaeoTrace tracing code was run",
+    "target_description": "one thick index contour among closely spaced parallel contours on the Kuksa-bong slope, passing under the 'Sunhwagung' label",
     "publication_use": "forbidden until independent review and adjudication"
   }
 }
