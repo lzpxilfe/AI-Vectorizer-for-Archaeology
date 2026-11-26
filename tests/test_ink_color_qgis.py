@@ -272,20 +272,72 @@ class InkColorQgisTests(unittest.TestCase):
         self.np.testing.assert_array_equal(self.tool.cached_trace_guidance.avoidance_score, old_score)
         self.assertEqual(self._coordinates(self.tool.path_points), confirmed)
 
-    def test_reset_and_source_pixel_change_clear_explicit_profile(self):
+    def test_source_pixel_change_drops_the_profile_of_the_current_trace(self):
         self._sample()
         self.tool._on_raster_data_changed()
         self.assertIsNone(self.tool._ink_color_profile)
         self.assertEqual(self.states[-1], (None, False))
-        self._publish_cache()
+
+    def test_sampled_colour_carries_to_the_next_trace_until_cleared(self):
+        choices = []
+        self.tool.ink_color_choice_callback = choices.append
         self._sample()
+        self.assertEqual(choices, [self.BROWN])
 
         self.tool.reset_tracing()
 
+        self.assertFalse(self.tool.path_points)
+        self.assertEqual(self.tool._ink_color_profile.sample_rgb, self.BROWN)
+        self.assertEqual(self.states[-1][0], self.BROWN)
+        # Guidance is built when the next trace starts on the current cache.
+        self.tool.is_tracing = True
+        self.assertTrue(self.tool._apply_ink_color_at_trace_start())
+        self.assertIsNotNone(self.tool.cached_trace_guidance)
+        self.tool.reset_tracing()
+
+        # Between traces Shift+C forgets the remembered colour as well.
+        self.assertTrue(self.tool.clear_ink_color())
+        self.assertEqual(choices, [self.BROWN, None])
+        self.tool.reset_tracing()
         self.assertIsNone(self.tool._ink_color_profile)
         self.assertIsNone(self.tool.cached_trace_guidance)
-        self.assertFalse(self.tool.path_points)
         self.assertEqual(self.states[-1], (None, False))
+        self.assertFalse(self.tool.clear_ink_color())
+
+    def test_reset_without_a_chosen_colour_keeps_all_ink(self):
+        self.tool.reset_tracing()
+        self.assertIsNone(self.tool._ink_color_profile)
+        self.assertEqual(self.states[-1], (None, False))
+
+    def test_series_colour_from_a_preset_starts_the_trace(self):
+        tool = self.SmartTraceTool(
+            self.canvas,
+            SimpleNamespace(crs=lambda: self.crs),
+            self.layer,
+            freehand=True,
+            language="en",
+            series_ink_rgb=self.BROWN,
+        )
+        try:
+            self.assertEqual(tool._ink_color_profile.sample_rgb, self.BROWN)
+            tool.reset_tracing()
+            self.assertEqual(tool._ink_color_profile.sample_rgb, self.BROWN)
+        finally:
+            tool.dispose()
+            tool.deleteLater()
+        neutral = self.SmartTraceTool(
+            self.canvas,
+            SimpleNamespace(crs=lambda: self.crs),
+            self.layer,
+            freehand=True,
+            language="en",
+            series_ink_rgb=(128, 128, 128),
+        )
+        try:
+            self.assertIsNone(neutral._ink_color_profile)
+        finally:
+            neutral.dispose()
+            neutral.deleteLater()
 
     def test_pending_clicked_target_refuses_sample_and_clear_until_real_callback(self):
         self._sample()

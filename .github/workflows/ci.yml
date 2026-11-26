@@ -339,6 +339,10 @@ jobs:
           import tests.test_label_gap_qgis as label_gap_suite
           import tests.test_confirmed_gap_qgis as confirmed_gap_suite
           import tests.test_occluded_connection_qgis as occluded_suite
+          import tests.test_trace_preset_qgis as preset_suite
+          import tests.test_contour_elevation_hint_qgis as elevation_hint_suite
+          if not preset_suite.HAS_QGIS or not elevation_hint_suite.HAS_QGIS:
+              raise SystemExit("QGIS bindings were skipped in the preset suites")
           if not dem_pipeline_suite.HAS_QGIS or not main_ui_suite.HAS_QGIS:
               raise SystemExit("QGIS bindings/API imports were skipped in the UI/DEM job")
           if not dem_suite.HAS_QGIS or not raster_suite.HAS_QGIS or not runtime_suite.HAS_QGIS or not bridge_suite.HAS_QGIS or not color_suite.HAS_QGIS or not learned_suite.HAS_QGIS or not grid_suite.HAS_QGIS or not observed_suite.HAS_QGIS or not label_gap_suite.HAS_QGIS or not confirmed_gap_suite.HAS_QGIS or not occluded_suite.HAS_QGIS:
@@ -359,3 +363,5 @@ jobs:
           python3 -m unittest tests.test_occluded_connection_qgis -v
           python3 -m unittest tests.test_annotation_qgis -v
           python3 -m unittest tests.test_annotation_ui_qgis -v
+          python3 -m unittest tests.test_trace_preset_qgis -v
+          python3 -m unittest tests.test_contour_elevation_hint_qgis -v

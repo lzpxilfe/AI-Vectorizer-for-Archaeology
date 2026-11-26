@@ -59,6 +59,7 @@ from qgis.PyQt.QtGui import QColor
 
 from ..core.dependencies import get_cv2_error_text, get_opencv_install_command, is_cv2_available
 from ..core.livewire import is_livewire_available
+from .trace_presets_panel import TracePresetMixin
 from ..core.raster_utils import compute_resampled_dimensions, raster_has_native_grid, read_raster_bands
 from ..core.dem_pipeline import (
     layer_file_path as _layer_file_path,
@@ -390,7 +391,7 @@ class _TemporaryPreviewStore:
         self._connected = False
 
 
-class AIVectorizerDock(QDockWidget):
+class AIVectorizerDock(TracePresetMixin, QDockWidget):
     """Dockable panel for ArchaeoTrace plugin."""
 
     def __init__(self, iface, parent=None):
@@ -428,6 +429,7 @@ class AIVectorizerDock(QDockWidget):
         self._preview_store = _TemporaryPreviewStore(QgsProject.instance())
         self.current_language = self._load_language()
         self._configure_hed_storage()
+        self._init_preset_state()
 
         main_widget = QWidget()
         self.layout = QVBoxLayout()
@@ -565,6 +567,10 @@ class AIVectorizerDock(QDockWidget):
             self.annotation_export_btn,
         ):
             widget.setEnabled(enabled)
+        if hasattr(self, "preset_combo"):
+            for widget in self._preset_widgets():
+                widget.setEnabled(enabled)
+            self._update_preset_buttons()
         self.recovery_install_btn.setEnabled(
             enabled
             and self.recovery_install_task is None
@@ -1169,10 +1175,22 @@ class AIVectorizerDock(QDockWidget):
         return bool(callable(sample) and sample())
 
     def clear_ink_color(self):
+        if self.active_tool is None:
+            # Between traces the button forgets the remembered series colour.
+            if self._series_ink_rgb is None:
+                return False
+            self._series_ink_rgb = None
+            self._on_ink_color_changed(None, False)
+            return True
         clear = getattr(self.active_tool, "clear_ink_color", None)
         return bool(callable(clear) and clear())
 
     def _on_ink_color_changed(self, sample_rgb=None, available=False):
+        series_text = self._series_ink_text() if self.active_tool is None else None
+        if sample_rgb is None and series_text is not None:
+            self.ink_color_status.setText(series_text)
+            self.ink_color_clear_btn.setEnabled(True)
+            return
         if sample_rgb is None:
             text = self._tr("선 색상: 전체 Ink", "Ink color: all ink")
         else:
@@ -1571,6 +1589,8 @@ class AIVectorizerDock(QDockWidget):
         self.primary_mode_label.setStyleSheet("color: gray; font-size: 10px;")
         step3_layout.addWidget(self.primary_mode_label)
 
+        self._setup_preset_ui(step3_layout)
+
         self.freehand_check = QCheckBox()
         step3_layout.addWidget(self.freehand_check)
 
@@ -1918,9 +1938,11 @@ class AIVectorizerDock(QDockWidget):
         ))
         self.ink_color_clear_btn.setText(self._tr("색상 해제", "Clear color"))
         self.ink_color_clear_btn.setToolTip(self._tr(
-            "Shift+C로도 해제할 수 있습니다. 색상은 현재 등고선 추적에서만 유지됩니다.",
-            "Shift+C also clears the sample. Color preference lasts only for the current contour trace.",
+            "Shift+C로도 해제할 수 있습니다. 지정한 색상은 해제할 때까지 다음 등고선 추적에도 적용되며 프리셋에 저장됩니다.",
+            "Shift+C also clears the sample. A sampled color stays on for the next traces until you clear it, and is saved with presets.",
         ))
+        if hasattr(self, "preset_group"):
+            self._apply_preset_language()
         self._on_ink_color_changed(
             getattr(getattr(self.active_tool, "_ink_color_profile", None), "sample_rgb", None),
             bool(self.active_tool and self.active_tool._ink_color_cache_ready()),
@@ -2222,6 +2244,7 @@ class AIVectorizerDock(QDockWidget):
                 return
             self.iface.mapCanvas().unsetMapTool(self.active_tool)
         self.output_layer = layer
+        self._on_preset_output_changed(layer)
         self._update_dem_button_for_tracing(self.trace_btn.isChecked())
         if not self.trace_btn.isChecked():
             self._set_ready_state(prompt=True)
@@ -2236,6 +2259,8 @@ class AIVectorizerDock(QDockWidget):
             if not self._same_layer(layer, active_layer):
                 self.iface.mapCanvas().unsetMapTool(self.active_tool)
         if hasattr(self, "trace_btn") and not self.trace_btn.isChecked():
+            if hasattr(self, "preset_combo") and self.active_tool is None:
+                self._on_preset_raster_changed(layer)
             self._set_ready_state(prompt=True)
 
     def enable_tracing(self):
@@ -2473,6 +2498,10 @@ class AIVectorizerDock(QDockWidget):
                     learned_state_callback=self._on_learned_state_changed,
                     learned_support_weight=learned_support,
                     learned_avoidance_weight=learned_avoidance,
+                    series_ink_rgb=self._series_ink_rgb,
+                    ink_color_choice_callback=self._on_ink_color_choice,
+                    contour_interval=self._contour_interval_value(),
+                    elevation_history=self._elevation_history,
                 )
                 tool.deactivated.connect(self.on_tool_deactivated)
                 self.active_tool = tool
@@ -2499,6 +2528,7 @@ class AIVectorizerDock(QDockWidget):
                 return
 
             self._set_trace_configuration_enabled(False)
+            self._remember_project_preset(raster)
 
             if not freehand and edge_weight <= 0.0:
                 mode_name = self._tr("정확한 커서 (보조 0%)", "Exact cursor (0% assist)")
@@ -3173,7 +3203,7 @@ class AIVectorizerDock(QDockWidget):
 <li><b>Esc / Delete</b>: cancel current trace.</li>
 <li><b>Ctrl+Z</b>: undo a checkpoint while tracing; after finishing a line, undo the complete QGIS edit command.</li>
 <li><b>Ink Alt+click twice</b>: mark a text/noise avoid rectangle. <b>Alt+Backspace</b> removes the latest; <b>Alt+Shift+Backspace</b> clears all.</li>
-<li><b>Ink C</b>: sample a colored line under the cursor; <b>Shift+C</b> clears it. Applies only to this trace, with Byte RGB evidence and SciPy. A soft guide, so review every green preview.</li>
+<li><b>Ink C</b>: sample a colored line under the cursor; <b>Shift+C</b> clears it. Stays on for the next traces until cleared and is saved with presets; needs Byte RGB evidence and SciPy. A soft guide, so review every green preview.</li>
 <li><b>Click near start point</b>: close loop and enter elevation.</li>
 </ul>
 
@@ -3226,7 +3256,7 @@ class AIVectorizerDock(QDockWidget):
 <li><b>Esc / Delete</b>: 현재 그리기 취소</li>
 <li><b>Ctrl+Z</b>: 그리는 중에는 체크포인트, 선 확정 후에는 전체 QGIS 편집 명령 되돌리기</li>
 <li><b>Ink에서 Alt+두 번 클릭</b>: 문자·잡음 회피 사각형 표시. <b>Alt+Backspace</b>는 마지막, <b>Alt+Shift+Backspace</b>는 모두 제거</li>
-<li><b>Ink C</b>: 커서 아래 유색 선을 지정. <b>Shift+C</b>로 해제. Byte RGB 지도와 SciPy가 필요하며 현재 추적에서만 사용합니다. 초록 경로를 계속 검수하세요.</li>
+<li><b>Ink C</b>: 커서 아래 유색 선을 지정. <b>Shift+C</b>로 해제. 해제할 때까지 다음 추적에도 적용되고 프리셋에 저장됩니다. Byte RGB 지도와 SciPy가 필요합니다. 초록 경로를 계속 검수하세요.</li>
 <li><b>시작점 근처 클릭</b>: 닫힌 루프 생성 후 해발값 입력</li>
 </ul>
 

@@ -4,6 +4,25 @@
 `ai_vectorizer/metadata.txt`이며, 실제 공개일은 QGIS plugin 저장소나 GitHub Release에
 같은 artifact를 게시한 날에만 기록합니다.
 
+## Unreleased
+
+### Map series presets
+
+- 같은 양식으로 인쇄된 도엽에 쓸 설정을 이름 붙여 저장·적용·이름 변경·삭제할 수
+  있습니다. 추적 방식, 보조 강도, Smart Recovery, 프리핸드, 자동 경로, 학습 가이드,
+  선 색상, 등고선 간격이 함께 저장되며, 파일로 내보내고 가져올 수 있습니다
+  (`archaeotrace-trace-preset/1`). 형식이 맞지 않거나 더 새로운 버전에서 만든 파일은
+  이유를 밝혀 거부합니다.
+- 이 컴퓨터에 없는 선택 기능이 든 프리셋은 나머지만 적용하고 건너뛴 항목을 알려
+  줍니다.
+- 추적을 시작하거나 프리셋을 적용하면 그 설정을 래스터 지도별로 QGIS 프로젝트에
+  기억하고, 프로젝트를 다시 열어 그 지도를 고르면 복원합니다.
+- 등고선 간격을 넣으면 새 등고선의 해발값 창이 직전 값 ± 간격을 제안합니다. 값은
+  항상 사용자가 확인합니다.
+- `C`로 지정한 선 색상은 이제 해제할 때까지 다음 추적에도 적용됩니다.
+- 지도마다 설정을 시행착오로 다시 찾아야 했다는 Sebastian Walczak의 사례 글을
+  반영했습니다([#5](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/issues/5)).
+
 ## 0.1.8 — experimental QGIS release (2026-11-23)
 
 QGIS 저장소에 게시·승인된 `0.1.8` ZIP(SHA-256 `3ecc7fa8…`)은 동결 후보와 같은

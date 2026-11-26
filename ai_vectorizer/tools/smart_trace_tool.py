@@ -55,7 +55,8 @@ from ..core.livewire import (
     is_livewire_available,
 )
 from ..core.line_evidence import crop_line_evidence
-from ..core.ink_color import sample_ink_color, guidance_from_ink_color
+from ..core.ink_color import InkColorProfile, sample_ink_color, guidance_from_ink_color
+from ..core.trace_preset import suggest_contour_elevation
 from ..core.map_grid import MapGridPrior, detect_map_grid, crop_grid_prior
 from ..core.manual_gap_bridge import (
     ManualGapBridgeError,
@@ -1022,7 +1023,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                  recovery_state_callback=None, ink_color_callback=None,
                  learned_engine=None, learned_guide=False, learned_state_callback=None,
                  learned_support_weight=None, learned_avoidance_weight=None,
-                 grid_avoidance_enabled=True):
+                 grid_avoidance_enabled=True, series_ink_rgb=None,
+                 ink_color_choice_callback=None, contour_interval=None,
+                 elevation_history=None):
         self.canvas = canvas
         super().__init__(self.canvas)
         self.iface = iface
@@ -1064,6 +1067,23 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.recovery_state_callback = recovery_state_callback
         self.ink_color_callback = ink_color_callback
         self._ink_color_profile = None
+        # The ink colour the user chose for this map series, either sampled
+        # with C or applied from a preset. It is re-applied at the start of
+        # every trace until Shift+C clears it. Only the RGB triple is kept.
+        self.ink_color_choice_callback = ink_color_choice_callback
+        self._series_ink_rgb = None
+        if series_ink_rgb is not None:
+            try:
+                self._series_ink_rgb = InkColorProfile(tuple(series_ink_rgb)).sample_rgb
+            except (TypeError, ValueError):
+                self._series_ink_rgb = None
+        self._restore_series_ink_color()
+        self.contour_interval = contour_interval
+        # Elevations confirmed for new contours, oldest first. The dock owns
+        # the list so the suggestion survives stopping and restarting tracing.
+        self.elevation_history = (
+            elevation_history if isinstance(elevation_history, list) else []
+        )
         self.grid_avoidance_enabled = bool(grid_avoidance_enabled)
         # Explicit developer diagnostics only. Build records are captured in
         # the worker; trace records are requested separately by the caller.
@@ -1630,6 +1650,36 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             and is_livewire_available()
         )
 
+    def _restore_series_ink_color(self):
+        """Start a trace with the series colour, if one was chosen."""
+
+        rgb = self.__dict__.get("_series_ink_rgb")
+        if rgb is None or self._ink_color_profile is not None:
+            return False
+        try:
+            self._ink_color_profile = InkColorProfile(rgb)
+        except (TypeError, ValueError):
+            self._series_ink_rgb = None
+            return False
+        return True
+
+    def _apply_ink_color_at_trace_start(self):
+        """Build colour guidance for a remembered colour on an existing cache."""
+
+        if self._ink_color_profile is None or self.cached_trace_guidance is not None:
+            return False
+        self._refresh_trace_guidance()
+        self._emit_ink_color_state()
+        return self.cached_trace_guidance is not None
+
+    def _emit_ink_color_choice(self):
+        callback = self.__dict__.get("ink_color_choice_callback")
+        if callable(callback):
+            try:
+                callback(self._series_ink_rgb)
+            except (RuntimeError, TypeError) as exc:
+                print(f"Ink color choice callback failed: {exc}")
+
     def _emit_ink_color_state(self):
         callback = self.__dict__.get("ink_color_callback")
         if callable(callback):
@@ -1826,8 +1876,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             ))
             return False
         self._ink_color_profile = profile
+        self._series_ink_rgb = profile.sample_rgb
         self._refresh_after_manual_avoidance_change("Ink color sample changed.")
         self._emit_ink_color_state()
+        self._emit_ink_color_choice()
         self._push_message(self._tr(
             "선 색상을 지정했습니다. 초록 경로를 검수하세요. Shift+C로 해제합니다.",
             "Ink color sampled; review the green route. Shift+C clears the sample.",
@@ -1836,7 +1888,13 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
     def clear_ink_color(self):
         if self._ink_color_profile is None:
-            return False
+            if self._series_ink_rgb is None:
+                return False
+            # Between traces only the remembered choice is left to forget.
+            self._series_ink_rgb = None
+            self._emit_ink_color_state()
+            self._emit_ink_color_choice()
+            return True
         if self._pending_livewire_accept_point is not None:
             self._push_message(self._tr(
                 "대기 중인 Ink 지점을 확정하거나 취소한 뒤 색상을 해제하세요.",
@@ -1844,8 +1902,10 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             ))
             return False
         self._ink_color_profile = None
+        self._series_ink_rgb = None
         self._refresh_after_manual_avoidance_change("Ink color sample cleared.")
         self._emit_ink_color_state()
+        self._emit_ink_color_choice()
         return True
 
     def _manual_avoidance_outline(self, first, second):
@@ -4168,6 +4228,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
 
             # Reset checkpoint markers
             self.checkpoint_markers.reset(POINT_GEOMETRY)
+            self._apply_ink_color_at_trace_start()
 
             # Update edge cache
             if self._needs_edge_cache():
@@ -4206,7 +4267,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 # the nearby-start spot-height gesture must not consume it.
                 near_start = False
             if near_start and len(self.path_points) == 1:
-                elevation = self.ask_elevation()
+                elevation = self.ask_elevation(spot_height=True)
                 if elevation is None:
                     return
                 if self.create_spot_height(self.start_point, elevation):
@@ -4258,7 +4319,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
             if near_start:
                 # SPECIAL CASE: Double Click on Start Point = Spot Height
                 if len(self.path_points) == 1:
-                    elevation = self.ask_elevation()
+                    elevation = self.ask_elevation(spot_height=True)
                     if elevation is None:
                         return
                     if self.create_spot_height(self.start_point, elevation):
@@ -5971,11 +6032,28 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self.resume_at_start = False
         return True
 
-    def ask_elevation(self):
-        """Show dialog to input elevation value."""
+    def ask_elevation(self, spot_height=False):
+        """Show dialog to input elevation value.
+
+        For a new contour with a contour interval set, the dialog starts at
+        the suggested next elevation; the user always confirms the value.
+        """
         from qgis.PyQt.QtWidgets import QInputDialog
 
         default = self.ELEVATION_DEFAULT
+        label = self._tr("해발고도 (m):", "Elevation (m):")
+        new_contour = not spot_height and self.resume_feature_id is None
+        history = self.__dict__.get("elevation_history")
+        if new_contour and isinstance(history, list):
+            suggestion = suggest_contour_elevation(
+                history, self.__dict__.get("contour_interval"),
+            )
+            if suggestion is not None and math.isfinite(suggestion):
+                default = round(suggestion, 6)
+                label = self._tr(
+                    "해발고도 (m):\n직전 {previous:g} m, 간격 {interval:g} m에서 제안한 값입니다. 확인하세요.",
+                    "Elevation (m):\nSuggested from the previous {previous:g} m and a {interval:g} m interval. Check it.",
+                ).format(previous=history[-1], interval=float(self.contour_interval))
         if self.resume_feature_id is not None and self.vector_layer is not None:
             try:
                 feature = self.vector_layer.getFeature(self.resume_feature_id)
@@ -5992,7 +6070,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         value, ok = QInputDialog.getDouble(
             None,
             self._tr("등고선 해발값", "Contour Elevation"),
-            self._tr("해발고도 (m):", "Elevation (m):"),
+            label,
             default,
             min(self.ELEVATION_MIN, default),
             max(self.ELEVATION_MAX, default),
@@ -6000,6 +6078,9 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         )
 
         if ok:
+            if new_contour and isinstance(history, list) and math.isfinite(value):
+                history.append(float(value))
+                del history[:-10]
             return value
         return None
 
@@ -6087,6 +6168,7 @@ class SmartTraceTool(QgsMapToolEmitPoint):
         self._manual_gap_bridge_preview_target = None
         self._manual_gap_bridge_preview_generation = None
         self.cached_trace_guidance = None
+        self._restore_series_ink_color()
         self._emit_ink_color_state()
         self.checkpoints = []
         self.start_point = None

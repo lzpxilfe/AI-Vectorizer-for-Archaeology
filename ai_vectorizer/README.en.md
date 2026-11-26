@@ -74,7 +74,7 @@ These shortcuts apply while the map canvas has focus.
 | `Alt`+click two corners | Mark a rectangle of text or noise for Ink to avoid. This is two separate clicks, not a double-click. |
 | `Alt+Backspace` | Remove the most recent avoidance rectangle. |
 | `Alt+Shift+Backspace` | Remove all avoidance rectangles. |
-| `C` | Sample a coloured contour under the cursor for the current Ink trace. |
+| `C` | Sample a coloured contour under the cursor. The colour stays on for the next traces. |
 | `Shift+C` | Clear the sampled colour. |
 | `G` | Propose a curve across a gap from the last anchor to the visible endpoint under the cursor. |
 
@@ -100,11 +100,46 @@ For a clearly coloured contour, start an Ink trace, hover over the line and pres
 `C`. The sample button uses the last map cursor position. Grey ink, paper and
 ambiguous samples are refused. This feature needs native Byte RGB raster
 evidence, SciPy and assist above `0%`. The colour remains active after panning
-but is cleared when the trace finishes or is cancelled. It is not saved or
-uploaded. Text printed in the same colour can still confuse the route.
+and for the following traces until you press `Shift+C` or **Clear color**, and
+it is saved with presets. Only the RGB value is kept; no map pixels are stored
+or uploaded. Text printed in the same colour can still confuse the route.
 
 Use `Alt`+click on opposite corners to mark text, symbols or stains for avoidance.
 These hints influence the proposed path; they do not remove pixels from your map.
+
+### Map series settings (presets)
+
+When you work through several sheets printed in the same style, save the
+settings under a name. **Map Series Settings (Presets)** in **3. Tracing
+Options** offers:
+
+- **Save**: stores the tracing method, assist strength, Smart Recovery,
+  Freehand, Auto Path, learned guide, ink colour and contour interval under a
+  name. Reusing a name asks before replacing it.
+- **Apply**: sets the dock from the chosen preset. Options that this computer
+  cannot run (for example Smart Recovery without ONNX Runtime, or LSD without
+  OpenCV) are turned off or replaced with Ink, and the dock says what was
+  skipped.
+- The **⋯** menu: rename, delete, and export or import a preset file
+  (`archaeotrace-trace-preset/1` JSON). A malformed file or one made by a newer
+  version is refused with the reason, never repaired by guessing.
+
+Presets are kept in your QGIS user settings. If the stored value cannot be read
+it is not deleted; the next save copies it to
+`ArchaeoTrace/tracePresetsUnreadable`.
+
+Starting a trace or applying a preset also remembers the settings for that
+raster in the QGIS project. Reopening the project and choosing the map restores
+them, and sharing the project shares them.
+
+With a **Contour interval (m)**, the elevation dialog for each new contour
+starts at the previous value plus or minus the interval: upwards at first, then
+in the direction of your last entry. You always confirm the value; it is never
+saved automatically. Extensions of existing lines and spot heights get no
+suggestion, and choosing another output layer starts the suggestions afresh.
+
+Built-in presets for particular map series will only be added after they have
+been checked on the calibration sheets of the public benchmark.
 
 ### Gaps under labels
 

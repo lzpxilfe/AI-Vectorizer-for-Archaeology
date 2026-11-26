@@ -17,7 +17,8 @@ download와 repository-local `d292…` 사전 후보는
 | --- | --- | --- |
 | 수동·반자동 선 추적 | 구현 | Freehand, 다중 스케일 Ink Centerline; 기존 방법은 Advanced / Legacy에 보존 |
 | Manual Avoid Guidance | Unreleased 실험 | Ink Live-Wire의 문자·기호·얼룩 회피를 위한 session-only soft cost; 외부 OCR/model 없음 |
-| Ink Color Guidance | Unreleased 실험 | 사용자가 지정한 유색 Ink와 다른 색의 획에만 session-only soft cost; native Byte RGB·SciPy 필요 |
+| Ink Color Guidance | Unreleased 실험 | 사용자가 지정한 유색 Ink와 다른 색의 획에만 soft cost; 지정한 RGB는 해제할 때까지 다음 추적에도 적용; native Byte RGB·SciPy 필요 |
+| 추적 프리셋 | Unreleased 구현 | 지도 시리즈별 dock 설정을 `archaeotrace-trace-preset/1` JSON으로 저장·적용·내보내기; 래스터별 프로젝트 기억; 등고선 간격으로 다음 해발값 제안(사용자 확인 필수) |
 | Smart Recovery | 실험적·기본 OFF | 검증된 EfficientSAM-Ti를 Ink 저신뢰 구간의 corridor prior로만 사용하고 실패 시 Ink 유지 |
 | QGIS 편집 통합 | 구현 | 새 피처, 기존 피처 연장, 고도 필드·값 변경을 편집 버퍼와 한 번의 Undo로 관리 |
 | 표고 데이터 | 구현 | 등고선 숫자 고도와 선택적 Spot Heights 저장 |
@@ -127,10 +128,27 @@ antialias 변화에는 비용을 줄이고, 다른 색·중성색 획에는 Ink 
 않으며, 같은 색의 문자·기호를 의미로 구분하지 않습니다. 회피 영역과 픽셀별
 최댓값으로 합친 immutable guidance를 Ink와 Recovery challenger가 함께 사용합니다.
 
-pan으로 cache가 바뀌면 보관한 색 표본으로 guidance를 다시 만들고, 추적 종료·취소·
-reset이나 원본 raster 데이터 변경에서 표본을 지웁니다. 표본은 현재 session의 로컬
-메모리에만 남으며 저장·upload·telemetry로 보내지 않습니다. 실제 고지도 정확도와
-사용자 작업시간 개선은 아직 검증하지 않았습니다.
+pan으로 cache가 바뀌면 보관한 색 표본으로 guidance를 다시 만듭니다. 원본 raster
+데이터가 바뀌면 현재 추적의 표본을 지웁니다. 사용자가 고른 색(RGB 세 값)은 `Shift+C`나
+`색상 해제`로 지울 때까지 다음 추적 시작 때 다시 적용되며, 프리셋을 저장하면 그 RGB만
+QGIS 사용자 설정과 프로젝트에 기록됩니다. 지도 픽셀은 저장·upload·telemetry로 보내지
+않습니다. 실제 고지도 정확도와 사용자 작업시간 개선은 아직 검증하지 않았습니다.
+
+### Trace presets — Unreleased
+
+`core/trace_preset.py`는 QGIS와 무관한 엄격한 형식입니다. 이름, 추적 방식, 보조 강도,
+Smart Recovery·Freehand·Auto Path·학습 가이드, 선택적 선 색상 RGB와 등고선 간격만
+담습니다. 알 수 없는 항목, 형식 오류, 더 새로운 schema, dock이 만들 수 없는 조합
+(예: Freehand + Smart Recovery)은 `PresetError`로 거부하며 추측해 고치지 않습니다.
+적용 시 `plan_application()`이 이 컴퓨터에서 실행할 수 없는 선택 기능을 끄거나 Ink로
+바꾸고 건너뛴 항목을 돌려주므로, 추적 시작 단계에서 거부되는 상태로 두지 않습니다.
+
+`ui/trace_presets_panel.py`가 dock widget, QGIS 사용자 설정
+(`ArchaeoTrace/tracePresets`), 프로젝트 항목(`ArchaeoTrace/rasterPresets/r<layer id hex>`)
+사이에서 값을 옮깁니다. 읽을 수 없는 저장값은 지우지 않고 다음 저장 때 백업 키에
+남깁니다. 추적 시작과 프리셋 적용 때 현재 설정을 그 래스터에 기억하고, 래스터를 다시
+고르면 복원합니다. 등고선 간격이 있으면 새 등고선의 해발값 창 기본값만 직전 값 ±
+간격으로 바뀌며, 사용자가 확인하지 않은 값은 저장되지 않습니다.
 
 ### Smart Recovery (Experimental)
 
@@ -306,6 +324,8 @@ adjudication이 끝날 때까지 명시적으로 draft로 남습니다. 한국 �
 | `ai_vectorizer/core/edge_detector.py` | Ink/LSD/HED/Canny edge·centerline과 HED artifact |
 | `ai_vectorizer/core/line_evidence.py` | QGIS 독립 연속 Ink score·방향·coherence·scale 계약 |
 | `ai_vectorizer/core/ink_color.py` | 명시적 Byte RGB Ink 표본과 immutable soft 색상 비용 |
+| `ai_vectorizer/core/trace_preset.py` | 추적 프리셋 JSON 형식, 적용 계획, 등고선 간격 해발값 제안 |
+| `ai_vectorizer/ui/trace_presets_panel.py` | 프리셋 dock 조작, 사용자 설정·프로젝트 저장 |
 | `ai_vectorizer/core/trace_guidance.py` | immutable soft 회피 guidance와 crop 계약 |
 | `ai_vectorizer/core/livewire.py` | 제한 창의 방향 인식 최단경로 트리와 assist 혼합 |
 | `ai_vectorizer/core/smart_recovery.py` | 저신뢰 gate, corridor cost와 champion/challenger arbiter |
