@@ -63,7 +63,7 @@
 | packaged import | 위 ZIP을 풀어 QGIS 3.34.4에서 plugin entry point import 통과 |
 | 결정적 ZIP / source 일치 | 생성·`--check` 통과, ZIP CRC 오류 없음 |
 | 화면 | 한·영 dock을 offscreen 렌더링해 프리셋 영역이 잘리지 않음을 확인; 작은 창에서 가로 스크롤이 생기지 않는다는 기존 테스트 통과 |
-| 원격 CI | 기능 commit `9099107`에서 12/12 통과(QGIS 3.22.16 · 3.44.13 · 4.2.1, 공식 Qt6 검사와 새 QGIS 모듈 포함). 이 후보 commit의 CI는 push 후 확인한다 |
+| 원격 CI | 기능 commit `9099107`에서 12/12 통과(QGIS 3.22.16 · 3.44.13 · 4.2.1, 공식 Qt6 검사와 새 QGIS 모듈 포함). 후보 commit `99bc783`에서도 12/12 통과했고, CI의 Linux build가 위와 같은 ZIP SHA-256 `340c3160…`을 만들었다 |
 
 `qgis_clean_profile_smoke.py`는 macOS QGIS.app 실행 파일이 필요해 이번 Linux 검사에서는
 실행하지 않았다. 대신 위 packaged import와 CI의 세 QGIS 버전 import smoke로 확인했다.
