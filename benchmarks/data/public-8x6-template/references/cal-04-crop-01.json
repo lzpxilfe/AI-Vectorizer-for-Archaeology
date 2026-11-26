@@ -1,0 +1,78 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-faded-contour",
+      "closed": false,
+      "points": [
+        [
+          97.0,
+          325.0
+        ],
+        [
+          107.0,
+          330.0
+        ],
+        [
+          111.0,
+          338.0
+        ],
+        [
+          111.0,
+          348.0
+        ],
+        [
+          110.0,
+          361.0
+        ],
+        [
+          117.0,
+          370.0
+        ],
+        [
+          119.0,
+          379.0
+        ],
+        [
+          117.5,
+          389.0
+        ],
+        [
+          114.5,
+          399.0
+        ],
+        [
+          113.5,
+          408.0
+        ],
+        [
+          117.5,
+          415.5
+        ],
+        [
+          123.5,
+          423.0
+        ],
+        [
+          129.5,
+          432.0
+        ],
+        [
+          134.5,
+          440.5
+        ]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
+    "target_description": "a pale, intermittently printed contour crossing the cleared ground near Naedokchae",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

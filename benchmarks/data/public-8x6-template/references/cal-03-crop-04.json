@@ -1,0 +1,86 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-contour-beside-grid",
+      "closed": false,
+      "points": [
+        [
+          10.0,
+          230.5
+        ],
+        [
+          22.0,
+          231.0
+        ],
+        [
+          34.0,
+          231.0
+        ],
+        [
+          46.0,
+          233.0
+        ],
+        [
+          58.0,
+          232.0
+        ],
+        [
+          70.0,
+          232.0
+        ],
+        [
+          82.0,
+          232.5
+        ],
+        [
+          94.0,
+          233.0
+        ],
+        [
+          100.0,
+          232.5
+        ],
+        [
+          106.0,
+          229.5
+        ],
+        [
+          112.0,
+          226.5
+        ],
+        [
+          118.0,
+          222.5
+        ],
+        [
+          124.0,
+          220.5
+        ],
+        [
+          130.0,
+          218.0
+        ],
+        [
+          136.0,
+          215.5
+        ],
+        [
+          142.0,
+          211.5
+        ]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
+    "target_description": "a brown contour running 1-3 px above a black UTM grid line before rising away from it; the grid line itself is the distractor",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

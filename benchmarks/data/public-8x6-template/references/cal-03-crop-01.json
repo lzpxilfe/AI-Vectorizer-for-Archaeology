@@ -1,0 +1,110 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-index-contour-label-gap",
+      "closed": false,
+      "points": [
+        [
+          82.0,
+          281.0
+        ],
+        [
+          107.0,
+          283.0
+        ],
+        [
+          122.0,
+          285.0
+        ],
+        [
+          130.0,
+          294.0
+        ],
+        [
+          137.0,
+          308.0
+        ],
+        [
+          148.0,
+          314.0
+        ],
+        [
+          160.0,
+          320.0
+        ],
+        [
+          172.0,
+          327.0
+        ],
+        [
+          182.0,
+          332.0
+        ],
+        [
+          192.0,
+          334.0
+        ],
+        [
+          202.0,
+          335.0
+        ],
+        [
+          212.0,
+          334.0
+        ],
+        [
+          222.0,
+          332.0
+        ],
+        [
+          230.0,
+          322.0
+        ],
+        [
+          235.0,
+          309.0
+        ],
+        [
+          240.0,
+          300.0
+        ],
+        [
+          248.0,
+          294.0
+        ],
+        [
+          260.0,
+          295.0
+        ],
+        [
+          272.0,
+          300.0
+        ],
+        [
+          282.0,
+          299.0
+        ],
+        [
+          285.0,
+          288.0
+        ],
+        [
+          280.0,
+          275.0
+        ]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
+    "target_description": "the 100 m index contour where it breaks around its '100' label beside PUYONG-SAN",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

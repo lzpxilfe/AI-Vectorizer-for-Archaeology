@@ -1,0 +1,162 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-blue-stream",
+      "closed": false,
+      "points": [
+        [
+          0.0,
+          17.0
+        ],
+        [
+          16.0,
+          29.5
+        ],
+        [
+          32.0,
+          39.0
+        ],
+        [
+          48.0,
+          56.0
+        ],
+        [
+          64.0,
+          66.0
+        ],
+        [
+          80.0,
+          76.0
+        ],
+        [
+          96.0,
+          90.0
+        ],
+        [
+          112.0,
+          102.0
+        ],
+        [
+          128.0,
+          115.5
+        ],
+        [
+          144.0,
+          127.0
+        ],
+        [
+          160.0,
+          135.5
+        ],
+        [
+          176.0,
+          142.0
+        ],
+        [
+          192.0,
+          144.5
+        ],
+        [
+          208.0,
+          144.0
+        ],
+        [
+          222.0,
+          141.0
+        ],
+        [
+          231.0,
+          131.0
+        ],
+        [
+          240.0,
+          121.0
+        ],
+        [
+          256.0,
+          107.5
+        ],
+        [
+          272.0,
+          91.0
+        ],
+        [
+          288.0,
+          84.0
+        ],
+        [
+          304.0,
+          79.5
+        ],
+        [
+          320.0,
+          73.5
+        ],
+        [
+          336.0,
+          65.5
+        ],
+        [
+          352.0,
+          60.0
+        ],
+        [
+          363.0,
+          68.0
+        ],
+        [
+          370.0,
+          82.0
+        ],
+        [
+          377.0,
+          100.0
+        ],
+        [
+          384.0,
+          116.0
+        ],
+        [
+          400.0,
+          131.5
+        ],
+        [
+          416.0,
+          141.5
+        ],
+        [
+          432.0,
+          153.0
+        ],
+        [
+          448.0,
+          164.0
+        ],
+        [
+          464.0,
+          167.5
+        ],
+        [
+          480.0,
+          163.0
+        ],
+        [
+          496.0,
+          155.0
+        ]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
+    "target_description": "a thin blue stream along the valley floor, crossing brown contours, a road and a trail",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-contour-under-red-overprint",
+      "closed": false,
+      "points": [
+        [
+          213.0,
+          232.0
+        ],
+        [
+          207.0,
+          236.5
+        ],
+        [
+          203.0,
+          243.0
+        ],
+        [
+          201.5,
+          249.5
+        ],
+        [
+          201.0,
+          256.5
+        ],
+        [
+          200.5,
+          263.5
+        ],
+        [
+          199.5,
+          270.5
+        ],
+        [
+          196.5,
+          276.5
+        ],
+        [
+          193.0,
+          282.0
+        ],
+        [
+          190.5,
+          289.0
+        ],
+        [
+          188.5,
+          300.5
+        ]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
+    "target_description": "a contour running under the right-hand stroke of the red overprinted character 山 of 春香山 (Sahyang-san)",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

@@ -45,33 +45,35 @@ def _template_payload():
     """Return the unresolved contract fixture used by isolated mutation tests."""
 
     payload = _checked_in_payload()
-    sheet = payload["sheets"][0]
-    sheet["source"] = {
-        "title": "Unresolved rights-cleared source slot cal-01",
-        "publisher": None,
-        "date_or_sheet": None,
-        "source_url": None,
-        "provenance_id": None,
-        "license": None,
-        "rights_status": "unresolved",
-        "rights_statement_url": None,
-        "text_snapshot": None,
-        "text_snapshot_sha256": None,
-        "source_raster": None,
-        "source_raster_sha256": None,
-    }
-    for crop in sheet["crops"]:
-        for field in (
-            "source_crop_xywh",
-            "source_tile_origin_xy",
-            "image",
-            "image_sha256",
-            "prompt",
-            "ordered_reference",
-            "ordered_reference_sha256",
-        ):
-            crop[field] = None
-        crop["notes"] = None
+    for sheet in payload["sheets"]:
+        if sheet["source"]["rights_status"] == "unresolved":
+            continue
+        sheet["source"] = {
+            "title": f"Unresolved rights-cleared source slot {sheet['id']}",
+            "publisher": None,
+            "date_or_sheet": None,
+            "source_url": None,
+            "provenance_id": None,
+            "license": None,
+            "rights_status": "unresolved",
+            "rights_statement_url": None,
+            "text_snapshot": None,
+            "text_snapshot_sha256": None,
+            "source_raster": None,
+            "source_raster_sha256": None,
+        }
+        for crop in sheet["crops"]:
+            for field in (
+                "source_crop_xywh",
+                "source_tile_origin_xy",
+                "image",
+                "image_sha256",
+                "prompt",
+                "ordered_reference",
+                "ordered_reference_sha256",
+            ):
+                crop[field] = None
+            crop["notes"] = None
     return payload
 
 
@@ -171,12 +173,45 @@ class PublicDatasetPlanTests(unittest.TestCase):
         self.assertFalse(report.materialized)
         self.assertFalse(report.publication_ranking_eligible)
 
+    def test_korean_calibration_sheets_are_staged_as_public_domain_ams_windows(self):
+        payload = _checked_in_payload()
+        sheets = {sheet["id"]: sheet for sheet in payload["sheets"]}
+        expected_handles = {"cal-03": "1885/195376", "cal-04": "1885/195374"}
+        for sheet_id, handle in expected_handles.items():
+            sheet = sheets[sheet_id]
+            source = sheet["source"]
+            self.assertEqual(sheet["split"], "calibration")
+            self.assertEqual(sheet["origin_group"], "korea_rights_cleared")
+            self.assertEqual(source["rights_status"], "public_domain")
+            self.assertEqual(
+                source["provenance_id"],
+                {
+                    "authority": "hdl.handle.net",
+                    "namespace": "anu-open-research",
+                    "value": handle,
+                },
+            )
+            self.assertEqual(source["rights_statement_url"], f"http://hdl.handle.net/{handle}")
+            self.assertTrue(source["source_raster"].endswith("-window.png"))
+            snapshot = (TEMPLATE.parent / source["text_snapshot"]).read_text(encoding="utf-8")
+            self.assertIn("Copyright Expired", snapshot)
+            self.assertIn("Window in original pixels", snapshot)
+            for crop in sheet["crops"]:
+                self.assertIn(crop["id"], snapshot)
+                self.assertEqual(crop["annotation"]["review_status"], "unreviewed")
+                self.assertEqual(crop["annotation"]["adjudication_status"], "pending")
+                reference = json.loads(
+                    (TEMPLATE.parent / crop["ordered_reference"]).read_text(encoding="utf-8")
+                )
+                self.assertEqual(reference["metadata"]["annotation_status"], "draft_unreviewed")
+                self.assertIn("no ArchaeoTrace tracing code", reference["metadata"]["authoring_method"])
+
     @unittest.skipIf(PillowImage is None, "Pillow is not installed")
-    def test_checked_in_usgs_crops_are_exact_source_pixels(self):
+    def test_checked_in_crops_are_exact_source_pixels(self):
         report = verify_public_dataset_assets(TEMPLATE)
-        self.assertEqual(report.staged_sheet_count, 1)
-        self.assertEqual(report.verified_crop_count, 6)
-        self.assertEqual(report.draft_reference_count, 6)
+        self.assertEqual(report.staged_sheet_count, 3)
+        self.assertEqual(report.verified_crop_count, 18)
+        self.assertEqual(report.draft_reference_count, 18)
 
     @unittest.skipIf(PillowImage is None, "Pillow is not installed")
     def test_lossless_crop_verifier_rejects_pixel_substitution(self):

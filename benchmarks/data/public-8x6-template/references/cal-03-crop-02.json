@@ -1,0 +1,98 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-dense-index-contour",
+      "closed": false,
+      "points": [
+        [
+          238.0,
+          400.0
+        ],
+        [
+          234.0,
+          405.0
+        ],
+        [
+          234.0,
+          410.0
+        ],
+        [
+          238.0,
+          414.0
+        ],
+        [
+          245.0,
+          416.0
+        ],
+        [
+          252.0,
+          414.0
+        ],
+        [
+          259.0,
+          410.0
+        ],
+        [
+          266.0,
+          408.0
+        ],
+        [
+          275.0,
+          407.0
+        ],
+        [
+          285.0,
+          406.0
+        ],
+        [
+          295.0,
+          405.0
+        ],
+        [
+          304.0,
+          403.0
+        ],
+        [
+          312.0,
+          401.0
+        ],
+        [
+          320.0,
+          401.0
+        ],
+        [
+          326.0,
+          403.0
+        ],
+        [
+          330.0,
+          408.0
+        ],
+        [
+          332.0,
+          414.0
+        ],
+        [
+          333.0,
+          421.0
+        ],
+        [
+          333.0,
+          428.0
+        ]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
+    "target_description": "one thick index contour among closely spaced parallel contours on the Kuksa-bong slope",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

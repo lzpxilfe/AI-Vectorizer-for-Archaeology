@@ -1,0 +1,70 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-clean-contour",
+      "closed": false,
+      "points": [
+        [
+          399.0,
+          262.0
+        ],
+        [
+          407.0,
+          253.0
+        ],
+        [
+          417.0,
+          244.0
+        ],
+        [
+          430.0,
+          239.0
+        ],
+        [
+          447.0,
+          237.0
+        ],
+        [
+          459.0,
+          230.0
+        ],
+        [
+          472.0,
+          220.0
+        ],
+        [
+          480.0,
+          218.0
+        ],
+        [
+          489.0,
+          222.0
+        ],
+        [
+          494.0,
+          228.0
+        ],
+        [
+          499.0,
+          235.0
+        ],
+        [
+          501.0,
+          246.0
+        ]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
+    "target_description": "one isolated brown contour along the edge of open ground",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

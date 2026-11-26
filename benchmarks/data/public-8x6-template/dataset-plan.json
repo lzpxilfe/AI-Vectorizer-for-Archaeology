@@ -450,133 +450,281 @@
       "split": "calibration",
       "origin_group": "korea_rights_cleared",
       "source": {
-        "title": "Unresolved rights-cleared source slot cal-03",
-        "publisher": null,
-        "date_or_sheet": null,
-        "source_url": null,
-        "provenance_id": null,
-        "license": null,
-        "rights_status": "unresolved",
-        "rights_statement_url": null,
-        "text_snapshot": null,
-        "text_snapshot_sha256": null,
-        "source_raster": null,
-        "source_raster_sha256": null
+        "title": "Korea 1:50,000, Uijongbu, Series L751, Sheet 6627 III, Edition 4-AMS, 1951",
+        "publisher": "Army Map Service, Corps of Engineers, U.S. Army",
+        "date_or_sheet": "Uijongbu; Series L751 Sheet 6627 III; Edition 4-AMS (FEC); 1951; 1:50,000; print code AM",
+        "source_url": "https://dspace-prod.anu.edu.au/server/api/core/bitstreams/027f1387-85bc-401b-9eda-c75018a54845/content",
+        "provenance_id": {
+          "authority": "hdl.handle.net",
+          "namespace": "anu-open-research",
+          "value": "1885/195376"
+        },
+        "license": "Public domain (copyright expired; U.S. Government work)",
+        "rights_status": "public_domain",
+        "rights_statement_url": "http://hdl.handle.net/1885/195376",
+        "text_snapshot": "rights/ams-l751-uijongbu-6627iii-1951.txt",
+        "text_snapshot_sha256": "cdbe16e03065a9d978a55c27bac50747406fcf7425fe750978cacf72bb3d51e0",
+        "source_raster": "sources/ams-l751-uijongbu-6627iii-1951-window.png",
+        "source_raster_sha256": "8c9eee2ca337d916ce3b608451d5f7d53e2834738de7416053ba2315082dfb25"
       },
       "crops": [
         {
           "id": "cal-03-crop-01",
           "slot": 1,
           "difficulty_stratum": "text_or_number_crossing",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            1034,
+            108,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            1034,
+            108
+          ],
+          "image": "images/cal-03-crop-01.png",
+          "image_sha256": "c4d59c90dad7d11115a047f87eed8136e54e14ba6ddbf64827fe403bdb898434",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              82.0,
+              281.0
+            ],
+            "end_xy": [
+              280.0,
+              275.0
+            ],
+            "previous_xy": [
+              67,
+              280
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-03-crop-01.json",
+          "ordered_reference_sha256": "47b011ffb33c5a606751dc544deba0ec5166ad3ebf4b63375d4417ea18df97e3",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft of the 100 m index contour where it breaks around its '100' label beside PUYONG-SAN; independent review and adjudication are pending."
         },
         {
           "id": "cal-03-crop-02",
           "slot": 2,
           "difficulty_stratum": "dense_parallel",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            1064,
+            1208,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            1064,
+            1208
+          ],
+          "image": "images/cal-03-crop-02.png",
+          "image_sha256": "1a42cd296cad0ca64d0007e81fd9b4a8dffd6521be71752755a222f2a079c7a2",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              238.0,
+              400.0
+            ],
+            "end_xy": [
+              333.0,
+              428.0
+            ],
+            "previous_xy": [
+              247,
+              388
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-03-crop-02.json",
+          "ordered_reference_sha256": "5290decd527eab76ae327ae7beebfd2417169ae451a3e82ac54c97be2c88af37",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft of one thick index contour among closely spaced parallel contours on the Kuksa-bong slope; independent review and adjudication are pending."
         },
         {
           "id": "cal-03-crop-03",
           "slot": 3,
           "difficulty_stratum": "stain_fold_bleed",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            4,
+            8,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            4,
+            8
+          ],
+          "image": "images/cal-03-crop-03.png",
+          "image_sha256": "f7fcbd7e9512cc5a982f975dcff0aa4627851c99ad92ca40e94602fda70c3110",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              268.0,
+              88.0
+            ],
+            "end_xy": [
+              154.0,
+              292.0
+            ],
+            "previous_xy": [
+              276,
+              75
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-03-crop-03.json",
+          "ordered_reference_sha256": "69654b25b67f67270a2936e23bd9dc09233db5c9b60b270dc642bf0c67178a73",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft of centreline of the main street running diagonally through the red built-up overprint of Uijongbu, whose red ink hides parts of its edges; independent review and adjudication are pending."
         },
         {
           "id": "cal-03-crop-04",
           "slot": 4,
           "difficulty_stratum": "straight_grid_distractor",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            544,
+            908,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            544,
+            908
+          ],
+          "image": "images/cal-03-crop-04.png",
+          "image_sha256": "9bbdda85a01f07523ec6eb18e41e3378c1b34b725b2fd43ee55f5fe0ac6c4421",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              10.0,
+              230.5
+            ],
+            "end_xy": [
+              142.0,
+              211.5
+            ],
+            "previous_xy": [
+              0,
+              230
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-03-crop-04.json",
+          "ordered_reference_sha256": "866ff3dbf53b730ee65814d74be97a3a35ce43224ff6b61cd66caa9a0df839a3",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft of a brown contour running 1-3 px above a black UTM grid line before rising away from it; the grid line itself is the distractor; independent review and adjudication are pending."
         },
         {
           "id": "cal-03-crop-05",
           "slot": 5,
           "difficulty_stratum": "clean_dark_curve",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            519,
+            308,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            519,
+            308
+          ],
+          "image": "images/cal-03-crop-05.png",
+          "image_sha256": "967eca36484e23575ca315f60aa444c60cbfe17e1929feafdd1d7312ce4b07c7",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              399.0,
+              262.0
+            ],
+            "end_xy": [
+              501.0,
+              246.0
+            ],
+            "previous_xy": [
+              389,
+              273
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-03-crop-05.json",
+          "ordered_reference_sha256": "c2e382e9e8c7c67d332628a41155a512ae7da9f1a38edc2ce623ab026b8045bb",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft of one isolated brown contour along the edge of open ground; independent review and adjudication are pending."
         },
         {
           "id": "cal-03-crop-06",
           "slot": 6,
           "difficulty_stratum": "thick_or_scale",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            24,
+            1208,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            24,
+            1208
+          ],
+          "image": "images/cal-03-crop-06.png",
+          "image_sha256": "4090f087a6092ab87c748851fa587d825ac633df7e0de8a84854de86f2d3c6a3",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              176.0,
+              1.0
+            ],
+            "end_xy": [
+              211.5,
+              500.0
+            ],
+            "previous_xy": [
+              184,
+              0
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-03-crop-06.json",
+          "ordered_reference_sha256": "96a4850ad12b0dcfbda198b9d6a293bc1383ad193901969b407c462cec613d30",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft of centreline of the double-line Hanch'on river channel; independent review and adjudication are pending."
         }
       ]
     },
@@ -586,133 +734,281 @@
       "split": "calibration",
       "origin_group": "korea_rights_cleared",
       "source": {
-        "title": "Unresolved rights-cleared source slot cal-04",
-        "publisher": null,
-        "date_or_sheet": null,
-        "source_url": null,
-        "provenance_id": null,
-        "license": null,
-        "rights_status": "unresolved",
-        "rights_statement_url": null,
-        "text_snapshot": null,
-        "text_snapshot_sha256": null,
-        "source_raster": null,
-        "source_raster_sha256": null
+        "title": "Korea 1:50,000, Chip'o-ri, Series L751, Sheet 6628 II, Edition 6-AMS, 1951",
+        "publisher": "64th Engineer Base Topographic Battalion, U.S. Army",
+        "date_or_sheet": "Chip'o-ri; Series L751 Sheet 6628 II; Edition 6-AMS; 1951; 1:50,000; field print by the 64th Engineer Base Topographic Battalion",
+        "source_url": "https://dspace-prod.anu.edu.au/server/api/core/bitstreams/765277a7-e663-4e34-bc58-42d57e754791/content",
+        "provenance_id": {
+          "authority": "hdl.handle.net",
+          "namespace": "anu-open-research",
+          "value": "1885/195374"
+        },
+        "license": "Public domain (copyright expired; U.S. Government work)",
+        "rights_status": "public_domain",
+        "rights_statement_url": "http://hdl.handle.net/1885/195374",
+        "text_snapshot": "rights/ams-l751-chipo-ri-6628ii-1951.txt",
+        "text_snapshot_sha256": "4715a65bf06c8ca8542d48a55da35a5d57785d6ea5c9dd372f5f9655b81f3a9d",
+        "source_raster": "sources/ams-l751-chipo-ri-6628ii-1951-window.png",
+        "source_raster_sha256": "8bec5a10d65f85fcc09f6975424129bf62a0995845bb64c5334c094b21d264a2"
       },
       "crops": [
         {
           "id": "cal-04-crop-01",
           "slot": 1,
           "difficulty_stratum": "faded_or_broken",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            1404,
+            124,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            1404,
+            124
+          ],
+          "image": "images/cal-04-crop-01.png",
+          "image_sha256": "60c9e4fd592e91d7f42c313f7ca25c20ea19bd2878532629558114b13dd477df",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              97.0,
+              325.0
+            ],
+            "end_xy": [
+              134.5,
+              440.5
+            ],
+            "previous_xy": [
+              84,
+              318
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-04-crop-01.json",
+          "ordered_reference_sha256": "423b0a7033d0e4c598ead87f85d86d7e60573b67c2a5098b20e4db0b3c17c063",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft of a pale, intermittently printed contour crossing the cleared ground near Naedokchae; independent review and adjudication are pending."
         },
         {
           "id": "cal-04-crop-02",
           "slot": 2,
           "difficulty_stratum": "colored_line",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            104,
+            524,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            104,
+            524
+          ],
+          "image": "images/cal-04-crop-02.png",
+          "image_sha256": "8b5378a46309c1d2c784433b624b36f5a7bc52fbe96861930d608347ff60f821",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              0.0,
+              17.0
+            ],
+            "end_xy": [
+              496.0,
+              155.0
+            ],
+            "previous_xy": [
+              0,
+              8
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-04-crop-02.json",
+          "ordered_reference_sha256": "105d0f5f98a209839c885c9e9513346b944e86ff40c0582ed24c579bc7d8cac4",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft of a thin blue stream along the valley floor, crossing brown contours, a road and a trail; independent review and adjudication are pending."
         },
         {
           "id": "cal-04-crop-03",
           "slot": 3,
           "difficulty_stratum": "text_or_number_crossing",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            4,
+            4,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            4,
+            4
+          ],
+          "image": "images/cal-04-crop-03.png",
+          "image_sha256": "560f86f145fe600f0f7f4577ed1dfed57eda99c370767cd8bb3969b50aab2740",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              332.5,
+              144.0
+            ],
+            "end_xy": [
+              316.5,
+              242.0
+            ],
+            "previous_xy": [
+              333,
+              129
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-04-crop-03.json",
+          "ordered_reference_sha256": "3f7b65626c6625b4de1790a9d621da35073957adf9154d7c436911c073a44e96",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft of a contour that passes under its rotated '300' label near Kakhul-bong; independent review and adjudication are pending."
         },
         {
           "id": "cal-04-crop-04",
           "slot": 4,
           "difficulty_stratum": "dense_parallel",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            884,
+            264,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            884,
+            264
+          ],
+          "image": "images/cal-04-crop-04.png",
+          "image_sha256": "087b4c97eb83b89d91cf4d02c1d910480eb776707806fb35770911eb63ef83a9",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              194.0,
+              222.0
+            ],
+            "end_xy": [
+              245.5,
+              330.0
+            ],
+            "previous_xy": [
+              194,
+              207
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-04-crop-04.json",
+          "ordered_reference_sha256": "643cfe8d7b30c921dab7e683635228b8dc145f412f1de3a713cd2f1a6effab17",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft of one contour among tightly spaced parallels on the steep slope east of Sannae-dong; independent review and adjudication are pending."
         },
         {
           "id": "cal-04-crop-05",
           "slot": 5,
           "difficulty_stratum": "stain_fold_bleed",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            1344,
+            1264,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            1344,
+            1264
+          ],
+          "image": "images/cal-04-crop-05.png",
+          "image_sha256": "4f69e9f6bc4229054c9e99f3e6a3db17782af1d793d622feade0ae2324c5c818",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              213.0,
+              232.0
+            ],
+            "end_xy": [
+              188.5,
+              300.5
+            ],
+            "previous_xy": [
+              225,
+              223
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-04-crop-05.json",
+          "ordered_reference_sha256": "12e344ee4105b839adfb8628983913cfb07c533d8a5ae427260fd48333fa597b",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft of a contour running under the right-hand stroke of the red overprinted character 山 of 春香山 (Sahyang-san); independent review and adjudication are pending."
         },
         {
           "id": "cal-04-crop-06",
           "slot": 6,
           "difficulty_stratum": "straight_grid_distractor",
-          "source_crop_xywh": null,
-          "source_tile_origin_xy": null,
-          "image": null,
-          "image_sha256": null,
-          "prompt": null,
-          "ordered_reference": null,
-          "ordered_reference_sha256": null,
+          "source_crop_xywh": [
+            804,
+            1034,
+            512,
+            512
+          ],
+          "source_tile_origin_xy": [
+            804,
+            1034
+          ],
+          "image": "images/cal-04-crop-06.png",
+          "image_sha256": "cc5cd5028896a46cd8956aef17b9cbd76b01f44d1b18e5bd1aa6a52dc20505ab",
+          "prompt": {
+            "schema_version": "archaeotrace-trace-prompt/2",
+            "start_xy": [
+              338.0,
+              166.0
+            ],
+            "end_xy": [
+              330.0,
+              318.0
+            ],
+            "previous_xy": [
+              340,
+              151
+            ],
+            "positive_xy": [],
+            "negative_xy": []
+          },
+          "ordered_reference": "references/cal-04-crop-06.json",
+          "ordered_reference_sha256": "d22aabf014478d51ea40d69b14bcd4781f0ed1ad24111a888f3c29b55a862fb6",
           "annotation": {
             "reviewer_id": null,
             "review_status": "unreviewed",
             "adjudicator_id": null,
             "adjudication_status": "pending"
           },
-          "notes": null
+          "notes": "Draft of a contour running 3-6 px left of a vertical black grid line and touching it in places; independent review and adjudication are pending."
         }
       ]
     },

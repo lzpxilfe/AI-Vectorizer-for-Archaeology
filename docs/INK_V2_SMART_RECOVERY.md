@@ -198,7 +198,10 @@ validator는 8개 독립 도엽, 도엽당 6개 crop, 4/4 calibration/holdout �
 준비되기 전에는 `publication_ranking_eligible`을 `false`로 유지합니다.
 현재 `cal-01`에는 USGS HTMC의 East Denver, Colorado 1890 도엽과 공식 권리 근거,
 원본 GeoTIFF, 6개 무손실 PNG 및 prompt-v2·ordered-reference 초안을 실제로
-저장했습니다. PNG는 선언한 GeoTIFF 좌표와 픽셀 단위로 동일함을
+저장했습니다. `cal-03`·`cal-04`에는 ANU 저장소의 미 육군 지도국 한국 1:50,000(L751)
+의정부 6627 III·Chip'o-ri 6628 II(1951) 도엽을 같은 방식으로 저장했으며, 원본
+TIFF가 커서 6개 crop을 담은 무손실 PNG 창과 원본 해시를 기록했습니다. PNG는
+선언한 원본 raster 좌표와 픽셀 단위로 동일함을
 `python3 -m benchmarks.public_assets .../dataset-plan.json`으로 오프라인 검증합니다.
 다만 중심선은 독립 검수 전의 `draft_unreviewed` 자료이므로 dataset 전체
 `materialized`와 publication gate는 계속 false입니다.

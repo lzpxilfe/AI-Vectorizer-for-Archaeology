@@ -1,0 +1,77 @@
+ArchaeoTrace public benchmark rights and provenance snapshot
+============================================================
+
+Snapshot date: 2026-11-26 (Asia/Seoul)
+Dataset slot: cal-04
+Origin group: korea_rights_cleared
+
+Selected item
+-------------
+
+Title: Korea 1:50,000, Chip'o-ri, Series L751, Sheet 6628 II, Edition 6-AMS, 1951
+Printing: 64th Engineer Base Topographic Battalion, U.S. Army (field print)
+Repository: ANU Open Research, collection "KOR02 1:50 000 (L751)"
+Handle: http://hdl.handle.net/1885/195374
+Repository rights field (dc.rights): Copyright Expired
+Repository access field: Open Access
+
+The item record was read from the repository's public DSpace REST API
+(/server/api/pid/find?id=hdl:1885/195374) on the snapshot date.
+
+Original preservation file
+--------------------------
+
+Download URL:
+https://dspace-prod.anu.edu.au/server/api/core/bitstreams/765277a7-e663-4e34-bc58-42d57e754791/content
+
+- Format: uncompressed TIFF, RGB, 300 dpi
+- Pixel dimensions: 5792 x 6544
+- Bytes: 113731168
+- MD5 (matches the repository checksum): c316f15c713854f22fb684a466328572
+- SHA-256: d6acbc680e3c46cca129d7fa19794e38490a0b2e6d369db3401e96a98277e58d
+
+Stored source raster
+--------------------
+
+The full TIFF is too large to keep in this repository, so the stored source
+raster is a lossless PNG window of the original that contains all six crops.
+
+- Stored file: sources/ams-l751-chipo-ri-6628ii-1951-window.png
+- Window in original pixels: x=896, y=2296, width=1920, height=1780
+- Window SHA-256: 8bec5a10d65f85fcc09f6975424129bf62a0995845bb64c5334c094b21d264a2
+- Pixels: identical to the original window (checked by decoding both)
+
+Crop coordinates in the plan are relative to this window. Adding the window
+origin gives the position in the original TIFF:
+
+- cal-04-crop-01 (faded_or_broken): original x=2300, y=2420; window x=1404, y=124; 512 x 512
+- cal-04-crop-02 (colored_line): original x=1000, y=2820; window x=104, y=524; 512 x 512
+- cal-04-crop-03 (text_or_number_crossing): original x=900, y=2300; window x=4, y=4; 512 x 512
+- cal-04-crop-04 (dense_parallel): original x=1780, y=2560; window x=884, y=264; 512 x 512
+- cal-04-crop-05 (stain_fold_bleed): original x=2240, y=3560; window x=1344, y=1264; 512 x 512
+- cal-04-crop-06 (straight_grid_distractor): original x=1700, y=3330; window x=804, y=1034; 512 x 512
+
+To rebuild the window, download the original, check its MD5 or SHA-256 above,
+and crop the stated rectangle without resampling.
+
+Rights evidence
+---------------
+
+The repository records this item as "Copyright Expired" and "Open Access".
+The 1951 edition was compiled and printed by the U.S. Army (64th Engineer Base Topographic Battalion, U.S. Army (field print)),
+so it is also a work of the United States Government, which is not protected
+by copyright in the United States (17 U.S.C. 105).
+
+Recorded rights status: public_domain
+Recorded license label: Public domain (copyright expired; U.S. Government work)
+
+Excluded from this slot: ROK Army Map Service editions (for example Namwon
+6620 II, 1966), whose Korean copyright may not have expired.
+
+Scope and review warning
+------------------------
+
+This snapshot records the evidence for this exact item only. The six ordered
+centerlines stored for cal-04 are drafts; they have not passed
+independent review or adjudication and must not be used to publish benchmark
+rankings.

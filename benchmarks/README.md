@@ -406,17 +406,30 @@ The companion
 [`public-dataset-plan-v1.schema.json`](schemas/public-dataset-plan-v1.schema.json)
 documents the JSON shape. `validate_public_dataset_plan()` additionally checks
 the distribution and leakage constraints JSON Schema cannot express. It never
-downloads anything. Calibration sheet `cal-01` is the first locally staged
-source: the official USGS HTMC East Denver, Colorado 1890 GeoTIFF, its local
-rights/provenance snapshot, six exact lossless source crops, prompt-v2 records,
-and ordered-reference drafts are all hash-bound in the plan. The reference
-drafts deliberately remain `unreviewed`/`pending`; the other seven source slots
-are unresolved. The whole plan therefore still reports `materialized=false`
-and `publication_ranking_eligible=false`.
+downloads anything. Three calibration sheets are staged locally, each with
+its rights/provenance snapshot, six exact lossless source crops, prompt-v2
+records and ordered-reference drafts hash-bound in the plan:
+
+- `cal-01`: the official USGS HTMC East Denver, Colorado 1890 GeoTIFF.
+- `cal-03` and `cal-04`: U.S. Army Map Service Korea 1:50,000 sheets (Series
+  L751) Uijongbu 6627 III and Chip'o-ri 6628 II, 1951, from the ANU Open
+  Research repository, whose item records state "Copyright Expired" and "Open
+  Access". The original 300 dpi TIFFs are 111-121 MB, so each stored source
+  raster is a lossless PNG window of the original containing all six crops.
+  The rights snapshot records the original's size, MD5 and SHA-256 and the
+  window rectangle, so the window can be rebuilt from the repository file.
+
+The Korean drafts were drawn by hand from the crops, with an ink-colour
+highlight and per-row ink measurements used only as reading aids; no
+ArchaeoTrace tracing code was run. All reference drafts deliberately remain
+`unreviewed`/`pending`, and the other five source slots are unresolved
+([#6](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/issues/6)).
+The whole plan therefore still reports `materialized=false` and
+`publication_ranking_eligible=false`.
 
 With Pillow installed, verify that every staged PNG is pixel-for-pixel equal
-to its declared GeoTIFF rectangle and that each draft reference runs from the
-recorded prompt start to end:
+to its declared source-raster rectangle and that each draft reference runs from
+the recorded prompt start to end:
 
 ```bash
 python3 -m benchmarks.public_assets benchmarks/data/public-8x6-template/dataset-plan.json

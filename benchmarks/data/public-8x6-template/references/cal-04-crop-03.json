@@ -1,0 +1,78 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-contour-label-gap",
+      "closed": false,
+      "points": [
+        [
+          332.5,
+          144.0
+        ],
+        [
+          332.0,
+          158.0
+        ],
+        [
+          333.0,
+          168.0
+        ],
+        [
+          336.0,
+          174.0
+        ],
+        [
+          340.0,
+          177.0
+        ],
+        [
+          344.0,
+          180.0
+        ],
+        [
+          345.0,
+          184.0
+        ],
+        [
+          342.5,
+          188.0
+        ],
+        [
+          336.5,
+          194.5
+        ],
+        [
+          331.0,
+          204.5
+        ],
+        [
+          325.5,
+          214.5
+        ],
+        [
+          320.0,
+          224.0
+        ],
+        [
+          317.5,
+          233.0
+        ],
+        [
+          316.5,
+          242.0
+        ]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
+    "target_description": "a contour that passes under its rotated '300' label near Kakhul-bong",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

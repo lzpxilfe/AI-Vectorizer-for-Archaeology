@@ -1,0 +1,77 @@
+ArchaeoTrace public benchmark rights and provenance snapshot
+============================================================
+
+Snapshot date: 2026-11-26 (Asia/Seoul)
+Dataset slot: cal-03
+Origin group: korea_rights_cleared
+
+Selected item
+-------------
+
+Title: Korea 1:50,000, Uijongbu, Series L751, Sheet 6627 III, Edition 4-AMS, 1951
+Printing: Army Map Service, Corps of Engineers, U.S. Army (print code AM)
+Repository: ANU Open Research, collection "KOR02 1:50 000 (L751)"
+Handle: http://hdl.handle.net/1885/195376
+Repository rights field (dc.rights): Copyright Expired
+Repository access field: Open Access
+
+The item record was read from the repository's public DSpace REST API
+(/server/api/pid/find?id=hdl:1885/195376) on the snapshot date.
+
+Original preservation file
+--------------------------
+
+Download URL:
+https://dspace-prod.anu.edu.au/server/api/core/bitstreams/027f1387-85bc-401b-9eda-c75018a54845/content
+
+- Format: uncompressed TIFF, RGB, 300 dpi
+- Pixel dimensions: 6581 x 6136
+- Bytes: 121167124
+- MD5 (matches the repository checksum): fa485136eb697cc6ca727abaeda9fd5b
+- SHA-256: 44058f47dd359a747082eeb25226b71db6bef86de3e912f6b76cf91f67be2a31
+
+Stored source raster
+--------------------
+
+The full TIFF is too large to keep in this repository, so the stored source
+raster is a lossless PNG window of the original that contains all six crops.
+
+- Stored file: sources/ams-l751-uijongbu-6627iii-1951-window.png
+- Window in original pixels: x=1176, y=2592, width=1584, height=1728
+- Window SHA-256: 8c9eee2ca337d916ce3b608451d5f7d53e2834738de7416053ba2315082dfb25
+- Pixels: identical to the original window (checked by decoding both)
+
+Crop coordinates in the plan are relative to this window. Adding the window
+origin gives the position in the original TIFF:
+
+- cal-03-crop-01 (text_or_number_crossing): original x=2210, y=2700; window x=1034, y=108; 512 x 512
+- cal-03-crop-02 (dense_parallel): original x=2240, y=3800; window x=1064, y=1208; 512 x 512
+- cal-03-crop-03 (stain_fold_bleed): original x=1180, y=2600; window x=4, y=8; 512 x 512
+- cal-03-crop-04 (straight_grid_distractor): original x=1720, y=3500; window x=544, y=908; 512 x 512
+- cal-03-crop-05 (clean_dark_curve): original x=1695, y=2900; window x=519, y=308; 512 x 512
+- cal-03-crop-06 (thick_or_scale): original x=1200, y=3800; window x=24, y=1208; 512 x 512
+
+To rebuild the window, download the original, check its MD5 or SHA-256 above,
+and crop the stated rectangle without resampling.
+
+Rights evidence
+---------------
+
+The repository records this item as "Copyright Expired" and "Open Access".
+The 1951 edition was compiled and printed by the U.S. Army (Army Map Service, Corps of Engineers, U.S. Army (print code AM)),
+so it is also a work of the United States Government, which is not protected
+by copyright in the United States (17 U.S.C. 105).
+
+Recorded rights status: public_domain
+Recorded license label: Public domain (copyright expired; U.S. Government work)
+
+Excluded from this slot: ROK Army Map Service editions (for example Namwon
+6620 II, 1966), whose Korean copyright may not have expired.
+
+Scope and review warning
+------------------------
+
+This snapshot records the evidence for this exact item only. The six ordered
+centerlines stored for cal-03 are drafts; they have not passed
+independent review or adjudication and must not be used to publish benchmark
+rankings.

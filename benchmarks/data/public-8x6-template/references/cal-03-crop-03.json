@@ -1,0 +1,66 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-street-under-overprint",
+      "closed": false,
+      "points": [
+        [
+          268.0,
+          88.0
+        ],
+        [
+          255.0,
+          110.0
+        ],
+        [
+          243.0,
+          130.0
+        ],
+        [
+          231.0,
+          150.0
+        ],
+        [
+          219.0,
+          171.0
+        ],
+        [
+          207.0,
+          192.0
+        ],
+        [
+          195.0,
+          213.0
+        ],
+        [
+          183.0,
+          234.0
+        ],
+        [
+          172.0,
+          255.0
+        ],
+        [
+          162.0,
+          274.0
+        ],
+        [
+          154.0,
+          292.0
+        ]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
+    "target_description": "centreline of the main street running diagonally through the red built-up overprint of Uijongbu, whose red ink hides parts of its edges",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

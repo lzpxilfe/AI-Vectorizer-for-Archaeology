@@ -1,0 +1,94 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-dense-contour",
+      "closed": false,
+      "points": [
+        [
+          194.0,
+          222.0
+        ],
+        [
+          194.0,
+          234.0
+        ],
+        [
+          194.5,
+          244.0
+        ],
+        [
+          199.0,
+          252.0
+        ],
+        [
+          205.0,
+          259.0
+        ],
+        [
+          212.0,
+          264.0
+        ],
+        [
+          213.5,
+          270.0
+        ],
+        [
+          212.5,
+          276.0
+        ],
+        [
+          213.0,
+          282.0
+        ],
+        [
+          213.0,
+          288.0
+        ],
+        [
+          217.0,
+          294.0
+        ],
+        [
+          225.0,
+          297.5
+        ],
+        [
+          233.5,
+          300.0
+        ],
+        [
+          238.0,
+          306.0
+        ],
+        [
+          239.5,
+          312.0
+        ],
+        [
+          241.5,
+          318.0
+        ],
+        [
+          243.5,
+          324.0
+        ],
+        [
+          245.5,
+          330.0
+        ]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
+    "target_description": "one contour among tightly spaced parallels on the steep slope east of Sannae-dong",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}

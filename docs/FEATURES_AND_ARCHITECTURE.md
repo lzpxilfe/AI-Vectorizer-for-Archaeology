@@ -284,8 +284,11 @@ template은 8개 도엽×6개 무손실 PNG, 도엽 단위 calibration/locked ho
 층, 원본·권리 snapshot·crop·주석 검수 hash를 강제합니다. 재배포 가능한 USGS 4개와
 권리가 명확한 한국·한반도 4개 도엽 및 독립 검수가 실제로 채워질 때까지
 `publication_ranking_eligible`은 false이며 성능 순위를 주장할 수 없습니다.
-첫 calibration 도엽 `cal-01`은 USGS HTMC East Denver 1890 원본·권리 snapshot과
-6개 PNG·prompt·중심선 초안까지 staged 상태입니다. `benchmarks.public_assets`는
+calibration 도엽 `cal-01`(USGS HTMC East Denver 1890)과 `cal-03`·`cal-04`(미 육군
+지도국 한국 1:50,000 L751 의정부·Chip'o-ri, 1951, ANU 저장소의 "Copyright Expired"
+항목)는 원본·권리 snapshot과 6개 PNG·prompt·중심선 초안까지 staged 상태입니다.
+한국 도엽은 원본 TIFF가 커서 6개 crop을 담은 무손실 PNG 창을 저장하고, 원본 해시와
+창 좌표를 권리 snapshot에 기록합니다. `benchmarks.public_assets`는
 PNG가 선언 좌표의 원본 픽셀과 정확히 같은지 검증하며, 중심선은 별도 검수와
 adjudication이 끝날 때까지 명시적으로 draft로 남습니다.
 

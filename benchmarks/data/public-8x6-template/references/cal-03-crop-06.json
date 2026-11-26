@@ -1,0 +1,86 @@
+{
+  "schema_version": "archaeotrace-centerline/1",
+  "coordinate_space": "pixel_xy",
+  "image_size": {
+    "width": 512,
+    "height": 512
+  },
+  "paths": [
+    {
+      "id": "draft-river-centreline",
+      "closed": false,
+      "points": [
+        [
+          176.0,
+          1.0
+        ],
+        [
+          154.0,
+          33.0
+        ],
+        [
+          146.5,
+          67.0
+        ],
+        [
+          147.0,
+          100.0
+        ],
+        [
+          155.0,
+          133.0
+        ],
+        [
+          166.0,
+          167.0
+        ],
+        [
+          168.5,
+          200.0
+        ],
+        [
+          169.0,
+          233.0
+        ],
+        [
+          182.0,
+          267.0
+        ],
+        [
+          191.0,
+          300.0
+        ],
+        [
+          195.0,
+          333.0
+        ],
+        [
+          201.5,
+          367.0
+        ],
+        [
+          223.5,
+          400.0
+        ],
+        [
+          221.5,
+          433.0
+        ],
+        [
+          222.5,
+          467.0
+        ],
+        [
+          211.5,
+          500.0
+        ]
+      ]
+    }
+  ],
+  "metadata": {
+    "annotation_status": "draft_unreviewed",
+    "authoring_method": "manual visual draft from the immutable source crop; an ink-colour highlight and per-row/column ink measurements were used only as reading aids, and no ArchaeoTrace tracing code was run",
+    "target_description": "centreline of the double-line Hanch'on river channel",
+    "publication_use": "forbidden until independent review and adjudication"
+  }
+}
