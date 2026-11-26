@@ -9,6 +9,7 @@ ArchaeoTrace는 연구·현장 자료를 안전하게 다루는 QGIS plugin이�
 - 실제 기능과 module map: [`docs/FEATURES_AND_ARCHITECTURE.md`](docs/FEATURES_AND_ARCHITECTURE.md)
 - 다음 단계와 비목표: [`ROADMAP.md`](ROADMAP.md)
 - 안전 경계와 공개 gate: [`docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md`](docs/OPEN_SOURCE_DEVELOPMENT_PLAN.md)
+- 다음 공개 후보 기록: [`docs/RELEASE_READINESS_0.1.9.md`](docs/RELEASE_READINESS_0.1.9.md)
 - 현재 공개판 기록: [`docs/RELEASE_READINESS_0.1.8.md`](docs/RELEASE_READINESS_0.1.8.md)
 - 이전 공개판 제출·검증 증거: [`docs/QGIS_SUBMISSION_0.1.7.md`](docs/QGIS_SUBMISSION_0.1.7.md)
 - 이전 공개판 기록: [`docs/RELEASE_READINESS_0.1.6.md`](docs/RELEASE_READINESS_0.1.6.md)

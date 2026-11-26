@@ -1,6 +1,6 @@
 # ArchaeoTrace features and architecture
 
-이 문서는 ArchaeoTrace의 공개판 experimental `0.1.8`(2026-11-23)과 현재 `main`에 들어 있는
+이 문서는 ArchaeoTrace의 공개판 experimental `0.1.8`(2026-11-23)과 `0.1.9` 공개 후보인 현재 `main`에 들어 있는
 기능, 각 기능이 구현된 방식,
 현재 안전 경계와 아직 구현되지 않은 계획을 한곳에 정리합니다. ArchaeoTrace는
 고지도 등고선을 사용자가 검수하며 벡터화하고, 고도 의미를 부여한 뒤 검토 가능한
@@ -18,7 +18,7 @@ download와 repository-local `d292…` 사전 후보는
 | 수동·반자동 선 추적 | 구현 | Freehand, 다중 스케일 Ink Centerline; 기존 방법은 Advanced / Legacy에 보존 |
 | Manual Avoid Guidance | Unreleased 실험 | Ink Live-Wire의 문자·기호·얼룩 회피를 위한 session-only soft cost; 외부 OCR/model 없음 |
 | Ink Color Guidance | Unreleased 실험 | 사용자가 지정한 유색 Ink와 다른 색의 획에만 soft cost; 지정한 RGB는 해제할 때까지 다음 추적에도 적용; native Byte RGB·SciPy 필요 |
-| 추적 프리셋 | Unreleased 구현 | 지도 시리즈별 dock 설정을 `archaeotrace-trace-preset/1` JSON으로 저장·적용·내보내기; 래스터별 프로젝트 기억; 등고선 간격으로 다음 해발값 제안(사용자 확인 필수) |
+| 추적 프리셋 | `0.1.9` 후보 구현 | 지도 시리즈별 dock 설정을 `archaeotrace-trace-preset/1` JSON으로 저장·적용·내보내기; 래스터별 프로젝트 기억; 등고선 간격으로 다음 해발값 제안(사용자 확인 필수) |
 | Smart Recovery | 실험적·기본 OFF | 검증된 EfficientSAM-Ti를 Ink 저신뢰 구간의 corridor prior로만 사용하고 실패 시 Ink 유지 |
 | QGIS 편집 통합 | 구현 | 새 피처, 기존 피처 연장, 고도 필드·값 변경을 편집 버퍼와 한 번의 Undo로 관리 |
 | 표고 데이터 | 구현 | 등고선 숫자 고도와 선택적 Spot Heights 저장 |
@@ -134,7 +134,7 @@ pan으로 cache가 바뀌면 보관한 색 표본으로 guidance를 다시 만�
 QGIS 사용자 설정과 프로젝트에 기록됩니다. 지도 픽셀은 저장·upload·telemetry로 보내지
 않습니다. 실제 고지도 정확도와 사용자 작업시간 개선은 아직 검증하지 않았습니다.
 
-### Trace presets — Unreleased
+### Trace presets — 0.1.9 candidate
 
 `core/trace_preset.py`는 QGIS와 무관한 엄격한 형식입니다. 이름, 추적 방식, 보조 강도,
 Smart Recovery·Freehand·Auto Path·학습 가이드, 선택적 선 색상 RGB와 등고선 간격만

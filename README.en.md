@@ -43,7 +43,7 @@ Digitising elevation contours from scanned historical topographic sheets is one 
 
 **ArchaeoTrace** keeps the analyst in full control through a **local-first, human-in-the-loop** workflow:
 
-| Traditional Bottleneck | How ArchaeoTrace (`0.1.8`) Solves It |
+| Traditional Bottleneck | How ArchaeoTrace (`0.1.9`) Solves It |
 | --- | --- |
 | **Pure manual digitising** — tedious vertex-by-vertex clicking | Default **Ink Centerline v2** (9 / 15 / 31 source-pixel multi-scale evidence) + direction-aware **Live-Wire** traces printed contours in real time using **only QGIS's bundled NumPy — zero extra pip packages required.** |
 | **Black-box automatic vectorisation** — drifts onto labels, hachures, or neighbouring lines | Real-time **green WYSIWYG preview** shows the exact path accepted on click, paired with a literal **0–100% cursor-to-path blend slider**, **gap bridge (`G`)**, **ink colour picker (`C`)**, **avoid regions (`Alt`+click)**, **`Shift`/`Ctrl` straight segments**, **endpoint resumption**, and **safe checkpoint `Ctrl+Z` Undo**. |
@@ -98,7 +98,7 @@ Only segments explicitly accepted by the user enter the QGIS edit buffer, and wr
 ### 1. Installation and Language
 
 - **QGIS Plugin Repository**: Open `Plugins > Manage and Install Plugins`, enable **Show also experimental plugins**, and search for `ArchaeoTrace`. Candidate ZIPs can be installed via `Install from ZIP`.
-- **Release status**: **`0.1.8`** is the latest approved version in the [QGIS plugin repository](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.8/) (experimental, 2026-11-23). The published ZIP matches the validated package (SHA-256 `3ecc7fa8…`) and passed every repository security check (100% pass rate, `Validated (configured)`). It adds DEM input checks and a save prompt for pending edits ([release record](docs/RELEASE_READINESS_0.1.8.md)). Validation of the previous release, `0.1.7`, is in [Upload package validation](docs/QT6_UPLOAD_0.1.7.md) · [Security scan & baseline review](docs/SECURITY_SCAN_0.1.7.md).
+- **Release status**: **`0.1.8`** is the latest approved version in the [QGIS plugin repository](https://plugins.qgis.org/plugins/ai_vectorizer/version/0.1.8/) (experimental, 2026-11-23). The published ZIP matches the validated package (SHA-256 `3ecc7fa8…`) and passed every repository security check (100% pass rate, `Validated (configured)`). It adds DEM input checks and a save prompt for pending edits ([release record](docs/RELEASE_READINESS_0.1.8.md)). Validation of the previous release, `0.1.7`, is in [Upload package validation](docs/QT6_UPLOAD_0.1.7.md) · [Security scan & baseline review](docs/SECURITY_SCAN_0.1.7.md). The next candidate, **`0.1.9`** (named presets for each map series, remembered per map in the QGIS project, and a contour-interval elevation suggestion), has completed pre-upload validation ([release record](docs/RELEASE_READINESS_0.1.9.md)).
 - **Built-in English / Korean switching**: Use `Language` at the top of the dock panel. On first launch the plugin follows the QGIS locale (Korean for Korean locales, English otherwise) and remembers your choice.
 - **Zero extra pip to begin**: `Freehand` and default `Ink Centerline` run out of the box. Optional model install commands, pinned hashes, and troubleshooting live in the packaged [English user guide](ai_vectorizer/README.en.md) and [Korean guide](ai_vectorizer/README.md).
 
@@ -117,6 +117,7 @@ Only segments explicitly accepted by the user enter the QGIS edit buffer, and wr
 ArchaeoTrace treats scientific transparency as a core engineering requirement — publishing both verified engineering checks and negative experimental results without hype.
 
 - **Verified software & QGIS compatibility (`0.1.7`)**: **1,246 Pure Python tests passed** (171 subtests), **226 actual QGIS 3.44.8 tests passed** (0 failures/errors/skips), **0 findings/warnings** from the official QGIS Qt6 checker (QGIS 4.2.1 / Qt 6.9.2) across all 46 packaged Python files, and **12/12 passing CI jobs** covering native QGIS 3.22.16, 3.44.13, and 4.2.1 plus byte-identical Linux/Windows ZIP packaging. See the [0.1.7 review record](docs/RELEASE_REVIEW_2026-11-12.en.md).
+- **`0.1.9` candidate validation**: **1,271 Pure Python tests passed**, **243 actual QGIS 3.34.4 tests passed** across 17 modules (0 failures/errors), and the QGIS repository's security checks reproduced on the candidate ZIP. See the [0.1.9 release record](docs/RELEASE_READINESS_0.1.9.md).
 - **`0.1.8` validation**: **1,252 Pure Python tests passed**, **231 actual QGIS 3.34.4 tests passed** across 15 modules (0 failures/errors), the QGIS repository's five security checks reproduced with the same commands (0 critical, 0 warnings), and 12/12 CI jobs passing. See the [0.1.8 release record](docs/RELEASE_READINESS_0.1.8.md).
 - **Honest reporting of negative ML experiments**: Three-seed Colab training, ONNX validation, and matched QGIS comparisons were completed, but the new general-text model did not improve saved routes across the 13 positive cases among 17 diagnostics, so the existing Korea model and **default-OFF policy were retained**. A follow-up word-group detector experiment likewise yielded no route gain and was not adopted.
   - [Training & model comparison (ko)](learning/COLAB_KOREA_TEXT_WEAK_RUN_2026-10-19.md) · [Text-gap diagnosis (ko)](learning/GENERAL_TEXT_FAILURE_DIAGNOSIS_2026-10-19.md) · [Detector experiment (ko)](learning/WORD_GROUP_EXPERIMENT_2026-11-11.md) · [Real-map pilot (ko)](docs/REAL_MAP_PILOT_2026-10-19.md)
@@ -161,6 +162,7 @@ If you use ArchaeoTrace in academic research, teaching, heritage documentation, 
 | [`ai_vectorizer/README.en.md`](ai_vectorizer/README.en.md) · [`README.md`](ai_vectorizer/README.md) | Packaged bilingual user guides (optional model installs, SHA-256 hashes, shortcuts, troubleshooting) |
 | [`REFERENCES.md`](REFERENCES.md) | Verified primary academic literature and DOIs for every method |
 | [`docs/FEATURES_AND_ARCHITECTURE.md`](docs/FEATURES_AND_ARCHITECTURE.md) | Implemented, experimental, and planned scope plus safety architecture |
+| [`docs/RELEASE_READINESS_0.1.9.md`](docs/RELEASE_READINESS_0.1.9.md) | `0.1.9` candidate ZIP identity, pre-upload validation and upload steps |
 | [`docs/RELEASE_READINESS_0.1.8.md`](docs/RELEASE_READINESS_0.1.8.md) | `0.1.8` published ZIP identity, pre-upload validation and QGIS publication record |
 | [`docs/QT6_UPLOAD_0.1.7.md`](docs/QT6_UPLOAD_0.1.7.md) · [`docs/SECURITY_SCAN_0.1.7.md`](docs/SECURITY_SCAN_0.1.7.md) | `0.1.7` Qt6 upload package validation and repository security audit |
 | [`docs/RELEASE_REVIEW_2026-11-12.en.md`](docs/RELEASE_REVIEW_2026-11-12.en.md) | `0.1.7` upgrade candidate review and verification scope |

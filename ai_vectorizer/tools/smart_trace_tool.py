@@ -6052,7 +6052,8 @@ class SmartTraceTool(QgsMapToolEmitPoint):
                 default = round(suggestion, 6)
                 label = self._tr(
                     "해발고도 (m):\n직전 {previous:g} m, 간격 {interval:g} m에서 제안한 값입니다. 확인하세요.",
-                    "Elevation (m):\nSuggested from the previous {previous:g} m and a {interval:g} m interval. Check it.",
+                    "Elevation (m):\nSuggested from the previous {previous:g} m "
+                    "and a {interval:g} m interval. Check it.",
                 ).format(previous=history[-1], interval=float(self.contour_interval))
         if self.resume_feature_id is not None and self.vector_layer is not None:
             try:

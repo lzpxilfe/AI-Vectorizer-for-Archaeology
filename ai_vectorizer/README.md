@@ -6,8 +6,8 @@ ArchaeoTrace는 스캔 지도에서 등고선을 따라 그리는 QGIS 플러그
 초록색 경로를 확인하고 클릭한 구간을 선 레이어에 추가합니다.
 고도를 입력한 등고선과 표고점으로 DEM과 음영기복도를 만들 수 있습니다.
 
-현재 소스는 `0.1.8` 실험판 공개 후보입니다. QGIS 저장소의 승인 최신판은 `0.1.7`입니다.
-[릴리스 기록](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/docs/RELEASE_READINESS_0.1.8.md)과
+현재 소스는 `0.1.9` 실험판 공개 후보입니다. QGIS 저장소의 승인 최신판은 `0.1.8`입니다.
+[릴리스 기록](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/docs/RELEASE_READINESS_0.1.9.md)과
 [변경 내역](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/CHANGELOG.md)에서
 검증한 파일과 범위를 확인할 수 있습니다.
 

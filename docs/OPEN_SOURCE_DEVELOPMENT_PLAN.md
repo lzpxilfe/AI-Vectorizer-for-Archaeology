@@ -80,6 +80,7 @@ DEM provenance sidecar는 아직 구현되지 않았으므로 현재 기능처�
 Git history에 남은 개발용 버전 표시 `0.1.5`-`0.1.7`과 미공개 worktree의 `0.1.8`은
 QGIS 릴리스가 아닌 개발 metadata였습니다. 공식 `0.1.7`(2026-11-11 공개)과 `0.1.8`(2026-11-23
 공개)은 그와 다른 build이므로 버전 번호만으로 구분하지 말고 ZIP SHA-256을 확인합니다.
+다음 공개 후보 `0.1.9`의 ZIP과 검증은 [릴리스 기록](RELEASE_READINESS_0.1.9.md)에 둡니다.
 
 ### Gate B — Real historical-map benchmark
 

@@ -1939,7 +1939,8 @@ class AIVectorizerDock(TracePresetMixin, QDockWidget):
         self.ink_color_clear_btn.setText(self._tr("색상 해제", "Clear color"))
         self.ink_color_clear_btn.setToolTip(self._tr(
             "Shift+C로도 해제할 수 있습니다. 지정한 색상은 해제할 때까지 다음 등고선 추적에도 적용되며 프리셋에 저장됩니다.",
-            "Shift+C also clears the sample. A sampled color stays on for the next traces until you clear it, and is saved with presets.",
+            "Shift+C also clears the sample. A sampled color stays on for the next traces "
+            "until you clear it, and is saved with presets.",
         ))
         if hasattr(self, "preset_group"):
             self._apply_preset_language()
@@ -3203,7 +3204,9 @@ class AIVectorizerDock(TracePresetMixin, QDockWidget):
 <li><b>Esc / Delete</b>: cancel current trace.</li>
 <li><b>Ctrl+Z</b>: undo a checkpoint while tracing; after finishing a line, undo the complete QGIS edit command.</li>
 <li><b>Ink Alt+click twice</b>: mark a text/noise avoid rectangle. <b>Alt+Backspace</b> removes the latest; <b>Alt+Shift+Backspace</b> clears all.</li>
-<li><b>Ink C</b>: sample a colored line under the cursor; <b>Shift+C</b> clears it. Stays on for the next traces until cleared and is saved with presets; needs Byte RGB evidence and SciPy. A soft guide, so review every green preview.</li>
+<li><b>Ink C</b>: sample a colored line under the cursor; <b>Shift+C</b> clears it.
+Stays on for the next traces until cleared and is saved with presets; needs Byte RGB evidence and SciPy.
+A soft guide, so review every green preview.</li>
 <li><b>Click near start point</b>: close loop and enter elevation.</li>
 </ul>
 
@@ -3256,7 +3259,9 @@ class AIVectorizerDock(TracePresetMixin, QDockWidget):
 <li><b>Esc / Delete</b>: 현재 그리기 취소</li>
 <li><b>Ctrl+Z</b>: 그리는 중에는 체크포인트, 선 확정 후에는 전체 QGIS 편집 명령 되돌리기</li>
 <li><b>Ink에서 Alt+두 번 클릭</b>: 문자·잡음 회피 사각형 표시. <b>Alt+Backspace</b>는 마지막, <b>Alt+Shift+Backspace</b>는 모두 제거</li>
-<li><b>Ink C</b>: 커서 아래 유색 선을 지정. <b>Shift+C</b>로 해제. 해제할 때까지 다음 추적에도 적용되고 프리셋에 저장됩니다. Byte RGB 지도와 SciPy가 필요합니다. 초록 경로를 계속 검수하세요.</li>
+<li><b>Ink C</b>: 커서 아래 유색 선을 지정. <b>Shift+C</b>로 해제.
+해제할 때까지 다음 추적에도 적용되고 프리셋에 저장됩니다. Byte RGB 지도와 SciPy가 필요합니다.
+초록 경로를 계속 검수하세요.</li>
 <li><b>시작점 근처 클릭</b>: 닫힌 루프 생성 후 해발값 입력</li>
 </ul>
 

@@ -4,7 +4,10 @@
 `ai_vectorizer/metadata.txt`이며, 실제 공개일은 QGIS plugin 저장소나 GitHub Release에
 같은 artifact를 게시한 날에만 기록합니다.
 
-## Unreleased
+## 0.1.9 — experimental release candidate
+
+QGIS 저장소의 승인 최신판 `0.1.8` 다음 패치 후보입니다. 업로드할 ZIP과 검증
+기록은 [릴리스 기록](docs/RELEASE_READINESS_0.1.9.md)에 결속합니다.
 
 ### Map series presets
 

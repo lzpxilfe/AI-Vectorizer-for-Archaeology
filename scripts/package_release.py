@@ -60,6 +60,7 @@ ZIP_COMPRESSION = zipfile.ZIP_STORED
 # repository.  A differing source build must never replace the local filename
 # unless the operator explicitly confirms the metadata version.
 FROZEN_RELEASE_SHA256 = {
+    "0.1.9": "340c3160b51fb851a3baa39262d50449872263391302a9fe4b254e126a3433f0",
     "0.1.8": "3ecc7fa813da24b6f2a6e227dbf33a87b243ccae2414f628f11f3f0ca0d674fe",
     "0.1.7": "a3f4eebf07b51febf3a6f9eeddc2213764c9fda407617611f1811bfbae72ba28",
     "0.1.5": "d2925198dc2192bbb7eebe579bb48207c860179a94d4216df77e746d0451789a",

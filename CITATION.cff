@@ -2,16 +2,15 @@ cff-version: 1.2.0
 message: "If you use this software in research, teaching, or applied GIS work, please cite it using the metadata below."
 type: software
 title: "ArchaeoTrace: Local-First AI-Assisted Contour Tracing and Historical Terrain Reconstruction for QGIS"
-version: 0.1.8
-date-released: 2026-11-23
-doi: "10.5281/zenodo.24526806"
+version: 0.1.9
+doi: "10.5281/zenodo.24364756"
 identifiers:
   - type: doi
     value: "10.5281/zenodo.24364756"
     description: "Zenodo concept DOI (resolves to the latest archived version)"
   - type: doi
     value: "10.5281/zenodo.24526806"
-    description: "Zenodo version DOI for v0.1.8"
+    description: "Zenodo version DOI for v0.1.8, the latest archived release"
   - type: doi
     value: "10.5281/zenodo.24364757"
     description: "Zenodo version DOI for v0.1.7"

@@ -6,7 +6,7 @@ name=ArchaeoTrace
 qgisMinimumVersion=3.22
 qgisMaximumVersion=4.99
 description=Local-first contour tracing for historical maps with optional AI assistance and experimental DEM reconstruction.
-version=0.1.8
+version=0.1.9
 author=lzpxilfe(balguljang2)
 email=lzpxilfe@gmail.com
 
@@ -40,10 +40,15 @@ repository=https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology
 # End of mandatory metadata
 
 # Recommended items:
-changelog=0.1.8
+changelog=0.1.9
+    - Added named presets for map series: save, apply, rename, delete, export and import the tracing settings, ink colour and contour interval (archaeotrace-trace-preset/1).
+    - Remembered the settings for each raster in the QGIS project and restored them when the map is chosen again.
+    - Suggested the next contour elevation from a contour interval; the user always confirms the value.
+    - Kept a sampled ink colour for the following traces until it is cleared.
+    - Experimental release candidate.
+    0.1.8
     - Listed DEM input checks before a build: missing elevation fields, a spot-height CRS that differs from the contours, unsaved edits and temporary layers.
     - Offered to save pending contour and spot-height edits instead of rejecting the build; declining leaves the edits unchanged.
-    - Experimental release candidate.
     0.1.7
     - Matched Shift/Ctrl manual preview and accepted geometry; retained existing elevations when resuming contours.
     - Required explicit custom elevation fields, rejected nonfinite DEM coordinates, and made the dock scrollable on small screens.

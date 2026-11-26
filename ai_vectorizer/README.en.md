@@ -6,11 +6,11 @@ ArchaeoTrace is a QGIS plugin for tracing contours from scanned maps and buildin
 a DEM and hillshade from their elevations. It proposes a green path for you to
 check and accept. Maps, geometry and model inference are processed locally.
 
-This guide accompanies the `0.1.8` experimental release candidate; the latest
-approved QGIS repository version is `0.1.7`. Its metadata targets QGIS
+This guide accompanies the `0.1.9` experimental release candidate; the latest
+approved QGIS repository version is `0.1.8`. Its metadata targets QGIS
 `3.22–4.99` and Python `3.8+` source compatibility; optional packages have their
 own Python requirements. See the
-[release record](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/docs/RELEASE_READINESS_0.1.8.md)
+[release record](https://github.com/lzpxilfe/AI-Vectorizer-for-Archaeology/blob/main/docs/RELEASE_READINESS_0.1.9.md)
 for the exact artifact and tested environments. Experimental features still need
 human review; the plugin has no established accuracy or time-saving guarantee.
 
@@ -26,7 +26,7 @@ human review; the plugin has no established accuracy or time-saving guarantee.
 Official QGIS repository releases can also be installed through the plugin
 manager after enabling **Show also experimental plugins**. They may differ from
 this source candidate. If you previously installed a development ZIP labelled
-`0.1.7` or `0.1.8`, check the new ZIP's metadata and hash: a version number alone
+`0.1.7`, `0.1.8` or `0.1.9`, check the new ZIP's metadata and hash: a version number alone
 does not identify those builds. Model caches are outside the plugin directory
 and are retained when the plugin is reinstalled.
 

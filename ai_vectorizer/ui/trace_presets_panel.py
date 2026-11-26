@@ -227,7 +227,8 @@ class TracePresetMixin:
         self.preset_group.setTitle(self._tr("지도 시리즈 설정 (프리셋)", "Map Series Settings (Presets)"))
         self.preset_desc.setText(self._tr(
             "같은 양식으로 인쇄된 도엽에 쓸 설정을 이름 붙여 저장합니다. 선 색상과 등고선 간격도 함께 저장됩니다.",
-            "Save the settings for sheets printed in the same style under a name, including the ink color and contour interval.",
+            "Save the settings for sheets printed in the same style under a name, "
+            "including the ink color and contour interval.",
         ))
         self.preset_apply_btn.setText(self._tr("적용", "Apply"))
         self.preset_save_btn.setText(self._tr("저장", "Save"))
